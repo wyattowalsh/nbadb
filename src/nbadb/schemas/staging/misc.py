@@ -1478,7 +1478,20 @@ class StagingVideoDetailsSchema(_VideoDetailsPassthroughSchema):
 
 
 class StagingVideoDetailsAssetSchema(_VideoDetailsPassthroughSchema):
-    pass
+    @classmethod
+    def to_schema(cls):
+        schema = super().to_schema()
+        source_overrides = {
+            "context_measure": "VideoDetailsAsset.ContextMeasure request",
+            "request_player_id": "VideoDetailsAsset.PlayerID request",
+            "request_team_id": "VideoDetailsAsset.TeamID request",
+            "request_season": "VideoDetailsAsset.Season request",
+            "request_season_type": "VideoDetailsAsset.SeasonType request",
+        }
+        for column_name, source in source_overrides.items():
+            column = schema.columns[column_name]
+            column.metadata = {**(column.metadata or {}), "source": source}
+        return schema
 
 
 class StagingVideoEventsSchema(_OpenPassthroughSchema):

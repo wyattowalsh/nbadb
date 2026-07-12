@@ -51,3 +51,28 @@ def test_video_schema_rejects_context_measure_outside_contract() -> None:
 
     with pytest.raises(SchemaError):
         schema.validate(_video_frame(context_measure="NOT_A_MEASURE"))
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        get_input_schema("stg_video_details_asset"),
+        get_output_schema("fact_video_details_asset"),
+    ],
+)
+def test_video_details_asset_effective_request_metadata_uses_asset_endpoint(
+    schema: type,
+) -> None:
+    assert schema is not None
+    columns = schema.to_schema().columns
+    expected_sources = {
+        "context_measure": "VideoDetailsAsset.ContextMeasure request",
+        "request_player_id": "VideoDetailsAsset.PlayerID request",
+        "request_team_id": "VideoDetailsAsset.TeamID request",
+        "request_season": "VideoDetailsAsset.Season request",
+        "request_season_type": "VideoDetailsAsset.SeasonType request",
+    }
+
+    assert {
+        column_name: columns[column_name].metadata["source"] for column_name in expected_sources
+    } == expected_sources

@@ -92,6 +92,19 @@ class TestBuildLineageGraph:
             "fk_ref": "dim_game.game_id",
         }
 
+    def test_video_details_asset_request_lineage_uses_asset_endpoint(self):
+        graph = LineageGenerator().build_lineage_graph()
+        columns = graph["fact_video_details_asset"]["columns"]
+
+        for column_name in (
+            "context_measure",
+            "request_player_id",
+            "request_team_id",
+            "request_season",
+            "request_season_type",
+        ):
+            assert columns[column_name]["endpoint"] == "VideoDetailsAsset"
+
 
 # ---------------------------------------------------------------------------
 # generate_mermaid

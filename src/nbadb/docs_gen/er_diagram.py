@@ -45,6 +45,7 @@ class ERDiagramGenerator:
     ) -> list[dict[str, str]]:
         """Extract FK relationships from schema metadata."""
         rels: list[dict[str, str]] = []
+        schema = schema_cls.to_schema()
         annotations = {}
         for cls in reversed(schema_cls.__mro__):
             annotations.update(getattr(cls, "__annotations__", {}))
@@ -52,17 +53,18 @@ class ERDiagramGenerator:
         for field_name in annotations:
             if field_name.startswith("_"):
                 continue
-            field_obj = getattr(schema_cls, field_name, None)
+            effective_name = getattr(schema_cls, field_name, field_name)
+            field_obj = schema.columns.get(effective_name)
             if field_obj is None:
                 continue
-            metadata = getattr(field_obj, "metadata", {}) or {}
+            metadata = field_obj.metadata or {}
             fk_ref = metadata.get("fk_ref", "")
             if fk_ref and "." in fk_ref:
                 ref_table, ref_col = fk_ref.split(".", 1)
                 rels.append(
                     {
                         "from_table": table_name,
-                        "from_col": field_name,
+                        "from_col": str(effective_name),
                         "to_table": ref_table,
                         "to_col": ref_col,
                     }
@@ -76,18 +78,23 @@ class ERDiagramGenerator:
         for cls in reversed(schema_cls.__mro__):
             annotations.update(getattr(cls, "__annotations__", {}))
 
+        schema = schema_cls.to_schema()
         for field_name, field_type in annotations.items():
             # Skip internal fields
             if field_name == "Config" or field_name.startswith("_"):
                 continue
+            effective_name = getattr(schema_cls, field_name, field_name)
+            field_obj = schema.columns.get(effective_name)
+            if field_obj is None:
+                continue
             type_str = str(field_type)
             if " | None" in type_str:
                 type_str = type_str.replace(" | None", "")
-            metadata = getattr(getattr(schema_cls, field_name, None), "metadata", {}) or {}
-            pk = "PK" if metadata.get("fk_ref", "") == "" and field_name.endswith("_id") else ""
+            metadata = field_obj.metadata or {}
+            pk = "PK" if metadata.get("primary_key") is True else ""
             fk = "FK" if metadata.get("fk_ref") else ""
             key = pk or fk
-            cols.append({"name": field_name, "type": type_str, "key": key})
+            cols.append({"name": str(effective_name), "type": type_str, "key": key})
         return cols
 
     def _family_from_table_name(self, table_name: str) -> str:
@@ -171,12 +178,17 @@ class ERDiagramGenerator:
                 lines.append(f"        {col['type']} {col['name']}{key_marker}")
             lines.append("    }")
 
-        seen_rels: set[tuple[str, str]] = set()
+        seen_rels: set[tuple[str, str, str, str]] = set()
         for rel in all_rels:
-            pair = (rel["from_table"], rel["to_table"])
-            if pair in seen_rels:
+            identity = (
+                rel["from_table"],
+                rel["from_col"],
+                rel["to_table"],
+                rel["to_col"],
+            )
+            if identity in seen_rels:
                 continue
-            seen_rels.add(pair)
+            seen_rels.add(identity)
             if rel["from_table"] in table_cols and rel["to_table"] in table_cols:
                 lines.append(
                     f'    {rel["to_table"]} ||--o{{ {rel["from_table"]} : "{rel["from_col"]}"'
@@ -228,12 +240,17 @@ class ERDiagramGenerator:
                 lines.append(f"        {col['type']} {col['name']}{key_marker}")
             lines.append("    }")
 
-        seen_rels: set[tuple[str, str]] = set()
+        seen_rels: set[tuple[str, str, str, str]] = set()
         for rel in all_rels:
-            pair = (rel["from_table"], rel["to_table"])
-            if pair in seen_rels:
+            identity = (
+                rel["from_table"],
+                rel["from_col"],
+                rel["to_table"],
+                rel["to_col"],
+            )
+            if identity in seen_rels:
                 continue
-            seen_rels.add(pair)
+            seen_rels.add(identity)
             if rel["from_table"] in table_cols and rel["to_table"] in table_cols:
                 lines.append(
                     f'    {rel["to_table"]} ||--o{{ {rel["from_table"]} : "{rel["from_col"]}"'

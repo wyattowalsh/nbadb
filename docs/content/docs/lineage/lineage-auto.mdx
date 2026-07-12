@@ -77,6 +77,7 @@ flowchart LR
     TeamGameStreakFinder[TeamGameStreakFinder]:::endpoint
     TeamInfoCommon[TeamInfoCommon]:::endpoint
     VideoDetails[VideoDetails]:::endpoint
+    VideoDetailsAsset[VideoDetailsAsset]:::endpoint
     WinProbabilityPBP[WinProbabilityPBP]:::endpoint
     literal[literal]:::endpoint
     nba_api_response_resultSets[nba_api.response.resultSets]:::endpoint
@@ -709,7 +710,7 @@ flowchart LR
     TeamInfoCommon --> dim_team_extended
     TeamInfoCommon --> dim_team_history
     VideoDetails --> fact_video_details
-    VideoDetails --> fact_video_details_asset
+    VideoDetailsAsset --> fact_video_details_asset
     WinProbabilityPBP --> fact_win_prob_pbp
     WinProbabilityPBP --> fact_win_probability
     literal --> agg_on_off_splits

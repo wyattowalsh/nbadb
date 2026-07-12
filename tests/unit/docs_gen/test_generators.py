@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pandera.polars as pa
+
 from nbadb.docs_gen.data_dictionary import DataDictionaryGenerator
 from nbadb.docs_gen.er_diagram import ERDiagramGenerator
 from nbadb.docs_gen.lineage import LineageGenerator
 from nbadb.docs_gen.schema_docs import SchemaDocsGenerator
+from nbadb.schemas.base import BaseSchema
 from nbadb.schemas.registry import _staging_schema_registry, _star_schema_registry
 
 if TYPE_CHECKING:
@@ -126,6 +129,71 @@ class TestERDiagramGenerator:
         gen = ERDiagramGenerator()
         content = gen.generate_mdx()
         assert "title:" in content
+
+    def test_video_details_columns_use_effective_inherited_metadata(self) -> None:
+        tables = ERDiagramGenerator().generate_json()["tables"]
+
+        for table_name in ("fact_video_details", "fact_video_details_asset"):
+            columns = {column["name"]: column for column in tables[table_name]["columns"]}
+            assert columns["request_player_id"]["key"] == "FK"
+            assert columns["request_team_id"]["key"] == "FK"
+
+    def test_dynamic_video_tables_have_no_fabricated_primary_keys(self) -> None:
+        tables = ERDiagramGenerator().generate_json()["tables"]
+
+        for table_name in (
+            "fact_video_details",
+            "fact_video_details_asset",
+            "fact_video_events",
+            "fact_video_events_asset",
+            "fact_video_status",
+        ):
+            assert all(column["key"] != "PK" for column in tables[table_name]["columns"])
+
+        video_status_columns = {
+            column["name"]: column for column in tables["fact_video_status"]["columns"]
+        }
+        assert video_status_columns["visitor_team_id"]["key"] == ""
+
+    def test_primary_keys_require_explicit_metadata(self) -> None:
+        class ExplicitKeySchema(BaseSchema):
+            record_id: int = pa.Field(metadata={"primary_key": True})
+            related_id: int = pa.Field()
+
+        columns = {
+            column["name"]: column
+            for column in ERDiagramGenerator()._extract_columns(ExplicitKeySchema)
+        }
+
+        assert columns["record_id"]["key"] == "PK"
+        assert columns["related_id"]["key"] == ""
+
+    def test_video_details_relationships_include_player_and_team_foreign_keys(self) -> None:
+        tables = ERDiagramGenerator().generate_json()["tables"]
+        expected = {
+            ("request_player_id", "dim_player", "player_id"),
+            ("request_team_id", "dim_team", "team_id"),
+        }
+
+        for table_name in ("fact_video_details", "fact_video_details_asset"):
+            relationships = {
+                (relationship["from_col"], relationship["to_table"], relationship["to_col"])
+                for relationship in tables[table_name]["relationships"]
+            }
+            assert relationships == expected
+
+    def test_mermaid_preserves_multiple_foreign_keys_between_same_tables(self) -> None:
+        content = ERDiagramGenerator().generate_mermaid()
+
+        assert 'dim_team ||--o{ fact_game_result : "home_team_id"' in content
+        assert 'dim_team ||--o{ fact_game_result : "visitor_team_id"' in content
+
+    def test_effective_pandera_aliases_are_emitted(self) -> None:
+        tables = ERDiagramGenerator().generate_json()["tables"]
+        columns = {column["name"] for column in tables["fact_player_matchups_detail"]["columns"]}
+
+        assert "l" in columns
+        assert "losses" not in columns
 
 
 # ---------------------------------------------------------------------------

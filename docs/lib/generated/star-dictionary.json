@@ -52350,7 +52350,7 @@
         "nullable": false,
         "description": "Requested video event measure",
         "description_source": "metadata",
-        "source": "VideoDetails.ContextMeasure request",
+        "source": "VideoDetailsAsset.ContextMeasure request",
         "fk_ref": ""
       },
       {
@@ -52386,7 +52386,7 @@
         "nullable": false,
         "description": "Player identifier used for the request",
         "description_source": "metadata",
-        "source": "VideoDetails.PlayerID request",
+        "source": "VideoDetailsAsset.PlayerID request",
         "fk_ref": "dim_player.player_id"
       },
       {
@@ -52395,7 +52395,7 @@
         "nullable": false,
         "description": "Team identifier used for the request",
         "description_source": "metadata",
-        "source": "VideoDetails.TeamID request",
+        "source": "VideoDetailsAsset.TeamID request",
         "fk_ref": "dim_team.team_id"
       },
       {
@@ -52404,7 +52404,7 @@
         "nullable": false,
         "description": "Season used for the request",
         "description_source": "metadata",
-        "source": "VideoDetails.Season request",
+        "source": "VideoDetailsAsset.Season request",
         "fk_ref": ""
       },
       {
@@ -52413,7 +52413,7 @@
         "nullable": false,
         "description": "Season type used for the request",
         "description_source": "metadata",
-        "source": "VideoDetails.SeasonType request",
+        "source": "VideoDetailsAsset.SeasonType request",
         "fk_ref": ""
       }
     ]

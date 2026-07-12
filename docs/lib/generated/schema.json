@@ -3,7 +3,7 @@
     "agg_all_time_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -44,12 +44,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_clutch_stats": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -95,12 +101,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_game_totals": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "int"
         },
@@ -120,12 +132,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "away_team_id",
           "type": "int"
         },
@@ -176,12 +188,28 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_league_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -267,17 +295,23 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_lineup_efficiency": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "group_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -313,7 +347,13 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_on_off_splits": {
       "columns": [
@@ -323,12 +363,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "entity_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -389,12 +429,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_player_bio": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -404,7 +450,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -515,12 +561,23 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_player_career": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -596,17 +653,23 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_player_rolling": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -662,17 +725,28 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_player_season": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -843,17 +917,28 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_player_season_advanced": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -944,17 +1029,28 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_player_season_per36": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1010,17 +1106,28 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_player_season_per48": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1076,12 +1183,23 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_shot_location_season": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -1102,12 +1220,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_shot_zones": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -1153,12 +1277,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "agg_team_defense": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1234,12 +1364,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_team_franchise": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1320,12 +1456,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_team_pace_and_efficiency": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1366,12 +1508,18 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "agg_team_season": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1437,7 +1585,13 @@
         }
       ],
       "family": "agg",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_clutch_performance": {
       "columns": [
@@ -1542,12 +1696,12 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1603,12 +1757,23 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_draft_value": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -1633,7 +1798,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -1704,12 +1869,23 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_game_summary": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -1739,7 +1915,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
@@ -1754,7 +1930,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "away_team_id",
           "type": "int"
         },
@@ -1850,17 +2026,33 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_head_to_head": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "opponent_team_id",
           "type": "int"
         },
@@ -1911,7 +2103,18 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "opponent_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_league_benchmarks": {
       "columns": [
@@ -2237,17 +2440,17 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -2288,12 +2491,28 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_player_general_splits": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -2489,17 +2708,23 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "analytics_player_impact": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -2645,22 +2870,33 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_player_matchup": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -2751,12 +2987,28 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "analytics_player_season_complete": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -2771,7 +3023,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -2937,22 +3189,33 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_shooting_efficiency": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3028,7 +3291,23 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_team_game_complete": {
       "columns": [
@@ -3248,12 +3527,12 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -3279,12 +3558,23 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "analytics_team_general_splits": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3485,12 +3775,18 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "analytics_team_season_summary": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3586,17 +3882,23 @@
         }
       ],
       "family": "analytics",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "bridge_game_official": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "official_id",
           "type": "int"
         },
@@ -3607,17 +3909,28 @@
         }
       ],
       "family": "bridge",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "official_id",
+          "to_col": "official_id",
+          "to_table": "dim_official"
+        }
+      ]
     },
     "bridge_game_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3638,22 +3951,33 @@
         }
       ],
       "family": "bridge",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "bridge_lineup_player": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "group_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3669,7 +3993,23 @@
         }
       ],
       "family": "bridge",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "group_id",
+          "to_col": "group_id",
+          "to_table": "fact_lineup_stats"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "bridge_live_box_score_official": {
       "columns": [
@@ -3694,23 +4034,34 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         }
       ],
       "family": "bridge",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "bridge_play_player": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -3720,12 +4071,12 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3736,17 +4087,33 @@
         }
       ],
       "family": "bridge",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "bridge_player_team_season": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3767,12 +4134,23 @@
         }
       ],
       "family": "bridge",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "dim_all_players": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "person_id",
           "type": "int"
         },
@@ -3807,7 +4185,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -3838,12 +4216,18 @@
         }
       ],
       "family": "dim",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "dim_arena": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "arena_id",
           "type": "int"
         },
@@ -3874,17 +4258,17 @@
     "dim_coach": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "coach_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "",
+          "key": "FK",
           "name": "season_year",
           "type": "str"
         },
@@ -3910,12 +4294,23 @@
         }
       ],
       "family": "dim",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "season_year",
+          "to_col": "season_year",
+          "to_table": "dim_season"
+        }
+      ]
     },
     "dim_college": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "college_id",
           "type": "int"
         },
@@ -3987,12 +4382,12 @@
     "dim_defunct_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "team_id",
           "type": "int"
         },
@@ -4068,7 +4463,7 @@
     "dim_game": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "game_id",
           "type": "str"
         },
@@ -4088,12 +4483,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -4114,12 +4509,23 @@
         }
       ],
       "family": "dim",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "dim_official": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "official_id",
           "type": "int"
         },
@@ -4145,7 +4551,7 @@
     "dim_play_event_type": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "event_type_id",
           "type": "int"
         },
@@ -4171,7 +4577,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "player_id",
           "type": "int"
         },
@@ -4196,7 +4602,7 @@
           "type": "bool"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -4231,7 +4637,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "college_id",
           "type": "int"
         },
@@ -4277,12 +4683,23 @@
         }
       ],
       "family": "dim",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "college_id",
+          "to_col": "college_id",
+          "to_table": "dim_college"
+        }
+      ]
     },
     "dim_schedule_int": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "game_id",
           "type": "str"
         },
@@ -4292,7 +4709,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
@@ -4377,7 +4794,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "home_team_id",
           "type": "int"
         },
@@ -4412,7 +4829,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "away_team_id",
           "type": "int"
         },
@@ -4519,7 +4936,7 @@
     "dim_season_phase": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "phase_id",
           "type": "int"
         },
@@ -4540,7 +4957,7 @@
     "dim_season_week": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
@@ -4566,7 +4983,7 @@
     "dim_shot_zone": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "zone_id",
           "type": "int"
         },
@@ -4592,7 +5009,7 @@
     "dim_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "team_id",
           "type": "int"
         },
@@ -4643,7 +5060,7 @@
     "dim_team_extended": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -4774,7 +5191,13 @@
         }
       ],
       "family": "dim",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "dim_team_history": {
       "columns": [
@@ -4784,7 +5207,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -4809,7 +5232,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
@@ -4830,7 +5253,13 @@
         }
       ],
       "family": "dim",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_assist_leaders": {
       "columns": [
@@ -4840,7 +5269,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -4861,7 +5290,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_assist_tracker": {
       "columns": [
@@ -4877,12 +5312,12 @@
     "fact_box_score_advanced_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5028,17 +5463,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_defensive_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5069,22 +5515,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_four_factors": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -5130,17 +5587,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_box_score_four_factors_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5211,17 +5684,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_hustle_player": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5246,7 +5730,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -5377,17 +5861,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_box_score_misc_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5478,17 +5978,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_player_track_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5614,17 +6125,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_scoring_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5730,17 +6252,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_starter_bench": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5866,12 +6399,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_summary_v3": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -5881,17 +6425,17 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "away_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -5906,7 +6450,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -5916,7 +6460,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "arena_id",
           "type": "int"
         },
@@ -5982,12 +6526,43 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "arena_id",
+          "to_col": "arena_id",
+          "to_table": "dim_arena"
+        }
+      ]
     },
     "fact_box_score_summary_v3_available_video": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -6023,12 +6598,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_box_score_summary_v3_game_info": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -6049,12 +6630,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_box_score_summary_v3_game_summary": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -6094,12 +6681,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "away_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
@@ -6120,22 +6707,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_summary_v3_inactive_players": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -6156,7 +6759,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_box_score_summary_v3_last_five_meetings": {
       "columns": [
@@ -6166,7 +6785,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -6191,7 +6810,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "away_team_id",
           "type": "int"
         },
@@ -6226,7 +6845,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
@@ -6262,17 +6881,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_summary_v3_line_score": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -6333,17 +6968,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_summary_v3_officials": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -6374,17 +7020,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_box_score_summary_v3_other_stats": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -6510,17 +7167,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -6646,17 +7314,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_box_score_usage_team": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -6777,7 +7456,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_college_rollup": {
       "columns": [
@@ -6948,12 +7638,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -6973,7 +7663,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -7279,7 +7969,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_cumulative_stats_detail": {
       "columns": [
@@ -7314,12 +8020,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -7339,7 +8045,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -7640,7 +8346,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_defense_hub": {
       "columns": [
@@ -7650,7 +8372,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -7676,7 +8398,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_defense_hub_detail": {
       "columns": [
@@ -7691,7 +8419,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -7717,17 +8445,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_draft": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -7773,12 +8507,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_draft_board": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -7808,7 +8553,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -7869,12 +8614,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_draft_combine_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -7900,7 +8656,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_draft_combine_drill_results": {
       "columns": [
@@ -7910,12 +8672,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "temp_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -7971,7 +8733,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_draft_combine_non_stationary_shooting": {
       "columns": [
@@ -7981,12 +8749,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "temp_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -8132,7 +8900,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_draft_combine_player_anthro": {
       "columns": [
@@ -8142,12 +8916,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "temp_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -8233,7 +9007,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_draft_combine_spot_shooting": {
       "columns": [
@@ -8243,12 +9023,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "temp_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -8499,7 +9279,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_draft_combine_stats": {
       "columns": [
@@ -8509,7 +9295,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -8740,12 +9526,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_draft_history": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -8780,7 +9572,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -8816,12 +9608,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_dunk_score_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -8832,12 +9635,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_fantasy": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -8847,7 +9656,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9018,12 +9827,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_fantasy_widget": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -9033,7 +9853,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9129,17 +9949,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_franchise_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
@@ -9149,7 +9980,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -9264,7 +10095,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "pts_person_id",
           "type": "int"
         },
@@ -9274,7 +10105,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "ast_person_id",
           "type": "int"
         },
@@ -9284,7 +10115,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "reb_person_id",
           "type": "int"
         },
@@ -9294,7 +10125,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "blk_person_id",
           "type": "int"
         },
@@ -9304,7 +10135,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "stl_person_id",
           "type": "int"
         },
@@ -9320,12 +10151,48 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "pts_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "ast_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "reb_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "blk_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "stl_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_franchise_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9335,7 +10202,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "pts_person_id",
           "type": "int"
         },
@@ -9350,7 +10217,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "ast_person_id",
           "type": "int"
         },
@@ -9365,7 +10232,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "reb_person_id",
           "type": "int"
         },
@@ -9380,7 +10247,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "blk_person_id",
           "type": "int"
         },
@@ -9395,7 +10262,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "stl_person_id",
           "type": "int"
         },
@@ -9406,17 +10273,48 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "pts_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "ast_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "reb_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "blk_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "stl_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_franchise_players": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9426,7 +10324,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -9542,12 +10440,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_game_context": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -9572,17 +10481,17 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "visitor_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9602,7 +10511,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -9657,7 +10566,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "last_game_id",
           "type": "str"
         },
@@ -9703,17 +10612,43 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_game_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9723,7 +10658,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -9769,12 +10704,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_game_result": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -9794,12 +10745,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -9890,17 +10841,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_game_scoring": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9926,12 +10893,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_gl_alum_similarity": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "person_2_id",
           "type": "int"
         },
@@ -9941,7 +10919,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -9952,7 +10930,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_gravity_leaders": {
       "columns": [
@@ -9983,7 +10967,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10009,7 +10993,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_homepage_detail": {
       "columns": [
@@ -10024,7 +11014,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10050,7 +11040,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_homepage_leaders": {
       "columns": [
@@ -10065,7 +11061,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10121,7 +11117,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_homepage_leaders_detail": {
       "columns": [
@@ -10136,7 +11138,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10192,12 +11194,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_hustle_availability": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -10207,7 +11215,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10222,7 +11230,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -10333,12 +11341,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_infographic_fanduel_player": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -10348,7 +11372,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10504,12 +11528,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_ist_standings": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
@@ -10519,7 +11554,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10775,12 +11810,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_leaders_tiles": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10811,7 +11852,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_leaders_tiles_detail": {
       "columns": [
@@ -10826,7 +11873,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -10857,12 +11904,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_dash_player_stats": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -10872,7 +11925,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -11188,12 +12241,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_dash_team_stats": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -11474,17 +12538,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_game_finder": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -11499,7 +12569,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -11620,7 +12690,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_league_hustle": {
       "columns": [
@@ -11630,12 +12711,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -11666,12 +12747,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -11697,7 +12789,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_league_leaders_detail": {
       "columns": [
@@ -11707,7 +12805,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -11732,7 +12830,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -11878,12 +12976,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_lineup_viz": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "group_id",
           "type": "str"
         },
@@ -11893,7 +13002,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12004,7 +13113,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_opp_pt_shot": {
       "columns": [
@@ -12014,7 +13129,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -12024,7 +13139,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12145,7 +13260,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_player_pt_shot": {
       "columns": [
@@ -12155,7 +13281,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -12165,7 +13291,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12290,7 +13416,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_last_team_id",
           "type": "int"
         },
@@ -12301,7 +13427,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_last_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_player_shot_locations": {
       "columns": [
@@ -12311,7 +13453,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -12321,7 +13463,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12472,17 +13614,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_pt_defend": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12538,7 +13691,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_pt_shots": {
       "columns": [
@@ -12548,7 +13712,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -12558,7 +13722,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12684,7 +13848,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_pt_stats": {
       "columns": [
@@ -12694,7 +13869,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -12704,7 +13879,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -12880,7 +14055,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_pt_team_defend": {
       "columns": [
@@ -12890,7 +14076,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -12900,7 +14086,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -13051,12 +14237,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_shot_locations": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -13207,12 +14404,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_team_clutch": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -13498,7 +14701,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_team_pt_shot": {
       "columns": [
@@ -13508,7 +14717,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -13518,7 +14727,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -13639,12 +14848,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_league_team_shot_locations": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -13795,7 +15015,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_lineup_stats": {
       "columns": [
@@ -13805,7 +15031,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "group_id",
           "type": "str"
         },
@@ -13815,7 +15041,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -13941,7 +15167,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_live_box_score_arena": {
       "columns": [
@@ -13966,7 +15198,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -13977,7 +15209,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_live_box_score_game": {
       "columns": [
@@ -14002,7 +15240,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -14018,7 +15256,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_live_box_score_player": {
       "columns": [
@@ -14048,12 +15292,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -14064,7 +15308,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_live_box_score_team": {
       "columns": [
@@ -14094,12 +15349,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -14110,7 +15365,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_live_odds": {
       "columns": [
@@ -14135,13 +15401,19 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_live_play_by_play": {
       "columns": [
@@ -14166,7 +15438,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -14186,12 +15458,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -14231,13 +15503,29 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "action_id",
           "type": "int"
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_live_score_board": {
       "columns": [
@@ -14262,7 +15550,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -14278,32 +15566,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_matchup": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "def_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "def_team_id",
           "type": "int"
         },
@@ -14364,7 +15658,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "def_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "def_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_on_off_detail": {
       "columns": [
@@ -14379,7 +15699,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -14399,7 +15719,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -14440,12 +15760,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_play_by_play": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -14505,32 +15836,32 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player1_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player1_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player2_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player2_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player3_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player3_team_id",
           "type": "int"
         },
@@ -14546,12 +15877,48 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player1_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "player1_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player2_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "player2_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player3_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "player3_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_play_by_play_v2": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "game_id",
           "type": "str"
         },
@@ -14616,7 +15983,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player1_id",
           "type": "int"
         },
@@ -14626,7 +15993,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player1_team_id",
           "type": "int"
         },
@@ -14651,7 +16018,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player2_id",
           "type": "int"
         },
@@ -14661,7 +16028,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player2_team_id",
           "type": "int"
         },
@@ -14686,7 +16053,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player3_id",
           "type": "int"
         },
@@ -14696,7 +16063,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player3_team_id",
           "type": "int"
         },
@@ -14722,7 +16089,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player1_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "player1_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player2_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "player2_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player3_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "player3_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_play_by_play_v2_video": {
       "columns": [
@@ -14749,7 +16147,7 @@
     "fact_player_available_seasons": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         }
@@ -14760,7 +16158,7 @@
     "fact_player_awards": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -14816,7 +16214,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_career": {
       "columns": [
@@ -14926,27 +16330,27 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "organization_id",
           "type": "int"
         },
@@ -14972,7 +16376,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_clutch_detail": {
       "columns": [
@@ -15287,7 +16702,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -15308,7 +16723,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_clutch_overall": {
       "columns": [
@@ -15623,7 +17044,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -15639,7 +17060,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_game_splits_overall": {
       "columns": [
@@ -15954,7 +17381,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -15970,7 +17397,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_general_splits_overall": {
       "columns": [
@@ -16285,7 +17718,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -16301,7 +17734,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_last_n_overall": {
       "columns": [
@@ -16616,7 +18055,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -16632,7 +18071,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_shooting_overall": {
       "columns": [
@@ -16797,7 +18242,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -16813,7 +18258,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_team_perf_overall": {
       "columns": [
@@ -17128,7 +18579,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -17144,7 +18595,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_dashboard_yoy_overall": {
       "columns": [
@@ -17449,7 +18906,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17474,7 +18931,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -17490,17 +18947,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_estimated_metrics": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17581,12 +19049,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_fantasy_profile_last_five_games_avg": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -17596,7 +19075,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17662,12 +19141,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_fantasy_profile_season_avg": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -17677,7 +19167,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17743,22 +19233,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_game_advanced": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17849,22 +19350,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_game_hustle": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17920,12 +19437,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_game_log": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
@@ -17935,7 +19468,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -17945,7 +19478,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -17960,7 +19493,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -18261,22 +19794,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_player_game_misc": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -18392,7 +19941,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_game_splits_detail": {
       "columns": [
@@ -18707,7 +20272,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -18728,22 +20293,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_game_tracking": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -18854,22 +20425,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_game_traditional": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -18990,7 +20577,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_general_splits_detail": {
       "columns": [
@@ -19305,7 +20908,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -19326,12 +20929,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_headline_stats": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -19367,12 +20976,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_index": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -19392,7 +21007,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -19503,7 +21118,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_last_n_detail": {
       "columns": [
@@ -19818,7 +21444,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -19839,7 +21465,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_matchups": {
       "columns": [
@@ -19859,7 +21491,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -19869,7 +21501,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -19895,7 +21527,7 @@
         },
         {
           "key": "",
-          "name": "losses",
+          "name": "l",
           "type": "int"
         },
         {
@@ -20025,7 +21657,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_matchups_detail": {
       "columns": [
@@ -20055,7 +21698,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -20065,7 +21708,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -20091,7 +21734,7 @@
         },
         {
           "key": "",
-          "name": "losses",
+          "name": "l",
           "type": "int"
         },
         {
@@ -20226,12 +21869,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_matchups_player_info": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -20287,7 +21941,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_matchups_shot_detail": {
       "columns": [
@@ -20312,7 +21972,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -20322,7 +21982,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -20363,12 +22023,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_next_games": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -20388,7 +22059,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "player_team_id",
           "type": "int"
         },
@@ -20408,7 +22079,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "vs_team_id",
           "type": "int"
         },
@@ -20428,12 +22099,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -20484,17 +22155,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_profile": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -20514,7 +22196,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "vs_team_id",
           "type": "int"
         },
@@ -20539,7 +22221,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "player_team_id",
           "type": "int"
         },
@@ -20584,17 +22266,17 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -20604,7 +22286,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "organization_id",
           "type": "int"
         },
@@ -20825,12 +22507,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_pt_pass": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -20845,7 +22543,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -20875,7 +22573,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "pass_teammate_player_id",
           "type": "int"
         },
@@ -20886,7 +22584,7 @@
         },
         {
           "key": "",
-          "name": "pass_",
+          "name": "pass",
           "type": "int"
         },
         {
@@ -20946,12 +22644,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "pass_teammate_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_pt_reb_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -21067,12 +22781,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_pt_shot_defend": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "close_def_person_id",
           "type": "int"
         },
@@ -21128,12 +22848,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "close_def_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_pt_shots_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -21259,17 +22985,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_pt_tracking": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "close_def_person_id",
           "type": "int"
         },
@@ -21289,7 +23021,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -21324,7 +23056,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "pass_teammate_player_id",
           "type": "int"
         },
@@ -21335,7 +23067,7 @@
         },
         {
           "key": "",
-          "name": "pass_",
+          "name": "pass",
           "type": "int"
         },
         {
@@ -21570,27 +23302,48 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "close_def_person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "pass_teammate_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_season_ranks": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -21716,7 +23469,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_player_shooting_splits_detail": {
       "columns": [
@@ -21731,7 +23495,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -21897,7 +23661,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_splits": {
       "columns": [
@@ -22277,7 +24047,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -22302,7 +24072,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -22318,7 +24088,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_team_perf_detail": {
       "columns": [
@@ -22643,7 +24424,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -22664,7 +24445,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_player_yoy_detail": {
       "columns": [
@@ -22969,7 +24756,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -22994,7 +24781,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -23015,7 +24802,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_playoff_picture": {
       "columns": [
@@ -23035,7 +24833,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "high_seed_team_id",
           "type": "int"
         },
@@ -23050,7 +24848,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "low_seed_team_id",
           "type": "int"
         },
@@ -23085,7 +24883,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -23275,42 +25073,42 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_1_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_2_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_3_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_4_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_5_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_6_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_7_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "seeding_game_8_id",
           "type": "str"
         },
@@ -23396,22 +25194,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_playoff_series": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "series_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -23421,12 +25225,12 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "away_team_id",
           "type": "int"
         },
@@ -23452,22 +25256,38 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_rotation": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -23503,12 +25323,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_scoreboard_available": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -23519,22 +25355,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_scoreboard_conference_standings": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
@@ -23565,7 +25407,7 @@
         },
         {
           "key": "",
-          "name": "losses",
+          "name": "l",
           "type": "int"
         },
         {
@@ -23595,12 +25437,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -23610,7 +25458,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -23630,12 +25478,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -23656,12 +25504,12 @@
         },
         {
           "key": "",
-          "name": "wins",
+          "name": "w",
           "type": "int"
         },
         {
           "key": "",
-          "name": "losses",
+          "name": "l",
           "type": "int"
         },
         {
@@ -23710,17 +25558,17 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "pts_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "reb_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "ast_player_id",
           "type": "int"
         },
@@ -23741,7 +25589,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_game_header": {
       "columns": [
@@ -23756,12 +25625,12 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "game_status_id",
           "type": "int"
         },
@@ -23776,12 +25645,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -23832,17 +25701,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_last_meeting": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "last_game_id",
           "type": "str"
         },
@@ -23852,7 +25737,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "last_game_home_team_id",
           "type": "int"
         },
@@ -23877,7 +25762,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "last_game_visitor_team_id",
           "type": "int"
         },
@@ -23903,7 +25788,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "last_game_home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "last_game_visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_line_score": {
       "columns": [
@@ -23918,12 +25819,12 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -24054,22 +25955,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_series_standings": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -24100,17 +26012,33 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "visitor_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_team_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -24130,7 +26058,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "pts_player_id",
           "type": "int"
         },
@@ -24145,7 +26073,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "reb_player_id",
           "type": "int"
         },
@@ -24160,7 +26088,7 @@
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "ast_player_id",
           "type": "int"
         },
@@ -24176,12 +26104,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_ticket_links": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -24192,7 +26131,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_scoreboard_v3": {
       "columns": [
@@ -24202,7 +26147,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
@@ -24212,7 +26157,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -24222,7 +26167,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -24247,7 +26192,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -24273,12 +26218,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_scoreboard_v3_broadcaster": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -24288,7 +26249,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "broadcaster_id",
           "type": "int"
         },
@@ -24298,7 +26259,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "broadcaster_team_id",
           "type": "int"
         },
@@ -24309,12 +26270,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "broadcaster_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_v3_game_summary": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -24405,17 +26377,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_scoreboard_v3_line_score": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -24471,7 +26449,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_scoreboard_v3_metadata": {
       "columns": [
@@ -24481,7 +26470,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
@@ -24497,12 +26486,12 @@
     "fact_scoreboard_v3_team_leaders": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -24512,7 +26501,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "person_id",
           "type": "int"
         },
@@ -24563,12 +26552,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "person_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_scoreboard_win_probability": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -24584,17 +26589,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_season_matchups": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "off_player_id",
           "type": "int"
         },
@@ -24604,7 +26615,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "def_player_id",
           "type": "int"
         },
@@ -24740,17 +26751,17 @@
     "fact_shot_chart": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -24821,7 +26832,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_shot_chart_league": {
       "columns": [
@@ -24918,17 +26945,17 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "game_event_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -24938,7 +26965,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -25033,7 +27060,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "group_id",
           "type": "str"
         },
@@ -25049,12 +27076,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_standings": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -25150,7 +27193,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_static_players": {
       "columns": [
@@ -25237,7 +27286,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -25247,7 +27296,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -25293,17 +27342,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_synergy": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -25389,12 +27449,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_available_seasons": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         }
@@ -25453,7 +27524,7 @@
     "fact_team_background": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -25509,7 +27580,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_dashboard_general_overall": {
       "columns": [
@@ -25981,7 +28058,7 @@
     "fact_team_estimated_metrics": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -26057,17 +28134,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_game": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -26188,17 +28271,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_game_hustle": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -26304,17 +28398,28 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_game_log": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -26329,7 +28434,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -26470,7 +28575,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_team_general_splits_detail": {
       "columns": [
@@ -26806,18 +28922,24 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_history_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -26843,7 +28965,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_hof": {
       "columns": [
@@ -26889,7 +29017,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "group_id",
           "type": "str"
         },
@@ -27164,7 +29292,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -27180,7 +29308,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_lineups_overall": {
       "columns": [
@@ -27190,7 +29324,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "group_id",
           "type": "str"
         },
@@ -27761,7 +29895,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -27791,7 +29925,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -27806,7 +29940,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -27837,7 +29971,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_team_matchups_detail": {
       "columns": [
@@ -27872,7 +30022,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -27887,7 +30037,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -27897,7 +30047,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -27923,7 +30073,7 @@
         },
         {
           "key": "",
-          "name": "losses",
+          "name": "l",
           "type": "int"
         },
         {
@@ -28213,7 +30363,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_team_matchups_shot_detail": {
       "columns": [
@@ -28238,7 +30404,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -28253,7 +30419,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "vs_player_id",
           "type": "int"
         },
@@ -28294,7 +30460,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_team_player_dashboard": {
       "columns": [
@@ -28589,7 +30766,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -28610,12 +30787,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_team_pt_reb_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -28706,12 +30889,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_pt_shots_detail": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -28807,7 +30996,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_pt_tracking": {
       "columns": [
@@ -28817,7 +31012,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -28847,7 +31042,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "pass_teammate_player_id",
           "type": "int"
         },
@@ -28858,7 +31053,7 @@
         },
         {
           "key": "",
-          "name": "pass_",
+          "name": "pass",
           "type": "int"
         },
         {
@@ -29013,7 +31208,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "pass_teammate_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_team_retired": {
       "columns": [
@@ -29054,17 +31260,17 @@
     "fact_team_season_ranks": {
       "columns": [
         {
-          "key": "PK",
+          "key": "",
           "name": "league_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "season_id",
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -29115,7 +31321,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_team_shooting_splits_detail": {
       "columns": [
@@ -29270,7 +31482,7 @@
           "type": "float"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
@@ -29301,7 +31513,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
     },
     "fact_team_social_sites": {
       "columns": [
@@ -29698,7 +31916,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -29744,17 +31962,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_tracking_defense": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "team_id",
           "type": "int"
         },
@@ -29810,7 +32034,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_video_details": {
       "columns": [
@@ -29845,12 +32080,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "request_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "request_team_id",
           "type": "int"
         },
@@ -29866,7 +32101,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "request_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "request_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_video_details_asset": {
       "columns": [
@@ -29901,12 +32147,12 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "request_player_id",
           "type": "int"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "request_team_id",
           "type": "int"
         },
@@ -29922,7 +32168,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "request_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "request_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_video_events": {
       "columns": [],
@@ -29937,7 +32194,7 @@
     "fact_video_status": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -29947,7 +32204,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "",
           "name": "visitor_team_id",
           "type": "int"
         },
@@ -29967,7 +32224,7 @@
           "type": "str"
         },
         {
-          "key": "PK",
+          "key": "FK",
           "name": "home_team_id",
           "type": "int"
         },
@@ -30008,12 +32265,23 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_win_prob_pbp": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -30089,12 +32357,18 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     },
     "fact_win_probability": {
       "columns": [
         {
-          "key": "PK",
+          "key": "FK",
           "name": "game_id",
           "type": "str"
         },
@@ -30145,7 +32419,13 @@
         }
       ],
       "family": "fact",
-      "relationships": []
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        }
+      ]
     }
   }
 }

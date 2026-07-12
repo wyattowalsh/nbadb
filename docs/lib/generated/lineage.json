@@ -32626,7 +32626,7 @@
       "class": "FactVideoDetailsAssetSchema",
       "columns": {
         "context_measure": {
-          "endpoint": "VideoDetails",
+          "endpoint": "VideoDetailsAsset",
           "field": "ContextMeasure request",
           "result_set": ""
         },
@@ -32641,23 +32641,23 @@
           "result_set": "core"
         },
         "request_player_id": {
-          "endpoint": "VideoDetails",
+          "endpoint": "VideoDetailsAsset",
           "field": "PlayerID request",
           "fk_ref": "dim_player.player_id",
           "result_set": ""
         },
         "request_season": {
-          "endpoint": "VideoDetails",
+          "endpoint": "VideoDetailsAsset",
           "field": "Season request",
           "result_set": ""
         },
         "request_season_type": {
-          "endpoint": "VideoDetails",
+          "endpoint": "VideoDetailsAsset",
           "field": "SeasonType request",
           "result_set": ""
         },
         "request_team_id": {
-          "endpoint": "VideoDetails",
+          "endpoint": "VideoDetailsAsset",
           "field": "TeamID request",
           "fk_ref": "dim_team.team_id",
           "result_set": ""
