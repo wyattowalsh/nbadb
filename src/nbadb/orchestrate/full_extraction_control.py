@@ -4264,6 +4264,36 @@ def _metadata_contract_blocked_lane_ids(
     }
 
 
+def _artifact_ancestor_components(
+    *,
+    db_path: Path,
+    artifacts_dir: Path,
+) -> tuple[str, ...]:
+    try:
+        relative_parent = db_path.parent.relative_to(artifacts_dir)
+    except ValueError:
+        return ()
+    return (artifacts_dir.name, *relative_parent.parts)
+
+
+def _artifact_lane_id_for_database(
+    *,
+    db_path: Path,
+    artifacts_dir: Path,
+    ordered_lane_ids: list[str],
+) -> str | None:
+    matches: set[str] = set()
+    for component in reversed(
+        _artifact_ancestor_components(db_path=db_path, artifacts_dir=artifacts_dir)
+    ):
+        for lane_id in ordered_lane_ids:
+            if component == lane_id or (
+                component.startswith("extraction-lane-") and component.endswith(f"-{lane_id}")
+            ):
+                matches.add(lane_id)
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
 def _lane_artifact_database_paths(
     *,
     artifacts_dir: Path,
@@ -4275,13 +4305,14 @@ def _lane_artifact_database_paths(
     matched_lane_ids: set[str] = set()
     ordered_lane_ids = sorted(lane_ids, key=lambda lane_id: len(lane_id), reverse=True)
     for db_path in sorted(artifacts_dir.rglob("nba.duckdb")):
-        parent_name = db_path.parent.name
-        for lane_id in ordered_lane_ids:
-            if parent_name.endswith(lane_id) or f"-{lane_id}" in parent_name:
-                if lane_id not in matched_lane_ids:
-                    matched_paths.append(db_path)
-                    matched_lane_ids.add(lane_id)
-                break
+        lane_id = _artifact_lane_id_for_database(
+            db_path=db_path,
+            artifacts_dir=artifacts_dir,
+            ordered_lane_ids=ordered_lane_ids,
+        )
+        if lane_id is not None and lane_id not in matched_lane_ids:
+            matched_paths.append(db_path)
+            matched_lane_ids.add(lane_id)
     return matched_paths, matched_lane_ids
 
 
@@ -4298,14 +4329,40 @@ def _attested_current_lane_artifacts(
         return [], set(), failures
 
     candidates: dict[str, list[Path]] = {lane_id: [] for lane_id in complete_lane_ids}
-    ordered_lane_ids = sorted(complete_lane_ids, key=lambda lane_id: len(lane_id), reverse=True)
+    declared_artifact_names: dict[str, str] = {}
+    fallback_lane_ids: set[str] = set()
+    for lane_id in complete_lane_ids:
+        state_artifact = metadata[lane_id].get("state_artifact")
+        state_payload = state_artifact if isinstance(state_artifact, dict) else {}
+        artifact_name = str(state_payload.get("name") or "").strip()
+        if artifact_name:
+            declared_artifact_names[lane_id] = artifact_name
+        else:
+            fallback_lane_ids.add(lane_id)
+    ordered_fallback_lane_ids = sorted(
+        fallback_lane_ids,
+        key=lambda lane_id: len(lane_id),
+        reverse=True,
+    )
     if artifacts_dir.exists():
         for db_path in sorted(artifacts_dir.rglob("nba.duckdb")):
-            parent_name = db_path.parent.name
-            for lane_id in ordered_lane_ids:
-                if parent_name.endswith(lane_id) or f"-{lane_id}" in parent_name:
+            ancestor_components = set(
+                _artifact_ancestor_components(
+                    db_path=db_path,
+                    artifacts_dir=artifacts_dir,
+                )
+            )
+            for lane_id, artifact_name in declared_artifact_names.items():
+                if artifact_name in ancestor_components:
                     candidates[lane_id].append(db_path)
-                    break
+            if ordered_fallback_lane_ids:
+                lane_id = _artifact_lane_id_for_database(
+                    db_path=db_path,
+                    artifacts_dir=artifacts_dir,
+                    ordered_lane_ids=ordered_fallback_lane_ids,
+                )
+                if lane_id is not None:
+                    candidates[lane_id].append(db_path)
 
     attested_paths: list[Path] = []
     attested_lane_ids: set[str] = set()

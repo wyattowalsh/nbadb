@@ -24,6 +24,7 @@ from nbadb.orchestrate.extraction_contract import (
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
+    _artifact_lane_id_for_database,
     _coverage_hash_for_lane,
     _coverage_units_for_lane,
     _file_sha256,
@@ -136,6 +137,7 @@ def _write_attested_metadata(
     database_path: Path,
     lane_name: str | None = None,
     workload_contract: dict[str, object] | None = None,
+    artifact_name: str | None = None,
 ) -> None:
     payload: dict[str, object] = {
         "metadata_schema_version": 3,
@@ -153,7 +155,10 @@ def _write_attested_metadata(
         "season_end": "" if lane.season_end is None else str(lane.season_end),
         "coverage_units_hash": _coverage_hash_for_lane(lane),
         "database_sha256": _file_sha256(database_path),
-        "state_artifact": {"sha256": _file_sha256(database_path)},
+        "state_artifact": {
+            "name": artifact_name or f"extraction-lane-chain-{lane.lane_id}",
+            "sha256": _file_sha256(database_path),
+        },
     }
     if workload_contract is not None:
         payload["workload_contract"] = workload_contract
@@ -5232,6 +5237,218 @@ def test_checkpoint_rejects_physically_swapped_lane_databases(tmp_path: Path) ->
             "metadata_database_sha256_mismatch"
             in report["current_lane_attestation_failures"][lane.lane_id]
         )
+
+
+def test_checkpoint_discovers_database_in_github_artifact_layout(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+        resume_only=True,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_payload([lane])), encoding="utf-8")
+
+    artifact_dir = (
+        tmp_path
+        / "lanes"
+        / "run-12345"
+        / f"extraction-lane-chain-{lane.lane_id}"
+        / "data"
+        / "nbadb"
+    )
+    artifact_dir.mkdir(parents=True)
+    database_path = artifact_dir / "nba.duckdb"
+    _write_lane_db(
+        database_path,
+        alpha_rows=[1],
+        beta_rows=[],
+        journal_rows=[("franchise_history", "{}")],
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_attested_metadata(
+        metadata_dir / "lane.json",
+        lane=lane,
+        database_path=database_path,
+    )
+
+    report = build_checkpoint_database(
+        manifest_path=manifest_path,
+        metadata_dir=metadata_dir,
+        lane_artifacts_dir=tmp_path / "lanes",
+        output_dir=tmp_path / "checkpoint",
+        report_path=tmp_path / "checkpoint-report.json",
+    )
+
+    assert report["terminal_ready"] is True
+    assert report["active_lane_count"] == 0
+    assert report["included_lane_ids"] == [lane.lane_id]
+    assert report["current_lane_attestation_failures"] == {}
+
+
+def test_artifact_lane_identity_requires_lane_artifact_ancestor(tmp_path: Path) -> None:
+    lane_id = "reference-static"
+    artifacts_dir = tmp_path / "lanes"
+    unrelated_path = artifacts_dir / f"run-{lane_id}" / "data" / "nbadb" / "nba.duckdb"
+    artifact_path = (
+        artifacts_dir
+        / "run-12345"
+        / f"extraction-lane-chain-{lane_id}"
+        / "data"
+        / "nbadb"
+        / "nba.duckdb"
+    )
+
+    assert (
+        _artifact_lane_id_for_database(
+            db_path=unrelated_path,
+            artifacts_dir=artifacts_dir,
+            ordered_lane_ids=[lane_id],
+        )
+        is None
+    )
+    assert (
+        _artifact_lane_id_for_database(
+            db_path=artifact_path,
+            artifacts_dir=artifacts_dir,
+            ordered_lane_ids=[lane_id],
+        )
+        == lane_id
+    )
+    assert (
+        _artifact_lane_id_for_database(
+            db_path=(
+                artifacts_dir / "extraction-lane-chain-foo-bar" / "data" / "nbadb" / "nba.duckdb"
+            ),
+            artifacts_dir=artifacts_dir,
+            ordered_lane_ids=["foo-bar", "bar"],
+        )
+        is None
+    )
+
+
+def test_checkpoint_uses_exact_artifact_names_for_overlapping_suffixes(tmp_path: Path) -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id="bar",
+            lane_index=0,
+            lane_name="Bar",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("static",),
+            endpoints=("endpoint_bar",),
+            timeout_seconds=1800,
+            resume_only=True,
+        ),
+        FullExtractionLane(
+            lane_id="foo-bar",
+            lane_index=1,
+            lane_name="Foo Bar",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("static",),
+            endpoints=("endpoint_foo_bar",),
+            timeout_seconds=1800,
+            resume_only=True,
+        ),
+    ]
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_payload(lanes)), encoding="utf-8")
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    artifacts_dir = tmp_path / "lanes"
+
+    for lane in lanes:
+        artifact_name = f"extraction-lane-chain-foo-{lane.lane_id}"
+        database_dir = artifacts_dir / "run-12345" / artifact_name / "data" / "nbadb"
+        database_dir.mkdir(parents=True)
+        database_path = database_dir / "nba.duckdb"
+        _write_lane_db(
+            database_path,
+            alpha_rows=[lane.lane_index],
+            beta_rows=[],
+            journal_rows=[(lane.endpoints[0], "{}")],
+        )
+        _write_attested_metadata(
+            metadata_dir / f"{lane.lane_id}.json",
+            lane=lane,
+            database_path=database_path,
+            artifact_name=artifact_name,
+        )
+
+    report = build_checkpoint_database(
+        manifest_path=manifest_path,
+        metadata_dir=metadata_dir,
+        lane_artifacts_dir=artifacts_dir,
+        output_dir=tmp_path / "checkpoint",
+        report_path=tmp_path / "checkpoint-report.json",
+    )
+
+    assert report["terminal_ready"] is True
+    assert report["included_lane_ids"] == ["bar", "foo-bar"]
+    assert report["current_lane_attestation_failures"] == {}
+
+
+def test_checkpoint_rejects_duplicate_declared_artifact_database(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+        resume_only=True,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_payload([lane])), encoding="utf-8")
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    artifacts_dir = tmp_path / "lanes"
+    artifact_name = f"extraction-lane-chain-{lane.lane_id}"
+    database_paths: list[Path] = []
+    for run_id in ("run-1", "run-2"):
+        database_dir = artifacts_dir / run_id / artifact_name / "data" / "nbadb"
+        database_dir.mkdir(parents=True)
+        database_path = database_dir / "nba.duckdb"
+        _write_lane_db(
+            database_path,
+            alpha_rows=[1],
+            beta_rows=[],
+            journal_rows=[("franchise_history", "{}")],
+        )
+        database_paths.append(database_path)
+    _write_attested_metadata(
+        metadata_dir / "lane.json",
+        lane=lane,
+        database_path=database_paths[0],
+        artifact_name=artifact_name,
+    )
+
+    report = build_checkpoint_database(
+        manifest_path=manifest_path,
+        metadata_dir=metadata_dir,
+        lane_artifacts_dir=artifacts_dir,
+        output_dir=tmp_path / "checkpoint",
+        report_path=tmp_path / "checkpoint-report.json",
+    )
+
+    assert report["terminal_ready"] is False
+    assert report["included_lane_ids"] == []
+    assert report["current_lane_attestation_failures"] == {
+        lane.lane_id: ["lane_database_ambiguous:2"]
+    }
 
 
 def test_checkpoint_database_merges_previous_checkpoint_and_current_lanes(
