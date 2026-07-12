@@ -32558,6 +32558,63 @@
     }
   },
   "fact_video_details": {
+    "schema_lineage": {
+      "class": "FactVideoDetailsSchema",
+      "columns": {
+        "context_measure": {
+          "endpoint": "VideoDetails",
+          "field": "ContextMeasure request",
+          "result_set": ""
+        },
+        "context_measure_provenance": {
+          "endpoint": "nbadb",
+          "field": "VIDEO_CONTEXT_MEASURE_PROVENANCE",
+          "result_set": "core"
+        },
+        "nba_api_contract_version": {
+          "endpoint": "nbadb",
+          "field": "NBA_API_VIDEO_CONTEXT_MEASURE_VERSION",
+          "result_set": "core"
+        },
+        "request_player_id": {
+          "endpoint": "VideoDetails",
+          "field": "PlayerID request",
+          "fk_ref": "dim_player.player_id",
+          "result_set": ""
+        },
+        "request_season": {
+          "endpoint": "VideoDetails",
+          "field": "Season request",
+          "result_set": ""
+        },
+        "request_season_type": {
+          "endpoint": "VideoDetails",
+          "field": "SeasonType request",
+          "result_set": ""
+        },
+        "request_team_id": {
+          "endpoint": "VideoDetails",
+          "field": "TeamID request",
+          "fk_ref": "dim_team.team_id",
+          "result_set": ""
+        },
+        "result_set_index": {
+          "endpoint": "nba_api.response.resultSets",
+          "field": "index",
+          "result_set": ""
+        },
+        "result_set_name": {
+          "endpoint": "nba_api.response.resultSets",
+          "field": "name",
+          "result_set": ""
+        },
+        "season_type_provenance": {
+          "endpoint": "nbadb",
+          "field": "VIDEO_SEASON_TYPE_PROVENANCE",
+          "result_set": "core"
+        }
+      }
+    },
     "sql_lineage": {
       "class_name": "FactVideoDetailsTransformer",
       "columns": ["*"],
@@ -32565,6 +32622,63 @@
     }
   },
   "fact_video_details_asset": {
+    "schema_lineage": {
+      "class": "FactVideoDetailsAssetSchema",
+      "columns": {
+        "context_measure": {
+          "endpoint": "VideoDetails",
+          "field": "ContextMeasure request",
+          "result_set": ""
+        },
+        "context_measure_provenance": {
+          "endpoint": "nbadb",
+          "field": "VIDEO_CONTEXT_MEASURE_PROVENANCE",
+          "result_set": "core"
+        },
+        "nba_api_contract_version": {
+          "endpoint": "nbadb",
+          "field": "NBA_API_VIDEO_CONTEXT_MEASURE_VERSION",
+          "result_set": "core"
+        },
+        "request_player_id": {
+          "endpoint": "VideoDetails",
+          "field": "PlayerID request",
+          "fk_ref": "dim_player.player_id",
+          "result_set": ""
+        },
+        "request_season": {
+          "endpoint": "VideoDetails",
+          "field": "Season request",
+          "result_set": ""
+        },
+        "request_season_type": {
+          "endpoint": "VideoDetails",
+          "field": "SeasonType request",
+          "result_set": ""
+        },
+        "request_team_id": {
+          "endpoint": "VideoDetails",
+          "field": "TeamID request",
+          "fk_ref": "dim_team.team_id",
+          "result_set": ""
+        },
+        "result_set_index": {
+          "endpoint": "nba_api.response.resultSets",
+          "field": "index",
+          "result_set": ""
+        },
+        "result_set_name": {
+          "endpoint": "nba_api.response.resultSets",
+          "field": "name",
+          "result_set": ""
+        },
+        "season_type_provenance": {
+          "endpoint": "nbadb",
+          "field": "VIDEO_SEASON_TYPE_PROVENANCE",
+          "result_set": "core"
+        }
+      }
+    },
     "sql_lineage": {
       "class_name": "FactVideoDetailsAssetTransformer",
       "columns": ["*"],

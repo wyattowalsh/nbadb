@@ -136,8 +136,8 @@ the preferred queue in a particular slot.
 The checkpoint is the recovery boundary: each redispatch copies the previous
 checkpoint into a new generation and merges only newly completed lane databases.
 Terminal merge consumes that checkpoint before export. Incomplete lanes can also
-carry durable DuckDB state artifacts into the next iteration when the cache is
-missing or unusable.
+carry exact, attested DuckDB state artifacts into the next iteration. Lane-state
+cache-prefix and parent-lane fallback are not recovery boundaries.
 
 ```mermaid
 flowchart TD
@@ -152,7 +152,7 @@ flowchart TD
     BundleGate -->|no| Recovery
     BundleGate -->|yes| ExtractMatrix["Extract lane matrix"]
     ExtractMatrix --> LaneMetadata["Lane metadata\noutcomes + failure class + progress"]
-    LaneMetadata --> LaneState["Durable lane state\ncache or artifact"]
+    LaneMetadata --> LaneState["Attested lane artifact\ncheckpointed + WAL-free"]
     LaneState --> LaneControl["Lane control\nweighted next manifest"]
     LaneControl --> Checkpoint["Immutable checkpoint generation\ncopy base + merge deltas"]
     Checkpoint --> IdentityGate{"Digest + hashes + every\njournal unit match?"}
@@ -202,15 +202,18 @@ Checkpoint generations are immutable copy-plus-delta artifacts. Even a zero-delt
 iteration creates a distinct database copy rather than republishing or mutating
 the previous file. Each report binds the physical DuckDB SHA-256 and every included
 lane's coverage hash. Current metadata schema v3 additionally binds the downloaded
-lane database digest, lane fields, exact coverage hash, every manifest season/type,
-and concrete game/player/workload journal evidence before merge. A lane cannot
+lane database digest, lane fields, exact coverage hash, and every manifest season/type.
+Player/team/season lanes are also bound to the exact content-addressed workload
+generation, including zero-pair sentinels, and every expected identity/context must
+have journal evidence before merge. A lane cannot
 self-declare `contract_blocked`; its evidence must equal recomputed support rules.
 Staging merges use bag-aware overlap subtraction so duplicate
 rows legitimately present within a source retain their maximum multiplicity. A stale
 report, changed/swapped database, or reused lane ID with a different contract fails
 before readiness. For chaining, literal `max_iterations=auto` propagates to the
-next run while the manifest's numeric budget enforces and, when needed, extends the
-safety cap from remaining matrix capacity. The dispatcher searches paginated
+next run while the first manifest fixes a numeric safety cap from remaining
+matrix-wide dispatch credits, retry depth, and possible split descendants. Child
+manifests never extend it. The dispatcher searches paginated
 workflow runs for the exact next `chain=<id> iteration=<n>` title, blocks active or
 successful matches, records failed/cancelled history as retryable, and then requires
 exactly one newly visible child run. Direct-mode workflow concurrency uses chain and
@@ -247,13 +250,13 @@ publisher queue before metadata commit and exact-version Kaggle readback.
 
 ## Pipeline commands
 
-| Command              | Stages                                     | Duration |
-| -------------------- | ------------------------------------------ | -------- |
-| `nbadb init`         | 1-8 (full rebuild)                         | ~2-4h    |
-| `nbadb daily`        | 1-7 (incremental, 7-day lookback)          | ~5-15m   |
-| `nbadb monthly`      | 1-7 (dimension refresh)                    | ~30-60m  |
-| `nbadb backfill run` | 1-7 (targeted gap-fill by season/endpoint) | varies   |
-| `nbadb export`       | 7-8 (re-export only)                       | ~5-10m   |
+| Command              | Stages                                     | Duration                                         |
+| -------------------- | ------------------------------------------ | ------------------------------------------------ |
+| `nbadb init`         | 1-8 (full rebuild)                         | API-bound; varies by full endpoint/history scope |
+| `nbadb daily`        | 1-7 (incremental, 7-day lookback)          | ~5-15m                                           |
+| `nbadb monthly`      | 1-7 (dimension refresh)                    | ~30-60m                                          |
+| `nbadb backfill run` | 1-7 (targeted gap-fill by season/endpoint) | varies                                           |
+| `nbadb export`       | 7-8 (re-export only)                       | ~5-10m                                           |
 
 ## Key Technologies
 

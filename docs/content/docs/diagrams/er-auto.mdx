@@ -5394,8 +5394,28 @@ erDiagram
         str season_year
     }
     fact_video_details {
+        str result_set_name
+        int result_set_index
+        str context_measure
+        str context_measure_provenance
+        str season_type_provenance
+        str nba_api_contract_version
+        int request_player_id PK
+        int request_team_id PK
+        str request_season
+        str request_season_type
     }
     fact_video_details_asset {
+        str result_set_name
+        int result_set_index
+        str context_measure
+        str context_measure_provenance
+        str season_type_provenance
+        str nba_api_contract_version
+        int request_player_id PK
+        int request_team_id PK
+        str request_season
+        str request_season_type
     }
     fact_video_events {
     }

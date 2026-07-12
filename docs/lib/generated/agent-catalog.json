@@ -42409,7 +42409,78 @@
     },
     {
       "agent_intents": ["video-details"],
-      "columns": [],
+      "columns": [
+        {
+          "description": "Dynamic upstream result-set discriminator",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "result_set_name",
+          "source": "nba_api.response.resultSets.name"
+        },
+        {
+          "description": "Stable response-order result-set discriminator",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "result_set_index",
+          "source": "nba_api.response.resultSets.index"
+        },
+        {
+          "description": "Requested video event measure",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "context_measure",
+          "source": "VideoDetails.ContextMeasure request"
+        },
+        {
+          "description": "Pinned nba_api sources declaring the context measure",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "context_measure_provenance",
+          "source": "nbadb.core.types.VIDEO_CONTEXT_MEASURE_PROVENANCE"
+        },
+        {
+          "description": "Pinned nba_api sources declaring the season type",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "season_type_provenance",
+          "source": "nbadb.core.types.VIDEO_SEASON_TYPE_PROVENANCE"
+        },
+        {
+          "description": "nba_api version used to derive the video request contract",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "nba_api_contract_version",
+          "source": "nbadb.core.types.NBA_API_VIDEO_CONTEXT_MEASURE_VERSION"
+        },
+        {
+          "description": "Player identifier used for the request",
+          "description_source": "metadata",
+          "fk_ref": "dim_player.player_id",
+          "name": "request_player_id",
+          "source": "VideoDetails.PlayerID request"
+        },
+        {
+          "description": "Team identifier used for the request",
+          "description_source": "metadata",
+          "fk_ref": "dim_team.team_id",
+          "name": "request_team_id",
+          "source": "VideoDetails.TeamID request"
+        },
+        {
+          "description": "Season used for the request",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "request_season",
+          "source": "VideoDetails.Season request"
+        },
+        {
+          "description": "Season type used for the request",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "request_season_type",
+          "source": "VideoDetails.SeasonType request"
+        }
+      ],
       "description": "",
       "grain": "fact-event",
       "join_hints": {},
@@ -42419,7 +42490,78 @@
     },
     {
       "agent_intents": ["video-details-asset"],
-      "columns": [],
+      "columns": [
+        {
+          "description": "Dynamic upstream result-set discriminator",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "result_set_name",
+          "source": "nba_api.response.resultSets.name"
+        },
+        {
+          "description": "Stable response-order result-set discriminator",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "result_set_index",
+          "source": "nba_api.response.resultSets.index"
+        },
+        {
+          "description": "Requested video event measure",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "context_measure",
+          "source": "VideoDetails.ContextMeasure request"
+        },
+        {
+          "description": "Pinned nba_api sources declaring the context measure",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "context_measure_provenance",
+          "source": "nbadb.core.types.VIDEO_CONTEXT_MEASURE_PROVENANCE"
+        },
+        {
+          "description": "Pinned nba_api sources declaring the season type",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "season_type_provenance",
+          "source": "nbadb.core.types.VIDEO_SEASON_TYPE_PROVENANCE"
+        },
+        {
+          "description": "nba_api version used to derive the video request contract",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "nba_api_contract_version",
+          "source": "nbadb.core.types.NBA_API_VIDEO_CONTEXT_MEASURE_VERSION"
+        },
+        {
+          "description": "Player identifier used for the request",
+          "description_source": "metadata",
+          "fk_ref": "dim_player.player_id",
+          "name": "request_player_id",
+          "source": "VideoDetails.PlayerID request"
+        },
+        {
+          "description": "Team identifier used for the request",
+          "description_source": "metadata",
+          "fk_ref": "dim_team.team_id",
+          "name": "request_team_id",
+          "source": "VideoDetails.TeamID request"
+        },
+        {
+          "description": "Season used for the request",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "request_season",
+          "source": "VideoDetails.Season request"
+        },
+        {
+          "description": "Season type used for the request",
+          "description_source": "metadata",
+          "fk_ref": null,
+          "name": "request_season_type",
+          "source": "VideoDetails.SeasonType request"
+        }
+      ],
       "description": "",
       "grain": "fact-event",
       "join_hints": {},

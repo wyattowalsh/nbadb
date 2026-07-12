@@ -147,12 +147,14 @@ uv run python -m json.tool logs/kaggle/kaggle-upload-manifest.json >/dev/null
 
 ## Remote verification contract
 
-`--verify-remote` resolves only `nbadb-publication.json`, not the full dataset. The
-resolver must return both the marker and an exact positive dataset version. nbadb
-does not infer a version from Kaggle cache-directory names. The resolver validates
-the complete marker schema centrally, and persisted publication records must have
-valid identity digests, state, transition evidence, and resolved versions before
-they can influence another upload.
+`--verify-remote` uses `nbadb-publication.json` to resolve an exact positive dataset
+version, but successful verification is not marker-only. nbadb paginates the exact
+version's complete Kaggle API file inventory, requires it to equal the local staged
+inventory, and downloads one file at a time for SHA-256 readback. Each temporary file
+is removed before the next one, bounding readback storage to the largest resource.
+nbadb does not infer a version from Kaggle cache-directory names. The marker and
+persisted publication records must have valid identity digests, state, transition
+evidence, and resolved versions before they can influence another upload.
 
 | Baseline result                                                                        | Upload behavior                                                                                                                                       | Manifest evidence                                                                                                                                 |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -206,8 +208,9 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
 - Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift.
-- Use `--verify-remote` for CI or release publishes. It first checks whether Kaggle already exposes the staged bundle identity with exact version evidence, uploads at most once, then polls a small publication marker until its validated resource hashes match or `--remote-timeout` expires. `--remote-poll-interval` controls the polling cadence without repeatedly downloading the full dataset.
-- The current upload path validates local metadata/resources, stages only declared files and directories plus the generated publication marker into a temporary upload root, rejects symlinks/path traversal, records staged-tree and remote marker readback identities in `logs/kaggle/kaggle-upload-manifest.json`, and then hands that staged bundle to `kagglehub`.
+- Use `--verify-remote` for CI or release publishes. It checks whether Kaggle already exposes the staged bundle identity with exact version evidence, uploads at most once, then polls until the exact-version API inventory and every streamed file digest match or `--remote-timeout` expires. Defaults are 3,600 seconds and a 15-second poll interval.
+- The same `--remote-timeout` independently bounds each full-bundle baseline reconciliation, any full readback needed when a marker appears during the marker-404 bootstrap recheck, and the post-upload readback phase. A full-bundle reconciliation that overruns its deadline fails closed before a new upload.
+- The upload path validates local metadata/resources, stages only declared files and directories plus the publication marker, rejects symlinks/path traversal, and uses hardlinks where the filesystem permits so the upload root does not duplicate the source tree. It reserves disk headroom before KaggleHub archive creation and fails immediately on local permanent errors such as `ENOSPC`.
 
 <Callout type="warn">
   Treat `dataset-metadata.json` as the generated source of truth for the Kaggle

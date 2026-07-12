@@ -29813,12 +29813,114 @@
       "relationships": []
     },
     "fact_video_details": {
-      "columns": [],
+      "columns": [
+        {
+          "key": "",
+          "name": "result_set_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "result_set_index",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "context_measure",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "context_measure_provenance",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type_provenance",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "nba_api_contract_version",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "request_player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "request_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "request_season",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_season_type",
+          "type": "str"
+        }
+      ],
       "family": "fact",
       "relationships": []
     },
     "fact_video_details_asset": {
-      "columns": [],
+      "columns": [
+        {
+          "key": "",
+          "name": "result_set_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "result_set_index",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "context_measure",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "context_measure_provenance",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type_provenance",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "nba_api_contract_version",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "request_player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "request_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "request_season",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_season_type",
+          "type": "str"
+        }
+      ],
       "family": "fact",
       "relationships": []
     },

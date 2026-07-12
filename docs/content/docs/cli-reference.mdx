@@ -166,13 +166,15 @@ The `backfill` command group provides targeted extraction, gap detection, and jo
 
 ### Shared backfill options
 
-| Option            | Short | Description                                                            |
-| ----------------- | ----- | ---------------------------------------------------------------------- |
-| `--seasons`       | `-s`  | Comma-separated seasons or range: `'2015-16,2016-17'` or `'2015:2020'` |
-| `--endpoint`      | `-e`  | Comma-separated endpoint names                                         |
-| `--pattern`       | `-p`  | Comma-separated param patterns (e.g. `'game,season'`)                  |
-| `--data-dir`      | `-d`  | Override default data directory                                        |
-| `--output-format` | `-f`  | Output format: `text` (default) or `json`                              |
+| Option               | Short | Description                                                            |
+| -------------------- | ----- | ---------------------------------------------------------------------- |
+| `--seasons`          | `-s`  | Comma-separated seasons or range: `'2015-16,2016-17'` or `'2015:2020'` |
+| `--endpoint`         | `-e`  | Comma-separated endpoint names                                         |
+| `--pattern`          | `-p`  | Comma-separated param patterns (e.g. `'game,season'`)                  |
+| `--season-types`     | —     | Comma-separated season types for historical season-aware patterns      |
+| `--context-measures` | —     | Comma-separated video context measures such as `PTS,AST,REB`           |
+| `--data-dir`         | `-d`  | Override default data directory                                        |
+| `--output-format`    | `-f`  | Output format: `text` (default) or `json`                              |
 
 ### `nbadb backfill run`
 
@@ -195,6 +197,10 @@ Use `--summary-path` in automation when a machine-readable extraction summary sh
 ```bash
 nbadb backfill run --seasons 2024-25 --summary-path artifacts/extract-summary.json
 ```
+
+Use `--season-types` to constrain the historical season-type contract and
+`--context-measures` to select a validated subset of the 78 video measures. An
+explicit empty or unknown context-measure set fails before database initialization.
 
 ### `nbadb backfill journal`
 
@@ -507,8 +513,8 @@ daily: 12 tables, 245,901 rows, 38.4s
 - `nbadb init` and `nbadb export` use all configured formats when you omit `--format`.
 - `nbadb download` copies the Kaggle dataset into the target data directory and seeds `nba.duckdb` from `nba.sqlite` if only SQLite is present.
 - `nba.duckdb` is the canonical analytics database; `nba.sqlite` remains the Kaggle preview-friendly relational file.
-- `nbadb upload` ensures `dataset-metadata.json` exists, stages only declared files/directories into a temporary upload root, supports partitioned Parquet resource directories, rejects symlinks and path traversal, writes `logs/kaggle/kaggle-upload-manifest.json`, and then publishes the staged bundle.
-- With `--verify-remote`, the marker resolver must return an exact positive Kaggle version. Only a marker-specific HTTP 404 can bootstrap one upload after metadata-API version resolution; other baseline failures stop before upload. Any unresolved dataset upload blocks every later bundle until exact marker evidence resolves it. CLI retries depend on retained `logs/kaggle/kaggle-publication-state.json`; the publishing workflows persist that file in their shared default-branch cache.
+- `nbadb upload` ensures `dataset-metadata.json` exists, stages only declared files/directories into a temporary upload root, supports partitioned Parquet resource directories, rejects symlinks and path traversal, writes `logs/kaggle/kaggle-upload-manifest.json`, and then publishes the staged bundle. Remote verification defaults to a 3,600-second deadline and 15-second poll interval, paginates the exact-version file inventory, and streams each resource through SHA-256 readback.
+- With `--verify-remote`, the marker resolver must return an exact positive Kaggle version. The client then paginates that version's complete API file list and streams every file through SHA-256 readback. Only a marker-specific HTTP 404 can bootstrap one upload after metadata-API version resolution; other baseline failures stop before upload. Any unresolved dataset upload blocks every later bundle until exact evidence resolves it. CLI retries depend on retained `logs/kaggle/kaggle-publication-state.json`; publishing workflows persist that file in their shared default-branch cache.
 - `nbadb schema` groups tables by output prefix. Analysis-ready convenience outputs use the `analytics_*` prefix.
 
 <CourtDivider label="Exact signatures" />
@@ -529,12 +535,12 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 
 ### Backfill commands
 
-| Command                       | What it does                               | Positional args | Options                                                                                                                                                                                |
-| ----------------------------- | ------------------------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nbadb backfill run`          | Targeted backfill extraction               | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--pattern/-p`, `--force`, `--extract-only`, `--transform-only`, `--dry-run/-n`, `--verbose/-v`, `--quality-check`, `--summary-path` |
-| `nbadb backfill gaps`         | Detect and report extraction gaps          | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--pattern/-p`, `--output-format/-f`                                                                                                 |
-| `nbadb backfill completeness` | Show data completeness per season/endpoint | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--output-format/-f`                                                                                                                 |
-| `nbadb backfill journal`      | Manage extraction journal entries          | —               | `--data-dir/-d`, `--endpoint/-e`, `--seasons/-s`, `--status`, `--action/-a` (`show`/`count`/`reset`/`clear`), `--yes/-y`, `--output-format/-f`                                         |
+| Command                       | What it does                               | Positional args | Options                                                                                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nbadb backfill run`          | Targeted backfill extraction               | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--pattern/-p`, `--season-types`, `--context-measures`, `--force`, `--extract-only`, `--transform-only`, `--dry-run/-n`, `--verbose/-v`, `--quality-check`, `--summary-path` |
+| `nbadb backfill gaps`         | Detect and report extraction gaps          | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--pattern/-p`, `--output-format/-f`                                                                                                                                         |
+| `nbadb backfill completeness` | Show data completeness per season/endpoint | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--output-format/-f`                                                                                                                                                         |
+| `nbadb backfill journal`      | Manage extraction journal entries          | —               | `--data-dir/-d`, `--endpoint/-e`, `--seasons/-s`, `--status`, `--action/-a` (`show`/`count`/`reset`/`clear`), `--yes/-y`, `--output-format/-f`                                                                                 |
 
 ### Inspection and quality commands
 
@@ -550,20 +556,20 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 
 ### Distribution and artifact commands
 
-| Command                             | What it does                                                                           | Positional args | Options                                                                                                                          |
-| ----------------------------------- | -------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `nbadb export`                      | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                                                                                      |
-| `nbadb download`                    | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                                                                                  |
-| `nbadb upload`                      | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`), `--verify-remote`, `--remote-timeout`, `--remote-poll-interval` |
-| `nbadb migrate`                     | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                                                                                  |
-| `nbadb docs-autogen`                | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`), `--check`                                                                          |
-| `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`, `--endpoint-analysis-docs-root`                                 |
-| `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix                     | —               | `--output-dir/-o`, `--require-complete`, `--require-season-type-contract`                                                        |
-| `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                                    | —               | `--output-dir/-o`                                                                                                                |
-| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts                               | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`, `--require-result-table-contract`                                     |
-| `nbadb schema-annotation-audit`     | Generate schema annotation and raw/silver/gold fate audit artifacts                    | —               | `--tiers`, `--output-dir`, `--endpoint-analysis-docs-root`, `--bronze-contracts-path`, `--strict`                                |
-| `nbadb table-year-coverage`         | Generate table/year coverage summary artifacts                                         | —               | `--output-dir`, `--require-complete`                                                                                             |
-| `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d`                                                                |
+| Command                             | What it does                                                                           | Positional args | Options                                                                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nbadb export`                      | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                                                                                                                        |
+| `nbadb download`                    | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                                                                                                                    |
+| `nbadb upload`                      | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`), `--verify-remote`, `--remote-timeout` (default: `3600`), `--remote-poll-interval` (default: `15`) |
+| `nbadb migrate`                     | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                                                                                                                    |
+| `nbadb docs-autogen`                | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`), `--check`                                                                                                            |
+| `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`, `--endpoint-analysis-docs-root`                                                                   |
+| `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix                     | —               | `--output-dir/-o`, `--require-complete`, `--require-season-type-contract`                                                                                          |
+| `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                                    | —               | `--output-dir/-o`                                                                                                                                                  |
+| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts                               | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`, `--require-result-table-contract`                                                                       |
+| `nbadb schema-annotation-audit`     | Generate schema annotation and raw/silver/gold fate audit artifacts                    | —               | `--tiers`, `--output-dir`, `--endpoint-analysis-docs-root`, `--bronze-contracts-path`, `--strict`                                                                  |
+| `nbadb table-year-coverage`         | Generate table/year coverage summary artifacts                                         | —               | `--output-dir`, `--require-complete`                                                                                                                               |
+| `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d`                                                                                                  |
 
 ## Related guides
 

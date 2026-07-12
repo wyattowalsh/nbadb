@@ -72692,14 +72692,176 @@
     "class_name": "StagingVideoDetailsSchema",
     "coerce": true,
     "strict": false,
-    "columns": []
+    "columns": [
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Dynamic upstream result-set discriminator",
+        "description_source": "metadata"
+      },
+      {
+        "name": "result_set_index",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Stable response-order result-set discriminator",
+        "description_source": "metadata"
+      },
+      {
+        "name": "context_measure",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=('PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT', 'PTS_FB', 'PTS_OFF_TOV', 'PTS_2ND_CHANCE', 'FTM', 'FTA', 'OREB', 'DREB', 'AST', 'FGM_AST', 'FG3_AST', 'STL', 'BLK', 'BLKA', 'TOV', 'PF', 'PFD', 'POSS_END_FT', 'PTS_PAINT', 'REB', 'TM_FGM', 'TM_FGA', 'TM_FG3M', 'TM_FG3A', 'TM_FTM', 'TM_FTA', 'TM_OREB', 'TM_DREB', 'TM_REB', 'TM_TEAM_REB', 'TM_AST', 'TM_STL', 'TM_BLK', 'TM_BLKA', 'TM_TOV', 'TM_TEAM_TOV', 'TM_PF', 'TM_PFD', 'TM_PTS', 'TM_PTS_PAINT', 'TM_PTS_FB', 'TM_PTS_OFF_TOV', 'TM_PTS_2ND_CHANCE', 'TM_FGM_AST', 'TM_FG3_AST', 'TM_POSS_END_FT', 'OPP_FGM', 'OPP_FGA', 'OPP_FG3M', 'OPP_FG3A', 'OPP_FTM', 'OPP_FTA', 'OPP_OREB', 'OPP_DREB', 'OPP_REB', 'OPP_TEAM_REB', 'OPP_AST', 'OPP_STL', 'OPP_BLK', 'OPP_BLKA', 'OPP_TOV', 'OPP_TEAM_TOV', 'OPP_PF', 'OPP_PFD', 'OPP_PTS', 'OPP_PTS_PAINT', 'OPP_PTS_FB', 'OPP_PTS_OFF_TOV', 'OPP_PTS_2ND_CHANCE', 'OPP_FGM_AST', 'OPP_FG3_AST', 'OPP_POSS_END_FT')",
+        "description": "Requested video event measure",
+        "description_source": "metadata"
+      },
+      {
+        "name": "context_measure_provenance",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=['docs', 'docs,runtime']",
+        "description": "Pinned nba_api sources declaring the context measure",
+        "description_source": "metadata"
+      },
+      {
+        "name": "season_type_provenance",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=['docs,runtime', 'runtime']",
+        "description": "Pinned nba_api sources declaring the season type",
+        "description_source": "metadata"
+      },
+      {
+        "name": "nba_api_contract_version",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=['1.11.4']",
+        "description": "nba_api version used to derive the video request contract",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0, FK\u2192staging_player.player_id",
+        "description": "Player identifier used for the request",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0, FK\u2192staging_team.team_id",
+        "description": "Team identifier used for the request",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Season used for the request",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_season_type",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=('Regular Season', 'Playoffs', 'Pre Season', 'PlayIn', 'All Star')",
+        "description": "Season type used for the request",
+        "description_source": "metadata"
+      }
+    ]
   },
   {
     "table_name": "stg_video_details_asset",
     "class_name": "StagingVideoDetailsAssetSchema",
     "coerce": true,
     "strict": false,
-    "columns": []
+    "columns": [
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Dynamic upstream result-set discriminator",
+        "description_source": "metadata"
+      },
+      {
+        "name": "result_set_index",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Stable response-order result-set discriminator",
+        "description_source": "metadata"
+      },
+      {
+        "name": "context_measure",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=('PTS', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT', 'PTS_FB', 'PTS_OFF_TOV', 'PTS_2ND_CHANCE', 'FTM', 'FTA', 'OREB', 'DREB', 'AST', 'FGM_AST', 'FG3_AST', 'STL', 'BLK', 'BLKA', 'TOV', 'PF', 'PFD', 'POSS_END_FT', 'PTS_PAINT', 'REB', 'TM_FGM', 'TM_FGA', 'TM_FG3M', 'TM_FG3A', 'TM_FTM', 'TM_FTA', 'TM_OREB', 'TM_DREB', 'TM_REB', 'TM_TEAM_REB', 'TM_AST', 'TM_STL', 'TM_BLK', 'TM_BLKA', 'TM_TOV', 'TM_TEAM_TOV', 'TM_PF', 'TM_PFD', 'TM_PTS', 'TM_PTS_PAINT', 'TM_PTS_FB', 'TM_PTS_OFF_TOV', 'TM_PTS_2ND_CHANCE', 'TM_FGM_AST', 'TM_FG3_AST', 'TM_POSS_END_FT', 'OPP_FGM', 'OPP_FGA', 'OPP_FG3M', 'OPP_FG3A', 'OPP_FTM', 'OPP_FTA', 'OPP_OREB', 'OPP_DREB', 'OPP_REB', 'OPP_TEAM_REB', 'OPP_AST', 'OPP_STL', 'OPP_BLK', 'OPP_BLKA', 'OPP_TOV', 'OPP_TEAM_TOV', 'OPP_PF', 'OPP_PFD', 'OPP_PTS', 'OPP_PTS_PAINT', 'OPP_PTS_FB', 'OPP_PTS_OFF_TOV', 'OPP_PTS_2ND_CHANCE', 'OPP_FGM_AST', 'OPP_FG3_AST', 'OPP_POSS_END_FT')",
+        "description": "Requested video event measure",
+        "description_source": "metadata"
+      },
+      {
+        "name": "context_measure_provenance",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=['docs', 'docs,runtime']",
+        "description": "Pinned nba_api sources declaring the context measure",
+        "description_source": "metadata"
+      },
+      {
+        "name": "season_type_provenance",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=['docs,runtime', 'runtime']",
+        "description": "Pinned nba_api sources declaring the season type",
+        "description_source": "metadata"
+      },
+      {
+        "name": "nba_api_contract_version",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=['1.11.4']",
+        "description": "nba_api version used to derive the video request contract",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0, FK\u2192staging_player.player_id",
+        "description": "Player identifier used for the request",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0, FK\u2192staging_team.team_id",
+        "description": "Team identifier used for the request",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Season used for the request",
+        "description_source": "metadata"
+      },
+      {
+        "name": "request_season_type",
+        "type": "String",
+        "nullable": false,
+        "constraints": "in=('Regular Season', 'Playoffs', 'Pre Season', 'PlayIn', 'All Star')",
+        "description": "Season type used for the request",
+        "description_source": "metadata"
+      }
+    ]
   },
   {
     "table_name": "stg_video_events",

@@ -76,10 +76,13 @@ flowchart LR
     TeamEstimatedMetrics[TeamEstimatedMetrics]:::endpoint
     TeamGameStreakFinder[TeamGameStreakFinder]:::endpoint
     TeamInfoCommon[TeamInfoCommon]:::endpoint
+    VideoDetails[VideoDetails]:::endpoint
     WinProbabilityPBP[WinProbabilityPBP]:::endpoint
     literal[literal]:::endpoint
+    nba_api_response_resultSets[nba_api.response.resultSets]:::endpoint
     nba_api_stats_static_players_get_players[nba_api.stats.static.players.get_players]:::endpoint
     nba_api_stats_static_teams_get_teams[nba_api.stats.static.teams.get_teams]:::endpoint
+    nbadb[nbadb]:::endpoint
     stg_box_score_four_factors_player[stg_box_score_four_factors_player]:::endpoint
     stg_all_time[stg_all_time]:::staging
     stg_all_time_ast[stg_all_time_ast]:::staging
@@ -591,6 +594,8 @@ flowchart LR
     fact_team_splits[(fact_team_splits)]:::fact
     fact_team_streak_finder[(fact_team_streak_finder)]:::fact
     fact_tracking_defense[(fact_tracking_defense)]:::fact
+    fact_video_details[(fact_video_details)]:::fact
+    fact_video_details_asset[(fact_video_details_asset)]:::fact
     fact_win_prob_pbp[(fact_win_prob_pbp)]:::fact
     fact_win_probability[(fact_win_probability)]:::fact
     BoxScoreAdvancedV3 --> fact_box_score_advanced_team
@@ -703,6 +708,8 @@ flowchart LR
     TeamInfoCommon --> dim_team
     TeamInfoCommon --> dim_team_extended
     TeamInfoCommon --> dim_team_history
+    VideoDetails --> fact_video_details
+    VideoDetails --> fact_video_details_asset
     WinProbabilityPBP --> fact_win_prob_pbp
     WinProbabilityPBP --> fact_win_probability
     literal --> agg_on_off_splits
@@ -750,9 +757,13 @@ flowchart LR
     literal --> fact_team_pt_tracking
     literal --> fact_team_shooting_splits_detail
     literal --> fact_team_splits
+    nba_api_response_resultSets --> fact_video_details
+    nba_api_response_resultSets --> fact_video_details_asset
     nba_api_stats_static_players_get_players --> fact_static_players
     nba_api_stats_static_teams_get_teams --> dim_team
     nba_api_stats_static_teams_get_teams --> fact_static_teams
+    nbadb --> fact_video_details
+    nbadb --> fact_video_details_asset
     stg_box_score_four_factors_player --> fact_box_score_four_factors
 ```
 

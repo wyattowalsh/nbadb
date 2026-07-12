@@ -64,8 +64,8 @@ nbadb extracts from the **nba_api endpoint surface** and normalizes data into **
 | League-wide           | 8     | The source is cross-league rather than game-specific                    |
 | Draft                 | 7     | The feed belongs to draft history or combine workflows                  |
 | Shot chart            | 2     | The question is about location-level shooting data                      |
-| Other                 | 6     | The feed sits outside the main family buckets                           |
-| Skipped               | 8     | You need the exclusion rationale for deprecated or redundant feeds      |
+| Other                 | 11    | The feed sits outside the main family buckets, including video/media    |
+| Skipped               | 5     | You need the exclusion rationale for deprecated or redundant feeds      |
 
 <CourtDivider label="Trace the source families" />
 
@@ -173,14 +173,16 @@ nbadb extracts from the **nba_api endpoint surface** and normalizes data into **
 | TeamEstimatedMetrics     | TeamEstimatedMetrics               | fact_team_estimated_metrics    |
 | BoxScoreSummaryV2        | GameSummary, OtherStats, Officials | dim_game, bridge_game_official |
 | InfographicFanDuelPlayer | FanDuelPlayer                      | fact_fanduel                   |
+| VideoDetails             | Dynamic result sets                | fact_video_details             |
+| VideoDetailsAsset        | Dynamic result sets                | fact_video_details_asset       |
+| VideoEvents              | Video events                       | fact_video_events              |
+| VideoEventsAsset         | Video event assets                 | fact_video_events_asset        |
+| VideoStatus              | Video status                       | fact_video_status              |
 
 ## Skipped endpoints
 
 These endpoints are excluded due to deprecation, instability, or redundancy:
 
-- VideoDetails (deprecated)
-- VideoStatus (deprecated)
-- VideoEventsAsset (auth required)
 - PlayerCompare (redundant with dashboards)
 - LeagueDashPtStats (merged into tracking)
 - LeagueDashOppPtShot (merged into tracking)

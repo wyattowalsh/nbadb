@@ -1,26 +1,28 @@
 ---
 title: Other Endpoints
-description: Specialty package endpoints for shots, rotations, officials, and estimated metrics
+description: Specialty endpoints for shots, rotations, officials, video/media, and estimated metrics
 ---
 
 # Other Endpoints
 
-Six specialty endpoints round out the game package.
+Eleven specialty endpoints round out the game and media package.
 
-> **Split entry keys:** Four endpoints start from `game_id`; two estimated-metric endpoints start from `season`.
+> **Split entry keys:** Game, date, season, and player/team/season workloads all appear on this shelf.
 >
 > Pair this shelf with [Box Scores](/docs/endpoints/box-scores) for the core postgame packet and [Play-by-Play](/docs/endpoints/play-by-play) for event order.
 
 ## Quick route
 
-| If you need...                                  | Use                      | Why it is the fastest route                                                       |
-| ----------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
-| shot coordinates and zone labels                | `ShotChartDetail`        | Best single stop for court-mapped shooting detail and league-average zone context |
-| stint-level substitution timing                 | `GameRotation`           | Shows when players checked in/out and what happened during those runs             |
-| hustle stats outside the main box board         | `HustleStatsBoxScore`    | Quick mirror for hustle categories in a game-specific specialty feed              |
-| officials, inactive players, and series context | `BoxScoreSummaryV2`      | Summary packet for everything around the main line score                          |
-| season-level estimated player models            | `PlayerEstimatedMetrics` | Efficient way to pull estimated advanced metrics for players                      |
-| season-level estimated team models              | `TeamEstimatedMetrics`   | Same estimated-model lane, but at team scope                                      |
+| If you need...                                  | Use                            | Why it is the fastest route                                                       |
+| ----------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------- |
+| shot coordinates and zone labels                | `ShotChartDetail`              | Best single stop for court-mapped shooting detail and league-average zone context |
+| stint-level substitution timing                 | `GameRotation`                 | Shows when players checked in/out and what happened during those runs             |
+| hustle stats outside the main box board         | `HustleStatsBoxScore`          | Quick mirror for hustle categories in a game-specific specialty feed              |
+| officials, inactive players, and series context | `BoxScoreSummaryV2`            | Summary packet for everything around the main line score                          |
+| season-level estimated player models            | `PlayerEstimatedMetrics`       | Efficient way to pull estimated advanced metrics for players                      |
+| season-level estimated team models              | `TeamEstimatedMetrics`         | Same estimated-model lane, but at team scope                                      |
+| video metadata and asset references             | `VideoDetails*`                | Preserves every dynamic result set with request/result-set provenance             |
+| event video availability and status             | `VideoEvents*` / `VideoStatus` | Connects game/date discovery to promoted media facts                              |
 
 ## Single-game supplements
 
@@ -37,6 +39,22 @@ Six specialty endpoints round out the game package.
 - `GameRotation` &rarr; `stg_rotation_home`, `stg_rotation_away` &rarr; `fact_rotation`
 - `HustleStatsBoxScore` &rarr; `stg_box_score_hustle` &rarr; `fact_league_hustle`, `fact_team_game_hustle`
 - `BoxScoreSummaryV2` &rarr; `stg_game_summary`, `stg_officials`, `stg_line_score`, `stg_inactive_players`, etc. &rarr; `fact_game_result`, `bridge_game_official`, `dim_game`
+
+## Video and media shelf
+
+| Endpoint            | Workload key                                           | Result handling                    | Lands in                   |
+| ------------------- | ------------------------------------------------------ | ---------------------------------- | -------------------------- |
+| `VideoDetails`      | player, team, season, season type, and context measure | Recursive dynamic result-set parse | `fact_video_details`       |
+| `VideoDetailsAsset` | player, team, season, season type, and context measure | Recursive dynamic result-set parse | `fact_video_details_asset` |
+| `VideoEvents`       | `game_id`                                              | Event rows                         | `fact_video_events`        |
+| `VideoEventsAsset`  | `game_id`                                              | Asset rows                         | `fact_video_events_asset`  |
+| `VideoStatus`       | date discovery                                         | Status rows                        | `fact_video_status`        |
+
+The details routes retain endpoint, result-set, player/team/season/type, and
+context-measure provenance. The extraction contract is the union of all 78 context
+measures exposed by the installed runtime and upstream docs/tools. Full extraction
+groups at most three measures per lane. PlayIn is scheduled from 2019-20 onward;
+pre-2019 PlayIn combinations remain visible as `upstream_unavailable`.
 
 ## Season estimated-model shelf
 

@@ -45,6 +45,7 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 - **Player-level** — career stats, season splits, matchups, awards, draft combine measurements, player tracking (speed, distance, touches, passes, rebounding, shooting), estimated metrics
 - **Team-level** — game logs, matchups, splits, clutch stats, franchise history, IST standings, playoff picture, pace and efficiency, player dashboards
 - **League-level** — leaders, hustle stats, lineup visualizations, shot locations by zone, synergy play types, league-wide tracking
+- **Video/media** — video details, assets, events, and status surfaces, including every documented/runtime video context measure and explicit request provenance
 
 ## 📦 Output Formats
 
@@ -62,7 +63,7 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 > ```bash
 > pip install nbadb    # or: uv add nbadb
 >
-> # Full build from scratch (1946-present, ~2-4 hours)
+> # Full local build from scratch (1946-present; runtime depends on endpoint availability and throttling)
 > nbadb init
 >
 > # Daily incremental update (~5-15 minutes)
@@ -110,17 +111,17 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 
 Run `nbadb --help` or `nbadb <command> --help` for full option details.
 
-Release publishes should use `nbadb upload --verify-remote`. Verification reads
-only `nbadb-publication.json` and requires the exact positive Kaggle version
-returned with that marker. A marker-specific HTTP 404 can enter a one-upload
-bootstrap path after the dataset metadata API supplies the current version; any
-other baseline lookup error stops before upload. If any upload remains unresolved,
-every later bundle is reconciliation-only until exact marker evidence resolves the
-prior publication. Full, daily, and monthly workflows publish only from the default
-branch, serialize publishers through a FIFO queue, and preserve that reconciliation
-state in a shared Actions cache and publication artifacts so a later runner or
-extraction chain cannot silently lose it. Remote markers and local publication
-records are schema-validated before any upload decision.
+Release publishes should use `nbadb upload --verify-remote`. The publication marker
+resolves an exact positive Kaggle version; verification then paginates that version's
+complete API file inventory and downloads one file at a time for full SHA-256
+readback, deleting each temporary file after it is checked. A marker-specific HTTP
+404 can enter a one-upload bootstrap path after the dataset metadata API supplies the
+current version; any other baseline lookup error stops before upload. If an upload
+remains unresolved, every later bundle is reconciliation-only until exact evidence
+resolves it. Full, daily, and monthly workflows publish only from the default branch,
+serialize publishers through a FIFO queue, and preserve reconciliation state in a
+shared Actions cache and publication artifacts. Metadata is committed only after the
+remote file inventory and every resource digest match.
 
 For docs-site maintenance, regenerate generator-owned artifacts from the repo root with:
 
@@ -219,12 +220,16 @@ requests, and restored manifests that still schedule them fail before VPN prefli
 extract lanes. Canonical coverage rows that combine alternate wrappers are projected
 back to every concrete endpoint/pattern route before lane generation, preserving each
 distinct staging surface without scheduling endpoint-name aliases as zero-work jobs.
-The full-history `video_details_asset` route keeps its upstream season contract intact,
-but runs with a ten-call persistence boundary, isolated two-call concurrency, a
-15-second request timeout, no in-call retries, a fully-failed-chunk stop, and a
-600-second no-completed-chunk watchdog. Empty successful responses are journaled
-only after their zero-row staging chunk is durable, so retries cannot recreate a
-thousand-call all-or-nothing barrier.
+`video_details` and `video_details_asset` preserve the upstream season contract and
+parse every recursively nested result set instead of assuming one static table.
+Their rows carry endpoint, result-set, player/team/season/type, and context-measure
+provenance. The extraction contract covers all 78 measures found across the installed
+runtime and upstream docs/tools, schedules at most three measures per lane, and
+classifies pre-2019 PlayIn requests as upstream-unavailable. The asset route also uses
+a ten-call persistence boundary, isolated two-call concurrency, a 15-second request
+timeout, no in-call retries, a fully-failed-chunk stop, and a 600-second
+no-completed-chunk watchdog. Empty successful responses are journaled only after
+their zero-row staging chunk is durable.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 strict NBA result-set probe, and installed-stack player/game discovery canaries pass.
 The player canary also requires a positive player/team membership row.
@@ -248,24 +253,26 @@ lane-manifest digest and independently reloaded before upload and after lane dow
 Partial state is retained under a run/attempt-scoped
 recovery name; it can seed a retry, but it cannot spend lane retries, trigger child
 dispatch, or become canonical without passing the full seed and verifier gates.
-Each
-checkpoint generation copies the previous database into a new output before
-applying attested current lane deltas, preserving legitimate duplicate
-multiplicity while removing checkpoint overlap. Schema-v3 attestation requires all
-manifest season/type units and concrete successful journal units; false
-`contract_blocked` declarations fail closed. Chained
-runs preserve literal
-`max_iterations=auto`, enforce the manifest's numeric iteration budget locally,
-and refuse an active or successful `chain=<id> iteration=<n>` dispatch while
-allowing recovery from failed/cancelled history.
+Each checkpoint generation copies the previous database into a new output before
+applying attested current lane deltas, preserving legitimate duplicate multiplicity
+while removing checkpoint overlap. Lane snapshots are resumable only after a DuckDB
+checkpoint, WAL removal, structural validation, and exact database digest; failed
+snapshot creation is uploaded under a diagnostics-only name. Schema-v3 attestation
+binds each player/team/season lane to the exact content-addressed discovery workload,
+including zero-pair sentinels, and compares every expected identity and video context
+against successful journal units. False `contract_blocked` declarations fail closed.
+Chained runs preserve literal `max_iterations=auto`, set one fixed numeric cap from
+remaining matrix dispatch credits and retry depth, and never extend that cap in a
+child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
+while allowing recovery from failed/cancelled history.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
 read-only permissions; `publish=false` never receives Kaggle secrets, while
 `publish=true` consumes the exact assured artifact in a separate FIFO-serialized
-writer job. The exported bundle carries a sorted SHA-256 manifest bound to the
-source commit, chain ID, and coverage fingerprint; the publisher recomputes that
-identity after download, includes it in Kaggle metadata and marker v2, and pushes
-checked-in metadata as its final step only after revalidating the frozen source and
-completing exact remote verification. A publication rerun accepts only the original
+writer job. The exported bundle carries a sorted SHA-256 manifest bound to the source
+commit, chain ID, and coverage fingerprint. The publisher recomputes that identity
+after download, includes it in Kaggle metadata and marker v2, paginates the exact
+remote version inventory, and streams every remote file through SHA-256 readback
+before pushing checked-in metadata as its final step. A publication rerun accepts only the original
 source or its single byte-identical metadata-only child. A zero-active resume can
 replay its attested terminal checkpoint.
 For a one-lane VPN proof, `targeted_smoke=true` requires a manual manifest,
@@ -288,7 +295,7 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | Relational DB   | [SQLModel](https://sqlmodel.tiangolo.com/) 0.0.39 + SQLite                                                              |
 | HTTP / Proxy    | [proxywhirl](https://github.com/wyattowalsh/proxywhirl)                                                                 |
 | CLI             | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
-| Type Checking   | [ty](https://github.com/astral-sh/ty) 0.0.56                                                                            |
+| Type Checking   | [ty](https://github.com/astral-sh/ty) 0.0.58                                                                            |
 | Linting         | [Ruff](https://docs.astral.sh/ruff/)                                                                                    |
 | Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 11.x               |
 | CI              | GitHub Actions (SHA-pinned)                                                                                             |

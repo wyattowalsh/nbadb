@@ -80391,11 +80391,193 @@
   },
   {
     "table_name": "stg_video_details",
-    "fields": []
+    "fields": [
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Dynamic upstream result-set discriminator",
+        "description_source": "metadata",
+        "source": "nba_api.response.resultSets.name",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_index",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Stable response-order result-set discriminator",
+        "description_source": "metadata",
+        "source": "nba_api.response.resultSets.index",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure",
+        "type": "String",
+        "nullable": false,
+        "description": "Requested video event measure",
+        "description_source": "metadata",
+        "source": "VideoDetails.ContextMeasure request",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Pinned nba_api sources declaring the context measure",
+        "description_source": "metadata",
+        "source": "nbadb.core.types.VIDEO_CONTEXT_MEASURE_PROVENANCE",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_type_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Pinned nba_api sources declaring the season type",
+        "description_source": "metadata",
+        "source": "nbadb.core.types.VIDEO_SEASON_TYPE_PROVENANCE",
+        "fk_ref": ""
+      },
+      {
+        "name": "nba_api_contract_version",
+        "type": "String",
+        "nullable": false,
+        "description": "nba_api version used to derive the video request contract",
+        "description_source": "metadata",
+        "source": "nbadb.core.types.NBA_API_VIDEO_CONTEXT_MEASURE_VERSION",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_player_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Player identifier used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.PlayerID request",
+        "fk_ref": "staging_player.player_id"
+      },
+      {
+        "name": "request_team_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Team identifier used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.TeamID request",
+        "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "request_season",
+        "type": "String",
+        "nullable": false,
+        "description": "Season used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.Season request",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_season_type",
+        "type": "String",
+        "nullable": false,
+        "description": "Season type used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.SeasonType request",
+        "fk_ref": ""
+      }
+    ]
   },
   {
     "table_name": "stg_video_details_asset",
-    "fields": []
+    "fields": [
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Dynamic upstream result-set discriminator",
+        "description_source": "metadata",
+        "source": "nba_api.response.resultSets.name",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_index",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Stable response-order result-set discriminator",
+        "description_source": "metadata",
+        "source": "nba_api.response.resultSets.index",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure",
+        "type": "String",
+        "nullable": false,
+        "description": "Requested video event measure",
+        "description_source": "metadata",
+        "source": "VideoDetails.ContextMeasure request",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Pinned nba_api sources declaring the context measure",
+        "description_source": "metadata",
+        "source": "nbadb.core.types.VIDEO_CONTEXT_MEASURE_PROVENANCE",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_type_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Pinned nba_api sources declaring the season type",
+        "description_source": "metadata",
+        "source": "nbadb.core.types.VIDEO_SEASON_TYPE_PROVENANCE",
+        "fk_ref": ""
+      },
+      {
+        "name": "nba_api_contract_version",
+        "type": "String",
+        "nullable": false,
+        "description": "nba_api version used to derive the video request contract",
+        "description_source": "metadata",
+        "source": "nbadb.core.types.NBA_API_VIDEO_CONTEXT_MEASURE_VERSION",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_player_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Player identifier used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.PlayerID request",
+        "fk_ref": "staging_player.player_id"
+      },
+      {
+        "name": "request_team_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Team identifier used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.TeamID request",
+        "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "request_season",
+        "type": "String",
+        "nullable": false,
+        "description": "Season used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.Season request",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_season_type",
+        "type": "String",
+        "nullable": false,
+        "description": "Season type used for the request",
+        "description_source": "metadata",
+        "source": "VideoDetails.SeasonType request",
+        "fk_ref": ""
+      }
+    ]
   },
   {
     "table_name": "stg_video_events",

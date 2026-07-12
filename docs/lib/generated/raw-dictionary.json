@@ -10106,6 +10106,196 @@
     ]
   },
   {
+    "table_name": "raw_video_details",
+    "fields": [
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Result set name value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_index",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Result set index value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure",
+        "type": "String",
+        "nullable": false,
+        "description": "Context measure value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Context measure provenance value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_type_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Season type provenance value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "nba_api_contract_version",
+        "type": "String",
+        "nullable": false,
+        "description": "NBA API contract version value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_player_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Request player ID value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_team_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Request team ID value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_season",
+        "type": "String",
+        "nullable": false,
+        "description": "Request season value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_season_type",
+        "type": "String",
+        "nullable": false,
+        "description": "Request season type value in the raw table raw_video_details.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_video_details_asset",
+    "fields": [
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Result set name value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_index",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Result set index value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure",
+        "type": "String",
+        "nullable": false,
+        "description": "Context measure value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "context_measure_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Context measure provenance value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_type_provenance",
+        "type": "String",
+        "nullable": false,
+        "description": "Season type provenance value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "nba_api_contract_version",
+        "type": "String",
+        "nullable": false,
+        "description": "NBA API contract version value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_player_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Request player ID value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_team_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Request team ID value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_season",
+        "type": "String",
+        "nullable": false,
+        "description": "Request season value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_season_type",
+        "type": "String",
+        "nullable": false,
+        "description": "Request season type value in the raw table raw_video_details_asset.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
     "table_name": "raw_win_probability",
     "fields": [
       {
