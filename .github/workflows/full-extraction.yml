@@ -610,10 +610,12 @@ jobs:
           PY
             if [ -s "$matching_metadata" ]; then
               while IFS= read -r metadata_name; do
+                metadata_dir="$RUNNER_TEMP/resume-source/metadata/$metadata_name"
+                mkdir -p "$metadata_dir"
                 gh run download "$RESUME_SOURCE_RUN_ID" \
                   --repo "${{ github.repository }}" \
                   --name "$metadata_name" \
-                  --dir "$RUNNER_TEMP/resume-source/metadata"
+                  --dir "$metadata_dir"
               done < "$matching_metadata"
             else
               echo "::notice::Resume source run $RESUME_SOURCE_RUN_ID has no lane metadata artifacts; recovery will re-plan from the manifest"

@@ -340,6 +340,15 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     assert "needs.checkpoint.result == 'success'" in dispatch
 
 
+def test_resume_source_downloads_each_lane_metadata_artifact_to_a_unique_directory() -> None:
+    plan = _job_block(_workflow_text(), "plan")
+
+    assert 'metadata_dir="$RUNNER_TEMP/resume-source/metadata/$metadata_name"' in plan
+    assert 'mkdir -p "$metadata_dir"' in plan
+    assert '--dir "$metadata_dir"' in plan
+    assert '--dir "$RUNNER_TEMP/resume-source/metadata"' not in plan
+
+
 def test_successful_nonpublishing_preflight_reaches_discovery_seed() -> None:
     discovery = _job_block(_workflow_text(), "discovery_seed")
     discovery_header = discovery.split("    steps:\n", 1)[0]
