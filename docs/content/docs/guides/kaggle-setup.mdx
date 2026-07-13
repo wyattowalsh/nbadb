@@ -122,39 +122,83 @@ df = pd.read_parquet("data/nbadb/parquet/dim_player/dim_player.parquet")
 uv run nbadb upload --data-dir data/nbadb --message "Post-trade-deadline refresh"
 ```
 
+Without `--verify-remote`, this path is intentionally reported as **submitted and
+unverified**, not complete. Use it only when asynchronous Kaggle submission is the
+desired contract. Release publication uses the full-extraction assured bundle and
+exact remote readback.
+
 ### Preflight checklist
 
-| Confirm this first                                                                 | Why                                     |
-| ---------------------------------------------------------------------------------- | --------------------------------------- |
-| Your target data directory already contains the dataset you want to publish        | `upload` publishes what is on disk      |
-| Kaggle credentials are available to the environment that `kagglehub` uses          | Upload cannot authenticate without them |
-| `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default | Metadata and upload target must agree   |
-| CSV export headers match the generated table schemas                               | Kaggle resource schemas are order-bound |
-| `dataset-metadata.json` declares every public file or directory you intend to ship | Upload stages only declared resources   |
+| Confirm this first                                                                 | Why                                                                  |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Your target data directory already contains the dataset you want to publish        | `upload` publishes what is on disk                                   |
+| Kaggle credentials are available to the environment that `kagglehub` uses          | Upload cannot authenticate without them                              |
+| `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default | Metadata and upload target must agree                                |
+| CSV export headers match the generated table schemas                               | Kaggle resource schemas are order-bound                              |
+| `dataset-metadata.json` declares every public file or directory you intend to ship | Upload stages only declared resources                                |
+| `assured-artifact-manifest.json` exists for a full release                         | `--full-publication` fails closed without it                         |
+| `terminal-assurance-report.json` exists for a full release                         | Full publication binds terminal checkpoint and blocked-lane evidence |
 
 ### Operator preflight
 
 ```bash
-uv run nbadb export --data-dir data/nbadb
-uv run nbadb scan --data-dir data/nbadb --fail-on error --report-path artifacts/health/local/scan-report.json
+test -f data/nbadb/assured-artifact-manifest.json
+test -f data/nbadb/terminal-assurance-report.json
+mkdir -p artifacts/health/local
+jq '.checkpoint_report' data/nbadb/terminal-assurance-report.json > artifacts/health/local/checkpoint-report.json
+chain_id="$(jq -r .chain_id data/nbadb/assured-artifact-manifest.json)"
+source_sha="$(jq -r .source_sha data/nbadb/assured-artifact-manifest.json)"
+coverage_fingerprint="$(jq -r .coverage_fingerprint data/nbadb/assured-artifact-manifest.json)"
+uv run nbadb scan \
+  --data-dir data/nbadb \
+  --fail-on error \
+  --full-publication \
+  --checkpoint-report artifacts/health/local/checkpoint-report.json \
+  --checkpoint-manifest artifacts/full-extraction/merge-manifest.json \
+  --checkpoint-dir checkpoint-artifact \
+  --checkpoint-chain-id "$chain_id" \
+  --checkpoint-source-sha "$source_sha" \
+  --report-path artifacts/health/local/scan-report.json
+uv run python -m nbadb.core.artifact_identity verify \
+  --root data/nbadb \
+  --chain-id "$chain_id" \
+  --source-sha "$source_sha" \
+  --coverage-fingerprint "$coverage_fingerprint"
 uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata.json
 uv run python -m json.tool data/nbadb/dataset-metadata.json >/dev/null
-uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" --verify-remote
+uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" --full-publication
 uv run python -m json.tool logs/kaggle/kaggle-upload-manifest.json >/dev/null
 ```
+
+The full-extraction workflow produces the assured bundle in the required order:
+export every format, run the hard scan with required silver/gold domain anchors,
+declared row-count parity, plus a canonical
+manifest/database/chain/source verification of the terminal checkpoint's complete
+lane/run/coverage inventory, and only
+then build `assured-artifact-manifest.json`. Do not re-export after that manifest is
+built; the publisher must consume the exact bytes that passed assurance. It resolves
+the exact GitHub artifact ID, verifies the downloaded archive SHA-256 against the
+upload result, and revalidates the assured inventory before Kaggle staging.
+For a manual scan, download the terminal manifest and checkpoint artifacts shown above;
+the assured publication bundle alone intentionally cannot self-attest its extraction proof.
 
 `data/nbadb` is ignored by git, so validate its generated metadata directly instead of using `git diff` on that path. Use `uv run nbadb metadata --output data/nbadb/dataset-metadata.json` without `--data-dir` only as a catalog preview. Use an existing `--data-dir` for publish validation so the rendered resource inventory reflects the bundle on disk. The upload manifest records the staged-resource fingerprint, exact remote versions, marker observations, and final local post-upload check for the latest publish attempt.
 
 ## Remote verification contract
 
 `--verify-remote` uses `nbadb-publication.json` to resolve an exact positive dataset
-version, but successful verification is not marker-only. nbadb paginates the exact
-version's complete Kaggle API file inventory, requires it to equal the local staged
-inventory, and downloads one file at a time for SHA-256 readback. Each temporary file
-is removed before the next one, bounding readback storage to the largest resource.
-nbadb does not infer a version from Kaggle cache-directory names. The marker and
-persisted publication records must have valid identity digests, state, transition
-evidence, and resolved versions before they can influence another upload.
+version, but successful verification is neither marker-only nor upload-only. It
+paginates the exact version's complete Kaggle API file inventory, requires it to equal
+the local staged inventory, and downloads one file at a time for SHA-256 readback.
+`--full-publication` adds the pre-submission assured-manifest and terminal-report
+requirements, validates the checkpoint's complete lane/run/coverage inventory, enforces
+the exact file-versus-partition-directory resource contract, and compares every table's
+ordered schema and row count across DuckDB, SQLite, CSV, and Parquet. Each temporary file
+is removed before the next one, bounding readback
+storage to the largest resource. nbadb does not infer a version from Kaggle
+cache-directory names. The marker and persisted publication records must have valid
+identity digests, state, transition evidence, and resolved versions before they can
+influence another upload.
 
 | Baseline result                                                                        | Upload behavior                                                                                                                                       | Manifest evidence                                                                                                                                 |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -206,9 +250,10 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
 - The CLI default message is `"Automated update"`.
 - nbadb ensures `dataset-metadata.json` exists before upload.
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
+- The metadata preview generated without `--data-dir` declares 510 resources: two database files plus CSV and Parquet entries for all 254 runtime transform outputs. A concrete complete export also includes all 416 canonical staging surfaces, for 1,342 resources. A fully assured complete publication declares 1,344 after adding the assured artifact manifest and terminal assurance report.
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
-- Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift.
-- Use `--verify-remote` for CI or release publishes. It checks whether Kaggle already exposes the staged bundle identity with exact version evidence, uploads at most once, then polls until the exact-version API inventory and every streamed file digest match or `--remote-timeout` expires. Defaults are 3,600 seconds and a 15-second poll interval.
+- Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift. Full publication additionally checks exact resource kinds and four-format table/schema/row parity, including reconstructed Hive partition columns.
+- Use `--verify-remote` when any update needs exact Kaggle version and full resource-digest readback. Use `--full-publication` for a terminal full extraction; it implies remote verification and additionally revalidates `assured-artifact-manifest.json` plus the matching terminal assurance report. Both modes upload at most once, then poll until the exact-version API inventory and every streamed file digest match or `--remote-timeout` expires. Defaults are 3,600 seconds and a 15-second poll interval.
 - The same `--remote-timeout` independently bounds each full-bundle baseline reconciliation, any full readback needed when a marker appears during the marker-404 bootstrap recheck, and the post-upload readback phase. A full-bundle reconciliation that overruns its deadline fails closed before a new upload.
 - The upload path validates local metadata/resources, stages only declared files and directories plus the publication marker, rejects symlinks/path traversal, and uses hardlinks where the filesystem permits so the upload root does not duplicate the source tree. It reserves disk headroom before KaggleHub archive creation and fails immediately on local permanent errors such as `ENOSPC`.
 

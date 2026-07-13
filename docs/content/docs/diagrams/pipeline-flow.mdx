@@ -131,16 +131,24 @@ durable checkpoint aggregation. The `standard` profile is the default. Each
 matrix wave targets fresh, partial-progress, retry, and infrastructure work at
 `5:3:1:1` when every queue has work, with a ceiling-rounded 25% endpoint-family
 cap while another family is available. Priority and family diversity can override
-the preferred queue in a particular slot.
+the preferred queue in a particular slot. When another endpoint identity is
+available, the scheduler also prevents six consecutive runner slots from being
+endpoint-homogeneous. This distributes endpoint pressure; it does not attest six
+unique VPN exit IPs.
 
 The checkpoint is the recovery boundary: each redispatch copies the previous
 checkpoint into a new generation and merges only newly completed lane databases.
 Terminal merge consumes that checkpoint before export. Incomplete lanes can also
-carry exact, attested DuckDB state artifacts into the next iteration. Workload-bound
+carry exact, attested DuckDB state artifacts into the next iteration after the upload
+action returns a positive artifact ID and SHA-256 receipt. Workload-bound
 state is revalidated against the active discovery generation during restore. Canonical
 diagnostic metadata still reaches lane control when a snapshot is not resumable, but
-only an explicit attested pointer is carried forward. Split children clear parent
+only an explicitly attested and durably uploaded pointer is carried forward. Split children clear parent
 state, and lane-state cache-prefix and parent-lane fallback are not recovery boundaries.
+Prior/current lane artifacts and prior checkpoints must match exact
+chain/source/run/artifact/generation/coverage provenance. A prior inventory containing
+any lane outside the current manifest is rejected, and only a successfully validated
+checkpoint is promoted under the canonical artifact name.
 
 ```mermaid
 flowchart TD
@@ -162,12 +170,14 @@ flowchart TD
     IdentityGate -->|no| Stop
     IdentityGate -->|yes| Decision{"Active lanes remain?"}
     Decision -->|yes| DispatchGuard["Dispatch guard\nauto budget + duplicate check"]
-    DispatchGuard --> Dispatch["Dispatch next iteration\nmanifest handoff"]
+    DispatchGuard --> Dispatch["Dispatch + stabilization poll\nexactly one child"]
     Dispatch --> Plan
     Decision -->|no| Merge["Read-only terminal merge\ncheckpoint first"]
     Merge --> TransformOnly["Transform + live snapshot"]
-    TransformOnly --> ExportAll["Hard scan + all exports"]
-    ExportAll --> PublishChoice{"Publish requested?"}
+    TransformOnly --> ExportAll["Export all formats"]
+    ExportAll --> Scan["Hard scan\nbound checkpoint + domain anchors"]
+    Scan --> Assured["Assured manifest\neffective checkpoint coverage"]
+    Assured --> PublishChoice{"Publish requested?"}
     PublishChoice -->|no| Canary["Assured canary artifact"]
     PublishChoice -->|yes| Publish["FIFO writer job\nmetadata + Kaggle readback"]
 ```
@@ -195,6 +205,9 @@ checkpoints an atomic schema-v2 summary; a 95-minute process watchdog preserves 
 headroom before the 120-minute job timeout. The summary is bound to the exact lane
 manifest, and the verifier independently derives its required units before reloading
 every requested scope/generation before canonical upload and after lane installation.
+Both transport-transient and response-contract/validation failures, including wrapped
+causes, consume the bounded discovery retry budget; true application failures remain
+permanent.
 Incomplete state uses a distinct
 run/attempt-scoped recovery artifact; a later seed may resume its validated exact
 scopes, but the bundle must pass complete seeding and verification before extraction
@@ -204,33 +217,49 @@ unattempted lanes cannot receive false retries.
 Checkpoint generations are immutable copy-plus-delta artifacts. Even a zero-delta
 iteration creates a distinct database copy rather than republishing or mutating
 the previous file. Each report binds the physical DuckDB SHA-256 and every included
-lane's coverage hash. Current metadata schema v3 additionally binds the downloaded
-lane database digest, lane fields, exact coverage hash, and every manifest season/type.
+lane's coverage hash. Current metadata and state-attestation schema v3 additionally
+bind the downloaded lane database digest, source, chain, lane, exact run and artifact
+name, exact coverage hash, and every manifest season/type.
 Player/team/season lanes are also bound to the exact content-addressed workload
 generation, including zero-pair sentinels, and every expected identity/context must
 have journal evidence before merge. A lane cannot
 self-declare `contract_blocked`; its evidence must equal recomputed support rules.
+Validated blocked lanes live in a separate artifact-bound evidence inventory. Its
+canonical rows and digest must also match the current or previous manifest chain-state
+commitment, so the checkpoint report cannot authenticate its own ancestry. Newly classified
+rows survive cancellation in a pending commitment that the next checkpoint merges and clears.
+Blocked lanes do
+not count toward the effective checkpoint coverage used by terminal assured identity.
 Staging merges use bag-aware overlap subtraction so duplicate
 rows legitimately present within a source retain their maximum multiplicity. A stale
 report, changed/swapped database, or reused lane ID with a different contract fails
 before readiness. For chaining, literal `max_iterations=auto` propagates to the
 next run while the first manifest fixes a numeric safety cap from remaining
 matrix-wide dispatch credits, retry depth, and possible split descendants. Child
-manifests never extend it. The dispatcher searches paginated
+manifests never extend it. Cumulative zero-progress accounting remains bounded across
+alternating failure classes. The dispatcher searches paginated
 workflow runs for the exact next `chain=<id> iteration=<n>` title, blocks active or
 successful matches, records failed/cancelled history as retryable, and then requires
-exactly one newly visible child run. Direct-mode workflow concurrency uses chain and
-iteration, so the parent cannot hold the child's slot. VPN/auto chains instead share
+exactly one newly visible child run to remain exactly one through a stabilization poll
+before acknowledgement. Direct-mode workflow concurrency uses chain and iteration,
+so the parent cannot hold the child's slot. VPN/auto chains instead share
 a repository-wide FIFO concurrency queue, preventing account-slot overlap without
 allowing a newer pending chain to displace an already-queued child.
 
 The pinned source SHA must be an ancestor of its trusted branch. A zero-active
-resume can attest and replay the source run's terminal checkpoint without rebuilding
+resume can attest and replay the exact manifest/report/database trio from the source run's
+terminal checkpoint without rebuilding
 lanes. Set `publish=false` for a safe Actions canary: the read-only assurance job
-still executes merge, transform, live snapshot, hard scan, and every export format,
-but receives neither write permission nor Kaggle secrets. Publishing is a separate
-writer job that downloads the exact assured artifact and enters the shared FIFO
-publisher queue before metadata commit and exact-version Kaggle readback.
+still executes merge, transform, live snapshot, every export format, and then the hard
+scan with canonical manifest/database/chain/source verification, required silver/gold
+domain anchors and row parity, and the terminal checkpoint's complete lane/run/coverage proof, but receives
+neither write permission nor Kaggle
+secrets. Publishing is a separate writer job that resolves the exact GitHub artifact
+ID, verifies the archive SHA-256 against the upload result, revalidates the assured
+manifest, and enters the shared FIFO publisher queue. Metadata is generated for all
+254 runtime transform outputs. The publisher uses `--full-publication` to require both
+assurance files, matching terminal provenance, and exact-version complete-inventory
+SHA-256 readback; generic `--verify-remote` remains available for nonterminal updates.
 
 ## Read the possession left to right
 

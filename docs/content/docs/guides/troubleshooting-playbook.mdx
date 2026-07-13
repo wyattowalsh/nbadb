@@ -280,7 +280,11 @@ live fallback does not refetch the surrounding Cartesian rectangle.
 
 The seed gives every request a hard timeout and uses one three-attempt bounded canary
 per observed transport or response-shape failure class instead of retrying hundreds
-of scopes after a broad outage. It writes an atomic schema-v2 summary before
+of scopes after a broad outage. Individual discovery calls spend the same bounded
+retry budget on transport-transient failures and response-contract or validation
+failures, including failures classified through a wrapped cause. A response that
+cannot satisfy the required discovery columns is therefore retried rather than being
+misclassified as a permanent application error. It writes an atomic schema-v2 summary before
 network work and after each completed result. VPN discovery profiles separately cap
 in-flight calls and the shared request rate; the default moderate profile uses three
 in-flight calls at two requests per second so one accepted exit is not immediately
@@ -315,7 +319,9 @@ checkpoint, recovery reads the manifest's exact `chain_state.artifact_run_ids` p
 the current run, inventories every artifact, and downloads only exact lane/database
 and metadata names. Duplicate names, ambiguous databases, invalid run IDs, and a
 database without its same-run metadata fail closed; recovery artifacts and wildcard
-prefix matches are never accepted.
+prefix matches are never accepted. Every accepted current or historical lane pair
+must match the manifest's chain, source, run, artifact name, lane, and coverage
+provenance.
 
 Checkpoint roll-forward is copy-plus-delta and never edits the prior generation.
 The output path must differ from the previous checkpoint; the builder copies the
@@ -338,21 +344,34 @@ discovery workload, verifies every requested pair including zero-pair sentinels,
 requires each expected identity/context in the journal while rejecting stale identities
 outside the active workload. Duplicate lane IDs fail before checkpoint indexing.
 `contract_blocked` is accepted only when the reported support evidence exactly matches
-recomputed rules. Staging merge
+recomputed rules. Its canonical rows and digest must also match the independent current or
+previous manifest chain-state commitment. Cancellation/source resume carries new rows in a
+digest-bound pending commitment until the next checkpoint merges and clears them. A prior
+checkpoint must match its pointer's chain, source, run,
+artifact name, generation, and coverage fingerprint, and its inventory may not contain
+any lane outside the current manifest. A failed build remains an attempt-scoped
+diagnostic artifact; only a successfully validated database and report are promoted
+under the canonical checkpoint name. Valid contract-blocked lanes are recorded in a
+separate artifact-bound evidence inventory rather than included in the effective
+checkpoint coverage used for terminal assured identity. Staging merge
 uses `EXCEPT ALL` overlap subtraction, preserving legitimate duplicate multiplicity
 without replaying rows already represented by a prior checkpoint or another delta.
 
 Incomplete lanes upload a longer-retained durable state artifact only after DuckDB
 `CHECKPOINT`, WAL removal, regular-file/journal validation, and an attestation that
-binds source SHA, chain, lane, coverage hash, and database SHA-256. The next iteration
-restores only that exact artifact. Player/team/season snapshots use state-attestation
-schema v2 to bind the active content-addressed workload generation, requested pairs,
+binds source SHA, chain, lane, coverage hash, and database SHA-256. Metadata is finalized
+only after the upload action returns a positive artifact ID and SHA-256 receipt. The next
+iteration restores only that exact run/artifact identity and receipt. Finalized metadata gets
+one exact-name upload retry before the lane falls back to diagnostics. Player/team/season snapshots use
+state-attestation schema v3 to bind the active content-addressed workload generation,
+requested pairs,
 zero-pair sentinels, and base-identity digest. Extraction-lane cache-prefix and
 parent-lane fallbacks are not accepted; split children clear parent pointers. Canonical
 metadata schema v3 uploads even when snapshot attestation fails, preserving restore
 errors, progress, failure class, root error type, and failed VPN servers for lane
-control. Only an explicit `state_artifact.attested=true` pointer is reusable. The
-database itself remains diagnostics-only when attestation fails.
+control. Only a pointer with both `state_artifact.attested=true` and
+`state_artifact.uploaded=true` plus valid receipt fields is reusable. The database itself
+remains diagnostics-only when attestation or upload finalization fails.
 
 `video_details` and `video_details_asset` classify 1946-47 through 2003-04 as
 `contract_blocked` and begin at 2004-05 in full extraction. Run 29195221754 discovery
@@ -389,10 +408,13 @@ uv run nbadb backfill run --extract-only --verbose \
 defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
 therefore API pressure. VPN mode defaults to three simultaneous lanes. Each active
-lane runs on a separate GitHub-hosted runner and rotates to a lane-specific NordVPN
-server. Probe-verified preflight/discovery hosts are reused only by their assigned
-parallel slot; unfilled slots retain disjoint recommendation partitions. All lanes
-still consume the same account's connection allowance. Only
+lane runs on a separate GitHub-hosted runner and tunnel. Probe-verified
+preflight/discovery hosts are reused only by their assigned parallel slot; unfilled
+slots retain disjoint recommendation partitions. Those preferences do not attest
+unique VPN exit IPs across runners. When alternatives exist, the scheduler prevents
+an endpoint-homogeneous six-lane runner window, which distributes endpoint pressure
+without changing that VPN assurance boundary. All lanes still consume the same
+account's connection allowance. Only
 one VPN/auto full-extraction workflow can run at a time; direct-mode chains retain
 chain/iteration-scoped concurrency. Token-derived mode further caps the matrix at one
 active lane.
@@ -405,6 +427,10 @@ With `max_iterations=auto`, the first manifest derives one numeric `iteration_bu
 from total remaining matrix dispatch credits, per-lane retry depth, and bounded split
 descendants. Child manifests preserve that value and never extend it. Redispatch still
 passes the literal `auto` input while the fixed manifest cap remains authoritative.
+Each lane also carries a cumulative `zero_progress_streak`: it increments whenever
+completed-call and persisted-row counters do not advance, even if the reported failure
+class alternates between attempts. This keeps mixed transport, response-contract, and
+infrastructure failures inside one bounded no-progress budget.
 Before `gh workflow run`, the dispatch job queries all paginated
 workflow-dispatch runs and refuses an active or successful display-title match for
 `Full Extraction chain=<chain_id> iteration=<next>`. The job-level concurrency key
@@ -414,7 +440,9 @@ cannot consume the same account slots concurrently or displace an already-pendin
 child; direct workflows remain scoped to chain plus iteration. Active or successful
 exact-title children block redispatch, but
 failed/cancelled historical runs are recorded and excluded when acknowledging the
-one newly created child run ID and URL. Upload-artifact steps use
+one newly created child run ID and URL. The first exact-title match is provisional:
+the dispatcher performs a stabilization poll and acknowledges the child only when the
+new child set remains exactly one. Upload-artifact steps use
 overwrite semantics so rerun jobs can replace their prior logical artifacts.
 
 The pinned `workflow_sha` must be a full commit on the trusted `workflow_ref` branch;
@@ -427,10 +455,25 @@ terminal assurance. Terminal assurance has read-only contents permission and emi
 an exact run/attempt-scoped artifact. Only the separate publisher job receives write
 permission and Kaggle secrets, and all full/daily/monthly publishers enter the shared
 FIFO `queue: max` group. The terminal export also creates
-`assured-artifact-manifest.json`, whose sorted file hashes bind the data tree to the
-source commit, chain ID, and coverage fingerprint. The publisher recomputes this
-manifest after downloading the exact assured artifact, publishes it as a Kaggle
-resource, and repeats the provenance in publication marker schema v2. The default
+`assured-artifact-manifest.json`, but only after every export completes and
+`nbadb scan --fail-on error --full-publication --checkpoint-report <path>
+--checkpoint-manifest <path> --checkpoint-dir <dir> --checkpoint-chain-id <id>
+--checkpoint-source-sha <sha>` invokes the canonical checkpoint verifier and validates
+both general quality and the terminal checkpoint's complete lane/run/coverage inventory,
+including canonical blocked evidence, while requiring every declared nonempty silver/gold
+domain anchor and row-preserving cardinality pair. Its sorted file hashes bind the data tree to the
+source commit, chain ID, and validated effective checkpoint coverage; separately
+artifact-bound blocked evidence cannot substitute for extracted coverage. The
+publisher resolves the exact GitHub artifact ID, verifies the downloaded archive's
+SHA-256 against the upload result, and then recomputes the assured manifest before
+requiring `nbadb upload --full-publication`, which independently validates the declared
+terminal assurance report and its chain, source, effective coverage, checkpoint, and
+blocked-evidence identities, exact resource kinds, and DuckDB/SQLite/CSV/Parquet
+table-schema-row parity before publishing both assurance files as Kaggle resources
+and repeating their provenance in publication marker schema v2. Generic
+`--verify-remote` remains available for exact-version readback of daily or monthly
+updates without asserting full-extraction terminal provenance. Generated metadata covers
+all 254 runtime transform outputs. The default
 branch must equal the pinned source immediately before upload. A failed-job rerun may
 also accept its single exact metadata-only child, but only when the regenerated file
 is byte-identical. The idempotent metadata push is the publisher's final step, after
@@ -441,8 +484,8 @@ landed before checkpoint promotion, it rebuilds from the source run's exact atte
 complete-lane artifacts instead of rerunning those lanes.
 
 Use `publish=false` when a full-coverage Actions canary is worth the extra run. It
-exercises terminal transform, hard scan, and export without permitting metadata or
-Kaggle publication. For a narrow custom manifest, set `targeted_smoke=true` with
+exercises terminal transform, export, and full-publication hard scan without permitting
+metadata or Kaggle publication. For a narrow custom manifest, set `targeted_smoke=true` with
 `network_mode=vpn`, `publish=false`, `max_iterations=1`, and
 `retry_pipeline_failures=false`. The workflow then skips global merge/scan and
 redispatch, and its dedicated assurance job passes only when the manual manifest has
@@ -488,12 +531,12 @@ PY
   children, while the season and cross-product patterns split by their lane
   policy span.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
-- Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
-- If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct; resume it only through `lane_manifest_run_id`, which reruns integrity, exact-coverage, and canonical bundle gates. Do not treat a broader aggregate cache as proof of an exact missing scope.
+- Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; the cumulative zero-progress budget continues across alternating classes. Application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
+- If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct; resume it only through `lane_manifest_run_id`, which reruns integrity, exact-coverage, and canonical bundle gates. Both transport and response-contract/validation failures should consume the bounded recovery attempts; a first response-shape failure must not terminate the remaining budget. Do not treat a broader aggregate cache as proof of an exact missing scope.
 - If `nba-probe-status` is `timeout`, `http_error`, `request_failed`, `invalid_content`, `stack_timeout`, `stack_transport_failed`, or `stack_budget_exhausted`, treat that server as NBA-blocked even when its exit-IP probe passed. Confirm the server appears in `failed-servers-json`; do not start discovery on that tunnel.
 - If `nba-probe-status` is `stack_unavailable`, `stack_runtime_error`, `stack_contract_error`, or `stack_invalid_attestation`, stop and fix the checked-out runtime or contract. These are host-independent fatal failures and must not rotate through or quarantine healthy VPN servers.
-- If checkpoint promotion fails, fix or regenerate the checkpoint before terminal merge. Use lane-artifact fallback only as an explicit recovery decision after confirming the chain's recorded artifact run ids and coverage fingerprint. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
-- If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. If the numeric iteration budget is exhausted while work remains, resume manually from the uploaded next-manifest and checkpoint artifacts after deciding whether to raise the cap.
+- If checkpoint promotion fails, fix or regenerate the checkpoint before terminal merge. Do not rename attempt-scoped diagnostics to the canonical checkpoint. Use lane-artifact fallback only as an explicit recovery decision after confirming exact chain/source/run/artifact/generation/coverage provenance and proving that neither the prior checkpoint nor its blocked-evidence inventory names a lane outside the current manifest. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
+- If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. Do not treat the first visible child as acknowledged until the stabilization poll confirms exactly one new exact-title run. If the numeric iteration budget is exhausted while work remains, resume manually from the uploaded next-manifest and checkpoint artifacts after deciding whether to raise the cap.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 

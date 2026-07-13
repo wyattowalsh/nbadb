@@ -111,17 +111,26 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 
 Run `nbadb --help` or `nbadb <command> --help` for full option details.
 
-Release publishes should use `nbadb upload --verify-remote`. The publication marker
+Full-extraction release publishes should use `nbadb upload --full-publication`. This
+mode requires terminal extraction assurance and implies exact remote verification. The
+publication marker
 resolves an exact positive Kaggle version; verification then paginates that version's
 complete API file inventory and downloads one file at a time for full SHA-256
-readback, deleting each temporary file after it is checked. A marker-specific HTTP
-404 can enter a one-upload bootstrap path after the dataset metadata API supplies the
-current version; any other baseline lookup error stops before upload. If an upload
-remains unresolved, every later bundle is reconciliation-only until exact evidence
-resolves it. Full, daily, and monthly workflows publish only from the default branch,
-serialize publishers through a FIFO queue, and preserve reconciliation state in a
-shared Actions cache and publication artifacts. Metadata is committed only after the
-remote file inventory and every resource digest match.
+readback, deleting each temporary file after it is checked. Full publication also
+requires a valid `assured-artifact-manifest.json` and matching
+`terminal-assurance-report.json` whose inventory and provenance exactly match the
+published files. Generic `--verify-remote` still proves the exact Kaggle version and
+every resource digest without requiring full-extraction provenance; an ordinary upload
+without readback is reported as submitted and unverified. Generated metadata covers all
+254 runtime transform outputs rather than a curated subset. A marker-specific HTTP 404
+can enter a one-upload bootstrap path after
+the dataset metadata API supplies the current version; any other baseline lookup error
+stops before upload. If an upload remains unresolved, every later bundle is
+reconciliation-only until exact evidence resolves it. Full, daily, and monthly
+workflows publish only from the default branch, serialize publishers through a FIFO
+queue, and preserve reconciliation state in a shared Actions cache and publication
+artifacts. Metadata is committed only after the remote file inventory and every
+resource digest match.
 
 For docs-site maintenance, regenerate generator-owned artifacts from the repo root with:
 
@@ -203,8 +212,11 @@ flowchart LR
 
 The GitHub Actions full-extraction control plane defaults to the `standard` chunk
 profile and targets a `5:3:1:1` rotation across fresh, partial-progress, retry,
-and infrastructure lanes when every queue has work. A
-centralized discovery job seeds only the current wave's exact
+and infrastructure lanes when every queue has work. When an alternative endpoint is
+available, the scheduler also prevents a six-lane runner window from containing only
+one endpoint identity. This spreads endpoint pressure across the six-runner window;
+it does not prove that the runners have six unique VPN exit IPs. A centralized
+discovery job seeds only the current wave's exact
 season/season-type scopes, carries those artifacts forward by chain and source
 run, refreshes active-season player/game/workload evidence, and blocks matrix
 fan-out when any required scope remains unproven. Aggregate-only player waves still
@@ -246,13 +258,16 @@ credential source proven by preflight, pause after bounded rejection sweeps, and
 rotate servers and protocols only after a budgeted cooldown. Servers that pass the
 preflight NBA probes are tried first by the serial discovery job; preflight and
 discovery successes are then handed to extraction as a verified pool. Lane indexes
-assign at most one such host to each parallel slot and exclude the rest from that
-slot's fresh recommendations, preserving distinct active exits. VPN lane
-parallelism defaults to three while preserving a separate runner and selected server
-per active lane. Token-derived extraction is serialized, and VPN/auto full-extraction workflows
-cannot overlap another VPN-backed full chain. Discovery uses
-hard request timeouts, a bounded homogeneous-outage canary, a 90-minute soft deadline,
-a 95-minute process watchdog, atomic coverage summaries, and content-addressed
+use preferred hosts and disjoint fresh recommendation partitions without wrapping a
+verified host onto later logical slots. Each active lane still runs on a separate
+runner and tunnel, but neither server selection nor scheduling attests unique exit
+IPs. VPN lane parallelism defaults to three. Token-derived extraction is serialized,
+and VPN/auto full-extraction workflows cannot overlap another VPN-backed full chain.
+Discovery uses hard request timeouts and spends its bounded retry budget on both
+transport-transient failures and response-contract/validation failures, including
+wrapped causes. True application errors remain permanent. It also uses a bounded
+homogeneous-outage canary, a 90-minute soft deadline, a 95-minute process watchdog,
+atomic coverage summaries, and content-addressed
 discovery/workload Parquet generations whose manifest pointers bind scope or pairs,
 schema, row counts, and SHA-256. A complete bundle is checked against the exact
 lane-manifest digest and independently reloaded before upload and after lane download.
@@ -261,35 +276,56 @@ recovery name; it can seed a retry, but it cannot spend lane retries, trigger ch
 dispatch, or become canonical without passing the full seed and verifier gates.
 Each checkpoint generation copies the previous database into a new output before
 applying attested current lane deltas, preserving legitimate duplicate multiplicity
-while removing checkpoint overlap. Lane snapshots are resumable only after a DuckDB
-checkpoint, WAL removal, structural validation, and exact database digest; failed
-snapshot creation is uploaded under a diagnostics-only name. Canonical metadata
-schema v3 is uploaded even when no snapshot can be attested, so restore/VPN failures
-remain visible to lane control and failed servers still enter the chain quarantine.
+while removing checkpoint overlap. Prior checkpoints and historical/current lane
+artifacts are accepted only when chain, source, run, artifact name, generation, and
+coverage provenance match exactly; a prior checkpoint containing any lane outside the
+current manifest is rejected. Lane snapshots are resumable only after a DuckDB
+checkpoint, WAL removal, structural validation, exact database digest, and a successful
+artifact upload whose positive ID and SHA-256 receipt are finalized into metadata. A failed
+checkpoint build remains attempt-scoped diagnostics; the canonical checkpoint name is
+uploaded only after successful validation. Canonical metadata schema v3 is uploaded
+even when no lane snapshot can be attested, so restore/VPN failures remain visible to
+lane control and failed servers still enter the chain quarantine.
 `vpn_network_error`, authentication failure, and connect timeout are all bounded
 `vpn_egress` failures rather than one-shot application failures.
-State-attestation schema v2 binds each player/team/season snapshot to the exact
+State-attestation schema v3 binds each player/team/season snapshot to the exact
 lane workload, including zero-pair sentinels, and rejects unexpected journal identities
 during both restore and checkpoint merge. Append-only growth outside that lane is safe:
 checkpoints carry `included_lane_workload_contracts` and compare the generation-independent
 scope identity before rebinding the lane to the current cumulative generation. Only metadata
-with an explicit attested artifact pointer can carry state into a retry; split children
-clear parent pointers, and duplicate child IDs fail before checkpoint indexing. False
-`contract_blocked` declarations fail closed.
+with an explicitly attested, durably uploaded artifact pointer can carry state into a retry;
+split children clear parent pointers, and duplicate child IDs fail before checkpoint indexing. False
+`contract_blocked` declarations fail closed. Valid blocked lanes are recorded in a
+separate artifact-bound evidence inventory whose canonical rows and digest are committed
+in manifest chain state across generations. Cancellation/source resume carries newly
+classified rows in a digest-bound pending commitment until the next checkpoint consumes
+and clears it; they do not inflate the effective
+checkpoint coverage used for terminal assured identity.
 Chained runs preserve literal `max_iterations=auto`, set one fixed numeric cap from
 remaining matrix dispatch credits and retry depth, and never extend that cap in a
 child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
-while allowing recovery from failed/cancelled history.
+while allowing recovery from failed/cancelled history. Cumulative no-progress retries
+remain bounded even when failure classes alternate, and a self-dispatch is
+acknowledged only after a stabilization poll still finds exactly one newly created
+exact-title child.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
 read-only permissions; `publish=false` never receives Kaggle secrets, while
 `publish=true` consumes the exact assured artifact in a separate FIFO-serialized
-writer job. The exported bundle carries a sorted SHA-256 manifest bound to the source
-commit, chain ID, and coverage fingerprint. The publisher recomputes that identity
-after download, includes it in Kaggle metadata and marker v2, paginates the exact
-remote version inventory, and streams every remote file through SHA-256 readback
-before pushing checked-in metadata as its final step. A publication rerun accepts only the original
-source or its single byte-identical metadata-only child. A zero-active resume replays
-its attested terminal checkpoint when present; after interruption before checkpointing,
+   writer job. Terminal assurance exports every format before running the hard scan with
+   required nonempty silver/gold domain anchors, declared silver-to-gold row-count parity,
+   and a checkpoint report canonically bound to its
+   manifest, database, chain, source commit, and every planned lane,
+then builds the sorted SHA-256 manifest from the
+validated effective checkpoint coverage. The publisher downloads the exact GitHub
+   artifact ID, normalizes and verifies the archive SHA-256 against the upload result,
+assured data identity, includes it in Kaggle metadata and marker v2, paginates the
+exact remote version inventory, and streams every remote file through SHA-256
+   readback before pushing checked-in metadata as its final step. Every marker-present
+   baseline is matched to the current metadata version and rechecked immediately before
+   upload, preventing a concurrent publisher from being silently superseded. A publication rerun
+accepts only the original source or its single byte-identical metadata-only child. A
+zero-active resume replays the exact `checkpoint-manifest.json` stored with its attested
+terminal checkpoint when present; after interruption before checkpointing,
 it rebuilds from the exact complete lane/database pairs named by the chain's recorded
 `chain_state.artifact_run_ids`.
 For a one-lane VPN proof, `targeted_smoke=true` requires a manual manifest,
