@@ -4271,6 +4271,7 @@ jobs:
           EXPECTED_CHECKPOINT_GENERATION: ${{ needs.lane_control.outputs.checkpoint-generation }}
           CURRENT_RUN_ID: ${{ github.run_id }}
           LANE_CONTROL_ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
+          LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT: ${{ needs.lane_control.outputs.contract-blocked-lane-count }}
         run: |
           mkdir -p data/nbadb-checkpoint artifacts/full-extraction
           checkpoint_manifest="$(find lane-control-artifact -name next-manifest.json -type f -print -quit)"
@@ -4331,7 +4332,7 @@ jobs:
             --output-dir data/nbadb-checkpoint \
             --report-path artifacts/full-extraction/checkpoint-report.json \
             --chain-id "$CHAIN_ID" \
-            --run-id "${{ github.run_id }}" \
+            --run-id "$CURRENT_RUN_ID" \
             --source-sha "$WORKFLOW_SOURCE_SHA" \
             > artifacts/full-extraction/checkpoint.stdout.json
 
@@ -4346,7 +4347,7 @@ jobs:
             PREVIOUS_CHECKPOINT_REPORT_PATH="$previous_report" \
             VERIFIED_PREVIOUS_CHECKPOINT_PATH="$(find artifacts/full-extraction -name verified-previous-checkpoint.json -type f -print -quit || true)" \
             CHECKPOINT_REPORT_PATH=artifacts/full-extraction/checkpoint-report.json \
-            LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="${{ needs.lane_control.outputs.contract-blocked-lane-count }}" \
+            LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="$LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT" \
             python - <<'PY'
           # CHECKPOINT_CONTRACT_BLOCKED_EVIDENCE_BINDER
           import hashlib

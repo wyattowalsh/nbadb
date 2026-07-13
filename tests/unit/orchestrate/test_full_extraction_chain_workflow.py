@@ -297,6 +297,20 @@ def test_previous_checkpoint_is_verified_before_lane_inventory_selection() -> No
     assert "PREVIOUS_REPORT_PATH" not in inventory
 
 
+def test_checkpoint_build_step_avoids_github_expressions_in_oversized_script() -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    build = _step_block(checkpoint, "Build checkpoint database")
+
+    assert len(build) > 21_000
+    run_script = build.split("        run: |\n", 1)[1]
+    assert "${{" not in run_script
+    assert '--run-id "$CURRENT_RUN_ID"' in run_script
+    assert (
+        'LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="$LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT"'
+        in run_script
+    )
+
+
 def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> None:
     workflow = _workflow_text()
     plan = _job_block(workflow, "plan")
