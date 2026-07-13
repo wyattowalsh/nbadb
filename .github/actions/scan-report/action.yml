@@ -21,6 +21,30 @@ inputs:
     description: "Comma-separated scan categories (empty = all)"
     required: false
     default: ""
+  full-publication:
+    description: "Require nonempty full-dataset publication anchors"
+    required: false
+    default: "false"
+  checkpoint-report:
+    description: "Terminal checkpoint report required for full-publication assurance"
+    required: false
+    default: ""
+  checkpoint-manifest:
+    description: "Lane manifest binding the terminal checkpoint"
+    required: false
+    default: ""
+  checkpoint-dir:
+    description: "Directory containing the terminal checkpoint database"
+    required: false
+    default: ""
+  checkpoint-chain-id:
+    description: "Extraction chain ID bound to the terminal checkpoint"
+    required: false
+    default: ""
+  checkpoint-source-sha:
+    description: "Source commit bound to the terminal checkpoint"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -32,21 +56,45 @@ runs:
         FAIL_ON: ${{ inputs.fail-on }}
         DATA_DIR: ${{ inputs.data-dir }}
         CATEGORIES: ${{ inputs.categories }}
+        FULL_PUBLICATION: ${{ inputs.full-publication }}
+        CHECKPOINT_REPORT: ${{ inputs.checkpoint-report }}
+        CHECKPOINT_MANIFEST: ${{ inputs.checkpoint-manifest }}
+        CHECKPOINT_DIR: ${{ inputs.checkpoint-dir }}
+        CHECKPOINT_CHAIN_ID: ${{ inputs.checkpoint-chain-id }}
+        CHECKPOINT_SOURCE_SHA: ${{ inputs.checkpoint-source-sha }}
       run: |
         mkdir -p "$REPORT_DIR"
-        ARGS="--output-format json"
-        ARGS="$ARGS --report-path $REPORT_DIR/scan-report.json"
-        ARGS="$ARGS --ci"
+        args=(
+          --output-format json
+          --report-path "$REPORT_DIR/scan-report.json"
+          --ci
+        )
         if [ -n "$FAIL_ON" ]; then
-          ARGS="$ARGS --fail-on $FAIL_ON"
+          args+=(--fail-on "$FAIL_ON")
         fi
         if [ -n "$DATA_DIR" ]; then
-          ARGS="$ARGS --data-dir $DATA_DIR"
+          args+=(--data-dir "$DATA_DIR")
         fi
         if [ -n "$CATEGORIES" ]; then
-          ARGS="$ARGS --category $CATEGORIES"
+          args+=(--category "$CATEGORIES")
         fi
-        uv run nbadb scan $ARGS
+        if [ "$FULL_PUBLICATION" = "true" ]; then
+          if [ -z "$CHECKPOINT_REPORT" ] || [ -z "$CHECKPOINT_MANIFEST" ] || \
+             [ -z "$CHECKPOINT_DIR" ] || [ -z "$CHECKPOINT_CHAIN_ID" ] || \
+             [ -z "$CHECKPOINT_SOURCE_SHA" ]; then
+            echo "::error::full-publication scan requires all canonical checkpoint inputs"
+            exit 1
+          fi
+          args+=(
+            --full-publication
+            --checkpoint-report "$CHECKPOINT_REPORT"
+            --checkpoint-manifest "$CHECKPOINT_MANIFEST"
+            --checkpoint-dir "$CHECKPOINT_DIR"
+            --checkpoint-chain-id "$CHECKPOINT_CHAIN_ID"
+            --checkpoint-source-sha "$CHECKPOINT_SOURCE_SHA"
+          )
+        fi
+        uv run nbadb scan "${args[@]}"
 
     - name: Upload scan report
       if: always()

@@ -13,7 +13,9 @@ from dataclasses import replace
 import duckdb
 
 from nbadb.orchestrate.full_extraction_control import (
+    FullExtractionChainState,
     FullExtractionLane,
+    _coverage_fingerprint,
     _coverage_hash_for_lane,
     build_checkpoint_database,
     manifest_payload,
@@ -107,6 +109,9 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
     artifacts_dir = tmp_path / "lanes"
     metadata_dir = tmp_path / "metadata"
     lanes: list[FullExtractionLane] = []
+    chain_id = "maximum-width"
+    run_id = "256"
+    source_sha = "a" * 40
 
     for index in range(lane_count):
         lane = FullExtractionLane(
@@ -124,7 +129,8 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
         lane = replace(lane, coverage_units_hash=_coverage_hash_for_lane(lane))
         lanes.append(lane)
 
-        lane_dir = artifacts_dir / f"extraction-lane-benchmark-{lane.lane_id}"
+        artifact_name = f"extraction-lane-{chain_id}-{lane.lane_id}"
+        lane_dir = artifacts_dir / f"run-{run_id}" / artifact_name
         lane_dir.mkdir(parents=True)
         database_path = lane_dir / "nba.duckdb"
         connection = duckdb.connect(str(database_path))
@@ -146,7 +152,8 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
             connection.close()
 
         digest = _sha256(database_path)
-        lane_metadata_dir = metadata_dir / lane.lane_id
+        metadata_artifact_name = f"extraction-lane-metadata-{chain_id}-{lane.lane_id}"
+        lane_metadata_dir = metadata_dir / f"run-{run_id}" / metadata_artifact_name
         lane_metadata_dir.mkdir(parents=True)
         (lane_metadata_dir / "lane-metadata.json").write_text(
             json.dumps(
@@ -165,7 +172,36 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
                     "season_end": "",
                     "coverage_units_hash": lane.coverage_units_hash,
                     "database_sha256": digest,
-                    "state_artifact": {"sha256": digest},
+                    "source_sha": source_sha,
+                    "chain_id": chain_id,
+                    "state_artifact": {
+                        "attested": True,
+                        "uploaded": True,
+                        "artifact_id": str(1000 + index),
+                        "artifact_digest": f"sha256:{index:064x}",
+                        "run_id": run_id,
+                        "name": artifact_name,
+                        "sha256": digest,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (lane_dir / "lane-state-attestation.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 3,
+                    "source_sha": source_sha,
+                    "chain_id": chain_id,
+                    "lane_id": lane.lane_id,
+                    "run_id": run_id,
+                    "artifact_name": artifact_name,
+                    "coverage_units_hash": lane.coverage_units_hash,
+                    "database_sha256": digest,
+                    "attested": True,
+                    "expected_empty": False,
+                    "workload_contract": None,
                 }
             )
             + "\n",
@@ -173,8 +209,21 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
         )
 
     manifest_path = tmp_path / "manifest.json"
+    coverage_fingerprint = _coverage_fingerprint(lanes)
+    manifest = manifest_payload(
+        lanes,
+        chain_state=FullExtractionChainState(
+            artifact_run_ids=(run_id,),
+            latest_checkpoint_run_id=run_id,
+            latest_checkpoint_artifact_name=(f"full-extraction-checkpoint-{chain_id}-iter-1"),
+            latest_checkpoint_generation=1,
+            latest_checkpoint_coverage_hash=coverage_fingerprint,
+        ),
+        max_matrix_lanes=lane_count,
+    )
+    manifest.update({"chain_id": chain_id, "workflow_source_sha": source_sha})
     manifest_path.write_text(
-        json.dumps(manifest_payload(lanes, max_matrix_lanes=lane_count)) + "\n",
+        json.dumps(manifest) + "\n",
         encoding="utf-8",
     )
     checkpoint_dir = tmp_path / "checkpoint"
@@ -184,8 +233,9 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
         lane_artifacts_dir=artifacts_dir,
         output_dir=checkpoint_dir,
         report_path=tmp_path / "checkpoint-report.json",
-        chain_id="maximum-width",
-        run_id="256",
+        chain_id=chain_id,
+        run_id=run_id,
+        source_sha=source_sha,
     )
 
     checkpoint_path = checkpoint_dir / "nba.duckdb"
@@ -215,6 +265,7 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
     terminal_replay = fixture["terminal_replay"]
     assert isinstance(terminal_replay, dict)
     source_run_id = str(terminal_replay["source_run_id"])
+    source_sha = "0" * 40
     lane = fixture["manifest"]["lanes"][0]
     lane_id = str(lane["lane_id"])
     workspace = tmp_path / "workspace"
@@ -237,6 +288,9 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
     commands.append(plan_command)
     _run(plan_command, cwd=workspace)
     planned = json.loads(planned_manifest.read_text(encoding="utf-8"))
+    planned["chain_id"] = chain_id
+    planned["workflow_source_sha"] = source_sha
+    planned_manifest.write_text(json.dumps(planned) + "\n", encoding="utf-8")
     assert planned["lane_count"] == 1
     assert planned["matrix_lane_count"] == 1
 
@@ -274,7 +328,7 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         "EXTRACT_SUMMARY_PATH": str(extract_summary),
         "FINISHED_AT": "2026-07-11T00:00:01Z",
         "GITHUB_OUTPUT": str(metadata_output),
-        "GITHUB_RUN_ID": "fixture-run",
+        "GITHUB_RUN_ID": source_run_id,
         "ITERATION": "1",
         "KIND": "reference",
         "LANE_ID": lane_id,
@@ -287,7 +341,7 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         "RESTORE_USABLE": "false",
         "RESUME_ONLY": "false",
         "SOURCE_REF": "main",
-        "SOURCE_SHA": "0000000000000000000000000000000000000000",
+        "SOURCE_SHA": source_sha,
         "STARTED_AT": "2026-07-11T00:00:00Z",
         "STATUS": "complete",
         "TIMEOUT_SECONDS": "1800",
@@ -300,13 +354,27 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
     metadata = json.loads(generated_metadata.read_text(encoding="utf-8"))
     assert metadata["status"] == "complete"
     assert metadata["telemetry"]["rows_persisted"] == 2
+    metadata["state_artifact"].update(
+        {
+            "uploaded": True,
+            "artifact_id": "98765",
+            "artifact_digest": f"sha256:{'d' * 64}",
+        }
+    )
+    generated_metadata.write_text(json.dumps(metadata) + "\n", encoding="utf-8")
 
-    metadata_dir = workspace / "lane-metadata"
-    metadata_dir.mkdir()
+    metadata_artifact_name = f"extraction-lane-metadata-{chain_id}-{lane_id}"
+    metadata_dir = workspace / "lane-metadata" / f"run-{source_run_id}" / metadata_artifact_name
+    metadata_dir.mkdir(parents=True)
     shutil.copy2(generated_metadata, metadata_dir / "lane-metadata.json")
-    lane_artifact = workspace / "lanes" / f"extraction-lane-{chain_id}-{lane_id}"
+    artifact_name = f"extraction-lane-{chain_id}-{lane_id}"
+    lane_artifact = workspace / "lanes" / f"run-{source_run_id}" / artifact_name
     lane_artifact.mkdir(parents=True)
     shutil.copy2(lane_db, lane_artifact / "nba.duckdb")
+    shutil.copy2(
+        workspace / "artifacts" / "extraction" / "lane-state-attestation.json",
+        lane_artifact / "lane-state-attestation.json",
+    )
 
     terminal_manifest = workspace / "terminal-manifest.json"
     resume_command = [
@@ -317,19 +385,30 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         "--lane-manifest-path",
         str(planned_manifest),
         "--metadata-dir",
-        str(metadata_dir),
+        str(workspace / "lane-metadata"),
         "--completed-artifact-run-id",
         source_run_id,
         "--iteration",
         "1",
         "--max-matrix-lanes",
         "1",
+        "--latest-checkpoint-run-id",
+        source_run_id,
+        "--latest-checkpoint-artifact-name",
+        str(terminal_replay["checkpoint_artifact_name"]),
+        "--latest-checkpoint-generation",
+        str(terminal_replay["checkpoint_generation"]),
+        "--latest-checkpoint-coverage-hash",
+        str(planned["coverage_fingerprint"]),
         "--output-path",
         str(terminal_manifest),
     ]
     commands.append(resume_command)
     _run(resume_command, cwd=workspace)
     terminal = json.loads(terminal_manifest.read_text(encoding="utf-8"))
+    terminal["chain_id"] = chain_id
+    terminal["workflow_source_sha"] = source_sha
+    terminal_manifest.write_text(json.dumps(terminal) + "\n", encoding="utf-8")
     assert terminal["active_lane_count"] == 0
     assert terminal["matrix_lane_count"] == 0
     assert terminal["resume_only_lane_count"] == 1
@@ -344,7 +423,7 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         "--lane-manifest-path",
         str(terminal_manifest),
         "--metadata-dir",
-        str(metadata_dir),
+        str(workspace / "lane-metadata"),
         "--artifacts-dir",
         str(workspace / "lanes"),
         "--output-dir",
@@ -355,6 +434,8 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         chain_id,
         "--run-id",
         source_run_id,
+        "--source-sha",
+        source_sha,
     ]
     commands.append(checkpoint_command)
     _run(checkpoint_command, cwd=workspace)

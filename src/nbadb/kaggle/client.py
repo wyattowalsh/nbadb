@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import errno
 import hashlib
 import importlib
@@ -46,6 +47,7 @@ from nbadb.core.types import validate_sql_identifier
 
 PUBLICATION_MARKER_NAME = "nbadb-publication.json"
 PUBLICATION_STATE_NAME = "kaggle-publication-state.json"
+TERMINAL_ASSURANCE_REPORT_NAME = "terminal-assurance-report.json"
 UPLOAD_SERIALIZATION_CONTRACT = {
     "mechanism": "process_mutex_and_advisory_file_lock",
     "scope": "same_process_and_same_host_shared_log_directory",
@@ -253,6 +255,8 @@ class KaggleClient:
         data_dir: Path | None = None,
         version_notes: str = "Automated update via nbadb",
         verify_remote: bool = False,
+        require_assured: bool = False,
+        full_publication: bool = False,
         remote_timeout_seconds: float = 3600.0,
         remote_poll_interval_seconds: float = 15.0,
     ) -> Path:
@@ -261,12 +265,15 @@ class KaggleClient:
         The advisory file claim coordinates processes that share this client's local
         log directory. Kaggle has no conditional version-upload API, so separate hosts
         remain coordinated only by the marker and exact-version checks.
+        Full-publication mode additionally requires assured terminal extraction evidence.
         """
         with self._local_upload_claim():
             return self._upload_claimed(
                 data_dir=data_dir,
                 version_notes=version_notes,
                 verify_remote=verify_remote,
+                require_assured=require_assured,
+                full_publication=full_publication,
                 remote_timeout_seconds=remote_timeout_seconds,
                 remote_poll_interval_seconds=remote_poll_interval_seconds,
             )
@@ -276,6 +283,8 @@ class KaggleClient:
         data_dir: Path | None = None,
         version_notes: str = "Automated update via nbadb",
         verify_remote: bool = False,
+        require_assured: bool = False,
+        full_publication: bool = False,
         remote_timeout_seconds: float = 3600.0,
         remote_poll_interval_seconds: float = 15.0,
     ) -> Path:
@@ -299,7 +308,13 @@ class KaggleClient:
             msg = "remote_poll_interval_seconds must be > 0"
             raise ValueError(msg)
 
-        preflight = self._snapshot_upload_bundle(upload_dir)
+        verify_remote = verify_remote or full_publication
+        require_assured = require_assured or full_publication
+        preflight = self._snapshot_upload_bundle(
+            upload_dir,
+            require_assured=require_assured,
+            require_terminal_assurance=full_publication,
+        )
         with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-upload-") as temp_dir:
             staged_dir = Path(temp_dir) / "dataset"
             staged_dir.mkdir(parents=True)
@@ -358,7 +373,11 @@ class KaggleClient:
                 raise RuntimeError(msg)
 
             try:
-                source_before_upload = self._snapshot_upload_bundle(upload_dir)
+                source_before_upload = self._snapshot_upload_bundle(
+                    upload_dir,
+                    require_assured=require_assured,
+                    require_terminal_assurance=full_publication,
+                )
             except Exception as exc:
                 self._write_upload_manifest(
                     data_dir=upload_dir,
@@ -424,6 +443,7 @@ class KaggleClient:
                 raise pending
 
             bootstrap_baseline_version: int | None = None
+            marker_baseline: tuple[dict[str, Any], int] | None = None
             baseline_resource_verification: dict[str, Any] | None = None
             if verify_remote:
                 try:
@@ -539,38 +559,34 @@ class KaggleClient:
                             error=self._redacted_error(pending),
                         )
                         raise pending
-                    metadata_version: int | None = None
+                    baseline_deadline = self._monotonic() + remote_timeout_seconds
+                    metadata_version = self._resolve_remote_dataset_version()
+                    self._require_verification_deadline(
+                        baseline_deadline,
+                        operation="baseline version resolution",
+                    )
+                    publication["baseline"]["metadata_version"] = metadata_version
+                    publication["baseline"]["versions_agree"] = baseline_version == metadata_version
+                    if baseline_version != metadata_version:
+                        publication["baseline"]["upload_allowed"] = False
+                        publication["result"] = "baseline_reconciliation_failed"
+                        msg = (
+                            "Kaggle publication marker is not from the current dataset version: "
+                            f"marker={baseline_version}, metadata={metadata_version}"
+                        )
+                        error = RuntimeError(msg)
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="baseline_reconciliation_failed",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(error),
+                        )
+                        raise error
                     if prior_matches or baseline_matches:
-                        baseline_deadline = self._monotonic() + remote_timeout_seconds
-                        metadata_version = self._resolve_remote_dataset_version()
-                        self._require_verification_deadline(
-                            baseline_deadline,
-                            operation="baseline version resolution",
-                        )
-                        publication["baseline"]["metadata_version"] = metadata_version
-                        publication["baseline"]["versions_agree"] = (
-                            baseline_version == metadata_version
-                        )
-                        if baseline_version != metadata_version:
-                            publication["baseline"]["upload_allowed"] = False
-                            publication["result"] = "baseline_reconciliation_failed"
-                            msg = (
-                                "Kaggle matching publication marker is not from the current "
-                                f"dataset version: marker={baseline_version}, "
-                                f"metadata={metadata_version}"
-                            )
-                            error = RuntimeError(msg)
-                            self._write_upload_manifest(
-                                data_dir=upload_dir,
-                                staged_dir=staged_dir,
-                                version_notes=version_notes,
-                                status="baseline_reconciliation_failed",
-                                preflight=preflight,
-                                post_upload=staged,
-                                publication=publication,
-                                error=self._redacted_error(error),
-                            )
-                            raise error
                         try:
                             baseline_resource_verification = self._verify_remote_bundle(
                                 expected_staged if baseline_matches else None,
@@ -612,6 +628,8 @@ class KaggleClient:
                         publication["baseline"]["resource_verification"] = (
                             baseline_resource_verification
                         )
+                    else:
+                        marker_baseline = (baseline_marker, baseline_version)
                     if (
                         prior_unresolved is not None
                         and prior_unresolved.get("publish_key") != publish_key
@@ -819,6 +837,107 @@ class KaggleClient:
                     )
                     raise pending
 
+            if marker_baseline is not None:
+                baseline_marker, baseline_version = marker_baseline
+                try:
+                    marker_recheck = self._reconcile_marker_baseline_before_upload(
+                        expected_marker=publication_marker,
+                        baseline_marker=baseline_marker,
+                        baseline_version=baseline_version,
+                    )
+                except Exception as exc:
+                    publication["marker_pre_upload"] = {
+                        "state": "reconciliation_failed",
+                        "baseline_version": baseline_version,
+                        "error": self._redacted_error(exc),
+                    }
+                    publication["result"] = "marker_pre_upload_reconciliation_failed"
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="marker_pre_upload_reconciliation_failed",
+                        preflight=preflight,
+                        post_upload=staged,
+                        publication=publication,
+                        error=self._redacted_error(exc),
+                    )
+                    raise
+                publication["marker_pre_upload"] = marker_recheck
+                if marker_recheck["matches_expected"]:
+                    marker_deadline = self._monotonic() + remote_timeout_seconds
+                    resolved_version = self._require_exact_dataset_version(
+                        marker_recheck["marker_version"],
+                        source="marker pre-upload reconciliation",
+                    )
+                    remote_marker = cast("dict[str, Any]", marker_recheck["marker"])
+                    resource_verification = self._verify_remote_bundle(
+                        expected_staged,
+                        expected_marker=remote_marker,
+                        version=resolved_version,
+                        deadline=marker_deadline,
+                    )
+                    post_readback_version = self._resolve_remote_dataset_version()
+                    self._require_verification_deadline(
+                        marker_deadline,
+                        operation="marker pre-upload version stabilization",
+                    )
+                    if post_readback_version != resolved_version:
+                        msg = (
+                            "Kaggle current dataset version changed during marker pre-upload "
+                            f"verification: marker={resolved_version}, "
+                            f"current={post_readback_version}"
+                        )
+                        raise RuntimeError(msg)
+                    publication.update(
+                        {
+                            "result": "reconciled_existing_remote",
+                            "resolved_version": resolved_version,
+                            "verification_attempts": 1,
+                        }
+                    )
+                    self._transition_publication_state(
+                        publication,
+                        state_name="resolved",
+                        status="reconciled_existing_remote",
+                        resolved_version=resolved_version,
+                    )
+                    return self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="reconciled_existing_remote",
+                        preflight=preflight,
+                        post_upload=staged,
+                        remote_readback={
+                            **remote_marker,
+                            "verification_mode": "publication_marker",
+                            "resource_verification": resource_verification,
+                            "verification_attempts": 1,
+                            "verification_elapsed_seconds": 0.0,
+                            "resolved_version": resolved_version,
+                        },
+                        publication=publication,
+                    )
+                if not marker_recheck["upload_allowed"]:
+                    publication["result"] = "marker_pre_upload_reconciliation_required"
+                    msg = (
+                        "Kaggle marker or dataset version changed after baseline verification; "
+                        "refusing upload"
+                    )
+                    pending = KagglePublicationPendingError(msg, publication)
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="marker_pre_upload_reconciliation_required",
+                        preflight=preflight,
+                        post_upload=staged,
+                        publication=publication,
+                        error=self._redacted_error(pending),
+                    )
+                    raise pending
+
             try:
                 self._require_disk_capacity(
                     staged_dir,
@@ -975,7 +1094,7 @@ class KaggleClient:
                 data_dir=upload_dir,
                 staged_dir=staged_dir,
                 version_notes=version_notes,
-                status="uploaded_remote_verified" if verify_remote else "uploaded",
+                status=("uploaded_remote_verified" if verify_remote else "uploaded_unverified"),
                 preflight=preflight,
                 post_upload=post_upload,
                 remote_readback=remote_readback,
@@ -985,13 +1104,22 @@ class KaggleClient:
         logger.info(f"Wrote Kaggle upload manifest to {manifest_path}")
         return manifest_path
 
-    def ensure_metadata(self, data_dir: Path | None = None) -> Path:
+    def ensure_metadata(
+        self,
+        data_dir: Path | None = None,
+        *,
+        include_assurance_resources: bool = False,
+    ) -> Path:
         """Ensure dataset-metadata.json exists in data dir."""
         from nbadb.kaggle.metadata import generate_metadata
 
         resolved_data_dir = data_dir or self._settings.data_dir
         target = resolved_data_dir / "dataset-metadata.json"
-        generate_metadata(target, data_dir=resolved_data_dir)
+        generate_metadata(
+            target,
+            data_dir=resolved_data_dir,
+            include_assurance_resources=include_assurance_resources,
+        )
         return target
 
     @contextmanager
@@ -1271,7 +1399,13 @@ class KaggleClient:
         self._validate_publication_state(state)
         self._atomic_write_json(self._publication_state_path(), state)
 
-    def _snapshot_upload_bundle(self, data_dir: Path) -> dict[str, Any]:
+    def _snapshot_upload_bundle(
+        self,
+        data_dir: Path,
+        *,
+        require_assured: bool = False,
+        require_terminal_assurance: bool = False,
+    ) -> dict[str, Any]:
         metadata_path = data_dir / "dataset-metadata.json"
         if not metadata_path.is_file():
             msg = f"Kaggle metadata file does not exist: {metadata_path}"
@@ -1362,6 +1496,12 @@ class KaggleClient:
                     resolved_resource_path,
                     normalized_path,
                 )
+                csv_validation = (
+                    self._validate_csv_file(resolved_resource_path, normalized_path)
+                    if require_terminal_assurance
+                    and PurePosixPath(normalized_path).suffix.lower() == ".csv"
+                    else None
+                )
                 inventory: dict[str, Any] = {
                     "path": normalized_path,
                     "source_path": str(resolved_resource_path),
@@ -1373,6 +1513,8 @@ class KaggleClient:
                     inventory["database_validation"] = database_validation
                 if parquet_validation is not None:
                     inventory["parquet_validation"] = parquet_validation
+                if csv_validation is not None:
+                    inventory["csv_validation"] = csv_validation
                 resource_inventory.append(inventory)
                 continue
             if resolved_resource_path.is_dir():
@@ -1401,7 +1543,15 @@ class KaggleClient:
             raise ValueError(msg)
 
         self._validate_database_resource_parity(resource_inventory)
+        require_assured = require_assured or require_terminal_assurance
         provenance: dict[str, Any] | None = None
+        assured_manifest: dict[str, Any] | None = None
+        if require_assured and ASSURED_ARTIFACT_MANIFEST_NAME not in seen_paths:
+            msg = (
+                "Assured Kaggle publication requires a declared "
+                f"{ASSURED_ARTIFACT_MANIFEST_NAME} resource"
+            )
+            raise ValueError(msg)
         if ASSURED_ARTIFACT_MANIFEST_NAME in seen_paths:
             assured_manifest = verify_assured_artifact_manifest(data_root)
             declared_files = self._flatten_resource_file_inventory(resource_inventory)
@@ -1417,6 +1567,48 @@ class KaggleClient:
                 "coverage_fingerprint": assured_manifest["coverage_fingerprint"],
                 "data_tree_fingerprint": assured_manifest["data_tree_fingerprint"],
             }
+        terminal_assurance: dict[str, Any] | None = None
+        if require_terminal_assurance:
+            if TERMINAL_ASSURANCE_REPORT_NAME not in seen_paths:
+                msg = (
+                    "Full Kaggle publication requires a declared "
+                    f"{TERMINAL_ASSURANCE_REPORT_NAME} resource"
+                )
+                raise ValueError(msg)
+            if assured_manifest is None:
+                msg = "Full Kaggle publication requires a valid assured artifact manifest"
+                raise ValueError(msg)
+            terminal_assurance = self._validate_terminal_assurance_report(
+                data_root / TERMINAL_ASSURANCE_REPORT_NAME,
+                assured_manifest=assured_manifest,
+            )
+            from nbadb.kaggle.metadata import expected_full_publication_resource_contract
+
+            expected_contract = expected_full_publication_resource_contract()
+            expected_paths = set(expected_contract)
+            missing_paths = sorted(expected_paths - seen_paths)
+            unexpected_paths = sorted(seen_paths - expected_paths)
+            if missing_paths or unexpected_paths:
+                msg = (
+                    "Full Kaggle publication resource inventory is incomplete or unexpected: "
+                    f"missing={missing_paths}; unexpected={unexpected_paths}"
+                )
+                raise ValueError(msg)
+            actual_contract = {
+                str(resource["path"]): str(resource["kind"]) for resource in resource_inventory
+            }
+            kind_mismatches = {
+                path: {"expected": expected_contract[path], "actual": actual_contract[path]}
+                for path in sorted(expected_paths)
+                if actual_contract[path] != expected_contract[path]
+            }
+            if kind_mismatches:
+                msg = (
+                    "Full Kaggle publication resource kinds do not match the required contract: "
+                    f"{kind_mismatches}"
+                )
+                raise ValueError(msg)
+            self._validate_full_publication_format_parity(resource_inventory)
         identity_resources = [
             {
                 "path": resource["path"],
@@ -1453,6 +1645,229 @@ class KaggleClient:
             "resources": sorted(resource_inventory, key=lambda resource: resource["path"]),
             "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
             "provenance": provenance,
+            "terminal_assurance": terminal_assurance,
+        }
+
+    @classmethod
+    def _validate_terminal_assurance_report(
+        cls,
+        report_path: Path,
+        *,
+        assured_manifest: dict[str, Any],
+    ) -> dict[str, Any]:
+        try:
+            report = json.loads(report_path.read_bytes())
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            msg = "Terminal assurance report is not valid JSON"
+            raise ValueError(msg) from exc
+        if not isinstance(report, dict) or type(report.get("schema_version")) is not int:
+            msg = "Terminal assurance report has an unsupported schema"
+            raise ValueError(msg)
+        report = cast("dict[str, Any]", report)
+        if report["schema_version"] != 2:
+            msg = "Terminal assurance report has an unsupported schema"
+            raise ValueError(msg)
+
+        chain_id = report.get("chain_id")
+        if not isinstance(chain_id, str) or not chain_id.strip():
+            msg = "Terminal assurance report chain_id is invalid"
+            raise ValueError(msg)
+        for field, length in {
+            "source_sha": 40,
+            "coverage_fingerprint": 64,
+            "checkpoint_database_sha256": 64,
+            "checkpoint_report_sha256": 64,
+            "contract_blocked_evidence_sha256": 64,
+        }.items():
+            if not cls._is_lowercase_hex(report.get(field), length=length):
+                msg = f"Terminal assurance report {field} is invalid"
+                raise ValueError(msg)
+
+        checkpoint_artifact_name = report.get("checkpoint_artifact_name")
+        if not isinstance(checkpoint_artifact_name, str) or not checkpoint_artifact_name.strip():
+            msg = "Terminal assurance report checkpoint_artifact_name is invalid"
+            raise ValueError(msg)
+        checkpoint_generation = report.get("checkpoint_generation")
+        if type(checkpoint_generation) is not int or cast("int", checkpoint_generation) <= 0:
+            msg = "Terminal assurance report checkpoint_generation is invalid"
+            raise ValueError(msg)
+        checkpoint_report = report.get("checkpoint_report")
+        if not isinstance(checkpoint_report, dict):
+            msg = "Terminal assurance report checkpoint_report is invalid"
+            raise ValueError(msg)
+        checkpoint_report = cast("dict[str, Any]", checkpoint_report)
+        checkpoint_report_sha256 = hashlib.sha256(
+            json.dumps(
+                checkpoint_report,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if report["checkpoint_report_sha256"] != checkpoint_report_sha256:
+            msg = "Terminal assurance embedded checkpoint report digest does not match"
+            raise ValueError(msg)
+
+        from nbadb.orchestrate.full_extraction_control import (
+            _validated_checkpoint_contract_blocked_evidence,
+        )
+
+        try:
+            blocked_rows, evidence_sha256 = _validated_checkpoint_contract_blocked_evidence(
+                checkpoint_report
+            )
+        except ValueError as exc:
+            msg = f"Terminal assurance contract-blocked evidence is invalid: {exc}"
+            raise ValueError(msg) from exc
+        blocked_lane_count = len(blocked_rows)
+        blocked_evidence = checkpoint_report.get("contract_blocked_evidence")
+        checkpoint_bindings = {
+            "chain_id": report["chain_id"],
+            "source_sha": report["source_sha"],
+            "coverage_fingerprint": report["coverage_fingerprint"],
+            "artifact_name": checkpoint_artifact_name,
+            "checkpoint_generation": checkpoint_generation,
+            "database_sha256": report["checkpoint_database_sha256"],
+            "contract_blocked_lane_count": blocked_lane_count,
+            "contract_blocked_evidence": blocked_evidence,
+            "contract_blocked_evidence_sha256": evidence_sha256,
+        }
+        for field, expected in checkpoint_bindings.items():
+            if checkpoint_report.get(field) != expected:
+                msg = f"Terminal assurance checkpoint report {field} does not match"
+                raise ValueError(msg)
+        expected_checkpoint_artifact_name = (
+            f"full-extraction-checkpoint-{chain_id}-iter-{checkpoint_generation}"
+        )
+        if checkpoint_artifact_name != expected_checkpoint_artifact_name:
+            msg = "Terminal assurance report checkpoint_artifact_name is not canonical"
+            raise ValueError(msg)
+        if checkpoint_report.get("terminal_ready") is not True:
+            msg = "Terminal assurance checkpoint report is not terminal-ready"
+            raise ValueError(msg)
+        if checkpoint_report.get("active_lane_count") != 0:
+            msg = "Terminal assurance checkpoint report still has active lanes"
+            raise ValueError(msg)
+
+        run_id = checkpoint_report.get("run_id")
+        if not isinstance(run_id, str) or re.fullmatch(r"[1-9][0-9]*", run_id) is None:
+            msg = "Terminal assurance checkpoint report run_id is invalid"
+            raise ValueError(msg)
+        raw_lane_ids = checkpoint_report.get("included_lane_ids")
+        if not isinstance(raw_lane_ids, list) or not raw_lane_ids:
+            msg = "Terminal assurance checkpoint report included_lane_ids must be non-empty"
+            raise ValueError(msg)
+        if any(not isinstance(lane_id, str) or not lane_id.strip() for lane_id in raw_lane_ids):
+            msg = "Terminal assurance checkpoint report included_lane_ids are invalid"
+            raise ValueError(msg)
+        included_lane_ids = cast("list[str]", raw_lane_ids)
+        if len(set(included_lane_ids)) != len(included_lane_ids):
+            msg = "Terminal assurance checkpoint report included_lane_ids must be unique"
+            raise ValueError(msg)
+
+        raw_run_ids = checkpoint_report.get("included_run_ids")
+        if not isinstance(raw_run_ids, list) or not raw_run_ids:
+            msg = "Terminal assurance checkpoint report included_run_ids must be non-empty"
+            raise ValueError(msg)
+        if any(
+            not isinstance(included_run_id, str)
+            or re.fullmatch(r"[1-9][0-9]*", included_run_id) is None
+            for included_run_id in raw_run_ids
+        ):
+            msg = "Terminal assurance checkpoint report included_run_ids must be positive integers"
+            raise ValueError(msg)
+        included_run_ids = cast("list[str]", raw_run_ids)
+        if len(set(included_run_ids)) != len(included_run_ids) or run_id not in included_run_ids:
+            msg = (
+                "Terminal assurance checkpoint report included_run_ids must be unique and "
+                "contain run_id"
+            )
+            raise ValueError(msg)
+
+        raw_coverage_hashes = checkpoint_report.get("included_lane_coverage_hashes")
+        if not isinstance(raw_coverage_hashes, dict):
+            msg = "Terminal assurance checkpoint report included_lane_coverage_hashes is invalid"
+            raise ValueError(msg)
+        coverage_hashes = cast("dict[object, object]", raw_coverage_hashes)
+        if set(coverage_hashes) != set(included_lane_ids):
+            msg = (
+                "Terminal assurance checkpoint report lane coverage hash inventory does not "
+                "exactly match included_lane_ids"
+            )
+            raise ValueError(msg)
+        invalid_coverage_hashes = sorted(
+            str(lane_id)
+            for lane_id, coverage_hash in coverage_hashes.items()
+            if not isinstance(lane_id, str) or not cls._is_lowercase_hex(coverage_hash, length=64)
+        )
+        if invalid_coverage_hashes:
+            msg = (
+                "Terminal assurance checkpoint report has invalid lane coverage hashes: "
+                + ", ".join(invalid_coverage_hashes)
+            )
+            raise ValueError(msg)
+
+        complete_lane_count = checkpoint_report.get("complete_lane_count")
+        manifest_lane_count = checkpoint_report.get("manifest_lane_count")
+        if (
+            type(complete_lane_count) is not int
+            or complete_lane_count <= 0
+            or complete_lane_count != len(included_lane_ids)
+        ):
+            msg = "Terminal assurance checkpoint report complete_lane_count is invalid"
+            raise ValueError(msg)
+        if (
+            type(manifest_lane_count) is not int
+            or manifest_lane_count != complete_lane_count + blocked_lane_count
+        ):
+            msg = (
+                "Terminal assurance checkpoint report manifest_lane_count does not equal "
+                "complete plus contract-blocked lanes"
+            )
+            raise ValueError(msg)
+
+        empty_fields = (
+            "missing_lane_ids",
+            "skipped_complete_lane_ids",
+            "current_lane_attestation_failures",
+            "workload_contract_errors",
+        )
+        for field in empty_fields:
+            value = checkpoint_report.get(field)
+            if not isinstance(value, (list, dict)) or value:
+                msg = f"Terminal assurance checkpoint report {field} must be empty"
+                raise ValueError(msg)
+        if checkpoint_report.get("skipped_lane_count") != 0:
+            msg = "Terminal assurance checkpoint report skipped_lane_count must be zero"
+            raise ValueError(msg)
+
+        if report.get("contract_blocked_lane_count") != blocked_lane_count:
+            msg = "Terminal assurance report contract-blocked evidence count does not match"
+            raise ValueError(msg)
+        if report.get("contract_blocked_evidence") != blocked_evidence:
+            msg = "Terminal assurance report contract-blocked evidence does not match checkpoint"
+            raise ValueError(msg)
+        if report["contract_blocked_evidence_sha256"] != evidence_sha256:
+            msg = "Terminal assurance report contract-blocked evidence digest does not match"
+            raise ValueError(msg)
+
+        for field in ("chain_id", "source_sha", "coverage_fingerprint"):
+            if report[field] != assured_manifest[field]:
+                msg = f"Terminal assurance report {field} does not match assured manifest"
+                raise ValueError(msg)
+        return {
+            "schema_version": report["schema_version"],
+            "chain_id": report["chain_id"],
+            "source_sha": report["source_sha"],
+            "coverage_fingerprint": report["coverage_fingerprint"],
+            "checkpoint_artifact_name": checkpoint_artifact_name,
+            "checkpoint_generation": checkpoint_generation,
+            "checkpoint_database_sha256": report["checkpoint_database_sha256"],
+            "checkpoint_report_sha256": checkpoint_report_sha256,
+            "checkpoint_run_id": run_id,
+            "included_lane_count": len(included_lane_ids),
+            "included_run_count": len(included_run_ids),
+            "contract_blocked_lane_count": blocked_lane_count,
+            "contract_blocked_evidence_sha256": evidence_sha256,
         }
 
     @staticmethod
@@ -2028,6 +2443,41 @@ class KaggleClient:
         return None
 
     @staticmethod
+    def _validate_csv_file(path: Path, resource_path: str) -> dict[str, Any]:
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.reader(handle, strict=True)
+                try:
+                    columns = next(reader)
+                except StopIteration as exc:
+                    msg = f"Kaggle CSV resource is empty: {resource_path}"
+                    raise ValueError(msg) from exc
+                if not columns or any(not column for column in columns):
+                    msg = f"Kaggle CSV resource header is invalid: {resource_path}"
+                    raise ValueError(msg)
+                if len(set(columns)) != len(columns):
+                    msg = f"Kaggle CSV resource has duplicate columns: {resource_path}"
+                    raise ValueError(msg)
+                row_count = 0
+                for row_number, row in enumerate(reader, start=2):
+                    if len(row) != len(columns):
+                        msg = (
+                            f"Kaggle CSV resource row {row_number} has {len(row)} fields; "
+                            f"expected {len(columns)}: {resource_path}"
+                        )
+                        raise ValueError(msg)
+                    row_count += 1
+        except (OSError, UnicodeDecodeError, csv.Error) as exc:
+            msg = f"Kaggle CSV resource validation failed: {resource_path}"
+            raise ValueError(msg) from exc
+        return {
+            "engine": "csv",
+            "row_count": row_count,
+            "column_count": len(columns),
+            "columns": columns,
+        }
+
+    @staticmethod
     def _validate_parquet_file(path: Path, resource_path: str) -> dict[str, Any]:
         import pyarrow.parquet as pq
 
@@ -2081,11 +2531,16 @@ class KaggleClient:
                 msg = f"Kaggle SQLite resource contains no public user tables: {resource_path}"
                 raise ValueError(msg)
             row_counts: dict[str, int] = {}
+            table_columns: dict[str, list[str]] = {}
             for table_name in public_table_names:
                 validate_sql_identifier(table_name)
                 quoted = f'"{table_name}"'
                 row = conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
                 row_counts[table_name] = int(row[0]) if row is not None else 0
+                table_columns[table_name] = [
+                    str(column[1])
+                    for column in conn.execute(f"PRAGMA table_info({quoted})").fetchall()
+                ]
         except sqlite3.DatabaseError as exc:
             msg = f"Kaggle SQLite resource integrity validation failed: {resource_path}"
             raise ValueError(msg) from exc
@@ -2098,6 +2553,7 @@ class KaggleClient:
             "table_count": len(public_table_names),
             "row_count": sum(row_counts.values()),
             "tables": row_counts,
+            "columns": table_columns,
             "excluded_internal_table_count": len(excluded_internal_tables),
             "excluded_internal_tables": excluded_internal_tables,
         }
@@ -2128,11 +2584,24 @@ class KaggleClient:
                 msg = f"Kaggle DuckDB resource contains no public user tables: {resource_path}"
                 raise ValueError(msg)
             row_counts: dict[str, int] = {}
+            table_columns: dict[str, list[str]] = {}
             for table_name in table_names:
                 validate_sql_identifier(table_name)
                 quoted = f'"{table_name}"'
                 row = conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
                 row_counts[table_name] = int(row[0]) if row is not None else 0
+                table_columns[table_name] = [
+                    str(column[0])
+                    for column in conn.execute(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'main' AND table_name = ?
+                        ORDER BY ordinal_position
+                        """,
+                        [table_name],
+                    ).fetchall()
+                ]
         except duckdb.Error as exc:
             msg = f"Kaggle DuckDB resource integrity validation failed: {resource_path}"
             raise ValueError(msg) from exc
@@ -2143,6 +2612,7 @@ class KaggleClient:
             "table_count": len(table_names),
             "row_count": sum(row_counts.values()),
             "tables": row_counts,
+            "columns": table_columns,
             "excluded_internal_table_count": len(excluded_internal_tables),
             "excluded_internal_tables": excluded_internal_tables,
         }
@@ -2199,6 +2669,197 @@ class KaggleClient:
                 "Kaggle SQLite and DuckDB resources have mismatched public table row counts: "
                 f"{sqlite_resource['path']} vs {duckdb_resource['path']}; "
                 f"differences={row_count_diffs}"
+            )
+            raise ValueError(msg)
+
+    @staticmethod
+    def _validate_full_publication_format_parity(resources: list[dict[str, Any]]) -> None:
+        database_tables: dict[str, dict[str, int]] = {}
+        database_columns: dict[str, dict[str, list[str]]] = {}
+        csv_tables: dict[str, dict[str, Any]] = {}
+        parquet_tables: dict[str, dict[str, Any]] = {}
+
+        for resource in resources:
+            database_validation = resource.get("database_validation")
+            if isinstance(database_validation, dict):
+                engine = str(database_validation["engine"])
+                database_tables[engine] = {
+                    str(table): int(row_count)
+                    for table, row_count in dict(database_validation["tables"]).items()
+                }
+                database_columns[engine] = {
+                    str(table): [str(column) for column in columns]
+                    for table, columns in dict(database_validation["columns"]).items()
+                }
+
+            resource_path = str(resource["path"])
+            parts = PurePosixPath(resource_path).parts
+            if len(parts) == 2 and parts[0] == "csv" and parts[1].endswith(".csv"):
+                validation = resource.get("csv_validation")
+                if not isinstance(validation, dict):
+                    msg = f"Full Kaggle publication CSV validation is missing: {resource_path}"
+                    raise ValueError(msg)
+                csv_tables[PurePosixPath(parts[1]).stem] = validation
+                continue
+            if len(parts) < 2 or parts[0] != "parquet":
+                continue
+            table = parts[1]
+            if resource["kind"] == "file":
+                validation = resource.get("parquet_validation")
+                if not isinstance(validation, dict):
+                    msg = f"Full Kaggle publication Parquet validation is missing: {resource_path}"
+                    raise ValueError(msg)
+                parquet_tables[table] = validation
+                continue
+            file_validations = [
+                file_inventory.get("parquet_validation")
+                for file_inventory in resource.get("files", [])
+            ]
+            if not file_validations or any(
+                not isinstance(validation, dict) for validation in file_validations
+            ):
+                msg = (
+                    "Full Kaggle publication partitioned Parquet validation is incomplete: "
+                    f"{resource_path}"
+                )
+                raise ValueError(msg)
+            typed_validations = cast("list[dict[str, Any]]", file_validations)
+            physical_column_orders: list[list[str]] = []
+            partition_column_orders: list[list[str]] = []
+            for file_inventory, validation in zip(
+                resource["files"], typed_validations, strict=True
+            ):
+                partition_columns = [
+                    part.partition("=")[0]
+                    for part in PurePosixPath(str(file_inventory["path"])).parts[:-1]
+                    if "=" in part and part.partition("=")[0]
+                ]
+                if len(set(partition_columns)) != len(partition_columns):
+                    msg = (
+                        "Full Kaggle publication partitioned Parquet path repeats a partition "
+                        f"column: {file_inventory['path']}"
+                    )
+                    raise ValueError(msg)
+                physical_columns = [str(column) for column in validation["columns"]]
+                if set(physical_columns) & set(partition_columns):
+                    msg = (
+                        "Full Kaggle publication partition columns are also stored physically: "
+                        f"{file_inventory['path']}"
+                    )
+                    raise ValueError(msg)
+                physical_column_orders.append(physical_columns)
+                partition_column_orders.append(partition_columns)
+            first_physical_columns = physical_column_orders[0]
+            first_partition_columns = partition_column_orders[0]
+            inconsistent_files = [
+                str(file_inventory["path"])
+                for file_inventory, physical_columns, partition_columns in zip(
+                    resource["files"],
+                    physical_column_orders,
+                    partition_column_orders,
+                    strict=True,
+                )
+                if physical_columns != first_physical_columns
+                or partition_columns != first_partition_columns
+            ]
+            if inconsistent_files:
+                msg = (
+                    "Full Kaggle publication partitioned Parquet schemas differ for "
+                    f"{resource_path}: {inconsistent_files}"
+                )
+                raise ValueError(msg)
+            parquet_tables[table] = {
+                "engine": "parquet",
+                "row_count": sum(int(validation["row_count"]) for validation in typed_validations),
+                "column_count": len(first_physical_columns) + len(first_partition_columns),
+                "columns": [*first_physical_columns, *first_partition_columns],
+                "physical_columns": first_physical_columns,
+                "partition_columns": first_partition_columns,
+                "file_count": len(typed_validations),
+            }
+
+        format_tables: dict[str, set[str]] = {
+            engine: set(tables) for engine, tables in database_tables.items()
+        }
+        format_tables["csv"] = set(csv_tables)
+        format_tables["parquet"] = set(parquet_tables)
+        required_formats = {"duckdb", "sqlite", "csv", "parquet"}
+        if set(format_tables) != required_formats:
+            missing_formats = sorted(required_formats - set(format_tables))
+            msg = f"Full Kaggle publication format validation is missing: {missing_formats}"
+            raise ValueError(msg)
+
+        expected_tables = format_tables["duckdb"]
+        table_inventory_diffs = {
+            engine: {
+                "missing": sorted(expected_tables - tables),
+                "unexpected": sorted(tables - expected_tables),
+            }
+            for engine, tables in sorted(format_tables.items())
+            if tables != expected_tables
+        }
+        if table_inventory_diffs:
+            msg = (
+                "Full Kaggle publication table inventory differs across formats: "
+                f"{table_inventory_diffs}"
+            )
+            raise ValueError(msg)
+
+        row_count_diffs: dict[str, dict[str, int]] = {}
+        schema_diffs: dict[str, dict[str, list[str]]] = {}
+        for table in sorted(expected_tables):
+            counts = {
+                "duckdb": database_tables["duckdb"][table],
+                "sqlite": database_tables["sqlite"][table],
+                "csv": int(csv_tables[table]["row_count"]),
+                "parquet": int(parquet_tables[table]["row_count"]),
+            }
+            if len(set(counts.values())) != 1:
+                row_count_diffs[table] = counts
+            duckdb_columns = database_columns["duckdb"][table]
+            sqlite_columns = database_columns["sqlite"][table]
+            csv_columns = [str(column) for column in csv_tables[table]["columns"]]
+            parquet_columns = [str(column) for column in parquet_tables[table]["columns"]]
+            partition_columns = [
+                str(column) for column in parquet_tables[table].get("partition_columns", [])
+            ]
+            ordered_schema_mismatch = (
+                sqlite_columns != duckdb_columns or csv_columns != duckdb_columns
+            )
+            if partition_columns:
+                physical_columns = [
+                    str(column) for column in parquet_tables[table].get("physical_columns", [])
+                ]
+                expected_physical_columns = [
+                    column for column in duckdb_columns if column not in partition_columns
+                ]
+                parquet_schema_mismatch = (
+                    physical_columns != expected_physical_columns
+                    or any(column not in duckdb_columns for column in partition_columns)
+                    or len(physical_columns) + len(partition_columns) != len(duckdb_columns)
+                )
+            else:
+                parquet_schema_mismatch = parquet_columns != duckdb_columns
+            if ordered_schema_mismatch or parquet_schema_mismatch:
+                schema_diffs[table] = {
+                    "duckdb": duckdb_columns,
+                    "sqlite": sqlite_columns,
+                    "csv": csv_columns,
+                    "parquet": parquet_columns,
+                }
+        if row_count_diffs:
+            sample = dict(list(row_count_diffs.items())[:20])
+            msg = (
+                "Full Kaggle publication row-count parity failed across DuckDB, SQLite, CSV, "
+                f"and Parquet: mismatch_count={len(row_count_diffs)}; differences={sample}"
+            )
+            raise ValueError(msg)
+        if schema_diffs:
+            sample = dict(list(schema_diffs.items())[:20])
+            msg = (
+                "Full Kaggle publication schema parity failed across DuckDB, SQLite, CSV, "
+                "and Parquet: "
+                f"mismatch_count={len(schema_diffs)}; differences={sample}"
             )
             raise ValueError(msg)
 
@@ -2735,6 +3396,41 @@ class KaggleClient:
             "versions_agree": marker_version == metadata_version,
             "matches_expected": marker_matches,
             "upload_allowed": marker_version == metadata_version and marker_matches,
+        }
+
+    def _reconcile_marker_baseline_before_upload(
+        self,
+        *,
+        expected_marker: dict[str, Any],
+        baseline_marker: dict[str, Any],
+        baseline_version: int,
+    ) -> dict[str, Any]:
+        """Recheck a marker-present baseline immediately before upload."""
+        with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-marker-recheck-") as temp_dir:
+            marker, marker_version = self._download_remote_publication_marker(Path(temp_dir))
+        metadata_version = self._resolve_remote_dataset_version()
+        marker_matches_expected = self._publication_marker_matches(
+            marker,
+            expected=expected_marker,
+        )
+        marker_matches_baseline = self._publication_marker_matches(
+            marker,
+            expected=baseline_marker,
+        )
+        versions_agree = marker_version == metadata_version
+        baseline_unchanged = marker_version == baseline_version and marker_matches_baseline
+        return {
+            "state": "marker_present",
+            "marker": marker,
+            "publish_key": marker.get("publish_key"),
+            "bundle_fingerprint": marker.get("bundle_fingerprint"),
+            "baseline_version": baseline_version,
+            "marker_version": marker_version,
+            "metadata_version": metadata_version,
+            "versions_agree": versions_agree,
+            "baseline_unchanged": baseline_unchanged,
+            "matches_expected": marker_matches_expected,
+            "upload_allowed": versions_agree and (baseline_unchanged or marker_matches_expected),
         }
 
     def _download_remote_publication_marker(

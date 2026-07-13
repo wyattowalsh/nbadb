@@ -35,13 +35,14 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "dim_team": "Current NBA teams with abbreviation, city, state, arena, conference, and division.",
     "dim_team_extended": "Extended team attributes joining team details, common info, and active years.",
     "dim_team_history": "SCD Type 2 team history tracking city, nickname, and abbreviation changes over time.",
-    # --- Bridges (5) ---
+    # --- Bridges ---
     "bridge_game_official": "Many-to-many bridge linking games to their assigned officials.",
     "bridge_game_team": "Bridge linking each game to both participating teams with home/away side and win-loss outcome.",
     "bridge_lineup_player": "Exploded bridge linking lineup group IDs to individual players and lineup slot order.",
     "bridge_play_player": "Many-to-many bridge linking play-by-play events to involved players.",
     "bridge_player_team_season": "Bridge linking players to teams by season with jersey number and listed position.",
-    # --- Facts (179) ---
+    "bridge_live_box_score_official": "Live box score bridge linking games to assigned officials at each snapshot.",
+    # --- Facts ---
     "fact_box_score_advanced_team": "Team-level advanced box score stats per game: offensive/defensive rating, pace, eFG%, TS%, AST ratio.",
     "fact_box_score_defensive_team": "Team-level defensive box score stats per game.",
     "fact_box_score_four_factors": "Player-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate.",
@@ -125,6 +126,8 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_matchup": "Head-to-head matchup statistics between teams across seasons.",
     "fact_on_off_detail": "Detailed on/off court impact stats — team performance when a player is on vs. off the floor.",
     "fact_play_by_play": "Every play-by-play event with game clock, score, event type (made_shot, rebound, foul, etc.), and up to 3 involved players.",
+    "fact_play_by_play_v2": "Play-by-play V2 event passthrough with game clock, score, event type, and participant details.",
+    "fact_play_by_play_v2_video": "Play-by-play V2 video availability passthrough by game and event.",
     "fact_play_by_play_video": "Play-by-play video availability flags per game.",
     "fact_player_available_seasons": "Seasons with available data for each player from CommonPlayerInfo.",
     "fact_player_awards": "Player awards and honors (MVP, All-Star, All-NBA, etc.) by season.",
@@ -147,9 +150,11 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_player_game_traditional": "Player game-level traditional box score: PTS, REB, AST, STL, BLK, TOV, FG/3PT/FT shooting, plus-minus.",
     "fact_player_general_splits_detail": "Detailed player general splits (by conference, division, opponent, days rest, etc.).",
     "fact_player_headline_stats": "Player headline/summary stats from CommonPlayerInfo (career PPG, RPG, APG).",
+    "fact_player_index": "Player index passthrough with player identity and roster lookup attributes.",
     "fact_player_last_n_detail": "Detailed player stats over last-N-games windows (last 5, 10, 15, 20 games).",
     "fact_player_matchups": "Player vs. player matchup stats from head-to-head and comparison endpoints.",
     "fact_player_matchups_detail": "Detailed player-vs-player comparison stats from PlayerCompare and PlayerVsPlayer endpoints with on/off court splits.",
+    "fact_player_matchups_player_info": "Player identity context associated with player matchup comparisons.",
     "fact_player_matchups_shot_detail": "Player-vs-player shooting splits by shot area and distance with on/off court scoping.",
     "fact_player_next_games": "Upcoming scheduled games for each player.",
     "fact_player_profile": "Player profile data including bio, career highlights, and current season stats.",
@@ -165,6 +170,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_playoff_series": "Playoff series results with series winner, game count, and matchup details.",
     "fact_rotation": "Player rotation data per game: check-in/out times, points scored, point differential, and usage during each stint.",
     "fact_scoreboard_detail": "Detailed scoreboard data with live game status, scores, and broadcast info.",
+    "fact_scoreboard_available": "Scoreboard data-availability passthrough by game and date.",
     "fact_scoreboard_conference_standings": "Scoreboard V2 conference-standings passthrough for live snapshot context.",
     "fact_scoreboard_game_header": "Scoreboard V2 game-header passthrough with matchup and status context.",
     "fact_scoreboard_last_meeting": "Scoreboard V2 last-meeting passthrough for prior matchup context.",
@@ -190,6 +196,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_streak_finder": "Historical streak finder results: longest winning/losing streaks matching criteria.",
     "fact_synergy": "Synergy play type data: PPP, efficiency, frequency by play type (PnR, isolation, transition, post-up, etc.) per player/team.",
     "fact_team_available_seasons": "Seasons with available data for each team.",
+    "fact_team_awards_championships": "Team championship history by franchise and season.",
     "fact_team_awards_conf": "Team conference award history (conference championships).",
     "fact_team_awards_div": "Team division award history (division titles).",
     "fact_team_background": "Team background information: ownership, management, and front office details.",
@@ -219,8 +226,20 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_team_splits": "Team stat splits by various dimensions (home/road, wins/losses, opponent).",
     "fact_team_streak_finder": "Historical team streak finder results: longest winning/losing streaks matching criteria.",
     "fact_tracking_defense": "Defensive player tracking: matchup stats, contested shots, FG% allowed.",
+    "fact_video_details": "Video detail metadata passthrough with game, event, and context-measure provenance.",
+    "fact_video_details_asset": "Video asset metadata passthrough with game, event, and context-measure provenance.",
+    "fact_video_events": "Video event metadata passthrough by game and event.",
+    "fact_video_events_asset": "Video event asset metadata passthrough by game and event.",
+    "fact_video_status": "Video availability and publication status passthrough by game and event.",
     "fact_win_probability": "Win probability by event for each game: home/visitor percentages, score, and margin at each play.",
     "fact_win_prob_pbp": "Detailed win probability per play with home/visitor percentages and score margins.",
+    "fact_live_box_score_arena": "Live box score arena details captured at each game snapshot.",
+    "fact_live_box_score_game": "Live box score game status and summary details captured at each snapshot.",
+    "fact_live_box_score_player": "Live player box score statistics for both teams captured at each snapshot.",
+    "fact_live_box_score_team": "Live team box score statistics for both teams captured at each snapshot.",
+    "fact_live_odds": "Live betting odds and provider context captured at each game snapshot.",
+    "fact_live_play_by_play": "Live play-by-play events captured with snapshot provenance.",
+    "fact_live_score_board": "Live scoreboard game status and scores captured at each snapshot.",
     # --- Derived Aggregations (19) ---
     "agg_all_time_leaders": "All-time NBA leaders across 20 statistical categories (PTS, REB, AST, STL, BLK, FG%, 3PT%, etc.).",
     "agg_clutch_stats": "Aggregated clutch performance stats across multiple time/score window definitions.",
@@ -258,7 +277,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "analytics_team_season_summary": "Team season summary combining season aggregates, standings (W-L, win%, conference/division rank), and team info.",
 }
 
-TABLE_CATEGORIES: dict[str, list[str]] = {
+_CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
     "dimensions": [
         "dim_all_players",
         "dim_arena",
@@ -507,6 +526,65 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
 }
 
 CATEGORY_ORDER = ("dimensions", "bridges", "facts", "derived", "analytics")
+TERMINAL_ASSURANCE_REPORT_NAME = "terminal-assurance-report.json"
+
+_CATEGORY_PREFIXES: dict[str, str] = {
+    "dim_": "dimensions",
+    "bridge_": "bridges",
+    "fact_": "facts",
+    "agg_": "derived",
+    "analytics_": "analytics",
+}
+
+
+def _table_category(table: str) -> str:
+    matches = [
+        category for prefix, category in _CATEGORY_PREFIXES.items() if table.startswith(prefix)
+    ]
+    if len(matches) != 1:
+        msg = f"Transformer output has no unambiguous metadata category: {table}"
+        raise RuntimeError(msg)
+    return matches[0]
+
+
+def _discover_table_categories() -> dict[str, list[str]]:
+    """Build a deterministic catalog from the validated runtime transformer universe."""
+    from nbadb.orchestrate.transformers import discover_all_transformers
+
+    runtime_tables = sorted(transformer.output_table for transformer in discover_all_transformers())
+    runtime_set = set(runtime_tables)
+    if len(runtime_tables) != len(runtime_set):
+        raise RuntimeError("Runtime transformer discovery returned duplicate output tables")
+
+    curated_tables = [
+        table for category in CATEGORY_ORDER for table in _CURATED_TABLE_CATEGORIES[category]
+    ]
+    duplicate_curated = sorted(
+        table for table in set(curated_tables) if curated_tables.count(table) > 1
+    )
+    stale_curated = sorted(set(curated_tables) - runtime_set)
+    missing_descriptions = sorted(runtime_set - TABLE_DESCRIPTIONS.keys())
+    miscategorized = sorted(
+        table
+        for category in CATEGORY_ORDER
+        for table in _CURATED_TABLE_CATEGORIES[category]
+        if _table_category(table) != category
+    )
+    if duplicate_curated or stale_curated or missing_descriptions or miscategorized:
+        msg = (
+            "Curated metadata catalog is inconsistent with runtime transformers: "
+            f"duplicates={duplicate_curated}; stale={stale_curated}; "
+            f"missing_descriptions={missing_descriptions}; miscategorized={miscategorized}"
+        )
+        raise RuntimeError(msg)
+
+    categories: dict[str, list[str]] = {category: [] for category in CATEGORY_ORDER}
+    for table in runtime_tables:
+        categories[_table_category(table)].append(table)
+    return categories
+
+
+TABLE_CATEGORIES: dict[str, list[str]] = _discover_table_categories()
 
 CATEGORY_LABELS: dict[str, str] = {
     "dimensions": "Dimensions",
@@ -653,6 +731,31 @@ def _iter_resource_tables(data_dir: Path | None = None) -> list[str]:
     return [*tables, *[table for table in staging_tables if table not in tables]]
 
 
+def expected_full_publication_resource_contract() -> dict[str, str]:
+    """Return the exact resource path and kind required for a full publication."""
+    from nbadb.load.parquet_loader import PARTITIONED_TABLES
+
+    tables = [*_iter_catalog_tables(), *sorted(_CANONICAL_STAGING_TABLES)]
+    contract = {
+        "nba.duckdb": "file",
+        "nba.sqlite": "file",
+        TERMINAL_ASSURANCE_REPORT_NAME: "file",
+        ASSURED_ARTIFACT_MANIFEST_NAME: "file",
+    }
+    for table in tables:
+        contract[f"csv/{table}.csv"] = "file"
+        parquet_path = _resolve_parquet_resource_path(table)
+        if parquet_path is None:
+            raise RuntimeError(f"Full publication has no Parquet resource path for {table}")
+        contract[parquet_path] = "directory" if table in PARTITIONED_TABLES else "file"
+    return dict(sorted(contract.items()))
+
+
+def expected_full_publication_resource_paths() -> frozenset[str]:
+    """Return the exact resource-path universe required for a full publication."""
+    return frozenset(expected_full_publication_resource_contract())
+
+
 def _total_table_count() -> int:
     return len(_iter_catalog_tables())
 
@@ -677,13 +780,20 @@ def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
         raise FileNotFoundError(f"Metadata data_dir does not exist: {data_dir}")
 
     all_tables = _iter_resource_tables(data_dir)
-    csv_tables = sum(1 for table in all_tables if (data_dir / "csv" / f"{table}.csv").exists())
+    csv_tables = sum(
+        1
+        for table in all_tables
+        if (data_dir / "csv" / f"{table}.csv").is_file()
+        and not (data_dir / "csv" / f"{table}.csv").is_symlink()
+    )
     parquet_tables = sum(
         1 for table in all_tables if _resolve_parquet_resource_path(table, data_dir)
     )
     return ExportInventory(
-        duckdb_available=(data_dir / "nba.duckdb").exists(),
-        sqlite_available=(data_dir / "nba.sqlite").exists(),
+        duckdb_available=(data_dir / "nba.duckdb").is_file()
+        and not (data_dir / "nba.duckdb").is_symlink(),
+        sqlite_available=(data_dir / "nba.sqlite").is_file()
+        and not (data_dir / "nba.sqlite").is_symlink(),
         csv_tables=csv_tables,
         parquet_tables=parquet_tables,
         table_count=len(all_tables),
@@ -1058,8 +1168,13 @@ _DTYPE_MAP: dict[str, str] = {
 }
 
 
-def generate_metadata(output_path: Path, data_dir: Path | None = None) -> None:
-    """Generate dataset-metadata.json from the table catalog and optional export data."""
+def generate_metadata(
+    output_path: Path,
+    data_dir: Path | None = None,
+    *,
+    include_assurance_resources: bool = False,
+) -> None:
+    """Generate metadata, excluding run-specific assurance unless explicitly requested."""
     settings = get_settings()
     inventory = _resolve_export_inventory(data_dir)
     resource_data_dir = data_dir if data_dir is not None and data_dir.exists() else None
@@ -1097,6 +1212,7 @@ def generate_metadata(output_path: Path, data_dir: Path | None = None) -> None:
         "resources": _build_resources(
             data_dir=resource_data_dir,
             validate_csv_headers=resource_data_dir is not None,
+            include_assurance_resources=include_assurance_resources,
         ),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1177,10 +1293,17 @@ def _resolve_parquet_resource_path(table: str, data_dir: Path | None = None) -> 
     if data_dir is not None:
         table_dir = data_dir / "parquet" / table
         table_file = table_dir / f"{table}.parquet"
-        if table_file.exists():
-            return f"parquet/{table}/{table}.parquet"
-        if table in PARTITIONED_TABLES and any(table_dir.rglob("*.parquet")):
+        if (
+            table in PARTITIONED_TABLES
+            and table_dir.is_dir()
+            and not table_dir.is_symlink()
+            and any(
+                path.is_file() and not path.is_symlink() for path in table_dir.rglob("*.parquet")
+            )
+        ):
             return f"parquet/{table}"
+        if table_file.is_file() and not table_file.is_symlink():
+            return f"parquet/{table}/{table}.parquet"
         return None
 
     if table in PARTITIONED_TABLES:
@@ -1208,13 +1331,16 @@ def _build_resources(
     data_dir: Path | None = None,
     *,
     validate_csv_headers: bool = False,
+    include_assurance_resources: bool = True,
 ) -> list[dict]:
     """Build resource entries for exported tables, filtering by data_dir when provided."""
     resources: list[dict] = []
     total_tables = _total_table_count()
 
     # Database files
-    if data_dir is None or (data_dir / "nba.duckdb").exists():
+    if data_dir is None or (
+        (data_dir / "nba.duckdb").is_file() and not (data_dir / "nba.duckdb").is_symlink()
+    ):
         resources.append(
             {
                 "path": "nba.duckdb",
@@ -1222,7 +1348,9 @@ def _build_resources(
                 "description": f"DuckDB database with all {total_tables} cataloged tables. Best for fast analytical queries and cross-table joins.",
             }
         )
-    if data_dir is None or (data_dir / "nba.sqlite").exists():
+    if data_dir is None or (
+        (data_dir / "nba.sqlite").is_file() and not (data_dir / "nba.sqlite").is_symlink()
+    ):
         resources.append(
             {
                 "path": "nba.sqlite",
@@ -1230,7 +1358,28 @@ def _build_resources(
                 "description": f"SQLite database with all {total_tables} cataloged tables. Portable SQL access with broad tool support.",
             }
         )
-    if data_dir is not None and (data_dir / ASSURED_ARTIFACT_MANIFEST_NAME).is_file():
+    if (
+        include_assurance_resources
+        and data_dir is not None
+        and (data_dir / TERMINAL_ASSURANCE_REPORT_NAME).is_file()
+        and not (data_dir / TERMINAL_ASSURANCE_REPORT_NAME).is_symlink()
+    ):
+        resources.append(
+            {
+                "path": TERMINAL_ASSURANCE_REPORT_NAME,
+                "name": "Terminal Extraction Assurance",
+                "description": (
+                    "Validated checkpoint identity, effective coverage, and contract-blocked "
+                    "evidence for the published extraction chain."
+                ),
+            }
+        )
+    if (
+        include_assurance_resources
+        and data_dir is not None
+        and (data_dir / ASSURED_ARTIFACT_MANIFEST_NAME).is_file()
+        and not (data_dir / ASSURED_ARTIFACT_MANIFEST_NAME).is_symlink()
+    ):
         resources.append(
             {
                 "path": ASSURED_ARTIFACT_MANIFEST_NAME,
@@ -1253,13 +1402,15 @@ def _build_resources(
 
         csv_path = f"csv/{table}.csv"
         csv_file = None if data_dir is None else data_dir / csv_path
-        if data_dir is None or (csv_file is not None and csv_file.exists()):
+        if data_dir is None or (
+            csv_file is not None and csv_file.is_file() and not csv_file.is_symlink()
+        ):
             csv_resource: dict = {
                 "path": csv_path,
                 "name": f"{display_name} (Staging)" if table.startswith("stg_") else display_name,
                 "description": description,
             }
-            if schema_fields:
+            if schema_fields is not None:
                 if validate_csv_headers and csv_file is not None:
                     _validate_csv_header(csv_file, schema_fields, resource_path=csv_path)
                 csv_resource["schema"] = {"fields": schema_fields}
@@ -1276,7 +1427,7 @@ def _build_resources(
                 ),
                 "description": description,
             }
-            if schema_fields:
+            if schema_fields is not None:
                 parquet_resource["schema"] = {"fields": schema_fields}
             resources.append(parquet_resource)
 

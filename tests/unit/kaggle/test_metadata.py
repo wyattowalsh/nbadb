@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-import re
-from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import duckdb
 import pytest
 
+from nbadb.core.artifact_identity import build_assured_artifact_manifest
+from nbadb.kaggle.client import KaggleClient
 from nbadb.kaggle.metadata import (
     _STAGING_FALLBACKS,
     TABLE_CATEGORIES,
@@ -17,11 +17,16 @@ from nbadb.kaggle.metadata import (
     _extract_column_schema,
     _resolve_parquet_resource_path,
     _table_display_name,
+    expected_full_publication_resource_contract,
+    expected_full_publication_resource_paths,
     generate_metadata,
 )
 from nbadb.load.parquet_loader import PARTITIONED_TABLES
+from nbadb.orchestrate.transformers import discover_all_transformers
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from nbadb.core.config import NbaDbSettings
 
 _ALL_TABLES = [table for tables in TABLE_CATEGORIES.values() for table in tables]
@@ -192,6 +197,32 @@ class TestBuildResources:
         resources = _build_resources()
         assert len(resources) == 2 + _TABLE_COUNT * 2
 
+    def test_full_publication_resource_universe_is_exact(self) -> None:
+        paths = expected_full_publication_resource_paths()
+        assert len(paths) == 1_344
+        assert {"nba.duckdb", "nba.sqlite"} <= paths
+        assert {
+            "assured-artifact-manifest.json",
+            "terminal-assurance-report.json",
+        } <= paths
+        assert "csv/dim_player.csv" in paths
+        assert "parquet/dim_player/dim_player.parquet" in paths
+        assert "csv/stg_common_all_players.csv" in paths
+        assert "parquet/stg_common_all_players/stg_common_all_players.parquet" in paths
+
+    def test_full_publication_resource_kinds_are_exact(self) -> None:
+        contract = expected_full_publication_resource_contract()
+
+        assert set(contract) == expected_full_publication_resource_paths()
+        assert contract["nba.duckdb"] == "file"
+        assert contract["nba.sqlite"] == "file"
+        assert contract["assured-artifact-manifest.json"] == "file"
+        assert contract["terminal-assurance-report.json"] == "file"
+        assert contract["csv/dim_player.csv"] == "file"
+        assert contract["parquet/dim_player/dim_player.parquet"] == "file"
+        for table in PARTITIONED_TABLES & set(_ALL_TABLES):
+            assert contract[f"parquet/{table}"] == "directory"
+
     def test_each_resource_has_path_and_description(self) -> None:
         for r in _build_resources():
             assert "path" in r
@@ -225,18 +256,96 @@ class TestBuildResources:
         missing = [table for table in _ALL_TABLES if table not in TABLE_DESCRIPTIONS]
         assert missing == [], f"Tables missing descriptions: {missing}"
 
-    def test_all_transforms_in_catalog(self) -> None:
-        catalog = set(_ALL_TABLES)
-        tables: set[str] = set()
-        transform_root = Path(__file__).parents[3] / "src" / "nbadb" / "transform"
-        for path in transform_root.rglob("*.py"):
-            matches = re.findall(
-                r'output_table\s*:\s*ClassVar\[str\]\s*=\s*"([^"]+)"',
-                path.read_text(encoding="utf-8"),
+    def test_catalog_exactly_matches_runtime_transformer_universe(self) -> None:
+        output_tables = [transformer.output_table for transformer in discover_all_transformers()]
+
+        assert len(output_tables) == len(set(output_tables))
+        assert set(_ALL_TABLES) == set(output_tables)
+        assert all(tables == sorted(tables) for tables in TABLE_CATEGORIES.values())
+
+    def test_catalog_includes_factory_and_live_transformer_outputs(self) -> None:
+        transformers = discover_all_transformers()
+        runtime_outputs = {transformer.output_table for transformer in transformers}
+        live_outputs = {
+            transformer.output_table
+            for transformer in transformers
+            if getattr(transformer, "is_live_snapshot", False)
+        }
+        factory_outputs = {
+            "fact_play_by_play_v2",
+            "fact_play_by_play_v2_video",
+            "fact_player_index",
+            "fact_player_matchups_player_info",
+            "fact_scoreboard_available",
+            "fact_team_awards_championships",
+            "fact_video_details",
+            "fact_video_details_asset",
+            "fact_video_events",
+            "fact_video_events_asset",
+            "fact_video_status",
+        }
+
+        assert live_outputs == {
+            "bridge_live_box_score_official",
+            "fact_live_box_score_arena",
+            "fact_live_box_score_game",
+            "fact_live_box_score_player",
+            "fact_live_box_score_team",
+            "fact_live_odds",
+            "fact_live_play_by_play",
+            "fact_live_score_board",
+        }
+        assert factory_outputs <= runtime_outputs
+        assert factory_outputs | live_outputs <= set(_ALL_TABLES)
+
+    def test_assured_inventory_accepts_all_runtime_transformer_resources(
+        self,
+        tmp_path: Path,
+        settings: NbaDbSettings,
+    ) -> None:
+        output_tables = {transformer.output_table for transformer in discover_all_transformers()}
+        csv_dir = tmp_path / "csv"
+        csv_dir.mkdir()
+        for table in sorted(output_tables):
+            fields = _extract_column_schema(table) or []
+            header = ",".join(str(field["name"]) for field in fields)
+            (csv_dir / f"{table}.csv").write_text(f"{header}\n", encoding="utf-8")
+
+        provenance = {
+            "chain_id": "metadata-runtime-universe",
+            "source_sha": "a" * 40,
+            "coverage_fingerprint": "b" * 64,
+        }
+        (tmp_path / "terminal-assurance-report.json").write_text(
+            json.dumps({"schema_version": 1}) + "\n",
+            encoding="utf-8",
+        )
+        manifest_path = build_assured_artifact_manifest(
+            tmp_path,
+            chain_id=provenance["chain_id"],
+            source_sha=provenance["source_sha"],
+            coverage_fingerprint=provenance["coverage_fingerprint"],
+        )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        metadata_path = tmp_path / "dataset-metadata.json"
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(
+                metadata_path,
+                data_dir=tmp_path,
+                include_assurance_resources=True,
             )
-            tables.update(matches)
-        missing = sorted(tables - catalog)
-        assert missing == [], f"Transforms not in TABLE_CATEGORIES: {missing}"
+        with patch("nbadb.kaggle.client.get_settings", return_value=settings):
+            snapshot = KaggleClient()._snapshot_upload_bundle(tmp_path)
+
+        declared_files = KaggleClient._flatten_resource_file_inventory(snapshot["resources"])
+        assert {file["path"] for file in declared_files} == {
+            *(f"csv/{table}.csv" for table in output_tables),
+            "terminal-assurance-report.json",
+        }
+        assert snapshot["provenance"] == {
+            **provenance,
+            "data_tree_fingerprint": manifest["data_tree_fingerprint"],
+        }
 
     def test_bridge_tables_present(self) -> None:
         paths = {r["path"] for r in _build_resources()}
@@ -268,6 +377,23 @@ class TestBuildResources:
             "csv/dim_player.csv",
             "parquet/dim_player/dim_player.parquet",
         }
+
+    def test_data_dir_ignores_database_directories(self, tmp_path: Path) -> None:
+        (tmp_path / "nba.duckdb").mkdir()
+        (tmp_path / "nba.sqlite").mkdir()
+
+        assert _build_resources(data_dir=tmp_path) == []
+
+    def test_data_dir_ignores_file_at_partitioned_parquet_resource_path(
+        self, tmp_path: Path
+    ) -> None:
+        table = next(iter(PARTITIONED_TABLES & set(_ALL_TABLES)))
+        resource_path = tmp_path / "parquet" / table
+        resource_path.parent.mkdir()
+        resource_path.write_bytes(b"not a directory")
+
+        assert _resolve_parquet_resource_path(table, tmp_path) is None
+        assert _build_resources(data_dir=tmp_path) == []
 
     def test_data_dir_includes_staging_csv_and_parquet_resources(self, tmp_path: Path) -> None:
         table = "stg_common_all_players"
@@ -387,6 +513,47 @@ class TestBuildResources:
             }
         ]
 
+    def test_data_dir_includes_terminal_assurance_report(self, tmp_path: Path) -> None:
+        report = tmp_path / "terminal-assurance-report.json"
+        report.write_text("{}\n", encoding="utf-8")
+
+        resources = _build_resources(data_dir=tmp_path)
+
+        assert resources == [
+            {
+                "path": "terminal-assurance-report.json",
+                "name": "Terminal Extraction Assurance",
+                "description": (
+                    "Validated checkpoint identity, effective coverage, and contract-blocked "
+                    "evidence for the published extraction chain."
+                ),
+            }
+        ]
+
+    def test_generic_resource_build_excludes_inherited_assurance(self, tmp_path: Path) -> None:
+        (tmp_path / "terminal-assurance-report.json").write_text("{}\n", encoding="utf-8")
+        (tmp_path / "assured-artifact-manifest.json").write_text("{}\n", encoding="utf-8")
+
+        resources = _build_resources(
+            data_dir=tmp_path,
+            include_assurance_resources=False,
+        )
+
+        assert resources == []
+
+    def test_generic_metadata_excludes_inherited_assurance_by_default(
+        self, tmp_path: Path, settings: NbaDbSettings
+    ) -> None:
+        output = tmp_path / "dataset-metadata.json"
+        (tmp_path / "terminal-assurance-report.json").write_text("{}\n", encoding="utf-8")
+        (tmp_path / "assured-artifact-manifest.json").write_text("{}\n", encoding="utf-8")
+
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(output, data_dir=tmp_path)
+
+        metadata = json.loads(output.read_text(encoding="utf-8"))
+        assert metadata["resources"] == []
+
     def test_data_dir_ignores_empty_non_partitioned_parquet_dir(self, tmp_path: Path) -> None:
         (tmp_path / "parquet" / "dim_player").mkdir(parents=True)
 
@@ -404,6 +571,18 @@ class TestBuildResources:
         resources = _build_resources(data_dir=tmp_path)
 
         assert {r["path"] for r in resources} == {f"parquet/{table}"}
+
+    def test_data_dir_keeps_empty_partitioned_parquet_as_directory_resource(
+        self, tmp_path: Path
+    ) -> None:
+        table = "fact_shot_chart"
+        assert table in PARTITIONED_TABLES
+        table_dir = tmp_path / "parquet" / table
+        table_dir.mkdir(parents=True)
+        (table_dir / f"{table}.parquet").write_bytes(b"")
+
+        assert _resolve_parquet_resource_path(table, tmp_path) == f"parquet/{table}"
+        assert {r["path"] for r in _build_resources(data_dir=tmp_path)} == {f"parquet/{table}"}
 
     def test_data_dir_ignores_empty_partitioned_parquet_dir(self, tmp_path: Path) -> None:
         table = "fact_shot_chart"

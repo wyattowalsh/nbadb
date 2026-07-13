@@ -24,8 +24,8 @@ def metadata(
     """Generate Kaggle dataset-metadata.json from table catalog."""
     from nbadb.kaggle.metadata import generate_metadata
 
-    kwargs: dict[str, Path] = {}
-    if data_dir is not None:
-        kwargs["data_dir"] = data_dir
-    generate_metadata(output, **kwargs)
+    if data_dir is None:
+        generate_metadata(output)
+    else:
+        generate_metadata(output, data_dir=data_dir)
     typer.echo(f"Generated {output}")

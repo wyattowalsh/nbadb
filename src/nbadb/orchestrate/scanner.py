@@ -6,6 +6,8 @@ All queries are read-only. The DuckDB connection should be opened with
 
 from __future__ import annotations
 
+import json
+import re
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -15,7 +17,162 @@ import duckdb
 from loguru import logger
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from nbadb.transform.base import BaseTransformer
+
+
+def validate_full_publication_checkpoint_report(
+    path: Path,
+    *,
+    manifest_path: Path,
+    checkpoint_dir: Path,
+    chain_id: str,
+    source_sha: str,
+) -> dict:
+    """Validate and bind the terminal extraction proof required by a full scan."""
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"Full-publication checkpoint report must be a regular file: {path}")
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError("Full-publication checkpoint report is not valid JSON") from exc
+    if not isinstance(report, dict):
+        raise ValueError("Full-publication checkpoint report must be an object")
+
+    expected_source_sha = source_sha.strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40}", expected_source_sha) is None:
+        raise ValueError("Full-publication expected source_sha is invalid")
+    reported_source_sha = str(report.get("source_sha") or "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40}", reported_source_sha) is None:
+        raise ValueError("Full-publication checkpoint source_sha is invalid")
+    if reported_source_sha != expected_source_sha:
+        raise ValueError(
+            "Full-publication checkpoint source_sha does not match the expected source commit"
+        )
+    for field_name in ("coverage_fingerprint", "database_sha256"):
+        value = str(report.get(field_name) or "").strip().lower()
+        if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            raise ValueError(f"Full-publication checkpoint {field_name} is invalid")
+
+    run_id = str(report.get("run_id") or "").strip()
+    if re.fullmatch(r"[1-9][0-9]*", run_id) is None:
+        raise ValueError("Full-publication checkpoint run_id is invalid")
+    included_run_ids = report.get("included_run_ids")
+    if (
+        not isinstance(included_run_ids, list)
+        or not included_run_ids
+        or len(set(map(str, included_run_ids))) != len(included_run_ids)
+        or any(re.fullmatch(r"[1-9][0-9]*", str(value)) is None for value in included_run_ids)
+        or run_id not in {str(value) for value in included_run_ids}
+    ):
+        raise ValueError("Full-publication checkpoint included_run_ids are invalid")
+
+    included_lane_ids = report.get("included_lane_ids")
+    if (
+        not isinstance(included_lane_ids, list)
+        or not included_lane_ids
+        or any(not isinstance(value, str) or not value for value in included_lane_ids)
+        or len(set(included_lane_ids)) != len(included_lane_ids)
+    ):
+        raise ValueError("Full-publication checkpoint included_lane_ids are invalid")
+    lane_hashes = report.get("included_lane_coverage_hashes")
+    if not isinstance(lane_hashes, dict) or set(lane_hashes) != set(included_lane_ids):
+        raise ValueError("Full-publication checkpoint lane coverage inventory is incomplete")
+    if any(
+        re.fullmatch(r"[0-9a-f]{64}", str(value).lower()) is None for value in lane_hashes.values()
+    ):
+        raise ValueError("Full-publication checkpoint lane coverage hash is invalid")
+
+    complete_count = report.get("complete_lane_count")
+    blocked_count = report.get("contract_blocked_lane_count")
+    manifest_count = report.get("manifest_lane_count")
+    if any(type(value) is not int or value < 0 for value in (complete_count, blocked_count)):
+        raise ValueError("Full-publication checkpoint lane counts are invalid")
+    if type(manifest_count) is not int or manifest_count <= 0:
+        raise ValueError("Full-publication checkpoint manifest_lane_count is invalid")
+    if complete_count != len(included_lane_ids) or complete_count <= 0:
+        raise ValueError("Full-publication checkpoint complete lane inventory is inconsistent")
+    if manifest_count != complete_count + blocked_count:
+        raise ValueError("Full-publication checkpoint does not account for every manifest lane")
+
+    if report.get("terminal_ready") is not True or report.get("active_lane_count") != 0:
+        raise ValueError("Full-publication checkpoint is not terminal-ready")
+    empty_fields = (
+        "missing_lane_ids",
+        "skipped_complete_lane_ids",
+        "current_lane_attestation_failures",
+        "workload_contract_errors",
+    )
+    for field_name in empty_fields:
+        if report.get(field_name) not in ([], {}):
+            raise ValueError(f"Full-publication checkpoint {field_name} is not empty")
+    if report.get("skipped_lane_count") != 0:
+        raise ValueError("Full-publication checkpoint skipped_lane_count is not zero")
+
+    from nbadb.orchestrate.full_extraction_control import (
+        _database_row_counts,
+        _single_database_path,
+        _validated_checkpoint_contract_blocked_evidence,
+        validate_checkpoint_artifact,
+    )
+
+    blocked_rows, _blocked_digest = _validated_checkpoint_contract_blocked_evidence(report)
+    if len(blocked_rows) != blocked_count:
+        raise ValueError("Full-publication checkpoint blocked evidence count is inconsistent")
+
+    verified = validate_checkpoint_artifact(
+        manifest_path=manifest_path,
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_report_path=path,
+        chain_id=chain_id,
+        source_sha=expected_source_sha,
+        pointer_prefix="latest",
+    )
+    exact_fields = (
+        "run_id",
+        "coverage_fingerprint",
+        "database_sha256",
+        "included_lane_ids",
+        "included_run_ids",
+        "included_lane_coverage_hashes",
+        "contract_blocked_lane_count",
+    )
+    mismatches = {
+        field_name: {"report": report.get(field_name), "verified": verified.get(field_name)}
+        for field_name in exact_fields
+        if report.get(field_name) != verified.get(field_name)
+    }
+    if mismatches:
+        raise ValueError(
+            f"Full-publication checkpoint report differs from canonical verification: {mismatches}"
+        )
+
+    checkpoint_db_path = _single_database_path(
+        checkpoint_dir,
+        label="Full-publication checkpoint artifact",
+    )
+    actual_table_row_counts, actual_journal_row_count = _database_row_counts(checkpoint_db_path)
+    reported_table_row_counts = report.get("table_row_counts")
+    if (
+        not isinstance(reported_table_row_counts, dict)
+        or any(
+            not isinstance(table, str)
+            or not table.startswith("stg_")
+            or type(row_count) is not int
+            or row_count < 0
+            for table, row_count in reported_table_row_counts.items()
+        )
+        or reported_table_row_counts != actual_table_row_counts
+    ):
+        raise ValueError(
+            "Full-publication checkpoint staging row inventory differs from the verified database"
+        )
+    if report.get("journal_row_count") != actual_journal_row_count:
+        raise ValueError(
+            "Full-publication checkpoint journal row count differs from the verified database"
+        )
+    return report
 
 
 class ScanCategory(StrEnum):
@@ -203,11 +360,75 @@ class DataScanner:
 
     # Game-level fact tables that should have entries for every game.
     _GAME_COVERAGE_TABLES: ClassVar[list[str]] = [
-        "fact_box_score_traditional",
+        "fact_box_score_team",
         "fact_play_by_play",
         "fact_game_result",
         "fact_rotation",
     ]
+
+    # Full publication requires populated conformed dimensions. Other transform
+    # outputs can legitimately contain zero rows for unsupported source scopes.
+    _FULL_PUBLICATION_ANCHORS: ClassVar[frozenset[str]] = frozenset(
+        {"dim_game", "dim_player", "dim_team"}
+    )
+    _FULL_PUBLICATION_DOMAIN_ANCHORS: ClassVar[dict[str, frozenset[str]]] = {
+        "game_discovery": frozenset(
+            {
+                "stg_league_game_log",
+                "dim_game",
+                "dim_season",
+                "bridge_game_team",
+                "fact_game_result",
+            }
+        ),
+        "roster": frozenset(
+            {
+                "stg_common_all_players",
+                "stg_player_info",
+                "dim_all_players",
+                "dim_player",
+                "bridge_player_team_season",
+            }
+        ),
+        "teams": frozenset(
+            {
+                "stg_static_teams",
+                "stg_team_years",
+                "stg_team_details",
+                "stg_team_info_common",
+                "fact_static_teams",
+                "dim_team",
+            }
+        ),
+        "box_scores": frozenset(
+            {
+                "stg_box_score_traditional",
+                "stg_box_score_traditional_team",
+                "stg_line_score",
+                "fact_player_game_traditional",
+                "fact_box_score_team",
+                "fact_team_game",
+            }
+        ),
+        "play_by_play": frozenset({"stg_play_by_play", "fact_play_by_play"}),
+        "shots": frozenset({"stg_shot_chart", "fact_shot_chart", "dim_shot_zone"}),
+        "standings": frozenset({"stg_standings", "fact_standings"}),
+        "draft": frozenset({"stg_draft", "fact_draft_history", "fact_draft"}),
+        "gold_game": frozenset({"agg_game_totals", "analytics_game_summary"}),
+        "gold_player": frozenset(
+            {"agg_player_season", "agg_player_career", "analytics_player_game_complete"}
+        ),
+        "gold_team": frozenset({"agg_team_season", "analytics_team_season_summary"}),
+        "gold_shots": frozenset({"agg_shot_zones"}),
+    }
+    _FULL_PUBLICATION_CARDINALITY_PAIRS: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("stg_static_teams", "fact_static_teams"),
+        ("stg_box_score_traditional_team", "fact_box_score_team"),
+        ("stg_play_by_play", "fact_play_by_play"),
+        ("stg_standings", "fact_standings"),
+        ("stg_draft", "fact_draft_history"),
+        ("stg_shot_chart", "fact_shot_chart"),
+    )
 
     # Explicit referential-integrity pairs:
     # (fact_table, fk_column, dim_table, pk_column)
@@ -231,8 +452,14 @@ class DataScanner:
         *,
         categories: list[str] | None = None,
         table_filter: str | None = None,
+        full_publication: bool = False,
     ) -> ScanReport:
-        """Run all (or selected) scan categories and return the report."""
+        """Run all (or selected) scan categories and return the report.
+
+        When ``full_publication`` is true, missing or empty conformed publication
+        anchors are errors. Other zero-row transform outputs retain their normal
+        warning severity because they can be valid for unsupported source scopes.
+        """
         start = time.monotonic()
         self._report = ScanReport()
         self._tables_cache = None
@@ -243,8 +470,22 @@ class DataScanner:
 
         active = categories if categories else [c.value for c in ScanCategory]
 
+        if full_publication:
+            self._check_full_publication_anchors()
+            self._check_full_publication_cardinality()
+
         if ScanCategory.MISSING_TABLE in active:
-            self._check_missing_tables(table_filter)
+            publication_anchor_tables = self._FULL_PUBLICATION_ANCHORS | frozenset(
+                table
+                for candidates in self._FULL_PUBLICATION_DOMAIN_ANCHORS.values()
+                for table in candidates
+            )
+            self._check_missing_tables(
+                table_filter,
+                excluded_transform_tables=(
+                    publication_anchor_tables if full_publication else frozenset()
+                ),
+            )
 
         if ScanCategory.CROSS_TABLE in active:
             self._check_cross_table_gaps(table_filter)
@@ -272,11 +513,24 @@ class DataScanner:
         self._tables_cache = sorted(r[0] for r in rows)
         return self._tables_cache
 
-    def _get_columns(self, table: str) -> list[str]:
+    def _get_columns(
+        self,
+        table: str,
+        *,
+        category: ScanCategory,
+    ) -> list[str] | None:
         """Return column names for *table* (cached)."""
-        return [name for name, _ in self._get_columns_typed(table)]
+        typed_columns = self._get_columns_typed(table, category=category)
+        if typed_columns is None:
+            return None
+        return [name for name, _ in typed_columns]
 
-    def _get_columns_typed(self, table: str) -> list[tuple[str, str]]:
+    def _get_columns_typed(
+        self,
+        table: str,
+        *,
+        category: ScanCategory,
+    ) -> list[tuple[str, str]] | None:
         """Return ``(column_name, data_type)`` tuples for *table* (cached)."""
         if table in self._columns_cache:
             return self._columns_cache[table]
@@ -288,17 +542,20 @@ class DataScanner:
                 [table],
             ).fetchall()
             cols = [(r[0], r[1]) for r in rows]
-        except duckdb.Error:
-            cols = []
+        except duckdb.Error as exc:
+            self._add_query_error(
+                category=category,
+                table=table,
+                check="schema_introspection",
+                exc=exc,
+            )
+            return None
         self._columns_cache[table] = cols
         return cols
 
     def _row_count(self, table: str) -> int:
-        try:
-            row = self._conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()
-            return row[0] if row else 0
-        except duckdb.Error:
-            return 0
+        row = self._conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()
+        return row[0] if row else 0
 
     _NUMERIC_TYPES: ClassVar[frozenset[str]] = frozenset(
         {
@@ -313,17 +570,32 @@ class DataScanner:
         }
     )
 
-    def _get_numeric_columns(self, table: str) -> list[str]:
+    def _get_numeric_columns(
+        self,
+        table: str,
+        *,
+        category: ScanCategory,
+    ) -> list[str] | None:
         """Return columns with numeric types, excluding ``*_id`` columns."""
+        typed_columns = self._get_columns_typed(table, category=category)
+        if typed_columns is None:
+            return None
         return [
             name
-            for name, dtype in self._get_columns_typed(table)
+            for name, dtype in typed_columns
             if dtype.upper() in self._NUMERIC_TYPES and not name.endswith("_id")
         ]
 
-    def _infer_key_columns(self, table: str) -> list[str]:
+    def _infer_key_columns(
+        self,
+        table: str,
+        *,
+        category: ScanCategory,
+    ) -> list[str] | None:
         """Infer likely primary-key columns from convention."""
-        columns = self._get_columns(table)
+        columns = self._get_columns(table, category=category)
+        if columns is None:
+            return None
         col_set = set(columns)
         keys: list[str] = []
         for col in ("game_id", "player_id", "team_id", "event_num"):
@@ -342,17 +614,62 @@ class DataScanner:
     def _add(self, finding: ScanFinding) -> None:
         self._report.findings.append(finding)
 
+    def _add_query_error(
+        self,
+        *,
+        category: ScanCategory,
+        table: str,
+        check: str,
+        exc: duckdb.Error,
+    ) -> None:
+        """Record a configured scan query failure as a hard finding."""
+        logger.error("scanner: {} query failed for {}: {}", check, table, exc)
+        self._add(
+            ScanFinding(
+                category=category,
+                severity=ScanSeverity.ERROR,
+                table=table,
+                check=f"{check}_query_failed",
+                message=f"{table}: {check} query failed: {type(exc).__name__}: {exc}",
+                details={
+                    "failed_check": check,
+                    "error_type": type(exc).__name__,
+                },
+            )
+        )
+
     def _assure_transformer_discovery(self) -> None:
         """Cache a complete runtime universe or record a hard assurance error."""
         self._report.checks_run += 1
         try:
             from nbadb.orchestrate.transformers import (
                 discover_all_transformers,
+                expected_transform_output_tables,
                 require_complete_transformer_universe,
             )
 
             transformers = discover_all_transformers()
             require_complete_transformer_universe(transformers, include_live=True)
+            expected_outputs = expected_transform_output_tables(include_live=True)
+            invalid_coverage_tables = set(self._GAME_COVERAGE_TABLES) - expected_outputs
+            if invalid_coverage_tables:
+                invalid = ", ".join(sorted(invalid_coverage_tables))
+                msg = f"game coverage tables are not schema-backed transform outputs: {invalid}"
+                raise RuntimeError(msg)
+            from nbadb.orchestrate.staging_map import STAGING_MAP
+
+            known_publication_tables = expected_outputs | {
+                entry.staging_key for entry in STAGING_MAP
+            }
+            configured_publication_tables = self._FULL_PUBLICATION_ANCHORS | frozenset(
+                table
+                for candidates in self._FULL_PUBLICATION_DOMAIN_ANCHORS.values()
+                for table in candidates
+            )
+            invalid_publication_tables = configured_publication_tables - known_publication_tables
+            if invalid_publication_tables:
+                invalid = ", ".join(sorted(invalid_publication_tables))
+                raise RuntimeError(f"publication anchors are not schema-backed tables: {invalid}")
         except Exception as exc:
             logger.error("scanner: transformer discovery assurance failed: {}", exc)
             self._add(
@@ -373,7 +690,154 @@ class DataScanner:
 
     # ── category 1: missing / empty tables ────────────────────────
 
-    def _batch_row_counts(self, tables: list[str]) -> dict[str, int]:
+    def _check_full_publication_anchors(self) -> None:
+        """Require conformed dimensions and representative domain families to be populated."""
+        existing = set(self._get_existing_tables())
+
+        for table in sorted(self._FULL_PUBLICATION_ANCHORS):
+            self._report.checks_run += 1
+            if table not in existing:
+                self._add(
+                    ScanFinding(
+                        category=ScanCategory.MISSING_TABLE,
+                        severity=ScanSeverity.ERROR,
+                        table=table,
+                        check="missing_publication_anchor",
+                        message=f"Full publication anchor {table} not found in database",
+                        details={"hard_nonempty_policy": "full_publication_anchor"},
+                    )
+                )
+                continue
+
+            self._report.tables_scanned += 1
+            try:
+                row_count = self._row_count(table)
+            except duckdb.Error as exc:
+                self._add_query_error(
+                    category=ScanCategory.MISSING_TABLE,
+                    table=table,
+                    check="publication_anchor_nonempty",
+                    exc=exc,
+                )
+                continue
+
+            if row_count == 0:
+                self._add(
+                    ScanFinding(
+                        category=ScanCategory.MISSING_TABLE,
+                        severity=ScanSeverity.ERROR,
+                        table=table,
+                        check="empty_publication_anchor",
+                        message=f"Full publication anchor {table} exists but is empty",
+                        details={
+                            "row_count": 0,
+                            "hard_nonempty_policy": "full_publication_anchor",
+                        },
+                    )
+                )
+
+        for domain, candidates in sorted(self._FULL_PUBLICATION_DOMAIN_ANCHORS.items()):
+            self._report.checks_run += 1
+            existing_candidates = sorted(candidates & existing)
+            missing_candidates = sorted(candidates - existing)
+            if missing_candidates:
+                self._add(
+                    ScanFinding(
+                        category=ScanCategory.MISSING_TABLE,
+                        severity=ScanSeverity.ERROR,
+                        table=f"publication_domain:{domain}",
+                        check="missing_publication_domain",
+                        message=f"Full publication domain {domain} is missing required anchors",
+                        details={
+                            "candidate_tables": sorted(candidates),
+                            "missing_tables": missing_candidates,
+                            "hard_nonempty_policy": "full_publication_domain",
+                        },
+                    )
+                )
+                continue
+
+            row_counts: dict[str, int] = {}
+            for table in existing_candidates:
+                self._report.tables_scanned += 1
+                try:
+                    row_count = self._row_count(table)
+                except duckdb.Error as exc:
+                    self._add_query_error(
+                        category=ScanCategory.MISSING_TABLE,
+                        table=table,
+                        check="publication_domain_nonempty",
+                        exc=exc,
+                    )
+                    continue
+                row_counts[table] = row_count
+
+            empty_candidates = sorted(
+                table for table, row_count in row_counts.items() if row_count == 0
+            )
+            if empty_candidates:
+                self._add(
+                    ScanFinding(
+                        category=ScanCategory.MISSING_TABLE,
+                        severity=ScanSeverity.ERROR,
+                        table=f"publication_domain:{domain}",
+                        check="empty_publication_domain",
+                        message=f"Full publication domain {domain} has empty required anchors",
+                        details={
+                            "candidate_tables": sorted(candidates),
+                            "existing_tables": existing_candidates,
+                            "empty_tables": empty_candidates,
+                            "row_counts": row_counts,
+                            "hard_nonempty_policy": "full_publication_domain",
+                        },
+                    )
+                )
+
+    def _check_full_publication_cardinality(self) -> None:
+        """Enforce declared row-preserving silver-to-gold transform contracts."""
+        existing = set(self._get_existing_tables())
+        for source_table, output_table in self._FULL_PUBLICATION_CARDINALITY_PAIRS:
+            self._report.checks_run += 1
+            if source_table not in existing or output_table not in existing:
+                continue
+            counts: dict[str, int] = {}
+            for table in (source_table, output_table):
+                try:
+                    counts[table] = self._row_count(table)
+                except duckdb.Error as exc:
+                    self._add_query_error(
+                        category=ScanCategory.CROSS_TABLE,
+                        table=table,
+                        check="publication_cardinality",
+                        exc=exc,
+                    )
+            if len(counts) == 2 and counts[source_table] != counts[output_table]:
+                self._add(
+                    ScanFinding(
+                        category=ScanCategory.CROSS_TABLE,
+                        severity=ScanSeverity.ERROR,
+                        table=output_table,
+                        check="publication_cardinality_mismatch",
+                        message=(
+                            f"Full publication row-preserving contract failed: {source_table} "
+                            f"has {counts[source_table]:,} rows, but {output_table} has "
+                            f"{counts[output_table]:,}"
+                        ),
+                        details={
+                            "source_table": source_table,
+                            "output_table": output_table,
+                            "source_row_count": counts[source_table],
+                            "output_row_count": counts[output_table],
+                        },
+                    )
+                )
+
+    def _batch_row_counts(
+        self,
+        tables: list[str],
+        *,
+        category: ScanCategory,
+    ) -> dict[str, int]:
         """Return ``{table: row_count}`` for *tables* in a single query."""
         if not tables:
             return {}
@@ -383,9 +847,25 @@ class DataScanner:
             return {r[0]: r[1] for r in rows}
         except duckdb.Error:
             # Fallback to per-table counts if UNION ALL fails
-            return {t: self._row_count(t) for t in tables}
+            counts: dict[str, int] = {}
+            for table in tables:
+                try:
+                    counts[table] = self._row_count(table)
+                except duckdb.Error as exc:
+                    self._add_query_error(
+                        category=category,
+                        table=table,
+                        check="row_count",
+                        exc=exc,
+                    )
+            return counts
 
-    def _check_missing_tables(self, table_filter: str | None) -> None:
+    def _check_missing_tables(
+        self,
+        table_filter: str | None,
+        *,
+        excluded_transform_tables: frozenset[str],
+    ) -> None:
         existing = set(self._get_existing_tables())
 
         # 1. Staging tables
@@ -393,7 +873,10 @@ class DataScanner:
 
         staging_keys = [k for k in get_all_staging_keys() if self._matches_filter(k, table_filter)]
         existing_staging = [k for k in staging_keys if k in existing]
-        staging_counts = self._batch_row_counts(existing_staging)
+        staging_counts = self._batch_row_counts(
+            existing_staging,
+            category=ScanCategory.MISSING_TABLE,
+        )
 
         for key in staging_keys:
             self._report.checks_run += 1
@@ -408,7 +891,7 @@ class DataScanner:
                     )
                 )
             else:
-                if staging_counts.get(key, 0) == 0:
+                if key in staging_counts and staging_counts[key] == 0:
                     self._add(
                         ScanFinding(
                             category=ScanCategory.MISSING_TABLE,
@@ -430,9 +913,13 @@ class DataScanner:
             tf.output_table: tf
             for tf in transformers
             if self._matches_filter(tf.output_table, table_filter)
+            and tf.output_table not in excluded_transform_tables
         }
         existing_tf = [t for t in tf_map if t in existing]
-        tf_counts = self._batch_row_counts(existing_tf)
+        tf_counts = self._batch_row_counts(
+            existing_tf,
+            category=ScanCategory.MISSING_TABLE,
+        )
 
         for out, tf in tf_map.items():
             self._report.checks_run += 1
@@ -448,7 +935,7 @@ class DataScanner:
                     )
                 )
             else:
-                if tf_counts.get(out, 0) == 0:
+                if out in tf_counts and tf_counts[out] == 0:
                     self._add(
                         ScanFinding(
                             category=ScanCategory.MISSING_TABLE,
@@ -537,7 +1024,12 @@ class DataScanner:
                             )
                         )
                 except duckdb.Error as exc:
-                    logger.debug("scanner: game coverage check failed for {}: {}", fact_table, exc)
+                    self._add_query_error(
+                        category=ScanCategory.CROSS_TABLE,
+                        table=fact_table,
+                        check="game_coverage",
+                        exc=exc,
+                    )
 
         # 2. Explicit referential integrity
         for fact_table, fk_col, dim_table, pk_col in self._REF_INTEGRITY_CHECKS:
@@ -572,7 +1064,12 @@ class DataScanner:
                         )
                     )
             except duckdb.Error as exc:
-                logger.debug("scanner: ref integrity check failed: {}", exc)
+                self._add_query_error(
+                    category=ScanCategory.CROSS_TABLE,
+                    table=fact_table,
+                    check="referential_integrity",
+                    exc=exc,
+                )
 
         # 3. Dynamic ref integrity for all fact_ tables with game_id
         checked_facts = {t for t, _, _, _ in self._REF_INTEGRITY_CHECKS}
@@ -584,7 +1081,9 @@ class DataScanner:
                     continue
                 if not self._matches_filter(table, table_filter):
                     continue
-                cols = self._get_columns(table)
+                cols = self._get_columns(table, category=ScanCategory.CROSS_TABLE)
+                if cols is None:
+                    continue
                 if "game_id" not in cols:
                     continue
                 self._report.checks_run += 1
@@ -609,8 +1108,13 @@ class DataScanner:
                                 details={"fk": f"{table}.game_id", "orphans": orphans},
                             )
                         )
-                except duckdb.Error:
-                    pass
+                except duckdb.Error as exc:
+                    self._add_query_error(
+                        category=ScanCategory.CROSS_TABLE,
+                        table=table,
+                        check="referential_integrity",
+                        exc=exc,
+                    )
 
     # ── category 3: temporal coverage ─────────────────────────────
 
@@ -625,7 +1129,9 @@ class DataScanner:
         for table in existing:
             if not self._matches_filter(table, table_filter):
                 continue
-            cols = self._get_columns(table)
+            cols = self._get_columns(table, category=ScanCategory.TEMPORAL)
+            if cols is None:
+                continue
 
             # Season distribution
             if "season_year" in cols:
@@ -664,7 +1170,12 @@ class DataScanner:
                                     )
                                 )
                 except duckdb.Error as exc:
-                    logger.debug("scanner: temporal check failed for {}: {}", table, exc)
+                    self._add_query_error(
+                        category=ScanCategory.TEMPORAL,
+                        table=table,
+                        check="low_season_count",
+                        exc=exc,
+                    )
 
             # Date gap detection (game-level tables only)
             if "game_date" in cols and table in (
@@ -718,7 +1229,12 @@ class DataScanner:
                             )
                         )
                 except duckdb.Error as exc:
-                    logger.debug("scanner: date gap check failed for {}: {}", table, exc)
+                    self._add_query_error(
+                        category=ScanCategory.TEMPORAL,
+                        table=table,
+                        check="date_gap",
+                        exc=exc,
+                    )
 
     # ── category 4: data quality ──────────────────────────────────
 
@@ -733,7 +1249,9 @@ class DataScanner:
             if table.startswith("stg_"):
                 continue
 
-            cols = self._get_columns(table)
+            cols = self._get_columns(table, category=ScanCategory.DATA_QUALITY)
+            if cols is None:
+                continue
             col_set = set(cols)
 
             # 1. Null rate on critical columns
@@ -768,11 +1286,18 @@ class DataScanner:
                                 },
                             )
                         )
-                except duckdb.Error:
-                    pass
+                except duckdb.Error as exc:
+                    self._add_query_error(
+                        category=ScanCategory.DATA_QUALITY,
+                        table=table,
+                        check="null_key_column",
+                        exc=exc,
+                    )
 
             # 2. Duplicate key detection
-            keys = self._infer_key_columns(table)
+            keys = self._infer_key_columns(table, category=ScanCategory.DATA_QUALITY)
+            if keys is None:
+                continue
             if keys:
                 self._report.checks_run += 1
                 cols_str = ", ".join(f'"{k}"' for k in keys)
@@ -792,12 +1317,22 @@ class DataScanner:
                                 details={"key_columns": keys, "duplicates": dupes},
                             )
                         )
-                except duckdb.Error:
-                    pass
+                except duckdb.Error as exc:
+                    self._add_query_error(
+                        category=ScanCategory.DATA_QUALITY,
+                        table=table,
+                        check="duplicate_keys",
+                        exc=exc,
+                    )
 
             # 3. Zero-stat detection (fact tables with ≥5 numeric columns)
             if table.startswith("fact_"):
-                numeric_cols = self._get_numeric_columns(table)
+                numeric_cols = self._get_numeric_columns(
+                    table,
+                    category=ScanCategory.DATA_QUALITY,
+                )
+                if numeric_cols is None:
+                    continue
                 if len(numeric_cols) >= 5:
                     self._report.checks_run += 1
                     check_cols = numeric_cols[:15]
@@ -829,7 +1364,12 @@ class DataScanner:
                                         },
                                     )
                                 )
-                    except duckdb.Error:
-                        pass
+                    except duckdb.Error as exc:
+                        self._add_query_error(
+                            category=ScanCategory.DATA_QUALITY,
+                            table=table,
+                            check="zero_stat_rows",
+                            exc=exc,
+                        )
 
             self._report.tables_scanned += 1

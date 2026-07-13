@@ -579,10 +579,45 @@ jobs:
               --repo "${{ github.repository }}" \
               --name "full-extraction-manifest-${CHAIN_ID}" \
               --dir "$RUNNER_TEMP/resume-source/manifest"
-            gh run download "$RESUME_SOURCE_RUN_ID" \
-              --repo "${{ github.repository }}" \
-              --pattern "extraction-lane-metadata-${CHAIN_ID}-*" \
-              --dir "$RUNNER_TEMP/resume-source/metadata"
+            metadata_inventory="$RUNNER_TEMP/resume-source/metadata-artifacts.txt"
+            if ! gh api \
+              "repos/${{ github.repository }}/actions/runs/${RESUME_SOURCE_RUN_ID}/artifacts?per_page=100" \
+              --paginate \
+              --jq '.artifacts[] | select(.expired == false) | .name' \
+              > "$metadata_inventory"; then
+              echo "::error::Unable to enumerate resume-source artifacts for run $RESUME_SOURCE_RUN_ID"
+              exit 1
+            fi
+            matching_metadata="$RUNNER_TEMP/resume-source/matching-metadata-artifacts.txt"
+            METADATA_INVENTORY="$metadata_inventory" \
+              MATCHING_METADATA="$matching_metadata" \
+              CHAIN_ID="$CHAIN_ID" \
+              python - <<'PY'
+          import os
+          from pathlib import Path
+
+          inventory = Path(os.environ["METADATA_INVENTORY"])
+          output = Path(os.environ["MATCHING_METADATA"])
+          prefix = f"extraction-lane-metadata-{os.environ['CHAIN_ID']}-"
+          names = sorted(
+              {
+                  line.strip()
+                  for line in inventory.read_text(encoding="utf-8").splitlines()
+                  if line.strip().startswith(prefix)
+              }
+          )
+          output.write_text("".join(f"{name}\n" for name in names), encoding="utf-8")
+          PY
+            if [ -s "$matching_metadata" ]; then
+              while IFS= read -r metadata_name; do
+                gh run download "$RESUME_SOURCE_RUN_ID" \
+                  --repo "${{ github.repository }}" \
+                  --name "$metadata_name" \
+                  --dir "$RUNNER_TEMP/resume-source/metadata"
+              done < "$matching_metadata"
+            else
+              echo "::notice::Resume source run $RESUME_SOURCE_RUN_ID has no lane metadata artifacts; recovery will re-plan from the manifest"
+            fi
             source_manifest="$(find "$RUNNER_TEMP/resume-source/manifest" -name manifest.json -type f -print -quit)"
             if [ -z "$source_manifest" ]; then
               echo "::error::Resume source run $RESUME_SOURCE_RUN_ID did not provide full-extraction-manifest-${CHAIN_ID}/manifest.json"
@@ -640,6 +675,11 @@ jobs:
             fi
             uv run python -m nbadb.orchestrate.full_extraction_control "${resume_args[@]}" \
               > artifacts/full-extraction/resume-source-manifest.stdout.json
+            uv run python -m nbadb.orchestrate.full_extraction_control audit \
+              --metadata-dir "$RUNNER_TEMP/resume-source/metadata" \
+              --output-path artifacts/full-extraction/resume-source-audit.json \
+              > artifacts/full-extraction/resume-source-audit.stdout.json
+            cp "$source_manifest" artifacts/full-extraction/resume-source-input-manifest.json
             args+=(--lane-manifest-path artifacts/full-extraction/resume-source-manifest.json)
           else
             args+=(--support-matrix-path artifacts/endpoint-coverage/endpoint-support-matrix.json)
@@ -649,6 +689,211 @@ jobs:
           [ -n "$BACKFILL_ENDPOINTS" ] && args+=(--backfill-endpoints "$BACKFILL_ENDPOINTS")
 
           uv run python -m nbadb.orchestrate.full_extraction_control "${args[@]}" > artifacts/full-extraction/manifest.stdout.json
+
+          if [ -n "$RESUME_SOURCE_RUN_ID" ]; then
+            SOURCE_MANIFEST_PATH=artifacts/full-extraction/resume-source-input-manifest.json \
+              RESUME_MANIFEST_PATH=artifacts/full-extraction/resume-source-manifest.json \
+              RESUME_AUDIT_PATH=artifacts/full-extraction/resume-source-audit.json \
+              FINAL_MANIFEST_PATH=artifacts/full-extraction/manifest.json \
+              uv run python - <<'PY'
+          # RESUME_SOURCE_PENDING_CONTRACT_BLOCKED_EVIDENCE
+          import json
+          import os
+          from pathlib import Path
+
+          from nbadb.orchestrate.full_extraction_control import (
+              _canonical_contract_blocked_audit_row,
+              _hash_payload,
+          )
+
+          def canonical_rows(
+              raw_rows: object,
+              *,
+              label: str,
+          ) -> list[dict[str, object]]:
+              if not isinstance(raw_rows, list):
+                  raise SystemExit(f"{label} blocked evidence must be a list")
+              rows: list[dict[str, object]] = []
+              seen: set[str] = set()
+              for raw_row in raw_rows:
+                  if not isinstance(raw_row, dict):
+                      raise SystemExit(f"{label} blocked evidence rows must be objects")
+                  lane_id = str(raw_row.get("lane_id") or "").strip()
+                  if not lane_id or lane_id in seen:
+                      raise SystemExit(f"{label} blocked lane IDs must be unique")
+                  canonical_input = dict(raw_row)
+                  canonical_input["lane_kind"] = raw_row.get("kind")
+                  try:
+                      row = _canonical_contract_blocked_audit_row(
+                          lane_id,
+                          canonical_input,
+                      )
+                  except ValueError as exc:
+                      raise SystemExit(
+                          f"{label} blocked evidence is invalid for {lane_id}: {exc}"
+                      ) from exc
+                  if _hash_payload(row) != _hash_payload(raw_row):
+                      raise SystemExit(
+                          f"{label} blocked evidence is not canonical for {lane_id}"
+                      )
+                  seen.add(lane_id)
+                  rows.append(row)
+              return sorted(rows, key=lambda row: str(row["lane_id"]))
+
+          def bundle(rows: list[dict[str, object]]) -> dict[str, object]:
+              return {"schema_version": 1, "contract_blocked_lanes": rows}
+
+          source_manifest = json.loads(
+              Path(os.environ["SOURCE_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          resume_manifest = json.loads(
+              Path(os.environ["RESUME_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          audit = json.loads(
+              Path(os.environ["RESUME_AUDIT_PATH"]).read_text(encoding="utf-8")
+          )
+          final_path = Path(os.environ["FINAL_MANIFEST_PATH"])
+          final_manifest = json.loads(final_path.read_text(encoding="utf-8"))
+          if not all(
+              isinstance(value, dict)
+              for value in (source_manifest, resume_manifest, audit, final_manifest)
+          ):
+              raise SystemExit("resume source pending-evidence inputs must be objects")
+
+          raw_source_lanes = source_manifest.get("lanes")
+          if not isinstance(raw_source_lanes, list):
+              raise SystemExit("resume source manifest lanes must be a list")
+          source_lanes: dict[str, dict[str, object]] = {}
+          for lane in raw_source_lanes:
+              if not isinstance(lane, dict):
+                  raise SystemExit("resume source manifest lanes must be objects")
+              lane_id = str(lane.get("lane_id") or "").strip()
+              if not lane_id or lane_id in source_lanes:
+                  raise SystemExit("resume source manifest lane IDs must be unique")
+              source_lanes[lane_id] = lane
+
+          scope_fields = (
+              ("kind", "lane_kind"),
+              ("endpoints", "endpoints"),
+              ("patterns", "patterns"),
+              ("season_start", "season_start"),
+              ("season_end", "season_end"),
+              ("season_types", "season_types"),
+              ("context_measures", "context_measures"),
+              ("coverage_units_hash", "coverage_units_hash"),
+          )
+
+          def require_source_scope(row: dict[str, object], *, label: str) -> None:
+              lane_id = str(row["lane_id"])
+              lane = source_lanes.get(lane_id)
+              if lane is None:
+                  raise SystemExit(f"{label} blocked evidence is outside source manifest: {lane_id}")
+              for row_field, lane_field in scope_fields:
+                  if row.get(row_field) != lane.get(lane_field):
+                      raise SystemExit(
+                          f"{label} blocked evidence scope does not match source manifest "
+                          f"for {lane_id}: {row_field}"
+                      )
+
+          audit_rows = canonical_rows(
+              audit.get("contract_blocked_lanes", []),
+              label="resume source audit",
+          )
+          pending_by_id: dict[str, dict[str, object]] = {}
+          for lane_id, lane in source_lanes.items():
+              canonical_input = dict(lane)
+              canonical_input["lane_kind"] = lane.get("lane_kind")
+              try:
+                  row = _canonical_contract_blocked_audit_row(
+                      lane_id,
+                      canonical_input,
+                  )
+              except ValueError:
+                  continue
+              require_source_scope(row, label="derived resume source")
+              pending_by_id[lane_id] = row
+          for row in audit_rows:
+              require_source_scope(row, label="resume source audit")
+              lane_id = str(row["lane_id"])
+              prior = pending_by_id.get(lane_id)
+              if prior is not None and _hash_payload(prior) != _hash_payload(row):
+                  raise SystemExit(f"resume source blocked evidence changed for {lane_id}")
+              pending_by_id[lane_id] = row
+
+          resume_summary = resume_manifest.get("resume_summary")
+          if not isinstance(resume_summary, dict):
+              raise SystemExit("resume source manifest lacks resume_summary")
+          expected_count = int(resume_summary.get("contract_blocked_lane_count", -1))
+          if expected_count != len(pending_by_id):
+              raise SystemExit(
+                  "resume source contract-blocked count does not match validated evidence"
+              )
+
+          chain_state = final_manifest.get("chain_state")
+          if not isinstance(chain_state, dict):
+              raise SystemExit("final resume source manifest chain_state must be an object")
+          committed_rows = canonical_rows(
+              chain_state.get("contract_blocked_evidence", []),
+              label="resume source committed chain-state",
+          )
+          committed_digest = str(
+              chain_state.get("contract_blocked_evidence_sha256") or ""
+          )
+          if committed_rows or committed_digest:
+              if _hash_payload(bundle(committed_rows)) != committed_digest:
+                  raise SystemExit(
+                      "resume source committed blocked evidence digest does not match"
+                  )
+          committed_by_id = {str(row["lane_id"]): row for row in committed_rows}
+          existing_pending_rows = canonical_rows(
+              chain_state.get("pending_contract_blocked_evidence", []),
+              label="resume source existing pending chain-state",
+          )
+          existing_pending_digest = str(
+              chain_state.get("pending_contract_blocked_evidence_sha256") or ""
+          )
+          if existing_pending_rows:
+              if _hash_payload(bundle(existing_pending_rows)) != existing_pending_digest:
+                  raise SystemExit(
+                      "resume source existing pending blocked evidence digest does not match"
+                  )
+          elif existing_pending_digest:
+              raise SystemExit(
+                  "resume source existing pending blocked evidence digest has no rows"
+              )
+          combined_pending_by_id = {
+              str(row["lane_id"]): row for row in existing_pending_rows
+          }
+          for lane_id, row in pending_by_id.items():
+              existing = combined_pending_by_id.get(lane_id)
+              if existing is not None and _hash_payload(existing) != _hash_payload(row):
+                  raise SystemExit(
+                      f"resume source pending blocked evidence changed for {lane_id}"
+                  )
+              combined_pending_by_id[lane_id] = row
+          pending_rows: list[dict[str, object]] = []
+          for lane_id in sorted(combined_pending_by_id):
+              row = combined_pending_by_id[lane_id]
+              committed = committed_by_id.get(lane_id)
+              if committed is not None:
+                  if _hash_payload(committed) != _hash_payload(row):
+                      raise SystemExit(
+                          f"resume source blocked evidence conflicts with ancestry for {lane_id}"
+                      )
+                  continue
+              pending_rows.append(row)
+
+          pending_bundle = bundle(pending_rows)
+          chain_state["pending_contract_blocked_evidence"] = pending_rows
+          chain_state["pending_contract_blocked_evidence_sha256"] = (
+              _hash_payload(pending_bundle) if pending_rows else ""
+          )
+          final_path.write_text(
+              json.dumps(final_manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          fi
 
           python - <<'PY'
           import json
@@ -1431,6 +1676,8 @@ jobs:
             --expected-chain-id "$ACTIVE_CHAIN_ID" \
             --expected-lane-id "${{ matrix.lane_id }}" \
             --expected-coverage-units-hash "$COVERAGE_UNITS_HASH" \
+            --expected-run-id "$STATE_ARTIFACT_RUN_ID" \
+            --expected-artifact-name "$STATE_ARTIFACT_NAME" \
             "${workload_args[@]}"
           cp "$state_db" data/nbadb/nba.duckdb
           cp "${state_attestations[0]}" artifacts/extraction/lane-state-attestation.json
@@ -1442,6 +1689,8 @@ jobs:
           STATE_ARTIFACT_RESTORED: ${{ steps.state_artifact_restore.outputs.restored }}
           STATE_ARTIFACT_REQUIRED: ${{ matrix.state_artifact_run_id != '' || matrix.state_artifact_name != '' || matrix.state_artifact_digest != '' }}
           STATE_ARTIFACT_DIGEST: ${{ matrix.state_artifact_digest }}
+          STATE_ARTIFACT_RUN_ID: ${{ matrix.state_artifact_run_id }}
+          STATE_ARTIFACT_NAME: ${{ matrix.state_artifact_name }}
           COVERAGE_UNITS_HASH: ${{ matrix.coverage_units_hash }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_START: ${{ matrix.season_start }}
@@ -1487,6 +1736,8 @@ jobs:
               --expected-chain-id "$ACTIVE_CHAIN_ID" \
               --expected-lane-id "${{ matrix.lane_id }}" \
               --expected-coverage-units-hash "$COVERAGE_UNITS_HASH" \
+              --expected-run-id "$STATE_ARTIFACT_RUN_ID" \
+              --expected-artifact-name "$STATE_ARTIFACT_NAME" \
               "${workload_args[@]}"; then
               mark_untrusted "durable lane state failed exact validation"
               exit 1
@@ -1919,6 +2170,7 @@ jobs:
 
       # ── Upload lane artifact ──
       - name: Upload complete lane artifact
+        id: complete_lane_artifact
         if: ${{ always() && steps.lane_metadata.outcome == 'success' && steps.lane_metadata.outputs.snapshot-attested == 'true' && steps.lane_metadata.outputs.final-outcome == 'complete' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -1932,6 +2184,7 @@ jobs:
           compression-level: 0
 
       - name: Upload incomplete lane state artifact
+        id: recovery_lane_artifact
         if: ${{ always() && steps.lane_metadata.outcome == 'success' && steps.lane_metadata.outputs.snapshot-attested == 'true' && steps.lane_metadata.outputs.final-outcome != 'complete' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -1944,8 +2197,112 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-      - name: Upload lane metadata
+      - name: Finalize durable lane artifact receipt
+        id: finalize_lane_metadata
         if: ${{ always() && steps.lane_metadata.outcome == 'success' }}
+        env:
+          COMPLETE_ARTIFACT_DIGEST: ${{ steps.complete_lane_artifact.outputs.artifact-digest }}
+          COMPLETE_ARTIFACT_ID: ${{ steps.complete_lane_artifact.outputs.artifact-id }}
+          COMPLETE_ARTIFACT_OUTCOME: ${{ steps.complete_lane_artifact.outcome }}
+          FINAL_OUTCOME: ${{ steps.lane_metadata.outputs.final-outcome }}
+          RECOVERY_ARTIFACT_DIGEST: ${{ steps.recovery_lane_artifact.outputs.artifact-digest }}
+          RECOVERY_ARTIFACT_ID: ${{ steps.recovery_lane_artifact.outputs.artifact-id }}
+          RECOVERY_ARTIFACT_OUTCOME: ${{ steps.recovery_lane_artifact.outcome }}
+          SNAPSHOT_ATTESTED: ${{ steps.lane_metadata.outputs.snapshot-attested }}
+        run: |
+          python - <<'PY'
+          # FINALIZE_LANE_ARTIFACT_RECEIPT
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("artifacts/extraction/lane-metadata.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          state_artifact = payload.get("state_artifact")
+          if not isinstance(payload, dict) or not isinstance(state_artifact, dict):
+              raise SystemExit("lane metadata is missing state_artifact")
+
+          snapshot_attested = os.environ.get("SNAPSHOT_ATTESTED") == "true"
+          final_outcome = os.environ.get("FINAL_OUTCOME", "")
+          complete = final_outcome == "complete"
+          prefix = "COMPLETE" if complete else "RECOVERY"
+          upload_outcome = os.environ.get(f"{prefix}_ARTIFACT_OUTCOME", "")
+          artifact_id = os.environ.get(f"{prefix}_ARTIFACT_ID", "")
+          raw_artifact_digest = os.environ.get(f"{prefix}_ARTIFACT_DIGEST", "").lower()
+          artifact_digest_hex = raw_artifact_digest.removeprefix("sha256:")
+          artifact_digest = (
+              f"sha256:{artifact_digest_hex}"
+              if re.fullmatch(r"[0-9a-f]{64}", artifact_digest_hex) is not None
+              else ""
+          )
+
+          durable = (
+              snapshot_attested
+              and upload_outcome == "success"
+              and re.fullmatch(r"[1-9][0-9]*", artifact_id) is not None
+              and bool(artifact_digest)
+          )
+          state_artifact["uploaded"] = durable
+          if durable:
+              state_artifact["artifact_id"] = artifact_id
+              state_artifact["artifact_digest"] = artifact_digest
+          else:
+              state_artifact["attested"] = False
+              state_artifact.pop("artifact_id", None)
+              state_artifact.pop("artifact_digest", None)
+              if snapshot_attested:
+                  payload["status"] = "pipeline_failure"
+                  payload["raw_status"] = "state-artifact-upload-failed"
+                  payload["failure_class"] = "runner_infrastructure"
+                  payload["root_error_type"] = "StateArtifactUploadFailure"
+                  failure_counts = payload.get("failure_class_counts")
+                  if not isinstance(failure_counts, dict):
+                      failure_counts = {}
+                      payload["failure_class_counts"] = failure_counts
+                  failure_counts["runner_infrastructure"] = (
+                      int(failure_counts.get("runner_infrastructure") or 0) + 1
+                  )
+                  root_counts = payload.get("root_error_type_counts")
+                  if not isinstance(root_counts, dict):
+                      root_counts = {}
+                      payload["root_error_type_counts"] = root_counts
+                  root_counts["StateArtifactUploadFailure"] = (
+                      int(root_counts.get("StateArtifactUploadFailure") or 0) + 1
+                  )
+
+          temporary_path = path.with_suffix(".json.tmp")
+          temporary_path.write_text(
+              json.dumps(payload, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          temporary_path.replace(path)
+
+          output_path = os.environ.get("GITHUB_OUTPUT")
+          if output_path:
+              with Path(output_path).open("a", encoding="utf-8") as handle:
+                  handle.write(f"artifact-durable={str(durable).lower()}\n")
+                  handle.write(f"final-outcome={payload.get('status', '')}\n")
+          PY
+
+      - name: Upload lane metadata
+        id: lane_metadata_artifact
+        if: ${{ always() && steps.lane_metadata.outcome == 'success' && steps.finalize_lane_metadata.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: |
+            artifacts/extraction/lane-metadata.json
+            artifacts/extraction/extract-summary.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+
+      - name: Retry lane metadata upload
+        id: lane_metadata_artifact_retry
+        if: ${{ always() && steps.lane_metadata_artifact.outcome == 'failure' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -1958,7 +2315,7 @@ jobs:
           compression-level: 6
 
       - name: Upload diagnostics-only lane snapshot
-        if: ${{ always() && (steps.lane_metadata.outcome != 'success' || steps.lane_metadata.outputs.snapshot-attested != 'true') }}
+        if: ${{ always() && (steps.lane_metadata.outcome != 'success' || steps.finalize_lane_metadata.outcome != 'success' || steps.finalize_lane_metadata.outputs.artifact-durable != 'true' || (steps.lane_metadata_artifact.outcome == 'failure' && steps.lane_metadata_artifact_retry.outcome != 'success')) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -2111,16 +2468,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p terminal-replay-inputs/checkpoint artifacts/full-extraction
-          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
-          checkpoint_report="$(find source-checkpoint -name checkpoint-report.json -type f -print -quit)"
-          checkpoint_database="$(find source-checkpoint -name nba.duckdb -type f -print -quit)"
-          if [ -z "$manifest_path" ] || [ -z "$checkpoint_report" ] || [ -z "$checkpoint_database" ]; then
+          mapfile -t plan_manifests < <(find plan-artifact -name manifest.json -type f -print)
+          mapfile -t checkpoint_manifests < <(find source-checkpoint -name checkpoint-manifest.json -type f -print)
+          mapfile -t checkpoint_reports < <(find source-checkpoint -name checkpoint-report.json -type f -print)
+          mapfile -t checkpoint_databases < <(find source-checkpoint -name nba.duckdb -type f -print)
+          if [ "${#plan_manifests[@]}" -ne 1 ] || \
+             [ "${#checkpoint_manifests[@]}" -ne 1 ] || \
+             [ "${#checkpoint_reports[@]}" -ne 1 ] || \
+             [ "${#checkpoint_databases[@]}" -ne 1 ]; then
             echo "::error::Terminal replay inputs are incomplete"
             find plan-artifact source-checkpoint -maxdepth 6 -type f -print || true
             exit 1
           fi
+          plan_manifest_path="${plan_manifests[0]}"
+          checkpoint_manifest="${checkpoint_manifests[0]}"
+          checkpoint_report="${checkpoint_reports[0]}"
+          checkpoint_database="${checkpoint_databases[0]}"
 
-          MANIFEST_PATH="$manifest_path" \
+          PLAN_MANIFEST_PATH="$plan_manifest_path" \
+            CHECKPOINT_MANIFEST_PATH="$checkpoint_manifest" \
             CHECKPOINT_REPORT_PATH="$checkpoint_report" \
             CHECKPOINT_DATABASE_PATH="$checkpoint_database" \
             python - <<'PY'
@@ -2130,39 +2496,98 @@ jobs:
           import os
           from pathlib import Path
 
-          manifest_path = Path(os.environ["MANIFEST_PATH"])
+          plan_manifest_path = Path(os.environ["PLAN_MANIFEST_PATH"])
+          checkpoint_manifest_path = Path(os.environ["CHECKPOINT_MANIFEST_PATH"])
           report_path = Path(os.environ["CHECKPOINT_REPORT_PATH"])
           database_path = Path(os.environ["CHECKPOINT_DATABASE_PATH"])
-          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          plan_manifest = json.loads(plan_manifest_path.read_text(encoding="utf-8"))
+          checkpoint_manifest = json.loads(
+              checkpoint_manifest_path.read_text(encoding="utf-8")
+          )
           report = json.loads(report_path.read_text(encoding="utf-8"))
           expected_generation = int(os.environ["EXPECTED_CHECKPOINT_GENERATION"])
-          expected_coverage = str(manifest.get("coverage_fingerprint") or "")
+          expected_coverage = str(
+              checkpoint_manifest.get("coverage_fingerprint") or ""
+              if isinstance(checkpoint_manifest, dict)
+              else ""
+          )
 
           failures: list[str] = []
-          if int(manifest.get("lane_count", 0)) <= 0:
+          if not isinstance(plan_manifest, dict):
+              failures.append("zero-active replay plan manifest is invalid")
+              plan_manifest = {}
+          if not isinstance(checkpoint_manifest, dict):
+              failures.append("source checkpoint manifest is invalid")
+              checkpoint_manifest = {}
+          checkpoint_state = checkpoint_manifest.get("chain_state")
+          if not isinstance(checkpoint_state, dict):
+              failures.append("source checkpoint manifest chain_state is invalid")
+              checkpoint_state = {}
+          if int(plan_manifest.get("lane_count", 0)) <= 0:
               failures.append("zero-active replay manifest has no lanes")
-          if int(manifest.get("active_lane_count", -1)) != 0:
+          if int(plan_manifest.get("active_lane_count", -1)) != 0:
               failures.append("zero-active replay manifest has active lanes")
-          if int(manifest.get("matrix_lane_count", -1)) != 0:
+          if int(plan_manifest.get("matrix_lane_count", -1)) != 0:
               failures.append("zero-active replay manifest has matrix lanes")
+          if int(checkpoint_manifest.get("lane_count", 0)) <= 0:
+              failures.append("source checkpoint manifest has no lanes")
           if report.get("terminal_ready") is not True:
               failures.append("source checkpoint is not terminal-ready")
           if int(report.get("active_lane_count", -1)) != 0:
               failures.append("source checkpoint still has active lanes")
           if str(report.get("chain_id") or "") != os.environ["CHAIN_ID"]:
               failures.append("source checkpoint chain identity does not match")
+          if str(checkpoint_manifest.get("chain_id") or "") != os.environ["CHAIN_ID"]:
+              failures.append("source checkpoint manifest chain identity does not match")
           if str(report.get("run_id") or "") != os.environ["SOURCE_RUN_ID"]:
               failures.append("source checkpoint run identity does not match")
+          if (
+              str(report.get("artifact_name") or "")
+              != os.environ["SOURCE_CHECKPOINT_ARTIFACT"]
+          ):
+              failures.append("source checkpoint artifact identity does not match")
+          if (
+              str(report.get("source_sha") or "").lower()
+              != os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          ):
+              failures.append("source checkpoint source SHA does not match")
+          if (
+              str(checkpoint_manifest.get("workflow_source_sha") or "").lower()
+              != os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          ):
+              failures.append("source checkpoint manifest source SHA does not match")
           if int(report.get("checkpoint_generation", 0)) != expected_generation:
               failures.append("source checkpoint generation does not match its artifact name")
           if not expected_coverage or str(report.get("coverage_fingerprint") or "") != expected_coverage:
               failures.append("source checkpoint coverage fingerprint does not match")
+          if str(plan_manifest.get("coverage_fingerprint") or "") != expected_coverage:
+              failures.append("zero-active replay coverage does not match source checkpoint")
           if int(report.get("complete_lane_count", 0)) <= 0:
               failures.append("source checkpoint contains no completed lanes")
+          if (
+              str(checkpoint_state.get("latest_checkpoint_run_id") or "")
+              != os.environ["SOURCE_RUN_ID"]
+          ):
+              failures.append("source checkpoint manifest latest run identity does not match")
+          if (
+              str(checkpoint_state.get("latest_checkpoint_artifact_name") or "")
+              != os.environ["SOURCE_CHECKPOINT_ARTIFACT"]
+          ):
+              failures.append(
+                  "source checkpoint manifest latest artifact identity does not match"
+              )
+          if int(checkpoint_state.get("latest_checkpoint_generation", 0)) != expected_generation:
+              failures.append("source checkpoint manifest latest generation does not match")
+          if (
+              str(checkpoint_state.get("latest_checkpoint_coverage_hash") or "")
+              != expected_coverage
+          ):
+              failures.append("source checkpoint manifest latest coverage does not match")
 
           manifest_lane_hashes = {
               str(lane.get("lane_id") or ""): str(lane.get("coverage_units_hash") or "")
-              for lane in manifest.get("lanes", [])
+              for lane in checkpoint_manifest.get("lanes", [])
+              if isinstance(lane, dict)
           }
           report_lane_hashes = {
               str(lane_id): str(coverage_hash)
@@ -2171,11 +2596,10 @@ jobs:
               ).items()
           }
           mismatched_lane_hashes = sorted(
-              lane_id
-              for lane_id, coverage_hash in manifest_lane_hashes.items()
-              if not lane_id
-              or not coverage_hash
-              or report_lane_hashes.get(lane_id) != coverage_hash
+              set(manifest_lane_hashes) ^ set(report_lane_hashes)
+          ) + sorted(
+              lane_id for lane_id, coverage_hash in manifest_lane_hashes.items()
+              if not lane_id or not coverage_hash or report_lane_hashes.get(lane_id) != coverage_hash
           )
           if mismatched_lane_hashes:
               failures.append(
@@ -2199,7 +2623,7 @@ jobs:
               raise SystemExit(1)
           PY
 
-          cp "$manifest_path" terminal-replay-inputs/terminal-manifest.json
+          cp "$checkpoint_manifest" terminal-replay-inputs/terminal-manifest.json
           cp "$checkpoint_report" terminal-replay-inputs/checkpoint/checkpoint-report.json
           cp "$checkpoint_database" terminal-replay-inputs/checkpoint/nba.duckdb
           artifact_name="full-extraction-terminal-replay-${ACTIVE_CHAIN_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -2292,6 +2716,7 @@ jobs:
       final-data-artifact-name: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
       final-data-artifact-id: ${{ steps.assured_data.outputs.artifact-id }}
       final-data-artifact-digest: ${{ steps.assured_data.outputs.artifact-digest }}
+      coverage-fingerprint: ${{ steps.terminal_identity.outputs.coverage_fingerprint }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -2308,21 +2733,21 @@ jobs:
       - run: uv sync
 
       - name: Download terminal manifest from completed lanes
-        if: ${{ needs.terminal_replay.result != 'success' }}
+        if: ${{ needs.terminal_replay.outputs.artifact-name == '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: ${{ needs.lane_control.outputs.artifact-name }}
           path: next-manifest-artifact/
 
       - name: Download terminal checkpoint from completed lanes
-        if: ${{ needs.terminal_replay.result != 'success' }}
+        if: ${{ needs.terminal_replay.outputs.artifact-name == '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: ${{ needs.checkpoint.outputs.artifact-name }}
           path: checkpoint-artifact/
 
       - name: Download replayed terminal checkpoint
-        if: ${{ needs.terminal_replay.result == 'success' }}
+        if: ${{ needs.terminal_replay.outputs.artifact-name != '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: ${{ needs.terminal_replay.outputs.artifact-name }}
@@ -2330,7 +2755,7 @@ jobs:
 
       - name: Prepare checkpoint-first merge
         env:
-          TERMINAL_REPLAYED: ${{ needs.terminal_replay.result == 'success' }}
+          TERMINAL_REPLAYED: ${{ needs.terminal_replay.outputs.artifact-name != '' }}
         run: |
           mkdir -p lanes artifacts/full-extraction checkpoint-artifact
           if [ "$TERMINAL_REPLAYED" = "true" ]; then
@@ -2346,6 +2771,26 @@ jobs:
             cp "$replay_database" checkpoint-artifact/nba.duckdb
           else
             manifest_path="$(find next-manifest-artifact \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
+            mapfile -t checkpoint_reports < <(
+              find checkpoint-artifact -name checkpoint-report.json -type f -print
+            )
+            mapfile -t checkpoint_databases < <(
+              find checkpoint-artifact -name nba.duckdb -type f -print
+            )
+            if [ "${#checkpoint_reports[@]}" -ne 1 ] || \
+               [ "${#checkpoint_databases[@]}" -ne 1 ]; then
+              echo "::error::Terminal checkpoint artifact must contain exactly one report and database"
+              find checkpoint-artifact -maxdepth 8 -type f -print || true
+              exit 1
+            fi
+            checkpoint_report="${checkpoint_reports[0]}"
+            checkpoint_database="${checkpoint_databases[0]}"
+            if [ "$checkpoint_report" != "checkpoint-artifact/checkpoint-report.json" ]; then
+              cp "$checkpoint_report" checkpoint-artifact/checkpoint-report.json
+            fi
+            if [ "$checkpoint_database" != "checkpoint-artifact/nba.duckdb" ]; then
+              cp "$checkpoint_database" checkpoint-artifact/nba.duckdb
+            fi
           fi
           if [ -z "$manifest_path" ]; then
             echo "::error::Terminal manifest artifact did not contain a usable manifest"
@@ -2354,6 +2799,99 @@ jobs:
           fi
           cp "$manifest_path" artifacts/full-extraction/merge-manifest.json
           echo "Terminal merge will use the verified cumulative checkpoint only."
+
+      - name: Validate terminal checkpoint identity
+        id: terminal_identity
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+        run: |
+          set -euo pipefail
+          uv run python -m nbadb.orchestrate.full_extraction_control verify-checkpoint \
+            --lane-manifest-path artifacts/full-extraction/merge-manifest.json \
+            --checkpoint-dir checkpoint-artifact \
+            --checkpoint-report-path checkpoint-artifact/checkpoint-report.json \
+            --chain-id "$CHAIN_ID" \
+            --source-sha "$WORKFLOW_SOURCE_SHA" \
+            --pointer-prefix latest \
+            > artifacts/full-extraction/verified-terminal-checkpoint.json
+
+          VERIFIED_CHECKPOINT_PATH=artifacts/full-extraction/verified-terminal-checkpoint.json \
+            CHECKPOINT_REPORT_PATH=checkpoint-artifact/checkpoint-report.json \
+            TERMINAL_IDENTITY_PATH=artifacts/full-extraction/terminal-assurance-report.json \
+            python - <<'PY'
+          # TERMINAL_CHECKPOINT_IDENTITY_BINDER
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          verified = json.loads(
+              Path(os.environ["VERIFIED_CHECKPOINT_PATH"]).read_text(encoding="utf-8")
+          )
+          report_path = Path(os.environ["CHECKPOINT_REPORT_PATH"])
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          coverage_fingerprint = str(verified.get("coverage_fingerprint") or "").lower()
+          evidence = report.get("contract_blocked_evidence")
+          evidence_sha256 = str(report.get("contract_blocked_evidence_sha256") or "")
+          failures: list[str] = []
+          if re.fullmatch(r"[0-9a-f]{64}", coverage_fingerprint) is None:
+              failures.append("verified terminal checkpoint coverage fingerprint is invalid")
+          if str(report.get("coverage_fingerprint") or "").lower() != coverage_fingerprint:
+              failures.append("terminal checkpoint coverage fingerprint is unbound")
+          if report.get("terminal_ready") is not True or int(report.get("active_lane_count", -1)) != 0:
+              failures.append("terminal checkpoint is not terminal-ready")
+          if (
+              not isinstance(evidence, dict)
+              or evidence.get("schema_version") != 1
+              or not isinstance(evidence.get("contract_blocked_lanes"), list)
+          ):
+              failures.append("terminal contract-blocked evidence is invalid")
+          else:
+              actual_evidence_sha256 = hashlib.sha256(
+                  json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode(
+                      "utf-8"
+                  )
+              ).hexdigest()
+              if evidence_sha256 != actual_evidence_sha256:
+                  failures.append("terminal contract-blocked evidence digest does not match")
+              if int(report.get("contract_blocked_lane_count", -1)) != len(
+                  evidence["contract_blocked_lanes"]
+              ):
+                  failures.append("terminal contract-blocked evidence count does not match")
+          if failures:
+              for failure in failures:
+                  print(f"::error::{failure}")
+              raise SystemExit(1)
+
+          checkpoint_report_bytes = json.dumps(
+              report,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode("utf-8")
+          identity = {
+              "schema_version": 2,
+              "chain_id": os.environ["CHAIN_ID"],
+              "source_sha": os.environ["WORKFLOW_SOURCE_SHA"].lower(),
+              "coverage_fingerprint": coverage_fingerprint,
+              "checkpoint_artifact_name": verified.get("artifact_name"),
+              "checkpoint_generation": verified.get("checkpoint_generation"),
+              "checkpoint_database_sha256": verified.get("database_sha256"),
+              "checkpoint_report_sha256": hashlib.sha256(
+                  checkpoint_report_bytes
+              ).hexdigest(),
+              "checkpoint_report": report,
+              "contract_blocked_lane_count": report.get("contract_blocked_lane_count", 0),
+              "contract_blocked_evidence": evidence,
+              "contract_blocked_evidence_sha256": evidence_sha256,
+          }
+          Path(os.environ["TERMINAL_IDENTITY_PATH"]).write_text(
+              json.dumps(identity, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"coverage_fingerprint={coverage_fingerprint}\n")
+          PY
 
       - name: Merge lane databases
         run: |
@@ -2386,7 +2924,10 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Scan and export assurance always run once all lanes complete.
+      # Export may update the database, so the terminal hard scan runs afterward.
+      - name: Export all formats
+        run: uv run nbadb export
+
       - name: Scan data quality
         id: scan
         uses: ./.github/actions/scan-report
@@ -2394,15 +2935,20 @@ jobs:
           report-name: full-extraction-scan-report
           report-dir: artifacts/health/full
           fail-on: error
-
-      - name: Export all formats
-        run: uv run nbadb export
+          full-publication: true
+          checkpoint-report: checkpoint-artifact/checkpoint-report.json
+          checkpoint-manifest: artifacts/full-extraction/merge-manifest.json
+          checkpoint-dir: checkpoint-artifact
+          checkpoint-chain-id: ${{ env.ACTIVE_CHAIN_ID }}
+          checkpoint-source-sha: ${{ env.WORKFLOW_SOURCE_SHA }}
 
       - name: Build assured data manifest
         env:
-          COVERAGE_FINGERPRINT: ${{ needs.plan.outputs.coverage-fingerprint }}
+          COVERAGE_FINGERPRINT: ${{ steps.terminal_identity.outputs.coverage_fingerprint }}
         run: |
           source_sha="${WORKFLOW_SOURCE_SHA,,}"
+          cp artifacts/full-extraction/terminal-assurance-report.json \
+            data/nbadb/terminal-assurance-report.json
           uv run python -m nbadb.core.artifact_identity build \
             --root data/nbadb \
             --chain-id "$ACTIVE_CHAIN_ID" \
@@ -2420,6 +2966,7 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            data/nbadb/terminal-assurance-report.json
             data/nbadb/assured-artifact-manifest.json
           if-no-files-found: error
           retention-days: 30
@@ -2433,7 +2980,7 @@ jobs:
             echo ""
             echo "**Publish requested:** false"
             echo ""
-            echo "Terminal merge, transform, scan, and export assurance completed."
+            echo "Terminal merge, transform, export, and scan assurance completed."
             echo "Metadata commit/push: skipped."
             echo "Kaggle upload: skipped."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -2449,6 +2996,7 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            data/nbadb/terminal-assurance-report.json
             data/nbadb/assured-artifact-manifest.json
           if-no-files-found: ignore
           retention-days: 30
@@ -2487,17 +3035,104 @@ jobs:
       - run: uv sync
 
       - name: Download exact assured data artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: ${{ needs.merge.outputs.final-data-artifact-name }}
-          path: data/nbadb/
-
-      - name: Validate assured data artifact identity
         env:
           ARTIFACT_DIGEST: ${{ needs.merge.outputs.final-data-artifact-digest }}
           ARTIFACT_ID: ${{ needs.merge.outputs.final-data-artifact-id }}
           ARTIFACT_NAME: ${{ needs.merge.outputs.final-data-artifact-name }}
-          COVERAGE_FINGERPRINT: ${{ needs.plan.outputs.coverage-fingerprint }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Assured artifact ID must be a positive integer"
+            exit 1
+          fi
+
+          archive_path="$RUNNER_TEMP/assured-data-artifact.zip"
+          metadata_path="$RUNNER_TEMP/assured-data-artifact.json"
+          gh api \
+            --method GET \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}" \
+            > "$metadata_path"
+          gh api \
+            --method GET \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            > "$archive_path"
+
+          ARTIFACT_ARCHIVE_PATH="$archive_path" \
+            ARTIFACT_METADATA_PATH="$metadata_path" \
+            python - <<'PY'
+          # ASSURED_ARTIFACT_ARCHIVE_VERIFIER
+          import hashlib
+          import json
+          import os
+          import re
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          artifact_id = os.environ["ARTIFACT_ID"]
+          artifact_name = os.environ["ARTIFACT_NAME"]
+          source_run_id = os.environ["SOURCE_RUN_ID"]
+          raw_expected_digest = os.environ["ARTIFACT_DIGEST"].strip().lower()
+          expected_digest_hex = raw_expected_digest.removeprefix("sha256:")
+          if re.fullmatch(r"[0-9a-f]{64}", expected_digest_hex) is None:
+              print("::error::Assured artifact digest is not a SHA-256")
+              raise SystemExit(1)
+          expected_digest = f"sha256:{expected_digest_hex}"
+
+          metadata = json.loads(
+              Path(os.environ["ARTIFACT_METADATA_PATH"]).read_text(encoding="utf-8")
+          )
+          workflow_run = metadata.get("workflow_run", {})
+          failures: list[str] = []
+          if str(metadata.get("id") or "") != artifact_id:
+              failures.append("artifact metadata ID does not match")
+          if str(metadata.get("name") or "") != artifact_name:
+              failures.append("artifact metadata name does not match")
+          if metadata.get("expired") is True:
+              failures.append("artifact is expired")
+          if not isinstance(workflow_run, dict) or str(workflow_run.get("id") or "") != source_run_id:
+              failures.append("artifact workflow run identity does not match")
+
+          archive_path = Path(os.environ["ARTIFACT_ARCHIVE_PATH"])
+          digest = hashlib.sha256()
+          with archive_path.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          actual_digest = "sha256:" + digest.hexdigest()
+          if actual_digest != expected_digest:
+              failures.append(
+                  "artifact archive SHA-256 does not match upload digest: "
+                  f"expected={expected_digest}, actual={actual_digest}"
+              )
+
+          try:
+              with zipfile.ZipFile(archive_path) as archive:
+                  unsafe_names = []
+                  for member in archive.infolist():
+                      member_path = PurePosixPath(member.filename)
+                      if member_path.is_absolute() or ".." in member_path.parts:
+                          unsafe_names.append(member.filename)
+                  if unsafe_names:
+                      failures.append("artifact archive contains unsafe paths")
+          except zipfile.BadZipFile:
+              failures.append("artifact archive is not a valid ZIP file")
+
+          if failures:
+              for failure in failures:
+                  print(f"::error::{failure}")
+              raise SystemExit(1)
+          PY
+
+          mkdir -p data/nbadb
+          unzip -q "$archive_path" -d data/nbadb
+
+      - name: Validate assured data artifact identity
+        env:
+          ARTIFACT_NAME: ${{ needs.merge.outputs.final-data-artifact-name }}
+          COVERAGE_FINGERPRINT: ${{ needs.merge.outputs.coverage-fingerprint }}
           EXPECTED_ARTIFACT_PREFIX: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-
         run: |
           set -euo pipefail
@@ -2507,14 +3142,11 @@ jobs:
             echo "::error::Assured artifact identity mismatch: expected '${EXPECTED_ARTIFACT_PREFIX}<attempt>', got '$ARTIFACT_NAME'"
             exit 1
           fi
-          if ! [[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]] || [ -z "$ARTIFACT_DIGEST" ]; then
-            echo "::error::Assured artifact is missing its immutable artifact ID or digest"
-            exit 1
-          fi
           test -f data/nbadb/nba.duckdb
           test -f data/nbadb/nba.sqlite
           test -d data/nbadb/parquet
           test -d data/nbadb/csv
+          test -f data/nbadb/terminal-assurance-report.json
           test -f data/nbadb/assured-artifact-manifest.json
           uv run python -m nbadb.core.artifact_identity verify \
             --root data/nbadb \
@@ -2629,9 +3261,10 @@ jobs:
           uv run nbadb upload \
             --data-dir data/nbadb \
             --verify-remote \
+            --full-publication \
             --remote-timeout 3600 \
             --remote-poll-interval 15 \
-            -m "Full extraction chain=${ACTIVE_CHAIN_ID} source=${WORKFLOW_SOURCE_SHA} coverage=${{ needs.plan.outputs.coverage-fingerprint }}"
+            -m "Full extraction chain=${ACTIVE_CHAIN_ID} source=${WORKFLOW_SOURCE_SHA} coverage=${{ needs.merge.outputs.coverage-fingerprint }}"
 
       - name: Detect Kaggle publication reconciliation state
         id: kaggle_publication_state
@@ -2675,6 +3308,7 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            data/nbadb/terminal-assurance-report.json
             data/nbadb/assured-artifact-manifest.json
             data/nbadb/dataset-metadata.json
             logs/kaggle/kaggle-upload-manifest.json
@@ -2707,6 +3341,7 @@ jobs:
       split-lane-count: ${{ steps.next_manifest.outputs.split_lane_count }}
       artifact-name: ${{ steps.next_manifest.outputs.artifact_name }}
       checkpoint-artifact-name: ${{ steps.next_manifest.outputs.checkpoint_artifact_name }}
+      checkpoint-generation: ${{ steps.next_manifest.outputs.checkpoint_generation }}
       iteration-budget: ${{ steps.next_manifest.outputs.iteration_budget }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -2742,7 +3377,6 @@ jobs:
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
-          CHECKPOINT_ARTIFACT_NAME: full-extraction-checkpoint-${{ env.ACTIVE_CHAIN_ID }}-iter-${{ inputs.iteration }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
           MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
           PREFLIGHT_QUARANTINE_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
@@ -2783,22 +3417,130 @@ jobs:
               encoding="utf-8",
           )
           PY
-          resume_args=(
+          checkpoint_generation="$(CURRENT_MANIFEST=artifacts/full-extraction/current-manifest.json python - <<'PY'
+          # CHECKPOINT_GENERATION_RESOLVER
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["CURRENT_MANIFEST"]).read_text(encoding="utf-8")
+          )
+          chain_id = os.environ["CHAIN_ID"]
+          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          if not isinstance(manifest, dict):
+              raise SystemExit("checkpoint provenance manifest must be an object")
+          if str(manifest.get("chain_id") or "") != chain_id:
+              raise SystemExit("checkpoint provenance manifest chain identity does not match")
+          if str(manifest.get("workflow_source_sha") or "").lower() != expected_source_sha:
+              raise SystemExit("checkpoint provenance manifest source SHA does not match")
+
+          state = manifest.get("chain_state", {})
+          if not isinstance(state, dict):
+              raise SystemExit("checkpoint provenance chain_state must be an object")
+          previous_run_id = str(state.get("latest_checkpoint_run_id") or "").strip()
+          previous_artifact_name = str(
+              state.get("latest_checkpoint_artifact_name") or ""
+          ).strip()
+          previous_coverage_hash = str(
+              state.get("latest_checkpoint_coverage_hash") or ""
+          ).strip().lower()
+          raw_previous_generation = state.get("latest_checkpoint_generation", 0)
+          if isinstance(raw_previous_generation, bool) or not isinstance(
+              raw_previous_generation, int
+          ):
+              raise SystemExit(
+                  "trusted previous checkpoint generation must be a non-negative integer"
+              )
+          previous_generation = raw_previous_generation
+          if previous_generation < 0:
+              raise SystemExit(
+                  "trusted previous checkpoint generation must be a non-negative integer"
+              )
+
+          if previous_generation == 0:
+              if previous_run_id or previous_artifact_name or previous_coverage_hash:
+                  raise SystemExit(
+                      "checkpoint pointer cannot exist without a positive trusted generation"
+                  )
+          else:
+              if re.fullmatch(r"[1-9][0-9]*", previous_run_id) is None:
+                  raise SystemExit(
+                      "positive trusted checkpoint generation requires a valid source run ID"
+                  )
+              expected_previous_name = (
+                  f"full-extraction-checkpoint-{chain_id}-iter-{previous_generation}"
+              )
+              if previous_artifact_name != expected_previous_name:
+                  raise SystemExit(
+                      "trusted previous checkpoint artifact suffix does not match its generation: "
+                      f"expected {expected_previous_name}, got "
+                      f"{previous_artifact_name or '<missing>'}"
+                  )
+              if re.fullmatch(r"[0-9a-f]{64}", previous_coverage_hash) is None:
+                  raise SystemExit(
+                      "positive trusted checkpoint generation requires a coverage SHA-256"
+                  )
+
+          print(previous_generation + 1)
+          PY
+          )"
+          CHECKPOINT_GENERATION="$checkpoint_generation"
+          CHECKPOINT_ARTIFACT_NAME="full-extraction-checkpoint-${CHAIN_ID}-iter-${CHECKPOINT_GENERATION}"
+          export CHECKPOINT_ARTIFACT_NAME CHECKPOINT_GENERATION
+          common_resume_args=(
             resume
             --lane-manifest-path artifacts/full-extraction/current-manifest.json
             --metadata-dir lane-metadata
             --completed-artifact-run-id "${{ github.run_id }}"
-            --latest-checkpoint-run-id "${{ github.run_id }}"
-            --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME"
-            --latest-checkpoint-generation "$ITERATION"
             --iteration "$ITERATION"
             --max-matrix-lanes "$MATRIX_BATCH_SIZE"
             --allow-missing-attempted-metadata
-            --output-path artifacts/full-extraction/next-manifest.json
           )
           if [ "$RETRY_PIPELINE_FAILURES" = "true" ]; then
-            resume_args+=(--allow-pipeline-failures)
+            common_resume_args+=(--allow-pipeline-failures)
           fi
+          uv run python -m nbadb.orchestrate.full_extraction_control \
+            "${common_resume_args[@]}" \
+            --output-path artifacts/full-extraction/provisional-next-manifest.json \
+            > artifacts/full-extraction/provisional-next-manifest.stdout.json
+
+          CHECKPOINT_COVERAGE_HASH="$(PROVISIONAL_MANIFEST=artifacts/full-extraction/provisional-next-manifest.json uv run python - <<'PY'
+          # CHECKPOINT_COVERAGE_RESOLVER
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          from nbadb.orchestrate.full_extraction_control import (
+              manifest_payload,
+              normalize_manifest,
+          )
+
+          provisional = normalize_manifest(
+              json.loads(
+                  Path(os.environ["PROVISIONAL_MANIFEST"]).read_text(encoding="utf-8")
+              )
+          )
+          completed_lanes = [lane for lane in provisional.lanes if lane.resume_only]
+          coverage_hash = str(
+              manifest_payload(completed_lanes).get("coverage_fingerprint") or ""
+          ).lower()
+          if re.fullmatch(r"[0-9a-f]{64}", coverage_hash) is None:
+              raise SystemExit("provisional checkpoint coverage fingerprint is invalid")
+          print(coverage_hash)
+          PY
+          )"
+          export CHECKPOINT_COVERAGE_HASH
+          resume_args=(
+            "${common_resume_args[@]}"
+            --latest-checkpoint-run-id "${{ github.run_id }}"
+            --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME"
+            --latest-checkpoint-generation "$CHECKPOINT_GENERATION"
+            --latest-checkpoint-coverage-hash "$CHECKPOINT_COVERAGE_HASH"
+            --output-path artifacts/full-extraction/next-manifest.json
+          )
           uv run python -m nbadb.orchestrate.full_extraction_control "${resume_args[@]}" \
             > artifacts/full-extraction/next-manifest.stdout.json
 
@@ -2808,11 +3550,15 @@ jobs:
             > artifacts/full-extraction/extraction-audit.stdout.json
 
           uv run python - <<'PY'
+          # LANE_CONTROL_CONTRACT_BLOCKED_POSTPROCESSOR
           import json
           import os
+          import re
           from pathlib import Path
 
           from nbadb.orchestrate.full_extraction_control import (
+              _canonical_contract_blocked_audit_row,
+              _hash_payload,
               normalize_manifest,
               redispatch_manifest_payload,
           )
@@ -2822,8 +3568,140 @@ jobs:
                   encoding="utf-8"
               )
           )
+          current_payload = json.loads(
+              Path("artifacts/full-extraction/current-manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
           payload["chain_id"] = os.environ["CHAIN_ID"]
           payload["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          next_state = payload.get("chain_state", {})
+          current_state = current_payload.get("chain_state", {})
+          if not isinstance(next_state, dict) or not isinstance(current_state, dict):
+              raise SystemExit("checkpoint manifest chain_state must be an object")
+          audit = json.loads(
+              Path("artifacts/full-extraction/extraction-audit.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(audit, dict):
+              raise SystemExit("extraction audit must be an object")
+
+          def canonical_rows(raw_rows: object, *, label: str) -> list[dict[str, object]]:
+              if not isinstance(raw_rows, list):
+                  raise SystemExit(f"{label} blocked evidence must be a list")
+              rows: list[dict[str, object]] = []
+              seen: set[str] = set()
+              for raw_row in raw_rows:
+                  if not isinstance(raw_row, dict):
+                      raise SystemExit(f"{label} blocked evidence rows must be objects")
+                  lane_id = str(raw_row.get("lane_id") or "").strip()
+                  if not lane_id or lane_id in seen:
+                      raise SystemExit(f"{label} blocked lane IDs must be unique")
+                  canonical_input = dict(raw_row)
+                  canonical_input["lane_kind"] = raw_row.get("kind")
+                  try:
+                      row = _canonical_contract_blocked_audit_row(
+                          lane_id,
+                          canonical_input,
+                      )
+                  except ValueError as exc:
+                      raise SystemExit(
+                          f"{label} blocked evidence is invalid for {lane_id}: {exc}"
+                      ) from exc
+                  if _hash_payload(row) != _hash_payload(raw_row):
+                      raise SystemExit(
+                          f"{label} blocked evidence is not canonical for {lane_id}"
+                      )
+                  seen.add(lane_id)
+                  rows.append(row)
+              return sorted(rows, key=lambda row: str(row["lane_id"]))
+
+          previous_blocked_rows = canonical_rows(
+              current_state.get("contract_blocked_evidence", []),
+              label="current chain-state",
+          )
+          previous_blocked_digest = str(
+              current_state.get("contract_blocked_evidence_sha256") or ""
+          )
+          if previous_blocked_rows:
+              previous_bundle = {
+                  "schema_version": 1,
+                  "contract_blocked_lanes": previous_blocked_rows,
+              }
+              if _hash_payload(previous_bundle) != previous_blocked_digest:
+                  raise SystemExit("current chain-state blocked evidence digest does not match")
+          elif previous_blocked_digest:
+              empty_bundle = {"schema_version": 1, "contract_blocked_lanes": []}
+              if _hash_payload(empty_bundle) != previous_blocked_digest:
+                  raise SystemExit("current chain-state empty blocked evidence digest is invalid")
+
+          pending_blocked_rows = canonical_rows(
+              current_state.get("pending_contract_blocked_evidence", []),
+              label="current pending chain-state",
+          )
+          pending_blocked_digest = str(
+              current_state.get("pending_contract_blocked_evidence_sha256") or ""
+          )
+          if pending_blocked_rows:
+              pending_bundle = {
+                  "schema_version": 1,
+                  "contract_blocked_lanes": pending_blocked_rows,
+              }
+              if _hash_payload(pending_bundle) != pending_blocked_digest:
+                  raise SystemExit(
+                      "current chain-state pending blocked evidence digest does not match"
+                  )
+          elif pending_blocked_digest:
+              raise SystemExit(
+                  "current chain-state pending blocked evidence digest has no rows"
+              )
+
+          current_blocked_rows = canonical_rows(
+              audit.get("contract_blocked_lanes", []),
+              label="current extraction audit",
+          )
+          blocked_rows_by_id = {
+              str(row["lane_id"]): row for row in previous_blocked_rows
+          }
+          for label, rows in (
+              ("pending", pending_blocked_rows),
+              ("current", current_blocked_rows),
+          ):
+              for row in rows:
+                  lane_id = str(row["lane_id"])
+                  prior = blocked_rows_by_id.get(lane_id)
+                  if prior is not None and _hash_payload(prior) != _hash_payload(row):
+                      raise SystemExit(f"{label} blocked evidence changed for {lane_id}")
+                  blocked_rows_by_id[lane_id] = row
+          merged_blocked_rows = [
+              blocked_rows_by_id[lane_id] for lane_id in sorted(blocked_rows_by_id)
+          ]
+          merged_blocked_bundle = {
+              "schema_version": 1,
+              "contract_blocked_lanes": merged_blocked_rows,
+          }
+          merged_blocked_digest = _hash_payload(merged_blocked_bundle)
+          next_state["previous_contract_blocked_evidence"] = previous_blocked_rows
+          next_state["previous_contract_blocked_evidence_sha256"] = (
+              previous_blocked_digest
+          )
+          next_state["contract_blocked_evidence"] = merged_blocked_rows
+          next_state["contract_blocked_evidence_sha256"] = merged_blocked_digest
+          next_state["pending_contract_blocked_evidence"] = []
+          next_state["pending_contract_blocked_evidence_sha256"] = ""
+          current_run_ids = current_state.get("artifact_run_ids", [])
+          next_run_ids = next_state.get("artifact_run_ids", [])
+          if not isinstance(current_run_ids, list) or not isinstance(next_run_ids, list):
+              raise SystemExit("checkpoint artifact_run_ids must be lists")
+          artifact_run_ids = [
+              str(run_id).strip()
+              for run_id in [*current_run_ids, *next_run_ids]
+              if str(run_id).strip()
+          ]
+          if any(re.fullmatch(r"[1-9][0-9]*", run_id) is None for run_id in artifact_run_ids):
+              raise SystemExit("checkpoint artifact run IDs must be positive integers")
+          next_state["artifact_run_ids"] = list(dict.fromkeys(artifact_run_ids))
           Path("artifacts/full-extraction/next-manifest.json").write_text(
               json.dumps(payload, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
@@ -2842,6 +3720,8 @@ jobs:
           report = {
               "artifact_name": artifact_name,
               "checkpoint_artifact_name": os.environ["CHECKPOINT_ARTIFACT_NAME"],
+              "checkpoint_generation": int(os.environ["CHECKPOINT_GENERATION"]),
+              "checkpoint_coverage_hash": os.environ["CHECKPOINT_COVERAGE_HASH"],
               "active_lane_count": int(summary.get("active_lane_count", 0)),
               "resume_only_lane_count": int(summary.get("resume_only_lane_count", 0)),
               "contract_blocked_lane_count": int(summary.get("contract_blocked_lane_count", 0)),
@@ -3110,6 +3990,38 @@ jobs:
             echo "::warning::Previous checkpoint artifact $previous_artifact_name from run $previous_run_id was unavailable"
           fi
 
+      - name: Verify previous checkpoint before inventory use
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/full-extraction
+          current_manifest="$(find lane-control-artifact -name current-manifest.json -type f -print -quit)"
+          previous_report="$(find previous-checkpoint -name checkpoint-report.json -type f -print -quit || true)"
+          previous_database="$(find previous-checkpoint -name nba.duckdb -type f -print -quit || true)"
+          if [ -z "$current_manifest" ]; then
+            echo "::error::Lane-control artifact did not contain current-manifest.json"
+            exit 1
+          fi
+          if [ -z "$previous_report" ] && [ -z "$previous_database" ]; then
+            echo "::notice::No downloaded previous checkpoint requires verification"
+            exit 0
+          fi
+          if [ -z "$previous_report" ] || [ -z "$previous_database" ]; then
+            echo "::error::Downloaded previous checkpoint is incomplete"
+            find previous-checkpoint -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+
+          uv run python -m nbadb.orchestrate.full_extraction_control verify-checkpoint \
+            --lane-manifest-path "$current_manifest" \
+            --checkpoint-dir previous-checkpoint \
+            --checkpoint-report-path "$previous_report" \
+            --chain-id "$CHAIN_ID" \
+            --source-sha "$WORKFLOW_SOURCE_SHA" \
+            --pointer-prefix latest \
+            > artifacts/full-extraction/verified-previous-checkpoint.json
+
       - name: Download checkpoint lane inputs
         env:
           ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
@@ -3185,12 +4097,12 @@ jobs:
               > "$inventories_dir/run-${run_id}.json"
           done < "$run_ids_path"
 
-          previous_report="$(find previous-checkpoint -name checkpoint-report.json -type f -print -quit || true)"
+          verified_previous_checkpoint="$(find artifacts/full-extraction -name verified-previous-checkpoint.json -type f -print -quit || true)"
           download_plan="$RUNNER_TEMP/checkpoint-lane-input-downloads.tsv"
           CURRENT_MANIFEST="$current_manifest" \
             DOWNLOAD_PLAN_PATH="$download_plan" \
             INVENTORIES_DIR="$inventories_dir" \
-            PREVIOUS_REPORT_PATH="$previous_report" \
+            VERIFIED_PREVIOUS_CHECKPOINT_PATH="$verified_previous_checkpoint" \
             RUN_IDS_PATH="$run_ids_path" \
             python - <<'PY'
           # CHECKPOINT_LANE_INPUT_RESOLVER
@@ -3215,15 +4127,17 @@ jobs:
               lane_ids.append(lane_id)
 
           previous_lane_ids: set[str] = set()
-          previous_report_path = os.environ.get("PREVIOUS_REPORT_PATH", "")
-          if previous_report_path:
-              previous_report = json.loads(
-                  Path(previous_report_path).read_text(encoding="utf-8")
+          verified_previous_checkpoint_path = os.environ.get(
+              "VERIFIED_PREVIOUS_CHECKPOINT_PATH", ""
+          )
+          if verified_previous_checkpoint_path:
+              verified_previous_checkpoint = json.loads(
+                  Path(verified_previous_checkpoint_path).read_text(encoding="utf-8")
               )
-              raw_previous_lane_ids = previous_report.get("included_lane_ids")
+              raw_previous_lane_ids = verified_previous_checkpoint.get("included_lane_ids")
               if not isinstance(raw_previous_lane_ids, list):
                   raise SystemExit(
-                      "previous checkpoint included_lane_ids must be a list"
+                      "verified previous checkpoint included_lane_ids must be a list"
                   )
               previous_lane_ids = {
                   str(lane_id).strip()
@@ -3287,39 +4201,26 @@ jobs:
                   continue
               metadata_candidates = candidates.get(("metadata", lane_id), [])
               lane_candidates = candidates.get(("lane", lane_id), [])
-              if len(lane_candidates) > 1:
+              paired_candidates = [
+                  (lane_candidate, metadata_candidate)
+                  for lane_candidate in lane_candidates
+                  for metadata_candidate in metadata_candidates
+                  if lane_candidate[0] == metadata_candidate[0]
+              ]
+              if lane_candidates and len(paired_candidates) != 1:
                   locations = ", ".join(
-                      f"{run_id}:{name}" for run_id, name in lane_candidates
-                  )
+                      f"{lane_candidate[0]}:{lane_candidate[1]}+{metadata_candidate[1]}"
+                      for lane_candidate, metadata_candidate in paired_candidates
+                  ) or "none"
                   raise SystemExit(
-                      f"checkpoint lane artifact is ambiguous for {lane_id}: {locations}"
+                      "checkpoint lane artifact requires exactly one same-run "
+                      f"lane/metadata pair for {lane_id}; found "
+                      f"{len(paired_candidates)}: {locations}"
                   )
-              selected_metadata: tuple[str, str] | None = None
-              if lane_candidates:
-                  lane_run_id, _lane_name = lane_candidates[0]
-                  matching_metadata = [
-                      candidate
-                      for candidate in metadata_candidates
-                      if candidate[0] == lane_run_id
-                  ]
-                  if len(matching_metadata) != 1:
-                      raise SystemExit(
-                          "checkpoint lane artifact lacks one exact metadata artifact for "
-                          f"{lane_id} in run {lane_run_id}"
-                      )
-                  selected_metadata = matching_metadata[0]
-              elif metadata_candidates:
-                  selected_metadata = max(
-                      metadata_candidates,
-                      key=lambda candidate: run_rank[candidate[0]],
-                  )
-
-              if selected_metadata is not None:
-                  downloads.append(
-                      (selected_metadata[0], "metadata", selected_metadata[1])
-                  )
-              if lane_candidates:
-                  downloads.append((lane_candidates[0][0], "lane", lane_candidates[0][1]))
+              if paired_candidates:
+                  selected_lane, selected_metadata = paired_candidates[0]
+                  downloads.append((selected_metadata[0], "metadata", selected_metadata[1]))
+                  downloads.append((selected_lane[0], "lane", selected_lane[1]))
 
           requires_workload = any(
               isinstance(lane, dict)
@@ -3367,12 +4268,20 @@ jobs:
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          EXPECTED_CHECKPOINT_GENERATION: ${{ needs.lane_control.outputs.checkpoint-generation }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
           LANE_CONTROL_ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
         run: |
           mkdir -p data/nbadb-checkpoint artifacts/full-extraction
           checkpoint_manifest="$(find lane-control-artifact -name next-manifest.json -type f -print -quit)"
+          current_manifest="$(find lane-control-artifact -name current-manifest.json -type f -print -quit)"
           if [ -z "$checkpoint_manifest" ]; then
             echo "::error::Lane-control artifact did not contain next-manifest.json"
+            find lane-control-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          if [ -z "$current_manifest" ]; then
+            echo "::error::Lane-control artifact did not contain current-manifest.json"
             find lane-control-artifact -maxdepth 4 -type f -print || true
             exit 1
           fi
@@ -3423,18 +4332,323 @@ jobs:
             --report-path artifacts/full-extraction/checkpoint-report.json \
             --chain-id "$CHAIN_ID" \
             --run-id "${{ github.run_id }}" \
+            --source-sha "$WORKFLOW_SOURCE_SHA" \
             > artifacts/full-extraction/checkpoint.stdout.json
 
-          python - <<'PY'
+          extraction_audit="$(find lane-control-artifact -name extraction-audit.json -type f -print -quit)"
+          if [ -z "$extraction_audit" ]; then
+            echo "::error::Lane-control artifact did not contain extraction-audit.json"
+            exit 1
+          fi
+          EXTRACTION_AUDIT_PATH="$extraction_audit" \
+            CURRENT_MANIFEST_PATH="$current_manifest" \
+            NEXT_MANIFEST_PATH="$checkpoint_manifest" \
+            PREVIOUS_CHECKPOINT_REPORT_PATH="$previous_report" \
+            VERIFIED_PREVIOUS_CHECKPOINT_PATH="$(find artifacts/full-extraction -name verified-previous-checkpoint.json -type f -print -quit || true)" \
+            CHECKPOINT_REPORT_PATH=artifacts/full-extraction/checkpoint-report.json \
+            LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="${{ needs.lane_control.outputs.contract-blocked-lane-count }}" \
+            python - <<'PY'
+          # CHECKPOINT_CONTRACT_BLOCKED_EVIDENCE_BINDER
+          import hashlib
           import json
           import os
           from pathlib import Path
 
-          report = json.loads(
-              Path("artifacts/full-extraction/checkpoint-report.json").read_text(
-                  encoding="utf-8"
-              )
+          from nbadb.orchestrate.full_extraction_control import (
+              _canonical_contract_blocked_audit_row,
           )
+
+          def canonical_bytes(payload: object) -> bytes:
+              return json.dumps(
+                  payload,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              ).encode("utf-8")
+
+          def normalized_rows(raw_rows: object, *, label: str) -> list[dict[str, object]]:
+              if not isinstance(raw_rows, list):
+                  raise SystemExit(f"{label} contract-blocked evidence must be a list")
+              rows: list[dict[str, object]] = []
+              seen_lane_ids: set[str] = set()
+              for raw_row in raw_rows:
+                  if not isinstance(raw_row, dict):
+                      raise SystemExit(f"{label} contract-blocked evidence rows must be objects")
+                  lane_id = str(raw_row.get("lane_id") or "").strip()
+                  if not lane_id or lane_id in seen_lane_ids:
+                      raise SystemExit(
+                          f"{label} contract-blocked lane IDs must be non-empty and unique"
+                      )
+                  if str(raw_row.get("status") or "") != "contract_blocked":
+                      raise SystemExit(
+                          f"{label} contract-blocked evidence has invalid status for {lane_id}"
+                      )
+                  canonical_input = dict(raw_row)
+                  canonical_input["lane_kind"] = raw_row.get("kind")
+                  try:
+                      row = _canonical_contract_blocked_audit_row(
+                          lane_id,
+                          canonical_input,
+                      )
+                  except ValueError as exc:
+                      raise SystemExit(
+                          f"{label} contract-blocked evidence is invalid for {lane_id}: {exc}"
+                      ) from exc
+                  if canonical_bytes(row) != canonical_bytes(raw_row):
+                      raise SystemExit(
+                          f"{label} contract-blocked evidence is not canonical for {lane_id}"
+                      )
+                  seen_lane_ids.add(lane_id)
+                  rows.append(row)
+              return sorted(rows, key=lambda row: str(row["lane_id"]))
+
+          def evidence_bundle(rows: list[dict[str, object]]) -> dict[str, object]:
+              return {
+                  "schema_version": 1,
+                  "contract_blocked_lanes": rows,
+              }
+
+          def verified_previous_rows(report: object) -> list[dict[str, object]]:
+              if not isinstance(report, dict):
+                  raise SystemExit("previous checkpoint report must be an object")
+              raw_count = report.get("contract_blocked_lane_count", 0)
+              if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
+                  raise SystemExit(
+                      "previous checkpoint contract-blocked lane count must be non-negative"
+                  )
+              raw_bundle = report.get("contract_blocked_evidence")
+              raw_digest = str(report.get("contract_blocked_evidence_sha256") or "")
+              if raw_bundle is None and raw_count == 0 and not raw_digest:
+                  return []
+              if not isinstance(raw_bundle, dict) or raw_bundle.get("schema_version") != 1:
+                  raise SystemExit("previous checkpoint contract-blocked evidence is invalid")
+              rows = normalized_rows(
+                  raw_bundle.get("contract_blocked_lanes"),
+                  label="previous checkpoint",
+              )
+              bundle = evidence_bundle(rows)
+              actual_digest = hashlib.sha256(canonical_bytes(bundle)).hexdigest()
+              if raw_digest != actual_digest:
+                  raise SystemExit(
+                      "previous checkpoint contract-blocked evidence digest does not match"
+                  )
+              if raw_count != len(rows):
+                  raise SystemExit(
+                      "previous checkpoint contract-blocked evidence count does not match"
+                  )
+              return rows
+
+          audit = json.loads(
+              Path(os.environ["EXTRACTION_AUDIT_PATH"]).read_text(encoding="utf-8")
+          )
+          if not isinstance(audit, dict):
+              raise SystemExit("lane-control extraction audit must be an object")
+          current_rows = normalized_rows(
+              audit.get("contract_blocked_lanes"),
+              label="lane-control audit",
+          )
+          expected_current_count = int(
+              os.environ["LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT"]
+          )
+          if expected_current_count != len(current_rows):
+              raise SystemExit(
+                  "lane-control contract-blocked evidence count does not match its output"
+              )
+
+          current_manifest = json.loads(
+              Path(os.environ["CURRENT_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          if not isinstance(current_manifest, dict):
+              raise SystemExit("lane-control current manifest must be an object")
+          manifest_lanes = current_manifest.get("lanes")
+          if not isinstance(manifest_lanes, list):
+              raise SystemExit("lane-control current manifest lanes must be a list")
+          lanes_by_id: dict[str, dict[str, object]] = {}
+          for lane in manifest_lanes:
+              if not isinstance(lane, dict):
+                  raise SystemExit("lane-control current manifest lane entries must be objects")
+              lane_id = str(lane.get("lane_id") or "").strip()
+              if not lane_id or lane_id in lanes_by_id:
+                  raise SystemExit(
+                      "lane-control current manifest lane IDs must be non-empty and unique"
+                  )
+              lanes_by_id[lane_id] = lane
+          scope_fields = (
+              ("kind", "lane_kind"),
+              ("endpoints", "endpoints"),
+              ("patterns", "patterns"),
+              ("season_start", "season_start"),
+              ("season_end", "season_end"),
+              ("season_types", "season_types"),
+              ("context_measures", "context_measures"),
+              ("coverage_units_hash", "coverage_units_hash"),
+          )
+          for row in current_rows:
+              lane_id = str(row["lane_id"])
+              lane = lanes_by_id.get(lane_id)
+              if lane is None:
+                  raise SystemExit(
+                      f"lane-control contract-blocked evidence is outside the current manifest: {lane_id}"
+                  )
+              for row_field, lane_field in scope_fields:
+                  if row.get(row_field) != lane.get(lane_field):
+                      raise SystemExit(
+                          "lane-control contract-blocked evidence scope does not match "
+                          f"the current manifest for {lane_id}: {row_field}"
+                      )
+
+          current_state = current_manifest.get("chain_state")
+          if not isinstance(current_state, dict):
+              raise SystemExit("lane-control current manifest chain_state must be an object")
+          committed_previous_rows = normalized_rows(
+              current_state.get("contract_blocked_evidence", []),
+              label="current chain-state",
+          )
+          committed_previous_digest = str(
+              current_state.get("contract_blocked_evidence_sha256") or ""
+          )
+          committed_previous_bundle = evidence_bundle(committed_previous_rows)
+          actual_committed_previous_digest = hashlib.sha256(
+              canonical_bytes(committed_previous_bundle)
+          ).hexdigest()
+          if committed_previous_rows or committed_previous_digest:
+              if committed_previous_digest != actual_committed_previous_digest:
+                  raise SystemExit(
+                      "current chain-state contract-blocked evidence digest does not match"
+                  )
+
+          pending_rows = normalized_rows(
+              current_state.get("pending_contract_blocked_evidence", []),
+              label="current pending chain-state",
+          )
+          pending_digest = str(
+              current_state.get("pending_contract_blocked_evidence_sha256") or ""
+          )
+          if pending_rows:
+              actual_pending_digest = hashlib.sha256(
+                  canonical_bytes(evidence_bundle(pending_rows))
+              ).hexdigest()
+              if pending_digest != actual_pending_digest:
+                  raise SystemExit(
+                      "current chain-state pending contract-blocked evidence digest "
+                      "does not match"
+                  )
+          elif pending_digest:
+              raise SystemExit(
+                  "current chain-state pending contract-blocked evidence digest has no rows"
+              )
+
+          previous_rows: list[dict[str, object]] = []
+          previous_report_path = os.environ.get("PREVIOUS_CHECKPOINT_REPORT_PATH", "")
+          if previous_report_path:
+              previous_report = json.loads(
+                  Path(previous_report_path).read_text(encoding="utf-8")
+              )
+              previous_rows = verified_previous_rows(previous_report)
+              verified_path = os.environ.get("VERIFIED_PREVIOUS_CHECKPOINT_PATH", "")
+              if not verified_path:
+                  raise SystemExit(
+                      "previous contract-blocked evidence lacks verified checkpoint provenance"
+                  )
+              verified = json.loads(Path(verified_path).read_text(encoding="utf-8"))
+              if not isinstance(verified, dict):
+                  raise SystemExit("verified previous checkpoint identity must be an object")
+              expected_digest = str(
+                  verified.get("contract_blocked_evidence_sha256") or ""
+              )
+              actual_digest = str(
+                  previous_report.get("contract_blocked_evidence_sha256") or ""
+              )
+              if expected_digest != actual_digest:
+                  raise SystemExit(
+                      "previous contract-blocked evidence does not match the verified checkpoint"
+                  )
+              if previous_rows != committed_previous_rows:
+                  raise SystemExit(
+                      "previous contract-blocked evidence does not match chain-state ancestry"
+                  )
+              if actual_digest != committed_previous_digest:
+                  raise SystemExit(
+                      "previous contract-blocked evidence digest does not match chain-state ancestry"
+                  )
+          elif committed_previous_rows or committed_previous_digest:
+              raise SystemExit(
+                  "chain-state blocked evidence lacks a previous checkpoint report"
+              )
+
+          rows_by_lane_id = {
+              str(row["lane_id"]): row for row in previous_rows
+          }
+          for label, rows in (("pending", pending_rows), ("current", current_rows)):
+              for row in rows:
+                  lane_id = str(row["lane_id"])
+                  previous_row = rows_by_lane_id.get(lane_id)
+                  if (
+                      previous_row is not None
+                      and canonical_bytes(previous_row) != canonical_bytes(row)
+                  ):
+                      raise SystemExit(
+                          f"{label} contract-blocked evidence changed across "
+                          f"checkpoints for {lane_id}"
+                      )
+                  rows_by_lane_id[lane_id] = row
+
+          merged_rows = [rows_by_lane_id[lane_id] for lane_id in sorted(rows_by_lane_id)]
+          bundle = evidence_bundle(merged_rows)
+          evidence_sha256 = hashlib.sha256(canonical_bytes(bundle)).hexdigest()
+          next_manifest = json.loads(
+              Path(os.environ["NEXT_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          next_state = next_manifest.get("chain_state") if isinstance(next_manifest, dict) else None
+          if not isinstance(next_state, dict):
+              raise SystemExit("checkpoint next manifest chain_state must be an object")
+          if next_state.get("contract_blocked_evidence") != merged_rows:
+              raise SystemExit(
+                  "checkpoint blocked evidence does not match next-manifest commitment"
+              )
+          if str(next_state.get("contract_blocked_evidence_sha256") or "") != evidence_sha256:
+              raise SystemExit(
+                  "checkpoint blocked evidence digest does not match next-manifest commitment"
+              )
+          if next_state.get("pending_contract_blocked_evidence") not in (None, []):
+              raise SystemExit(
+                  "checkpoint next-manifest commitment did not clear pending blocked evidence"
+              )
+          if str(next_state.get("pending_contract_blocked_evidence_sha256") or ""):
+              raise SystemExit(
+                  "checkpoint next-manifest commitment did not clear pending blocked evidence"
+              )
+          report_path = Path(os.environ["CHECKPOINT_REPORT_PATH"])
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          if not isinstance(report, dict):
+              raise SystemExit("checkpoint report must be an object")
+          report["contract_blocked_lane_count"] = len(merged_rows)
+          report["contract_blocked_evidence"] = bundle
+          report["contract_blocked_evidence_sha256"] = evidence_sha256
+          report_path.write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          CHECKPOINT_MANIFEST_PATH=artifacts/full-extraction/checkpoint-manifest.json \
+            CHECKPOINT_REPORT_PATH=artifacts/full-extraction/checkpoint-report.json \
+            python - <<'PY'
+          # CHECKPOINT_RESULT_VALIDATOR
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          report = json.loads(
+              Path(os.environ["CHECKPOINT_REPORT_PATH"]).read_text(encoding="utf-8")
+          )
+          manifest = json.loads(
+              Path(os.environ["CHECKPOINT_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          chain_id = os.environ["CHAIN_ID"]
+          current_run_id = os.environ["CURRENT_RUN_ID"]
+          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          expected_generation = int(os.environ["EXPECTED_CHECKPOINT_GENERATION"])
           lane_control_active_lane_count = int(
               os.environ["LANE_CONTROL_ACTIVE_LANE_COUNT"]
           )
@@ -3442,8 +4656,88 @@ jobs:
           terminal_ready = report.get("terminal_ready") is True
           complete_lane_count = int(report.get("complete_lane_count", 0))
           checkpoint_output = Path(str(report.get("output_path") or ""))
+          contract_blocked_evidence = report.get("contract_blocked_evidence")
+          contract_blocked_evidence_sha256 = str(
+              report.get("contract_blocked_evidence_sha256") or ""
+          )
 
           failures: list[str] = []
+          if expected_generation <= 0:
+              failures.append("Expected checkpoint generation must be positive")
+          expected_artifact_name = (
+              f"full-extraction-checkpoint-{chain_id}-iter-{expected_generation}"
+          )
+          if os.environ["CHECKPOINT_ARTIFACT_NAME"] != expected_artifact_name:
+              failures.append(
+                  "Checkpoint artifact suffix/generation disagreement: "
+                  f"expected={expected_artifact_name}, "
+                  f"actual={os.environ['CHECKPOINT_ARTIFACT_NAME']}"
+              )
+
+          reported_generation = report.get("checkpoint_generation")
+          if isinstance(reported_generation, bool) or not isinstance(reported_generation, int):
+              failures.append("Checkpoint report generation must be an integer")
+          elif reported_generation != expected_generation:
+              failures.append(
+                  "Lane-control/checkpoint generation disagreement: "
+                  f"lane_control={expected_generation}, checkpoint={reported_generation}"
+              )
+          previous_generation = report.get("previous_checkpoint_generation")
+          if isinstance(previous_generation, bool) or not isinstance(previous_generation, int):
+              failures.append("Checkpoint report previous generation must be an integer")
+          elif previous_generation != expected_generation - 1:
+              failures.append(
+                  "Checkpoint previous-generation disagreement: "
+                  f"expected={expected_generation - 1}, actual={previous_generation}"
+              )
+          if str(report.get("chain_id") or "") != chain_id:
+              failures.append("Checkpoint report chain identity does not match")
+          if str(report.get("run_id") or "") != current_run_id:
+              failures.append("Checkpoint report run identity does not match")
+          if str(report.get("artifact_name") or "") != expected_artifact_name:
+              failures.append("Checkpoint report artifact name does not match")
+          if str(report.get("source_sha") or "").lower() != expected_source_sha:
+              failures.append("Checkpoint report source SHA does not match")
+
+          if not isinstance(manifest, dict):
+              failures.append("Checkpoint manifest must be an object")
+              manifest_payload = {}
+              manifest_state = {}
+          else:
+              manifest_payload = manifest
+              manifest_state = manifest.get("chain_state", {})
+              if not isinstance(manifest_state, dict):
+                  failures.append("Checkpoint manifest chain_state must be an object")
+                  manifest_state = {}
+          if str(manifest_payload.get("chain_id") or "") != chain_id:
+              failures.append("Checkpoint manifest chain identity does not match")
+          if (
+              str(manifest_payload.get("workflow_source_sha") or "").lower()
+              != expected_source_sha
+          ):
+              failures.append("Checkpoint manifest source SHA does not match")
+          if str(manifest_state.get("latest_checkpoint_run_id") or "") != current_run_id:
+              failures.append("Checkpoint manifest latest run identity does not match")
+          if (
+              str(manifest_state.get("latest_checkpoint_artifact_name") or "")
+              != expected_artifact_name
+          ):
+              failures.append("Checkpoint manifest latest artifact name does not match")
+          manifest_generation = manifest_state.get("latest_checkpoint_generation")
+          if isinstance(manifest_generation, bool) or not isinstance(manifest_generation, int):
+              failures.append("Checkpoint manifest latest generation must be an integer")
+          elif manifest_generation != expected_generation:
+              failures.append(
+                  "Checkpoint manifest/report generation disagreement: "
+                  f"manifest={manifest_generation}, checkpoint={reported_generation}"
+              )
+          expected_coverage_hash = str(
+              manifest_state.get("latest_checkpoint_coverage_hash") or ""
+          ).lower()
+          if re.fullmatch(r"[0-9a-f]{64}", expected_coverage_hash) is None:
+              failures.append("Checkpoint manifest latest coverage hash must be a SHA-256")
+          if str(report.get("coverage_fingerprint") or "").lower() != expected_coverage_hash:
+              failures.append("Checkpoint manifest/report coverage fingerprint disagreement")
           if checkpoint_active_lane_count != lane_control_active_lane_count:
               failures.append(
                   "Lane-control/checkpoint remaining-count disagreement: "
@@ -3462,6 +4756,33 @@ jobs:
               failures.append(
                   "Checkpoint report includes completed lanes but its database is missing"
               )
+          if (
+              not isinstance(contract_blocked_evidence, dict)
+              or contract_blocked_evidence.get("schema_version") != 1
+              or not isinstance(
+                  contract_blocked_evidence.get("contract_blocked_lanes"), list
+              )
+          ):
+              failures.append("Checkpoint contract-blocked evidence is invalid")
+          else:
+              canonical_evidence = json.dumps(
+                  contract_blocked_evidence,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              ).encode("utf-8")
+              actual_evidence_sha256 = __import__("hashlib").sha256(
+                  canonical_evidence
+              ).hexdigest()
+              if contract_blocked_evidence_sha256 != actual_evidence_sha256:
+                  failures.append(
+                      "Checkpoint contract-blocked evidence digest does not match"
+                  )
+              if int(report.get("contract_blocked_lane_count", -1)) != len(
+                  contract_blocked_evidence["contract_blocked_lanes"]
+              ):
+                  failures.append(
+                      "Checkpoint contract-blocked evidence count does not match"
+                  )
           if failures:
               for failure in failures:
                   print(f"::error::{failure}")
@@ -3469,7 +4790,7 @@ jobs:
 
           output_pairs = {
               "artifact_name": os.environ["CHECKPOINT_ARTIFACT_NAME"],
-              "checkpoint_generation": report.get("checkpoint_generation", 0),
+              "checkpoint_generation": reported_generation,
               "coverage_fingerprint": report.get("coverage_fingerprint", ""),
               "terminal_ready": str(terminal_ready).lower(),
               "active_lane_count": checkpoint_active_lane_count,
@@ -3505,7 +4826,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload checkpoint artifact
-        if: always()
+        id: canonical_checkpoint
+        if: ${{ steps.checkpoint.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -3515,9 +4837,24 @@ jobs:
             artifacts/full-extraction/checkpoint-report.json
             artifacts/full-extraction/checkpoint.stdout.json
             artifacts/full-extraction/checkpoint-manifest.json
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Upload checkpoint failure diagnostics
+        if: ${{ always() && (steps.checkpoint.outcome != 'success' || steps.canonical_checkpoint.outcome != 'success') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: full-extraction-checkpoint-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            data/nbadb-checkpoint/
+            artifacts/full-extraction/
+            lane-control-artifact/
+            previous-checkpoint/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
 
   # ─────────────────────────────────────────────────────────────
   #  Redispatch only after the checkpoint for this iteration is durable
@@ -3763,6 +5100,7 @@ jobs:
 
           pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
           expected_run_name = os.environ["EXPECTED_RUN_NAME"]
+          expected_child_run_id = os.environ.get("EXPECTED_CHILD_RUN_ID", "").strip()
           existing_ids = set(
               json.loads(
                   Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).read_text(encoding="utf-8")
@@ -3800,6 +5138,12 @@ jobs:
                   f"{child!r}"
               )
               raise SystemExit(3)
+          if expected_child_run_id and child_run_id != expected_child_run_id:
+              print(
+                  "::error::Exact-title child run changed during stabilization: "
+                  f"expected {expected_child_run_id}, got {child_run_id}"
+              )
+              raise SystemExit(4)
           Path(os.environ["CHILD_RUN_PATH"]).write_text(
               json.dumps(
                   {
@@ -3839,6 +5183,102 @@ jobs:
 
           if [ "$child_found" != "true" ]; then
             echo "::error::Self-dispatch child run was not visible after $CHILD_POLL_ATTEMPTS attempts for exact title: $next_run_name"
+            exit 1
+          fi
+
+          acknowledged_child_run_id="$(CHILD_RUN_PATH="$child_run_path" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["id"])
+          PY
+          )"
+          sleep "$CHILD_POLL_INTERVAL_SECONDS"
+          gh api \
+            --method GET \
+            --paginate \
+            --slurp \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
+            -f "event=workflow_dispatch" \
+            -f "per_page=100" \
+            > "$runs_path"
+          set +e
+          RUNS_PATH="$runs_path" \
+            CHILD_RUN_PATH="$child_run_path" \
+            EXISTING_CHILD_RUN_IDS_PATH="$existing_child_run_ids_path" \
+            EXPECTED_RUN_NAME="$next_run_name" \
+            EXPECTED_CHILD_RUN_ID="$acknowledged_child_run_id" \
+            python - <<'PY'
+          # CHILD_RUN_MATCHER
+          import json
+          import os
+          from pathlib import Path
+
+          pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
+          expected_run_name = os.environ["EXPECTED_RUN_NAME"]
+          expected_child_run_id = os.environ.get("EXPECTED_CHILD_RUN_ID", "").strip()
+          existing_ids = set(
+              json.loads(
+                  Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).read_text(encoding="utf-8")
+              )
+          )
+          matches = sorted(
+              (
+                  run
+                  for page in pages
+                  for run in page.get("workflow_runs", [])
+                  if str(run.get("display_title") or "") == expected_run_name
+                  and str(run.get("id") or "") not in existing_ids
+              ),
+              key=lambda run: str(run.get("id") or ""),
+          )
+          if len(matches) > 1:
+              details = ", ".join(
+                  f"{run.get('id')}:{run.get('status')}:{run.get('html_url')}"
+                  for run in matches
+              )
+              print(
+                  f"::error::Self-dispatch created {len(matches)} exact-title child runs "
+                  f"for {expected_run_name!r}: {details}"
+              )
+              raise SystemExit(2)
+          if not matches:
+              raise SystemExit(1)
+
+          child = matches[0]
+          child_run_id = str(child.get("id") or "").strip()
+          child_run_url = str(child.get("html_url") or "").strip()
+          if not child_run_id.isdigit() or not child_run_url:
+              print(
+                  "::error::Exact-title child run is missing a valid id or URL: "
+                  f"{child!r}"
+              )
+              raise SystemExit(3)
+          if expected_child_run_id and child_run_id != expected_child_run_id:
+              print(
+                  "::error::Exact-title child run changed during stabilization: "
+                  f"expected {expected_child_run_id}, got {child_run_id}"
+              )
+              raise SystemExit(4)
+          Path(os.environ["CHILD_RUN_PATH"]).write_text(
+              json.dumps(
+                  {
+                      "display_title": expected_run_name,
+                      "id": child_run_id,
+                      "url": child_run_url,
+                  },
+                  indent=2,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+          stabilization_status=$?
+          set -e
+          if [ "$stabilization_status" -ne 0 ]; then
+            echo "::error::Self-dispatch exact-title child inventory did not stabilize (matcher exit $stabilization_status)"
             exit 1
           fi
 

@@ -75,6 +75,35 @@ def _make_report(
     )
 
 
+def _write_terminal_checkpoint_report(path: Path) -> None:
+    lane_id = "reference-static"
+    path.write_text(
+        json.dumps(
+            {
+                "source_sha": "a" * 40,
+                "run_id": "12345",
+                "included_run_ids": ["12345"],
+                "included_lane_ids": [lane_id],
+                "included_lane_coverage_hashes": {lane_id: "b" * 64},
+                "coverage_fingerprint": "c" * 64,
+                "database_sha256": "d" * 64,
+                "manifest_lane_count": 1,
+                "complete_lane_count": 1,
+                "contract_blocked_lane_count": 0,
+                "active_lane_count": 0,
+                "skipped_lane_count": 0,
+                "missing_lane_ids": [],
+                "skipped_complete_lane_ids": [],
+                "current_lane_attestation_failures": {},
+                "workload_contract_errors": [],
+                "terminal_ready": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _patch_scanner(report: ScanReport):
     """Return a context manager that patches DataScanner.scan to return *report*."""
 
@@ -92,6 +121,102 @@ def _patch_scanner(report: ScanReport):
 
 
 class TestFailOn:
+    def test_full_publication_flag_enables_anchor_assurance(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+        checkpoint_report = tmp_path / "checkpoint-report.json"
+        _write_terminal_checkpoint_report(checkpoint_report)
+        checkpoint_manifest = tmp_path / "manifest.json"
+        checkpoint_dir = tmp_path / "checkpoint"
+        observed: dict[str, object] = {}
+
+        class FakeScanner:
+            def __init__(self, conn: object) -> None:
+                pass
+
+            def scan(self, **kwargs: object) -> ScanReport:
+                observed.update(kwargs)
+                return _make_report()
+
+        with (
+            patch("nbadb.orchestrate.scanner.DataScanner", FakeScanner),
+            patch(
+                "nbadb.orchestrate.scanner.validate_full_publication_checkpoint_report"
+            ) as checkpoint_validator,
+            patch("nbadb.cli.commands.scan._build_settings") as mock_settings,
+        ):
+            mock_settings.return_value.duckdb_path = db_path
+            result = runner.invoke(
+                app,
+                [
+                    "scan",
+                    "--full-publication",
+                    "--checkpoint-report",
+                    str(checkpoint_report),
+                    "--checkpoint-manifest",
+                    str(checkpoint_manifest),
+                    "--checkpoint-dir",
+                    str(checkpoint_dir),
+                    "--checkpoint-chain-id",
+                    "chain-1",
+                    "--checkpoint-source-sha",
+                    "a" * 40,
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert observed["full_publication"] is True
+        checkpoint_validator.assert_called_once_with(
+            checkpoint_report,
+            manifest_path=checkpoint_manifest,
+            checkpoint_dir=checkpoint_dir,
+            chain_id="chain-1",
+            source_sha="a" * 40,
+        )
+
+    def test_full_publication_requires_terminal_checkpoint_report(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+        with patch("nbadb.cli.commands.scan._build_settings") as mock_settings:
+            mock_settings.return_value.duckdb_path = db_path
+            result = runner.invoke(app, ["scan", "--full-publication"])
+
+        assert result.exit_code == 1
+        assert "requires canonical checkpoint inputs" in result.output
+        assert "--checkpoint-report" in result.output
+
+    def test_full_publication_reports_missing_manifest_as_assurance_failure(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+        checkpoint_report = tmp_path / "checkpoint-report.json"
+        _write_terminal_checkpoint_report(checkpoint_report)
+        with patch("nbadb.cli.commands.scan._build_settings") as mock_settings:
+            mock_settings.return_value.duckdb_path = db_path
+            result = runner.invoke(
+                app,
+                [
+                    "scan",
+                    "--full-publication",
+                    "--checkpoint-report",
+                    str(checkpoint_report),
+                    "--checkpoint-manifest",
+                    str(tmp_path / "missing-manifest.json"),
+                    "--checkpoint-dir",
+                    str(tmp_path / "checkpoint"),
+                    "--checkpoint-chain-id",
+                    "chain-1",
+                    "--checkpoint-source-sha",
+                    "a" * 40,
+                ],
+            )
+
+        assert result.exit_code == 1
+        assert "Full-publication checkpoint assurance failed" in result.output
+        assert "missing-manifest.json" in result.output
+
     def test_zero_transformer_discovery_fails_category_filtered_hard_scan(
         self,
         tmp_path: Path,

@@ -9,10 +9,19 @@ import subprocess
 import sys
 import textwrap
 import types
+import zipfile
 
 import pytest
 
-from nbadb.orchestrate.full_extraction_control import main as full_extraction_main
+from nbadb.orchestrate.full_extraction_control import (
+    FullExtractionLane,
+    _canonical_contract_blocked_audit_row,
+    _coverage_hash_for_lane,
+    manifest_payload,
+)
+from nbadb.orchestrate.full_extraction_control import (
+    main as full_extraction_main,
+)
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "full-extraction.yml"
@@ -75,6 +84,51 @@ def _run_python(
         env={**os.environ, **env},
         text=True,
     )
+
+
+def _contract_blocked_fixture(
+    lane_id: str,
+    season_start: int,
+    season_end: int,
+) -> tuple[FullExtractionLane, dict[str, object], dict[str, object]]:
+    lane = FullExtractionLane(
+        lane_id=lane_id,
+        lane_index=0,
+        lane_name=lane_id,
+        lane_kind="historical",
+        season_start=season_start,
+        season_end=season_end,
+        patterns=("player_team_season",),
+        season_types=(),
+        endpoints=("video_details",),
+        timeout_seconds=1,
+    )
+    coverage_hash = _coverage_hash_for_lane(lane)
+    row = _canonical_contract_blocked_audit_row(
+        lane_id,
+        {
+            "lane_kind": lane.lane_kind,
+            "endpoints": list(lane.endpoints),
+            "patterns": list(lane.patterns),
+            "season_start": season_start,
+            "season_end": season_end,
+            "season_types": [],
+            "context_measures": [],
+            "coverage_units_hash": coverage_hash,
+        },
+    )
+    manifest_lane = {
+        "lane_id": lane_id,
+        "lane_kind": lane.lane_kind,
+        "endpoints": list(lane.endpoints),
+        "patterns": list(lane.patterns),
+        "season_start": season_start,
+        "season_end": season_end,
+        "season_types": [],
+        "context_measures": [],
+        "coverage_units_hash": coverage_hash,
+    }
+    return lane, row, manifest_lane
 
 
 def _metadata_commit_script() -> str:
@@ -186,6 +240,8 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     workflow = _workflow_text()
     checkpoint = _job_block(workflow, "checkpoint")
     dispatch = _job_block(workflow, "dispatch_next")
+    canonical_upload = _step_block(checkpoint, "Upload checkpoint artifact")
+    diagnostic_upload = _step_block(checkpoint, "Upload checkpoint failure diagnostics")
 
     assert "needs: [plan, preflight, discovery_seed, extract, lane_control]" in checkpoint
     assert "Download checkpoint lane inputs" in checkpoint
@@ -203,9 +259,21 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     assert "if lane_control_active_lane_count == 0 and not terminal_ready:" in checkpoint
     assert "if lane_control_active_lane_count > 0 and terminal_ready:" in checkpoint
     assert "Checkpoint report includes completed lanes but its database is missing" in checkpoint
+    assert "Lane-control/checkpoint generation disagreement" in checkpoint
+    assert "Checkpoint artifact suffix/generation disagreement" in checkpoint
+    assert '--source-sha "$WORKFLOW_SOURCE_SHA"' in checkpoint
     assert checkpoint.index(disagreement_guard) < checkpoint.index(
         'with Path(os.environ["GITHUB_OUTPUT"]).open'
     )
+    assert "steps.checkpoint.outcome == 'success'" in canonical_upload
+    assert "if-no-files-found: error" in canonical_upload
+    assert "steps.checkpoint.outcome != 'success'" in diagnostic_upload
+    assert "steps.canonical_checkpoint.outcome != 'success'" in diagnostic_upload
+    assert (
+        "full-extraction-checkpoint-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-"
+        "${{ github.run_id }}-${{ github.run_attempt }}" in diagnostic_upload
+    )
+    assert "needs.lane_control.outputs.checkpoint-artifact-name" not in diagnostic_upload
 
     assert "needs.checkpoint.result == 'success'" in dispatch
     assert (
@@ -214,8 +282,24 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     assert "needs.checkpoint.outputs.terminal-ready == 'false'" in dispatch
 
 
+def test_previous_checkpoint_is_verified_before_lane_inventory_selection() -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    verify = _step_block(checkpoint, "Verify previous checkpoint before inventory use")
+    inventory = _step_block(checkpoint, "Download checkpoint lane inputs")
+
+    assert checkpoint.index("Verify previous checkpoint before inventory use") < checkpoint.index(
+        "Download checkpoint lane inputs"
+    )
+    assert "full_extraction_control verify-checkpoint" in verify
+    assert "--pointer-prefix latest" in verify
+    assert "verified-previous-checkpoint.json" in verify
+    assert "VERIFIED_PREVIOUS_CHECKPOINT_PATH" in inventory
+    assert "PREVIOUS_REPORT_PATH" not in inventory
+
+
 def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> None:
     workflow = _workflow_text()
+    plan = _job_block(workflow, "plan")
     extract = _job_block(workflow, "extract")
     lane_control = _job_block(workflow, "lane_control")
     checkpoint = _job_block(workflow, "checkpoint")
@@ -230,6 +314,11 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     assert "needs.extract.result != 'skipped'" in lane_control_header
     assert "needs.extract.result == 'success'" not in lane_control_header
     assert "--allow-missing-attempted-metadata" in lane_control
+    assert "metadata-artifacts.txt" in plan
+    assert "gh api" in plan
+    assert "matching-metadata-artifacts.txt" in plan
+    assert '--name "$metadata_name"' in plan
+    assert "has no lane metadata artifacts" in plan
 
     # Matrix failures still produce metadata/checkpoints and may dispatch a child.
     assert "needs.lane_control.result == 'success'" in checkpoint
@@ -301,7 +390,9 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     metadata_step = _step_block(extract, "Write lane metadata")
     complete_upload = _step_block(extract, "Upload complete lane artifact")
     recovery_upload = _step_block(extract, "Upload incomplete lane state artifact")
+    finalize_receipt = _step_block(extract, "Finalize durable lane artifact receipt")
     metadata_upload = _step_block(extract, "Upload lane metadata")
+    metadata_retry = _step_block(extract, "Retry lane metadata upload")
     diagnostic_upload = _step_block(extract, "Upload diagnostics-only lane snapshot")
     checkpoint_download = _step_block(
         _job_block(workflow, "checkpoint"),
@@ -327,9 +418,20 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert "steps.lane_metadata.outputs.final-outcome != 'complete'" in recovery_upload
     assert "if-no-files-found: error" in recovery_upload
     assert "steps.lane_metadata.outcome == 'success'" in metadata_upload
+    assert "steps.finalize_lane_metadata.outcome == 'success'" in metadata_upload
+    assert "continue-on-error: true" in metadata_upload
     assert "steps.lane_metadata.outputs.snapshot-attested" not in metadata_upload
+    assert "steps.lane_metadata_artifact.outcome == 'failure'" in metadata_retry
+    assert "continue-on-error" not in metadata_retry
+    metadata_name = "extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}"
+    assert metadata_name in metadata_upload
+    assert metadata_name in metadata_retry
+    assert "overwrite: true" in metadata_upload
+    assert "overwrite: true" in metadata_retry
     assert "steps.lane_metadata.outcome != 'success'" in diagnostic_upload
-    assert "steps.lane_metadata.outputs.snapshot-attested != 'true'" in diagnostic_upload
+    assert "steps.finalize_lane_metadata.outputs.artifact-durable != 'true'" in diagnostic_upload
+    assert "steps.lane_metadata_artifact.outcome == 'failure'" in diagnostic_upload
+    assert "steps.lane_metadata_artifact_retry.outcome != 'success'" in diagnostic_upload
     assert "extraction-lane-diagnostics-only-" in diagnostic_upload
     assert "data/nbadb/nba.duckdb" in diagnostic_upload
     assert "data/nbadb/nba.duckdb.wal" in diagnostic_upload
@@ -345,6 +447,96 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert 'gh run download "$run_id"' in checkpoint_download
     assert '--name "$artifact_name"' in checkpoint_download
     assert "extraction-lane-recovery-" not in checkpoint_download
+    assert extract.index("- name: Upload complete lane artifact") < extract.index(
+        "- name: Finalize durable lane artifact receipt"
+    )
+    assert extract.index("- name: Upload incomplete lane state artifact") < extract.index(
+        "- name: Finalize durable lane artifact receipt"
+    )
+    assert extract.index("- name: Finalize durable lane artifact receipt") < extract.index(
+        "- name: Upload lane metadata"
+    )
+    assert extract.index("- name: Upload lane metadata") < extract.index(
+        "- name: Retry lane metadata upload"
+    )
+    assert extract.index("- name: Retry lane metadata upload") < extract.index(
+        "- name: Upload diagnostics-only lane snapshot"
+    )
+    assert "FINALIZE_LANE_ARTIFACT_RECEIPT" in finalize_receipt
+
+
+def test_durable_lane_artifact_receipt_is_bound_or_downgraded(
+    tmp_path: pathlib.Path,
+) -> None:
+    extract = _job_block(_workflow_text(), "extract")
+    finalizer = _embedded_python(
+        _step_block(extract, "Finalize durable lane artifact receipt"),
+        "FINALIZE_LANE_ARTIFACT_RECEIPT",
+    )
+    metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
+    metadata_path.parent.mkdir(parents=True)
+    original = {
+        "status": "complete",
+        "raw_status": "complete",
+        "state_artifact": {
+            "artifact_name": "extraction-lane-chain-1-lane-1",
+            "attested": True,
+        },
+    }
+    metadata_path.write_text(json.dumps(original), encoding="utf-8")
+    success_env = {
+        "COMPLETE_ARTIFACT_DIGEST": "a" * 64,
+        "COMPLETE_ARTIFACT_ID": "12345",
+        "COMPLETE_ARTIFACT_OUTCOME": "success",
+        "FINAL_OUTCOME": "complete",
+        "RECOVERY_ARTIFACT_DIGEST": "",
+        "RECOVERY_ARTIFACT_ID": "",
+        "RECOVERY_ARTIFACT_OUTCOME": "skipped",
+        "SNAPSHOT_ATTESTED": "true",
+        "GITHUB_OUTPUT": str(tmp_path / "github-output.txt"),
+    }
+
+    accepted = _run_python(finalizer, env=success_env, cwd=tmp_path)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "complete"
+    assert payload["raw_status"] == "complete"
+    assert payload["state_artifact"] == {
+        "artifact_name": "extraction-lane-chain-1-lane-1",
+        "artifact_id": "12345",
+        "artifact_digest": f"sha256:{'a' * 64}",
+        "attested": True,
+        "uploaded": True,
+    }
+    assert (tmp_path / "github-output.txt").read_text(encoding="utf-8").splitlines() == [
+        "artifact-durable=true",
+        "final-outcome=complete",
+    ]
+
+    metadata_path.write_text(json.dumps(original), encoding="utf-8")
+    (tmp_path / "github-output.txt").unlink()
+    rejected = _run_python(
+        finalizer,
+        env=success_env | {"COMPLETE_ARTIFACT_OUTCOME": "failure"},
+        cwd=tmp_path,
+    )
+    assert rejected.returncode == 0, rejected.stderr or rejected.stdout
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "pipeline_failure"
+    assert payload["raw_status"] == "state-artifact-upload-failed"
+    assert payload["failure_class"] == "runner_infrastructure"
+    assert payload["root_error_type"] == "StateArtifactUploadFailure"
+    assert payload["failure_class_counts"] == {"runner_infrastructure": 1}
+    assert payload["root_error_type_counts"] == {"StateArtifactUploadFailure": 1}
+    assert payload["state_artifact"] == {
+        "artifact_name": "extraction-lane-chain-1-lane-1",
+        "attested": False,
+        "uploaded": False,
+    }
+    assert (tmp_path / "github-output.txt").read_text(encoding="utf-8").splitlines() == [
+        "artifact-durable=false",
+        "final-outcome=pipeline_failure",
+    ]
 
 
 def test_redispatch_preserves_auto_and_enforces_numeric_iteration_cap() -> None:
@@ -640,6 +832,793 @@ def test_resume_source_manifest_requires_matching_chain_and_source_sha(
     assert "'<missing>'" in missing_provenance.stdout
 
 
+def test_checkpoint_generation_derives_from_trusted_manifest_pointer(
+    tmp_path: pathlib.Path,
+) -> None:
+    build_step = _step_block(_job_block(_workflow_text(), "lane_control"), "Build next manifest")
+    resolver = _embedded_python(build_step, "CHECKPOINT_GENERATION_RESOLVER")
+    manifest_path = tmp_path / "manifest.json"
+    chain_id = "fixture-chain"
+    source_sha = "a" * 40
+    base_manifest = {
+        "chain_id": chain_id,
+        "chain_state": {},
+        "workflow_source_sha": source_sha,
+    }
+    env = {
+        "CHAIN_ID": chain_id,
+        "CURRENT_MANIFEST": str(manifest_path),
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    fresh = _run_python(resolver, env=env)
+    assert fresh.returncode == 0, fresh.stderr or fresh.stdout
+    assert fresh.stdout.strip() == "1"
+
+    base_manifest["chain_state"] = {
+        "latest_checkpoint_run_id": "123456",
+        "latest_checkpoint_artifact_name": (f"full-extraction-checkpoint-{chain_id}-iter-7"),
+        "latest_checkpoint_coverage_hash": "c" * 64,
+        "latest_checkpoint_generation": 7,
+    }
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    resumed = _run_python(resolver, env=env)
+    assert resumed.returncode == 0, resumed.stderr or resumed.stdout
+    assert resumed.stdout.strip() == "8"
+
+    base_manifest["chain_state"]["latest_checkpoint_artifact_name"] = (
+        f"full-extraction-checkpoint-{chain_id}-iter-6"
+    )
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    wrong_suffix = _run_python(resolver, env=env)
+    assert wrong_suffix.returncode == 1
+    assert "artifact suffix does not match its generation" in wrong_suffix.stderr
+
+    base_manifest["chain_state"] = {
+        "latest_checkpoint_generation": 7,
+        "latest_checkpoint_artifact_name": (f"full-extraction-checkpoint-{chain_id}-iter-7"),
+        "latest_checkpoint_coverage_hash": "c" * 64,
+    }
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    missing_run = _run_python(resolver, env=env)
+    assert missing_run.returncode == 1
+    assert "requires a valid source run ID" in missing_run.stderr
+
+    base_manifest["chain_state"] = {
+        "latest_checkpoint_artifact_name": (f"full-extraction-checkpoint-{chain_id}-iter-7"),
+        "latest_checkpoint_generation": 7,
+        "latest_checkpoint_run_id": "123456",
+    }
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    missing_coverage = _run_python(resolver, env=env)
+    assert missing_coverage.returncode == 1
+    assert "requires a coverage SHA-256" in missing_coverage.stderr
+
+    base_manifest["chain_state"] = {"latest_checkpoint_generation": True}
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    boolean_generation = _run_python(resolver, env=env)
+    assert boolean_generation.returncode == 1
+    assert "must be a non-negative integer" in boolean_generation.stderr
+
+    base_manifest["chain_state"] = {}
+    base_manifest["workflow_source_sha"] = "b" * 40
+    manifest_path.write_text(json.dumps(base_manifest), encoding="utf-8")
+    wrong_source = _run_python(resolver, env=env)
+    assert wrong_source.returncode == 1
+    assert "manifest source SHA does not match" in wrong_source.stderr
+
+    coverage_resolver = _embedded_python(build_step, "CHECKPOINT_COVERAGE_RESOLVER")
+    completed_lane = FullExtractionLane(
+        lane_id="completed",
+        lane_index=0,
+        lane_name="Completed",
+        lane_kind="static",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("static_players",),
+        resume_only=True,
+    )
+    active_lane = FullExtractionLane(
+        lane_id="active",
+        lane_index=1,
+        lane_name="Active",
+        lane_kind="static",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("static_teams",),
+    )
+    provisional_path = tmp_path / "provisional-manifest.json"
+    provisional_path.write_text(
+        json.dumps(manifest_payload([completed_lane, active_lane])),
+        encoding="utf-8",
+    )
+    resolved_coverage = _run_python(
+        coverage_resolver,
+        env={"PROVISIONAL_MANIFEST": str(provisional_path)},
+    )
+    assert resolved_coverage.returncode == 0, resolved_coverage.stderr or resolved_coverage.stdout
+    assert (
+        resolved_coverage.stdout.strip()
+        == manifest_payload([completed_lane])["coverage_fingerprint"]
+    )
+
+    assert '--latest-checkpoint-generation "$CHECKPOINT_GENERATION"' in build_step
+    assert '--latest-checkpoint-coverage-hash "$CHECKPOINT_COVERAGE_HASH"' in build_step
+    assert "CHECKPOINT_COVERAGE_RESOLVER" in build_step
+    assert "iter-${CHECKPOINT_GENERATION}" in build_step
+    assert '--latest-checkpoint-generation "$ITERATION"' not in build_step
+
+
+def test_checkpoint_result_validator_rejects_generation_and_suffix_drift(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    validator = _embedded_python(checkpoint, "CHECKPOINT_RESULT_VALIDATOR")
+    report_path = tmp_path / "checkpoint-report.json"
+    manifest_path = tmp_path / "checkpoint-manifest.json"
+    database_path = tmp_path / "nba.duckdb"
+    output_path = tmp_path / "github-output.txt"
+    database_path.write_bytes(b"checkpoint")
+    chain_id = "fixture-chain"
+    run_id = "222"
+    source_sha = "a" * 40
+    expected_generation = 8
+    coverage_hash = "c" * 64
+    artifact_name = f"full-extraction-checkpoint-{chain_id}-iter-{expected_generation}"
+    contract_blocked_evidence = {
+        "schema_version": 1,
+        "contract_blocked_lanes": [],
+    }
+    report = {
+        "active_lane_count": 0,
+        "chain_id": chain_id,
+        "checkpoint_generation": expected_generation,
+        "complete_lane_count": 1,
+        "coverage_fingerprint": coverage_hash,
+        "output_path": str(database_path),
+        "previous_checkpoint_generation": expected_generation - 1,
+        "run_id": run_id,
+        "artifact_name": artifact_name,
+        "source_sha": source_sha,
+        "terminal_ready": True,
+        "contract_blocked_lane_count": 0,
+        "contract_blocked_evidence": contract_blocked_evidence,
+        "contract_blocked_evidence_sha256": hashlib.sha256(
+            json.dumps(
+                contract_blocked_evidence,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
+    }
+    manifest = {
+        "chain_id": chain_id,
+        "chain_state": {
+            "latest_checkpoint_artifact_name": artifact_name,
+            "latest_checkpoint_coverage_hash": coverage_hash,
+            "latest_checkpoint_generation": expected_generation,
+            "latest_checkpoint_run_id": run_id,
+        },
+        "workflow_source_sha": source_sha,
+    }
+    env = {
+        "CHAIN_ID": chain_id,
+        "CHECKPOINT_ARTIFACT_NAME": artifact_name,
+        "CHECKPOINT_MANIFEST_PATH": str(manifest_path),
+        "CHECKPOINT_REPORT_PATH": str(report_path),
+        "CURRENT_RUN_ID": run_id,
+        "EXPECTED_CHECKPOINT_GENERATION": str(expected_generation),
+        "GITHUB_OUTPUT": str(output_path),
+        "LANE_CONTROL_ACTIVE_LANE_COUNT": "0",
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    accepted = _run_python(validator, env=env)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        f"artifact_name={artifact_name}",
+        f"checkpoint_generation={expected_generation}",
+        f"coverage_fingerprint={coverage_hash}",
+        "terminal_ready=true",
+        "active_lane_count=0",
+    ]
+
+    output_path.unlink()
+    report["checkpoint_generation"] = expected_generation - 1
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    stale_report = _run_python(validator, env=env)
+    assert stale_report.returncode == 1
+    assert "Lane-control/checkpoint generation disagreement" in stale_report.stdout
+    assert not output_path.exists()
+
+    report["checkpoint_generation"] = expected_generation
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    wrong_suffix = _run_python(
+        validator,
+        env={
+            **env,
+            "CHECKPOINT_ARTIFACT_NAME": (
+                f"full-extraction-checkpoint-{chain_id}-iter-{expected_generation - 1}"
+            ),
+        },
+    )
+    assert wrong_suffix.returncode == 1
+    assert "Checkpoint artifact suffix/generation disagreement" in wrong_suffix.stdout
+    assert not output_path.exists()
+
+    report["coverage_fingerprint"] = "d" * 64
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    wrong_coverage = _run_python(validator, env=env)
+    assert wrong_coverage.returncode == 1
+    assert "manifest/report coverage fingerprint disagreement" in wrong_coverage.stdout
+    assert not output_path.exists()
+    report["coverage_fingerprint"] = coverage_hash
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    manifest["chain_state"]["latest_checkpoint_generation"] = expected_generation - 1
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    stale_manifest = _run_python(validator, env=env)
+    assert stale_manifest.returncode == 1
+    assert "Checkpoint manifest/report generation disagreement" in stale_manifest.stdout
+    assert not output_path.exists()
+
+
+def test_resume_source_creates_validated_pending_contract_blocked_commitment(
+    tmp_path: pathlib.Path,
+) -> None:
+    plan = _job_block(_workflow_text(), "plan")
+    builder = _embedded_python(
+        plan,
+        "RESUME_SOURCE_PENDING_CONTRACT_BLOCKED_EVIDENCE",
+    )
+    lane, expected_row, manifest_lane = _contract_blocked_fixture(
+        "blocked-pending",
+        1946,
+        1947,
+    )
+    _, existing_pending_row, _ = _contract_blocked_fixture(
+        "blocked-existing-pending",
+        1948,
+        1949,
+    )
+    source_path = tmp_path / "source-manifest.json"
+    resume_path = tmp_path / "resume-manifest.json"
+    audit_path = tmp_path / "resume-audit.json"
+    final_path = tmp_path / "final-manifest.json"
+    source_path.write_text(
+        json.dumps({"lanes": [manifest_lane]}),
+        encoding="utf-8",
+    )
+    resume_path.write_text(
+        json.dumps({"resume_summary": {"contract_blocked_lane_count": 1}}),
+        encoding="utf-8",
+    )
+    audit_path.write_text(
+        json.dumps({"contract_blocked_lanes": []}),
+        encoding="utf-8",
+    )
+    final_manifest = manifest_payload([], max_matrix_lanes=1)
+    final_manifest["chain_state"]["pending_contract_blocked_evidence"] = [existing_pending_row]
+    existing_pending_bundle = {
+        "schema_version": 1,
+        "contract_blocked_lanes": [existing_pending_row],
+    }
+    final_manifest["chain_state"]["pending_contract_blocked_evidence_sha256"] = hashlib.sha256(
+        json.dumps(
+            existing_pending_bundle,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    final_path.write_text(json.dumps(final_manifest), encoding="utf-8")
+    env = {
+        "SOURCE_MANIFEST_PATH": str(source_path),
+        "RESUME_MANIFEST_PATH": str(resume_path),
+        "RESUME_AUDIT_PATH": str(audit_path),
+        "FINAL_MANIFEST_PATH": str(final_path),
+    }
+
+    accepted = _run_python(builder, env=env)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    state = json.loads(final_path.read_text(encoding="utf-8"))["chain_state"]
+    expected_pending_rows = sorted(
+        [expected_row, existing_pending_row],
+        key=lambda row: str(row["lane_id"]),
+    )
+    assert state["pending_contract_blocked_evidence"] == expected_pending_rows
+    pending_bundle = {
+        "schema_version": 1,
+        "contract_blocked_lanes": expected_pending_rows,
+    }
+    assert (
+        state["pending_contract_blocked_evidence_sha256"]
+        == hashlib.sha256(
+            json.dumps(pending_bundle, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+    assert lane.lane_id not in {
+        str(item.get("lane_id") or "")
+        for item in json.loads(final_path.read_text(encoding="utf-8")).get("lanes", [])
+    }
+
+    source_path.write_text(json.dumps({"lanes": []}), encoding="utf-8")
+    resume_path.write_text(
+        json.dumps({"resume_summary": {"contract_blocked_lane_count": 0}}),
+        encoding="utf-8",
+    )
+    final_path.write_text(
+        json.dumps(manifest_payload([], max_matrix_lanes=1)),
+        encoding="utf-8",
+    )
+    zero_pending = _run_python(builder, env=env)
+    assert zero_pending.returncode == 0, zero_pending.stderr or zero_pending.stdout
+    zero_state = json.loads(final_path.read_text(encoding="utf-8"))["chain_state"]
+    assert zero_state["pending_contract_blocked_evidence"] == []
+    assert zero_state["pending_contract_blocked_evidence_sha256"] == ""
+
+    source_path.write_text(
+        json.dumps({"lanes": [manifest_lane]}),
+        encoding="utf-8",
+    )
+    resume_path.write_text(
+        json.dumps({"resume_summary": {"contract_blocked_lane_count": 0}}),
+        encoding="utf-8",
+    )
+    rejected = _run_python(builder, env=env)
+    assert rejected.returncode == 1
+    assert "count does not match validated evidence" in rejected.stderr
+
+
+def test_lane_control_merges_and_clears_pending_contract_blocked_commitment(
+    tmp_path: pathlib.Path,
+) -> None:
+    lane_control = _job_block(_workflow_text(), "lane_control")
+    postprocessor = _embedded_python(
+        lane_control,
+        "LANE_CONTROL_CONTRACT_BLOCKED_POSTPROCESSOR",
+    )
+    _, previous_row, _ = _contract_blocked_fixture("blocked-previous", 1946, 1947)
+    _, pending_row, _ = _contract_blocked_fixture("blocked-pending", 1948, 1949)
+    _, current_row, _ = _contract_blocked_fixture("blocked-current", 1950, 1951)
+
+    def evidence_digest(rows: list[dict[str, object]]) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                {"schema_version": 1, "contract_blocked_lanes": rows},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+
+    artifacts = tmp_path / "artifacts" / "full-extraction"
+    artifacts.mkdir(parents=True)
+    current_manifest_path = artifacts / "current-manifest.json"
+    next_manifest_path = artifacts / "next-manifest.json"
+    audit_path = artifacts / "extraction-audit.json"
+    previous_rows = [previous_row]
+    pending_rows = [pending_row]
+    current_manifest = {
+        "chain_state": {
+            "artifact_run_ids": [],
+            "contract_blocked_evidence": previous_rows,
+            "contract_blocked_evidence_sha256": evidence_digest(previous_rows),
+            "pending_contract_blocked_evidence": pending_rows,
+            "pending_contract_blocked_evidence_sha256": evidence_digest(pending_rows),
+        }
+    }
+    empty_manifest = manifest_payload([], max_matrix_lanes=1)
+    empty_manifest["resume_summary"] = {
+        "active_lane_count": 0,
+        "resume_only_lane_count": 0,
+        "contract_blocked_lane_count": 1,
+    }
+    current_manifest_path.write_text(json.dumps(current_manifest), encoding="utf-8")
+    next_manifest_path.write_text(json.dumps(empty_manifest), encoding="utf-8")
+    audit_path.write_text(
+        json.dumps({"contract_blocked_lanes": [current_row]}),
+        encoding="utf-8",
+    )
+    env = {
+        "CHAIN_ID": "fixture-chain",
+        "WORKFLOW_SOURCE_SHA": "a" * 40,
+        "CHECKPOINT_ARTIFACT_NAME": "full-extraction-checkpoint-fixture-chain-iter-1",
+        "CHECKPOINT_GENERATION": "1",
+        "CHECKPOINT_COVERAGE_HASH": "b" * 64,
+        "ITERATION": "1",
+        "GITHUB_OUTPUT": str(tmp_path / "github-output.txt"),
+    }
+
+    accepted = _run_python(postprocessor, env=env, cwd=tmp_path)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    next_state = json.loads(next_manifest_path.read_text(encoding="utf-8"))["chain_state"]
+    merged_rows = sorted(
+        [previous_row, pending_row, current_row],
+        key=lambda row: str(row["lane_id"]),
+    )
+    assert next_state["previous_contract_blocked_evidence"] == previous_rows
+    assert next_state["contract_blocked_evidence"] == merged_rows
+    assert next_state["contract_blocked_evidence_sha256"] == evidence_digest(merged_rows)
+    assert next_state["pending_contract_blocked_evidence"] == []
+    assert next_state["pending_contract_blocked_evidence_sha256"] == ""
+
+    current_manifest["chain_state"]["pending_contract_blocked_evidence_sha256"] = "0" * 64
+    current_manifest_path.write_text(json.dumps(current_manifest), encoding="utf-8")
+    next_manifest_path.write_text(json.dumps(empty_manifest), encoding="utf-8")
+    rejected = _run_python(postprocessor, env=env, cwd=tmp_path)
+    assert rejected.returncode == 1
+    assert "pending blocked evidence digest does not match" in rejected.stderr
+
+    current_manifest["chain_state"]["pending_contract_blocked_evidence"] = []
+    current_manifest["chain_state"]["pending_contract_blocked_evidence_sha256"] = ""
+    current_manifest_path.write_text(json.dumps(current_manifest), encoding="utf-8")
+    next_manifest_path.write_text(json.dumps(empty_manifest), encoding="utf-8")
+    zero_pending = _run_python(postprocessor, env=env, cwd=tmp_path)
+    assert zero_pending.returncode == 0, zero_pending.stderr or zero_pending.stdout
+    zero_pending_state = json.loads(next_manifest_path.read_text(encoding="utf-8"))["chain_state"]
+    assert zero_pending_state["pending_contract_blocked_evidence"] == []
+    assert zero_pending_state["pending_contract_blocked_evidence_sha256"] == ""
+
+
+def test_contract_blocked_evidence_is_cumulative_and_digest_bound(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    binder = _embedded_python(checkpoint, "CHECKPOINT_CONTRACT_BLOCKED_EVIDENCE_BINDER")
+    assert (
+        'current_manifest="$(find lane-control-artifact -name current-manifest.json' in checkpoint
+    )
+    assert 'CURRENT_MANIFEST_PATH="$current_manifest"' in checkpoint
+    audit_path = tmp_path / "audit.json"
+    previous_path = tmp_path / "previous-report.json"
+    report_path = tmp_path / "checkpoint-report.json"
+
+    def blocked_row(
+        lane_id: str, season_start: int, season_end: int
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        lane = FullExtractionLane(
+            lane_id=lane_id,
+            lane_index=0,
+            lane_name=lane_id,
+            lane_kind="historical",
+            season_start=season_start,
+            season_end=season_end,
+            patterns=("player_team_season",),
+            season_types=(),
+            endpoints=("video_details",),
+            timeout_seconds=1,
+        )
+        coverage_hash = _coverage_hash_for_lane(lane)
+        row = _canonical_contract_blocked_audit_row(
+            lane_id,
+            {
+                "lane_kind": lane.lane_kind,
+                "endpoints": list(lane.endpoints),
+                "patterns": list(lane.patterns),
+                "season_start": season_start,
+                "season_end": season_end,
+                "season_types": [],
+                "context_measures": [],
+                "coverage_units_hash": coverage_hash,
+            },
+        )
+        manifest_lane = {
+            "lane_id": lane_id,
+            "lane_kind": lane.lane_kind,
+            "endpoints": list(lane.endpoints),
+            "patterns": list(lane.patterns),
+            "season_start": season_start,
+            "season_end": season_end,
+            "season_types": [],
+            "context_measures": [],
+            "coverage_units_hash": coverage_hash,
+        }
+        return row, manifest_lane
+
+    previous_row, _previous_manifest_lane = blocked_row("blocked-old", 1946, 1947)
+    pending_row, _pending_manifest_lane = blocked_row("blocked-pending", 1948, 1949)
+    current_row, current_manifest_lane = blocked_row("blocked-new", 1950, 1951)
+    previous_evidence = {
+        "schema_version": 1,
+        "contract_blocked_lanes": [previous_row],
+    }
+    previous_report = {
+        "contract_blocked_lane_count": 1,
+        "contract_blocked_evidence": previous_evidence,
+        "contract_blocked_evidence_sha256": hashlib.sha256(
+            json.dumps(previous_evidence, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
+    previous_digest = previous_report["contract_blocked_evidence_sha256"]
+    pending_evidence = {
+        "schema_version": 1,
+        "contract_blocked_lanes": [pending_row],
+    }
+    pending_digest = hashlib.sha256(
+        json.dumps(pending_evidence, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    merged_rows = sorted(
+        [previous_row, pending_row, current_row],
+        key=lambda row: str(row["lane_id"]),
+    )
+    merged_evidence = {
+        "schema_version": 1,
+        "contract_blocked_lanes": merged_rows,
+    }
+    merged_digest = hashlib.sha256(
+        json.dumps(merged_evidence, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    audit_path.write_text(json.dumps({"contract_blocked_lanes": [current_row]}), encoding="utf-8")
+    previous_path.write_text(json.dumps(previous_report), encoding="utf-8")
+    report_path.write_text("{}\n", encoding="utf-8")
+    current_manifest_path = tmp_path / "current-manifest.json"
+    current_manifest_path.write_text(
+        json.dumps(
+            {
+                "lanes": [current_manifest_lane],
+                "chain_state": {
+                    "contract_blocked_evidence": [previous_row],
+                    "contract_blocked_evidence_sha256": previous_digest,
+                    "pending_contract_blocked_evidence": [pending_row],
+                    "pending_contract_blocked_evidence_sha256": pending_digest,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    next_manifest_path = tmp_path / "next-manifest.json"
+    next_manifest_path.write_text(
+        json.dumps(
+            {
+                "chain_state": {
+                    "contract_blocked_evidence": merged_rows,
+                    "contract_blocked_evidence_sha256": merged_digest,
+                    "pending_contract_blocked_evidence": [],
+                    "pending_contract_blocked_evidence_sha256": "",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    verified_previous_path = tmp_path / "verified-previous.json"
+    verified_previous_path.write_text(
+        json.dumps(
+            {
+                "contract_blocked_evidence_sha256": previous_report[
+                    "contract_blocked_evidence_sha256"
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = {
+        "CHECKPOINT_REPORT_PATH": str(report_path),
+        "CURRENT_MANIFEST_PATH": str(current_manifest_path),
+        "NEXT_MANIFEST_PATH": str(next_manifest_path),
+        "EXTRACTION_AUDIT_PATH": str(audit_path),
+        "LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT": "1",
+        "PREVIOUS_CHECKPOINT_REPORT_PATH": str(previous_path),
+        "VERIFIED_PREVIOUS_CHECKPOINT_PATH": str(verified_previous_path),
+    }
+
+    accepted = _run_python(binder, env=env)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    bound_report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert bound_report["contract_blocked_lane_count"] == 3
+    assert [
+        row["lane_id"]
+        for row in bound_report["contract_blocked_evidence"]["contract_blocked_lanes"]
+    ] == ["blocked-new", "blocked-old", "blocked-pending"]
+    assert bound_report["contract_blocked_evidence_sha256"] == merged_digest
+
+    current_payload = json.loads(current_manifest_path.read_text(encoding="utf-8"))
+    current_payload["chain_state"]["pending_contract_blocked_evidence_sha256"] = "0" * 64
+    current_manifest_path.write_text(json.dumps(current_payload), encoding="utf-8")
+    pending_mismatch = _run_python(binder, env=env)
+    assert pending_mismatch.returncode == 1
+    assert "pending contract-blocked evidence digest does not match" in (pending_mismatch.stderr)
+    current_payload["chain_state"]["pending_contract_blocked_evidence_sha256"] = pending_digest
+    current_manifest_path.write_text(json.dumps(current_payload), encoding="utf-8")
+
+    next_payload = json.loads(next_manifest_path.read_text(encoding="utf-8"))
+    next_payload["chain_state"]["pending_contract_blocked_evidence"] = [pending_row]
+    next_payload["chain_state"]["pending_contract_blocked_evidence_sha256"] = pending_digest
+    next_manifest_path.write_text(json.dumps(next_payload), encoding="utf-8")
+    uncleared_pending = _run_python(binder, env=env)
+    assert uncleared_pending.returncode == 1
+    assert "did not clear pending blocked evidence" in uncleared_pending.stderr
+    next_payload["chain_state"]["pending_contract_blocked_evidence"] = []
+    next_payload["chain_state"]["pending_contract_blocked_evidence_sha256"] = ""
+    next_manifest_path.write_text(json.dumps(next_payload), encoding="utf-8")
+
+    zero_pending_current = json.loads(json.dumps(current_payload))
+    zero_pending_current["chain_state"]["pending_contract_blocked_evidence"] = []
+    zero_pending_current["chain_state"]["pending_contract_blocked_evidence_sha256"] = ""
+    zero_pending_rows = sorted(
+        [previous_row, current_row],
+        key=lambda row: str(row["lane_id"]),
+    )
+    zero_pending_evidence = {
+        "schema_version": 1,
+        "contract_blocked_lanes": zero_pending_rows,
+    }
+    zero_pending_next = {
+        "chain_state": {
+            "contract_blocked_evidence": zero_pending_rows,
+            "contract_blocked_evidence_sha256": hashlib.sha256(
+                json.dumps(
+                    zero_pending_evidence,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest(),
+            "pending_contract_blocked_evidence": [],
+            "pending_contract_blocked_evidence_sha256": "",
+        }
+    }
+    current_manifest_path.write_text(json.dumps(zero_pending_current), encoding="utf-8")
+    next_manifest_path.write_text(json.dumps(zero_pending_next), encoding="utf-8")
+    report_path.write_text("{}\n", encoding="utf-8")
+    zero_pending = _run_python(binder, env=env)
+    assert zero_pending.returncode == 0, zero_pending.stderr or zero_pending.stdout
+
+    current_manifest_path.write_text(json.dumps(current_payload), encoding="utf-8")
+    next_manifest_path.write_text(json.dumps(next_payload), encoding="utf-8")
+    report_path.write_text("{}\n", encoding="utf-8")
+
+    previous_report["contract_blocked_evidence_sha256"] = "0" * 64
+    previous_path.write_text(json.dumps(previous_report), encoding="utf-8")
+    rejected = _run_python(binder, env=env)
+    assert rejected.returncode == 1
+    assert "evidence digest does not match" in rejected.stderr
+
+    previous_path.write_text(
+        json.dumps(
+            previous_report
+            | {
+                "contract_blocked_evidence_sha256": hashlib.sha256(
+                    json.dumps(previous_evidence, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    current_manifest_path.write_text(
+        json.dumps(
+            {
+                "lanes": [current_manifest_lane],
+                "chain_state": {
+                    "contract_blocked_evidence": [previous_row],
+                    "contract_blocked_evidence_sha256": "f" * 64,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    ancestry_mismatch = _run_python(binder, env=env)
+    assert ancestry_mismatch.returncode == 1
+    assert "chain-state contract-blocked evidence digest does not match" in (
+        ancestry_mismatch.stderr
+    )
+
+    current_manifest_path.write_text(
+        json.dumps(
+            {
+                "lanes": [],
+                "chain_state": {
+                    "contract_blocked_evidence": [previous_row],
+                    "contract_blocked_evidence_sha256": previous_digest,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    outside_manifest = _run_python(binder, env=env)
+    assert outside_manifest.returncode == 1
+    assert "outside the current manifest" in outside_manifest.stderr
+
+    current_manifest_path.write_text(
+        json.dumps(
+            {
+                "lanes": [current_manifest_lane],
+                "chain_state": {
+                    "contract_blocked_evidence": [previous_row],
+                    "contract_blocked_evidence_sha256": previous_digest,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    next_manifest_path.write_text(
+        json.dumps(
+            {
+                "chain_state": {
+                    "contract_blocked_evidence": [previous_row],
+                    "contract_blocked_evidence_sha256": previous_digest,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    next_commitment_mismatch = _run_python(binder, env=env)
+    assert next_commitment_mismatch.returncode == 1
+    assert "blocked evidence does not match next-manifest commitment" in (
+        next_commitment_mismatch.stderr
+    )
+
+
+def test_terminal_identity_uses_verified_checkpoint_coverage_and_bound_evidence(
+    tmp_path: pathlib.Path,
+) -> None:
+    workflow = _workflow_text()
+    merge = _job_block(workflow, "merge")
+    publish = _job_block(workflow, "publish")
+    identity_step = _step_block(merge, "Validate terminal checkpoint identity")
+    binder = _embedded_python(identity_step, "TERMINAL_CHECKPOINT_IDENTITY_BINDER")
+    verified_path = tmp_path / "verified.json"
+    report_path = tmp_path / "checkpoint-report.json"
+    identity_path = tmp_path / "terminal-assurance-report.json"
+    output_path = tmp_path / "github-output.txt"
+    coverage = "c" * 64
+    evidence = {"schema_version": 1, "contract_blocked_lanes": []}
+    evidence_digest = hashlib.sha256(
+        json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    verified_path.write_text(
+        json.dumps(
+            {
+                "artifact_name": "checkpoint",
+                "checkpoint_generation": 3,
+                "coverage_fingerprint": coverage,
+                "database_sha256": "d" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = {
+        "active_lane_count": 0,
+        "contract_blocked_evidence": evidence,
+        "contract_blocked_evidence_sha256": evidence_digest,
+        "contract_blocked_lane_count": 0,
+        "coverage_fingerprint": coverage,
+        "terminal_ready": True,
+    }
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    env = {
+        "CHAIN_ID": "fixture-chain",
+        "CHECKPOINT_REPORT_PATH": str(report_path),
+        "GITHUB_OUTPUT": str(output_path),
+        "TERMINAL_IDENTITY_PATH": str(identity_path),
+        "VERIFIED_CHECKPOINT_PATH": str(verified_path),
+        "WORKFLOW_SOURCE_SHA": "a" * 40,
+    }
+
+    accepted = _run_python(binder, env=env)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    assert identity["coverage_fingerprint"] == coverage
+    assert identity["contract_blocked_evidence_sha256"] == evidence_digest
+
+    report["coverage_fingerprint"] = "e" * 64
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    rejected = _run_python(binder, env=env)
+    assert rejected.returncode == 1
+    assert "coverage fingerprint is unbound" in rejected.stdout
+
+    manifest_step = _step_block(merge, "Build assured data manifest")
+    publisher_identity = _step_block(publish, "Validate assured data artifact identity")
+    upload = _step_block(publish, "Upload to Kaggle")
+    assert "steps.terminal_identity.outputs.coverage_fingerprint" in manifest_step
+    assert "needs.merge.outputs.coverage-fingerprint" in publisher_identity
+    assert "needs.plan.outputs.coverage-fingerprint" not in publisher_identity
+    assert "needs.merge.outputs.coverage-fingerprint" in upload
+    assert "terminal-assurance-report.json" in manifest_step
+
+
 def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -657,12 +1636,18 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
     current_run_id = "222"
     source_lane_id = "source-complete"
     resumed_lane_id = "resumed-complete"
+    diagnostics_only_lane_id = "diagnostics-only"
     manifest = {
         "chain_id": chain_id,
         "workflow_source_sha": source_sha,
         "lanes": [
             {"lane_id": source_lane_id, "patterns": ["static"], "resume_only": True},
             {"lane_id": resumed_lane_id, "patterns": ["static"], "resume_only": False},
+            {
+                "lane_id": diagnostics_only_lane_id,
+                "patterns": ["static"],
+                "resume_only": False,
+            },
         ],
         "chain_state": {"artifact_run_ids": [source_run_id]},
     }
@@ -687,6 +1672,7 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
     stale_resumed_metadata = f"extraction-lane-metadata-{chain_id}-{resumed_lane_id}"
     current_metadata = stale_resumed_metadata
     current_artifact = f"extraction-lane-{chain_id}-{resumed_lane_id}"
+    diagnostics_only_metadata = f"extraction-lane-metadata-{chain_id}-{diagnostics_only_lane_id}"
     (inventories_dir / f"run-{source_run_id}.json").write_text(
         json.dumps(
             [
@@ -695,8 +1681,16 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
                         {"name": source_metadata, "expired": False},
                         {"name": source_artifact, "expired": False},
                         {"name": stale_resumed_metadata, "expired": False},
+                        {"name": diagnostics_only_metadata, "expired": False},
                         {
                             "name": f"extraction-lane-recovery-{chain_id}-{resumed_lane_id}",
+                            "expired": False,
+                        },
+                        {
+                            "name": (
+                                "extraction-lane-diagnostics-only-"
+                                f"{chain_id}-{diagnostics_only_lane_id}-run-111-attempt-1"
+                            ),
                             "expired": False,
                         },
                     ]
@@ -723,7 +1717,7 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
         "CURRENT_MANIFEST": str(manifest_path),
         "DOWNLOAD_PLAN_PATH": str(download_plan_path),
         "INVENTORIES_DIR": str(inventories_dir),
-        "PREVIOUS_REPORT_PATH": "",
+        "VERIFIED_PREVIOUS_CHECKPOINT_PATH": "",
         "RUN_IDS_PATH": str(run_ids_path),
     }
 
@@ -736,6 +1730,29 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
         f"{current_run_id}\tlane\t{current_artifact}",
     }
     assert "recovery" not in download_plan_path.read_text(encoding="utf-8")
+    assert diagnostics_only_lane_id not in download_plan_path.read_text(encoding="utf-8")
+
+    source_inventory_path = inventories_dir / f"run-{source_run_id}.json"
+    original_source_inventory = source_inventory_path.read_text(encoding="utf-8")
+    source_inventory = json.loads(original_source_inventory)
+    source_inventory[0]["artifacts"] = [
+        artifact
+        for artifact in source_inventory[0]["artifacts"]
+        if artifact["name"] != stale_resumed_metadata
+    ]
+    source_inventory[0]["artifacts"].append({"name": current_artifact, "expired": False})
+    source_inventory_path.write_text(json.dumps(source_inventory), encoding="utf-8")
+    unpaired_lane_ignored = _run_python(input_resolver, env=input_env)
+    assert unpaired_lane_ignored.returncode == 0, (
+        unpaired_lane_ignored.stderr or unpaired_lane_ignored.stdout
+    )
+    assert set(download_plan_path.read_text(encoding="utf-8").splitlines()) == {
+        f"{source_run_id}\tmetadata\t{source_metadata}",
+        f"{source_run_id}\tlane\t{source_artifact}",
+        f"{current_run_id}\tmetadata\t{current_metadata}",
+        f"{current_run_id}\tlane\t{current_artifact}",
+    }
+    source_inventory_path.write_text(original_source_inventory, encoding="utf-8")
 
     current_inventory_path = inventories_dir / f"run-{current_run_id}.json"
     original_current_inventory = current_inventory_path.read_text(encoding="utf-8")
@@ -749,11 +1766,10 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
     current_inventory_path.write_text(json.dumps(current_inventory), encoding="utf-8")
     ambiguous = _run_python(input_resolver, env=input_env)
     assert ambiguous.returncode == 1
-    assert f"checkpoint lane artifact is ambiguous for {source_lane_id}" in ambiguous.stderr
+    assert "requires exactly one same-run lane/metadata pair" in ambiguous.stderr
+    assert f"for {source_lane_id}; found 2" in ambiguous.stderr
     current_inventory_path.write_text(original_current_inventory, encoding="utf-8")
 
-    source_inventory_path = inventories_dir / f"run-{source_run_id}.json"
-    original_source_inventory = source_inventory_path.read_text(encoding="utf-8")
     source_inventory = json.loads(original_source_inventory)
     source_inventory[0]["artifacts"] = [
         artifact
@@ -763,17 +1779,21 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
     source_inventory_path.write_text(json.dumps(source_inventory), encoding="utf-8")
     unpaired = _run_python(input_resolver, env=input_env)
     assert unpaired.returncode == 1
-    assert "lacks one exact metadata artifact" in unpaired.stderr
+    assert "requires exactly one same-run lane/metadata pair" in unpaired.stderr
+    assert f"for {source_lane_id}; found 0" in unpaired.stderr
     source_inventory_path.write_text(original_source_inventory, encoding="utf-8")
 
-    previous_report_path = tmp_path / "checkpoint-report.json"
-    previous_report_path.write_text(
+    verified_previous_checkpoint_path = tmp_path / "verified-previous-checkpoint.json"
+    verified_previous_checkpoint_path.write_text(
         json.dumps({"included_lane_ids": [source_lane_id]}),
         encoding="utf-8",
     )
     planned_after_checkpoint = _run_python(
         input_resolver,
-        env={**input_env, "PREVIOUS_REPORT_PATH": str(previous_report_path)},
+        env={
+            **input_env,
+            "VERIFIED_PREVIOUS_CHECKPOINT_PATH": str(verified_previous_checkpoint_path),
+        },
     )
     assert planned_after_checkpoint.returncode == 0, (
         planned_after_checkpoint.stderr or planned_after_checkpoint.stdout
@@ -855,7 +1875,7 @@ def test_checkpoint_download_plan_recovers_zero_active_cancelled_source(
             "CURRENT_MANIFEST": str(manifest_path),
             "DOWNLOAD_PLAN_PATH": str(download_plan_path),
             "INVENTORIES_DIR": str(inventories_dir),
-            "PREVIOUS_REPORT_PATH": "",
+            "VERIFIED_PREVIOUS_CHECKPOINT_PATH": "",
             "RUN_IDS_PATH": str(run_ids_path),
         },
     )
@@ -927,6 +1947,17 @@ def test_publish_false_keeps_terminal_assurance_and_blocks_publication() -> None
     assert "Refresh checked-in metadata" in publish
     assert "Upload to Kaggle" in publish
     assert '-f publish="$PUBLISH"' in _job_block(workflow, "dispatch_next")
+
+
+def test_terminal_hard_scan_runs_after_export_and_before_assured_manifest() -> None:
+    merge = _job_block(_workflow_text(), "merge")
+
+    export_index = merge.index("- name: Export all formats")
+    scan_index = merge.index("- name: Scan data quality")
+    manifest_index = merge.index("- name: Build assured data manifest")
+    upload_index = merge.index("- name: Upload assured final data artifact")
+
+    assert export_index < scan_index < manifest_index < upload_index
 
 
 def test_targeted_smoke_is_one_shot_checkpoint_assurance_without_merge() -> None:
@@ -1307,6 +2338,7 @@ def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
     merge = _job_block(_workflow_text(), "merge")
     publish = _job_block(_workflow_text(), "publish")
     manifest = _step_block(merge, "Build assured data manifest")
+    scan = _step_block(merge, "Scan data quality")
     assured_upload = _step_block(merge, "Upload assured final data artifact")
     exact_download = _step_block(publish, "Download exact assured data artifact")
     identity = _step_block(publish, "Validate assured data artifact identity")
@@ -1325,12 +2357,30 @@ def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
     assert '--source-sha "$source_sha"' in manifest
     assert '--coverage-fingerprint "$COVERAGE_FINGERPRINT"' in manifest
     assert "data/nbadb/assured-artifact-manifest.json" in assured_upload
+    assert "full-publication: true" in scan
+    assert "checkpoint-report: checkpoint-artifact/checkpoint-report.json" in scan
+    assert "checkpoint-manifest: artifacts/full-extraction/merge-manifest.json" in scan
+    assert "checkpoint-dir: checkpoint-artifact" in scan
+    assert "checkpoint-chain-id: ${{ env.ACTIVE_CHAIN_ID }}" in scan
+    assert "checkpoint-source-sha: ${{ env.WORKFLOW_SOURCE_SHA }}" in scan
+    assert "checkpoint_reports" in merge
+    assert "checkpoint_databases" in merge
+    assert "must contain exactly one report and database" in merge
+    assert 'cp "$checkpoint_report" checkpoint-artifact/checkpoint-report.json' in merge
+    assert 'cp "$checkpoint_database" checkpoint-artifact/nba.duckdb' in merge
     assert unique_name in assured_upload
     assert "if-no-files-found: error" in assured_upload
-    assert "name: ${{ needs.merge.outputs.final-data-artifact-name }}" in exact_download
-    assert "pattern:" not in exact_download
-    assert "ARTIFACT_ID: ${{ needs.merge.outputs.final-data-artifact-id }}" in identity
-    assert "ARTIFACT_DIGEST: ${{ needs.merge.outputs.final-data-artifact-digest }}" in identity
+    assert "ARTIFACT_ID: ${{ needs.merge.outputs.final-data-artifact-id }}" in exact_download
+    assert (
+        "ARTIFACT_DIGEST: ${{ needs.merge.outputs.final-data-artifact-digest }}" in exact_download
+    )
+    assert "ARTIFACT_NAME: ${{ needs.merge.outputs.final-data-artifact-name }}" in exact_download
+    assert "/actions/artifacts/${ARTIFACT_ID}/zip" in exact_download
+    assert "actions/download-artifact" not in exact_download
+    assert "ASSURED_ARTIFACT_ARCHIVE_VERIFIER" in exact_download
+    assert "artifact archive SHA-256 does not match upload digest" in exact_download
+    assert "archive_path.read_bytes()" not in exact_download
+    assert 'unzip -q "$archive_path" -d data/nbadb' in exact_download
     assert (
         "EXPECTED_ARTIFACT_PREFIX: nbadb-full-extraction-assured-"
         "${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-" in identity
@@ -1349,6 +2399,8 @@ def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
     assert "needs.merge.result == 'success'" in publish
     assert "continue-on-error" not in metadata
     assert "continue-on-error" not in upload
+    assert "--full-publication" in upload
+    assert "--verify-remote" in upload
     assert 'source_commit="$(git rev-parse "${WORKFLOW_SOURCE_SHA}^{commit}")"' in frozen_source
     assert '"+refs/heads/${DEFAULT_BRANCH}:${target_ref}"' in frozen_source
     assert 'if [ "$target_commit" != "$source_commit" ]; then' in frozen_source
@@ -1363,6 +2415,183 @@ def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
     assert "data/nbadb/assured-artifact-manifest.json" in final_artifact
     assert publish.index("Revalidate frozen publication source") < publish.index("Upload to Kaggle")
     assert publish.index("Upload final database") < publish.index("Refresh checked-in metadata")
+
+
+def test_assured_artifact_archive_verifier_rejects_digest_and_identity_mismatch(
+    tmp_path: pathlib.Path,
+) -> None:
+    download = _step_block(
+        _job_block(_workflow_text(), "publish"),
+        "Download exact assured data artifact",
+    )
+    verifier = _embedded_python(download, "ASSURED_ARTIFACT_ARCHIVE_VERIFIER")
+    archive_path = tmp_path / "assured.zip"
+    metadata_path = tmp_path / "artifact.json"
+    artifact_id = "123"
+    artifact_name = "nbadb-full-extraction-assured-fixture-456-1"
+    source_run_id = "456"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("nba.duckdb", b"fixture")
+    digest = "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest()
+    metadata = {
+        "expired": False,
+        "id": int(artifact_id),
+        "name": artifact_name,
+        "workflow_run": {"id": int(source_run_id)},
+    }
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    env = {
+        "ARTIFACT_ARCHIVE_PATH": str(archive_path),
+        "ARTIFACT_DIGEST": digest,
+        "ARTIFACT_ID": artifact_id,
+        "ARTIFACT_METADATA_PATH": str(metadata_path),
+        "ARTIFACT_NAME": artifact_name,
+        "SOURCE_RUN_ID": source_run_id,
+    }
+
+    accepted = _run_python(verifier, env=env)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+
+    wrong_digest = _run_python(
+        verifier,
+        env={**env, "ARTIFACT_DIGEST": "sha256:" + "0" * 64},
+    )
+    assert wrong_digest.returncode == 1
+    assert "artifact archive SHA-256 does not match upload digest" in wrong_digest.stdout
+
+    metadata["id"] = 999
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    wrong_id = _run_python(verifier, env=env)
+    assert wrong_id.returncode == 1
+    assert "artifact metadata ID does not match" in wrong_id.stdout
+
+
+@pytest.mark.parametrize(
+    ("metadata_patch", "expected_error"),
+    [
+        ({"name": "wrong-name"}, "artifact metadata name does not match"),
+        ({"workflow_run": {"id": 999}}, "artifact workflow run identity does not match"),
+        ({"expired": True}, "artifact is expired"),
+    ],
+)
+def test_assured_artifact_archive_verifier_rejects_metadata_provenance_tampering(
+    tmp_path: pathlib.Path,
+    metadata_patch: dict[str, object],
+    expected_error: str,
+) -> None:
+    download = _step_block(
+        _job_block(_workflow_text(), "publish"),
+        "Download exact assured data artifact",
+    )
+    verifier = _embedded_python(download, "ASSURED_ARTIFACT_ARCHIVE_VERIFIER")
+    archive_path = tmp_path / "assured.zip"
+    metadata_path = tmp_path / "artifact.json"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("nba.duckdb", b"fixture")
+    artifact_id = "123"
+    artifact_name = "nbadb-full-extraction-assured-fixture-456-1"
+    source_run_id = "456"
+    metadata = {
+        "expired": False,
+        "id": int(artifact_id),
+        "name": artifact_name,
+        "workflow_run": {"id": int(source_run_id)},
+        **metadata_patch,
+    }
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    result = _run_python(
+        verifier,
+        env={
+            "ARTIFACT_ARCHIVE_PATH": str(archive_path),
+            "ARTIFACT_DIGEST": "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+            "ARTIFACT_ID": artifact_id,
+            "ARTIFACT_METADATA_PATH": str(metadata_path),
+            "ARTIFACT_NAME": artifact_name,
+            "SOURCE_RUN_ID": source_run_id,
+        },
+    )
+
+    assert result.returncode == 1
+    assert expected_error in result.stdout
+
+
+@pytest.mark.parametrize("unsafe_member", ["../escape", "/absolute/path"])
+def test_assured_artifact_archive_verifier_rejects_unsafe_members(
+    tmp_path: pathlib.Path,
+    unsafe_member: str,
+) -> None:
+    download = _step_block(
+        _job_block(_workflow_text(), "publish"),
+        "Download exact assured data artifact",
+    )
+    verifier = _embedded_python(download, "ASSURED_ARTIFACT_ARCHIVE_VERIFIER")
+    archive_path = tmp_path / "assured.zip"
+    metadata_path = tmp_path / "artifact.json"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(unsafe_member, b"fixture")
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "expired": False,
+                "id": 123,
+                "name": "assured-name",
+                "workflow_run": {"id": 456},
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = _run_python(
+        verifier,
+        env={
+            "ARTIFACT_ARCHIVE_PATH": str(archive_path),
+            "ARTIFACT_DIGEST": "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+            "ARTIFACT_ID": "123",
+            "ARTIFACT_METADATA_PATH": str(metadata_path),
+            "ARTIFACT_NAME": "assured-name",
+            "SOURCE_RUN_ID": "456",
+        },
+    )
+
+    assert result.returncode == 1
+    assert "artifact archive contains unsafe paths" in result.stdout
+
+
+def test_assured_artifact_archive_verifier_rejects_malformed_zip(
+    tmp_path: pathlib.Path,
+) -> None:
+    download = _step_block(
+        _job_block(_workflow_text(), "publish"),
+        "Download exact assured data artifact",
+    )
+    verifier = _embedded_python(download, "ASSURED_ARTIFACT_ARCHIVE_VERIFIER")
+    archive_path = tmp_path / "assured.zip"
+    archive_path.write_bytes(b"not-a-zip")
+    metadata_path = tmp_path / "artifact.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "expired": False,
+                "id": 123,
+                "name": "assured-name",
+                "workflow_run": {"id": 456},
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = _run_python(
+        verifier,
+        env={
+            "ARTIFACT_ARCHIVE_PATH": str(archive_path),
+            "ARTIFACT_DIGEST": "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+            "ARTIFACT_ID": "123",
+            "ARTIFACT_METADATA_PATH": str(metadata_path),
+            "ARTIFACT_NAME": "assured-name",
+            "SOURCE_RUN_ID": "456",
+        },
+    )
+
+    assert result.returncode == 1
+    assert "artifact archive is not a valid ZIP file" in result.stdout
 
 
 def test_frozen_source_revalidation_accepts_only_exact_metadata_rerun_child(
@@ -1499,6 +2728,14 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
     merge = _job_block(workflow, "merge")
     lane_control = _job_block(workflow, "lane_control")
     checkpoint = _job_block(workflow, "checkpoint")
+    completed_manifest_download = _step_block(
+        merge, "Download terminal manifest from completed lanes"
+    )
+    completed_checkpoint_download = _step_block(
+        merge, "Download terminal checkpoint from completed lanes"
+    )
+    replay_download = _step_block(merge, "Download replayed terminal checkpoint")
+    prepare_merge = _step_block(merge, "Prepare checkpoint-first merge")
     replay_header = replay.split("    steps:\n", 1)[0]
     lane_control_header = lane_control.split("    steps:\n", 1)[0]
 
@@ -1522,8 +2759,26 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
     assert "steps.source_checkpoint.outputs.artifact_name != ''" in replay
     assert "source checkpoint lane coverage hashes do not match" in replay
     assert "source checkpoint database SHA-256 does not match" in replay
-    assert "needs.terminal_replay.outputs.artifact-name != ''" in merge
-    assert "Download replayed terminal checkpoint" in merge
+    assert "source checkpoint artifact identity does not match" in replay
+    assert "source checkpoint source SHA does not match" in replay
+    assert "checkpoint-manifest.json" in replay
+    assert 'cp "$checkpoint_manifest" terminal-replay-inputs/terminal-manifest.json' in replay
+    assert 'cp "$plan_manifest_path" terminal-replay-inputs/terminal-manifest.json' not in replay
+    assert "needs.terminal_replay.outputs.artifact-name == ''" in completed_manifest_download
+    assert "needs.terminal_replay.outputs.artifact-name == ''" in completed_checkpoint_download
+    assert "needs.terminal_replay.outputs.artifact-name != ''" in replay_download
+    assert (
+        "TERMINAL_REPLAYED: ${{ needs.terminal_replay.outputs.artifact-name != '' }}"
+        in prepare_merge
+    )
+    for replay_branch in (
+        completed_manifest_download,
+        completed_checkpoint_download,
+        replay_download,
+        prepare_merge,
+    ):
+        assert "needs.terminal_replay.result == 'success'" not in replay_branch
+        assert "needs.terminal_replay.result != 'success'" not in replay_branch
     assert "terminal_replay" in lane_control_header
     for predicate in (
         "inputs.resume_source_run_id != ''",
@@ -1611,24 +2866,44 @@ def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
 
     database_path = tmp_path / "nba.duckdb"
     database_path.write_bytes(b"attested-checkpoint")
-    manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
+    plan_manifest_path = tmp_path / "manifest.json"
+    plan_manifest_path.write_text(
         json.dumps(
             {
                 "lane_count": 1,
                 "active_lane_count": 0,
                 "matrix_lane_count": 0,
                 "coverage_fingerprint": "fixture-coverage",
-                "lanes": [
-                    {
-                        "lane_id": "fixture-lane",
-                        "coverage_units_hash": "fixture-lane-coverage",
-                    }
-                ],
+                "chain_state": {
+                    "latest_checkpoint_run_id": "stale-run",
+                    "latest_checkpoint_artifact_name": "stale-artifact",
+                    "latest_checkpoint_generation": 2,
+                    "latest_checkpoint_coverage_hash": "stale-coverage",
+                },
             }
         ),
         encoding="utf-8",
     )
+    checkpoint_manifest_path = tmp_path / "checkpoint-manifest.json"
+    checkpoint_manifest = {
+        "chain_id": "fixture-chain",
+        "workflow_source_sha": "a" * 40,
+        "lane_count": 1,
+        "coverage_fingerprint": "fixture-coverage",
+        "chain_state": {
+            "latest_checkpoint_run_id": "987654",
+            "latest_checkpoint_artifact_name": checkpoint_name,
+            "latest_checkpoint_generation": 3,
+            "latest_checkpoint_coverage_hash": "fixture-coverage",
+        },
+        "lanes": [
+            {
+                "lane_id": "fixture-lane",
+                "coverage_units_hash": "fixture-lane-coverage",
+            }
+        ],
+    }
+    checkpoint_manifest_path.write_text(json.dumps(checkpoint_manifest), encoding="utf-8")
     report_path = tmp_path / "checkpoint-report.json"
     report = {
         "active_lane_count": 0,
@@ -1639,6 +2914,8 @@ def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
         "included_lane_coverage_hashes": {"fixture-lane": "fixture-lane-coverage"},
         "database_sha256": hashlib.sha256(database_path.read_bytes()).hexdigest(),
         "run_id": "987654",
+        "artifact_name": checkpoint_name,
+        "source_sha": "a" * 40,
         "terminal_ready": True,
     }
     report_path.write_text(json.dumps(report), encoding="utf-8")
@@ -1647,11 +2924,24 @@ def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
         "CHECKPOINT_DATABASE_PATH": str(database_path),
         "CHECKPOINT_REPORT_PATH": str(report_path),
         "EXPECTED_CHECKPOINT_GENERATION": "3",
-        "MANIFEST_PATH": str(manifest_path),
+        "PLAN_MANIFEST_PATH": str(plan_manifest_path),
+        "CHECKPOINT_MANIFEST_PATH": str(checkpoint_manifest_path),
+        "SOURCE_CHECKPOINT_ARTIFACT": checkpoint_name,
         "SOURCE_RUN_ID": "987654",
+        "WORKFLOW_SOURCE_SHA": "a" * 40,
     }
     accepted = _run_python(attestation, env=attestation_env)
     assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+
+    checkpoint_manifest["chain_state"]["latest_checkpoint_generation"] = 2
+    checkpoint_manifest_path.write_text(json.dumps(checkpoint_manifest), encoding="utf-8")
+    stale_checkpoint_pointer = _run_python(attestation, env=attestation_env)
+    assert stale_checkpoint_pointer.returncode == 1
+    assert "source checkpoint manifest latest generation does not match" in (
+        stale_checkpoint_pointer.stdout
+    )
+    checkpoint_manifest["chain_state"]["latest_checkpoint_generation"] = 3
+    checkpoint_manifest_path.write_text(json.dumps(checkpoint_manifest), encoding="utf-8")
 
     report["included_lane_coverage_hashes"]["fixture-lane"] = "tampered"
     report_path.write_text(json.dumps(report), encoding="utf-8")
@@ -1724,6 +3014,13 @@ def test_post_dispatch_poll_requires_one_exact_title_child_and_records_it(
         "url": "https://github.example/runs/42",
     }
 
+    changed_child = _run_python(
+        matcher,
+        env={**base_env, "EXPECTED_CHILD_RUN_ID": "41"},
+    )
+    assert changed_child.returncode == 4
+    assert "changed during stabilization" in changed_child.stdout
+
     runs_path.write_text(
         json.dumps(
             [
@@ -1775,6 +3072,9 @@ def test_post_dispatch_poll_requires_one_exact_title_child_and_records_it(
     assert 'CHILD_POLL_INTERVAL_SECONDS: "5"' in dispatch
     assert "--paginate" in dispatch[poll:]
     assert "--slurp" in dispatch[poll:]
+    assert dispatch.count("# CHILD_RUN_MATCHER") == 2
+    assert 'EXPECTED_CHILD_RUN_ID="$acknowledged_child_run_id"' in dispatch
+    assert "exact-title child inventory did not stabilize" in dispatch
     assert "Self-dispatch child run was not visible" in dispatch
     assert 'echo "child_run_id=$child_run_id"' in dispatch
     assert 'echo "child_run_url=$child_run_url"' in dispatch
@@ -1956,6 +3256,8 @@ def test_durable_lane_restore_requires_exact_attested_database() -> None:
     assert "--expected-chain-id" in restore
     assert "--expected-lane-id" in restore
     assert "--expected-coverage-units-hash" in restore
+    assert '--expected-run-id "$STATE_ARTIFACT_RUN_ID"' in restore
+    assert '--expected-artifact-name "$STATE_ARTIFACT_NAME"' in restore
     assert "--workload-duckdb-path" in restore
     assert "--workload-season-start" in restore
     assert "--workload-season-end" in restore
@@ -1967,6 +3269,8 @@ def test_durable_lane_restore_requires_exact_attested_database() -> None:
     assert "python -c" not in restore
     assert "STATE_ARTIFACT_REQUIRED:" in assess
     assert ".github/scripts/validate_lane_state.py" in assess
+    assert '--expected-run-id "$STATE_ARTIFACT_RUN_ID"' in assess
+    assert '--expected-artifact-name "$STATE_ARTIFACT_NAME"' in assess
     assert "Required durable lane state was not restored" in assess
     assert "Fresh lane contains unexpected unattested DuckDB state" in assess
     assert "artifacts/extraction/lane-state-untrusted" in assess

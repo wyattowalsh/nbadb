@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
 from unittest.mock import patch
 
+import duckdb
 import pytest
 
 from nbadb.orchestrate.scanner import (
@@ -11,12 +12,207 @@ from nbadb.orchestrate.scanner import (
     ScanFinding,
     ScanReport,
     ScanSeverity,
+    validate_full_publication_checkpoint_report,
 )
 
-if TYPE_CHECKING:
-    import duckdb
-
 _VALIDATOR = "nbadb.orchestrate.transformers.require_complete_transformer_universe"
+
+
+def test_full_publication_checkpoint_report_requires_accounted_lane_inventory(
+    tmp_path,
+) -> None:
+    report_path = tmp_path / "checkpoint-report.json"
+    lane_id = "reference-static"
+    report = {
+        "source_sha": "a" * 40,
+        "run_id": "12345",
+        "included_run_ids": ["12345"],
+        "included_lane_ids": [lane_id],
+        "included_lane_coverage_hashes": {lane_id: "b" * 64},
+        "coverage_fingerprint": "c" * 64,
+        "database_sha256": "d" * 64,
+        "manifest_lane_count": 1,
+        "complete_lane_count": 1,
+        "contract_blocked_lane_count": 0,
+        "active_lane_count": 0,
+        "skipped_lane_count": 0,
+        "missing_lane_ids": [],
+        "skipped_complete_lane_ids": [],
+        "current_lane_attestation_failures": {},
+        "workload_contract_errors": [],
+        "table_row_counts": {},
+        "journal_row_count": 0,
+        "terminal_ready": True,
+    }
+    report_path.write_text(json.dumps(report) + "\n", encoding="utf-8")
+    verified = {
+        field_name: report[field_name]
+        for field_name in (
+            "run_id",
+            "coverage_fingerprint",
+            "database_sha256",
+            "included_lane_ids",
+            "included_run_ids",
+            "included_lane_coverage_hashes",
+            "contract_blocked_lane_count",
+        )
+    }
+
+    with (
+        patch(
+            "nbadb.orchestrate.full_extraction_control.validate_checkpoint_artifact",
+            return_value=verified,
+        ) as canonical_verifier,
+        patch(
+            "nbadb.orchestrate.full_extraction_control._single_database_path",
+            return_value=tmp_path / "checkpoint" / "nba.duckdb",
+        ),
+        patch(
+            "nbadb.orchestrate.full_extraction_control._database_row_counts",
+            return_value=({}, 0),
+        ),
+    ):
+        assert (
+            validate_full_publication_checkpoint_report(
+                report_path,
+                manifest_path=tmp_path / "manifest.json",
+                checkpoint_dir=tmp_path / "checkpoint",
+                chain_id="chain-1",
+                source_sha="a" * 40,
+            )["terminal_ready"]
+            is True
+        )
+    canonical_verifier.assert_called_once_with(
+        manifest_path=tmp_path / "manifest.json",
+        checkpoint_dir=tmp_path / "checkpoint",
+        checkpoint_report_path=report_path,
+        chain_id="chain-1",
+        source_sha="a" * 40,
+        pointer_prefix="latest",
+    )
+
+    report["manifest_lane_count"] = 2
+    report_path.write_text(json.dumps(report) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="account for every manifest lane"):
+        validate_full_publication_checkpoint_report(
+            report_path,
+            manifest_path=tmp_path / "manifest.json",
+            checkpoint_dir=tmp_path / "checkpoint",
+            chain_id="chain-1",
+            source_sha="a" * 40,
+        )
+
+    report["manifest_lane_count"] = 1
+    report["table_row_counts"] = {"stg_fixture": 1}
+    report_path.write_text(json.dumps(report) + "\n", encoding="utf-8")
+    with (
+        patch(
+            "nbadb.orchestrate.full_extraction_control.validate_checkpoint_artifact",
+            return_value=verified,
+        ),
+        patch(
+            "nbadb.orchestrate.full_extraction_control._single_database_path",
+            return_value=tmp_path / "checkpoint" / "nba.duckdb",
+        ),
+        patch(
+            "nbadb.orchestrate.full_extraction_control._database_row_counts",
+            return_value=({"stg_fixture": 2}, 0),
+        ),
+        pytest.raises(ValueError, match="staging row inventory differs"),
+    ):
+        validate_full_publication_checkpoint_report(
+            report_path,
+            manifest_path=tmp_path / "manifest.json",
+            checkpoint_dir=tmp_path / "checkpoint",
+            chain_id="chain-1",
+            source_sha="a" * 40,
+        )
+
+
+def test_full_publication_checkpoint_report_rejects_canonical_mismatch(tmp_path) -> None:
+    report_path = tmp_path / "checkpoint-report.json"
+    report = {
+        "source_sha": "a" * 40,
+        "run_id": "12345",
+        "included_run_ids": ["12345"],
+        "included_lane_ids": ["reference-static"],
+        "included_lane_coverage_hashes": {"reference-static": "b" * 64},
+        "coverage_fingerprint": "c" * 64,
+        "database_sha256": "d" * 64,
+        "manifest_lane_count": 1,
+        "complete_lane_count": 1,
+        "contract_blocked_lane_count": 0,
+        "active_lane_count": 0,
+        "skipped_lane_count": 0,
+        "missing_lane_ids": [],
+        "skipped_complete_lane_ids": [],
+        "current_lane_attestation_failures": {},
+        "workload_contract_errors": [],
+        "table_row_counts": {},
+        "journal_row_count": 0,
+        "terminal_ready": True,
+    }
+    report_path.write_text(json.dumps(report) + "\n", encoding="utf-8")
+    verified = {
+        "run_id": "12345",
+        "included_run_ids": ["12345"],
+        "included_lane_ids": ["different-lane"],
+        "included_lane_coverage_hashes": {"different-lane": "e" * 64},
+        "coverage_fingerprint": "c" * 64,
+        "database_sha256": "d" * 64,
+        "contract_blocked_lane_count": 0,
+    }
+
+    with (
+        patch(
+            "nbadb.orchestrate.full_extraction_control.validate_checkpoint_artifact",
+            return_value=verified,
+        ),
+        pytest.raises(ValueError, match="differs from canonical verification"),
+    ):
+        validate_full_publication_checkpoint_report(
+            report_path,
+            manifest_path=tmp_path / "manifest.json",
+            checkpoint_dir=tmp_path / "checkpoint",
+            chain_id="chain-1",
+            source_sha="a" * 40,
+        )
+
+
+def test_full_publication_checkpoint_report_rejects_unexpected_source_sha(tmp_path) -> None:
+    report_path = tmp_path / "checkpoint-report.json"
+    report = {
+        "source_sha": "a" * 40,
+        "run_id": "12345",
+        "included_run_ids": ["12345"],
+        "included_lane_ids": ["reference-static"],
+        "included_lane_coverage_hashes": {"reference-static": "b" * 64},
+        "coverage_fingerprint": "c" * 64,
+        "database_sha256": "d" * 64,
+        "manifest_lane_count": 1,
+        "complete_lane_count": 1,
+        "contract_blocked_lane_count": 0,
+        "active_lane_count": 0,
+        "skipped_lane_count": 0,
+        "missing_lane_ids": [],
+        "skipped_complete_lane_ids": [],
+        "current_lane_attestation_failures": {},
+        "workload_contract_errors": [],
+        "table_row_counts": {},
+        "journal_row_count": 0,
+        "terminal_ready": True,
+    }
+    report_path.write_text(json.dumps(report) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="does not match the expected source commit"):
+        validate_full_publication_checkpoint_report(
+            report_path,
+            manifest_path=tmp_path / "manifest.json",
+            checkpoint_dir=tmp_path / "checkpoint",
+            chain_id="chain-1",
+            source_sha="f" * 40,
+        )
+
 
 # ── fixtures ──────────────────────────────────────────────────────
 
@@ -75,6 +271,27 @@ def _stub_transformer(output_table: str, depends_on: list[str] | None = None):
     s.output_table = output_table
     s.depends_on = depends_on or []
     return s
+
+
+class _FailingSchemaIntrospectionConnection:
+    def __init__(self, conn: duckdb.DuckDBPyConnection) -> None:
+        self._conn = conn
+
+    def execute(self, query, *args, **kwargs):
+        if "information_schema.columns" in query:
+            raise duckdb.CatalogException("synthetic schema introspection failure")
+        return self._conn.execute(query, *args, **kwargs)
+
+
+class _FailingAnchorCountConnection:
+    def __init__(self, conn: duckdb.DuckDBPyConnection, table: str) -> None:
+        self._conn = conn
+        self._query = f'SELECT COUNT(*) FROM "{table}"'
+
+    def execute(self, query, *args, **kwargs):
+        if query == self._query:
+            raise duckdb.CatalogException("synthetic publication anchor count failure")
+        return self._conn.execute(query, *args, **kwargs)
 
 
 # ── missing table checks ─────────────────────────────────────────
@@ -225,11 +442,248 @@ class TestMissingTableChecks:
         assert warning.details["hard_nonempty_policy"] == "not_established"
         assert "No repo-backed unconditional" in warning.details["policy_limitation"]
 
+    def test_full_publication_all_anchor_tables_empty_are_errors(self, conn):
+        conn.execute("DELETE FROM dim_game")
+        conn.execute("DELETE FROM dim_player")
+        conn.execute("DELETE FROM dim_team")
+        conn.execute("CREATE TABLE fact_optional (id INTEGER)")
+        transformers = [
+            _stub_transformer("dim_game"),
+            _stub_transformer("dim_player"),
+            _stub_transformer("dim_team"),
+            _stub_transformer("fact_optional"),
+        ]
+
+        with (
+            patch(
+                "nbadb.orchestrate.staging_map.get_all_staging_keys",
+                return_value=[],
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=transformers,
+            ),
+            patch(_VALIDATOR),
+        ):
+            report = DataScanner(conn).scan(
+                categories=[ScanCategory.MISSING_TABLE],
+                full_publication=True,
+            )
+
+        anchor_errors = [
+            finding
+            for finding in report.filter(severity=ScanSeverity.ERROR)
+            if finding.check == "empty_publication_anchor"
+        ]
+        assert len(anchor_errors) == 3
+        assert {finding.table for finding in anchor_errors} == {
+            "dim_game",
+            "dim_player",
+            "dim_team",
+        }
+        assert all(
+            finding.details["hard_nonempty_policy"] == "full_publication_anchor"
+            for finding in anchor_errors
+        )
+        optional = report.filter(table="fact_optional")
+        assert len(optional) == 1
+        assert optional[0].severity == ScanSeverity.WARNING
+        assert optional[0].check == "empty_transform_table"
+
+    def test_full_publication_anchor_check_ignores_category_selection(self, conn):
+        conn.execute("DROP TABLE dim_game")
+
+        report = DataScanner(conn).scan(
+            categories=[ScanCategory.DATA_QUALITY],
+            full_publication=True,
+        )
+
+        errors = report.filter(severity=ScanSeverity.ERROR, table="dim_game")
+        assert len(errors) == 1
+        assert errors[0].check == "missing_publication_anchor"
+
+    def test_full_publication_anchor_check_ignores_fact_table_filter(self, conn):
+        conn.execute("DELETE FROM dim_player")
+        transformers = [
+            _stub_transformer("dim_game"),
+            _stub_transformer("dim_player"),
+            _stub_transformer("dim_team"),
+            _stub_transformer("fact_optional"),
+        ]
+
+        with (
+            patch(
+                "nbadb.orchestrate.staging_map.get_all_staging_keys",
+                return_value=[],
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=transformers,
+            ),
+            patch(_VALIDATOR),
+        ):
+            report = DataScanner(conn).scan(
+                categories=[ScanCategory.MISSING_TABLE],
+                table_filter="fact_",
+                full_publication=True,
+            )
+
+        errors = report.filter(severity=ScanSeverity.ERROR, table="dim_player")
+        assert len(errors) == 1
+        assert errors[0].check == "empty_publication_anchor"
+
+    def test_full_publication_anchor_count_failure_is_a_hard_finding(self, conn):
+        failing_conn = _FailingAnchorCountConnection(conn, "dim_team")
+
+        report = DataScanner(failing_conn).scan(
+            categories=[ScanCategory.DATA_QUALITY],
+            table_filter="fact_",
+            full_publication=True,
+        )
+
+        errors = report.filter(severity=ScanSeverity.ERROR, table="dim_team")
+        assert len(errors) == 1
+        assert errors[0].check == "publication_anchor_nonempty_query_failed"
+        assert errors[0].details == {
+            "failed_check": "publication_anchor_nonempty",
+            "error_type": "CatalogException",
+        }
+
+    def test_full_publication_domain_requires_every_anchor(self, conn):
+        conn.execute("CREATE TABLE stg_play_by_play (id INTEGER)")
+        conn.execute("CREATE TABLE stg_play_by_play_v2 (id INTEGER)")
+        conn.execute("INSERT INTO stg_play_by_play VALUES (1)")
+        conn.execute("INSERT INTO stg_play_by_play_v2 VALUES (1)")
+        domain_anchors = {"representative": frozenset({"stg_play_by_play", "stg_play_by_play_v2"})}
+
+        with (
+            patch.object(DataScanner, "_FULL_PUBLICATION_ANCHORS", frozenset()),
+            patch.object(DataScanner, "_FULL_PUBLICATION_DOMAIN_ANCHORS", domain_anchors),
+            patch(
+                "nbadb.orchestrate.staging_map.get_all_staging_keys",
+                return_value=["stg_play_by_play", "stg_play_by_play_v2"],
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=[],
+            ),
+            patch(_VALIDATOR),
+        ):
+            populated = DataScanner(conn).scan(
+                categories=[ScanCategory.DATA_QUALITY],
+                full_publication=True,
+            )
+            assert not [
+                finding
+                for finding in populated.findings
+                if finding.check in {"missing_publication_domain", "empty_publication_domain"}
+            ]
+
+            conn.execute("DELETE FROM stg_play_by_play_v2")
+            empty = DataScanner(conn).scan(
+                categories=[ScanCategory.DATA_QUALITY],
+                full_publication=True,
+            )
+
+        errors = empty.filter(severity=ScanSeverity.ERROR)
+        assert len(errors) == 1
+        assert errors[0].table == "publication_domain:representative"
+        assert errors[0].check == "empty_publication_domain"
+        assert errors[0].details["row_counts"] == {
+            "stg_play_by_play": 1,
+            "stg_play_by_play_v2": 0,
+        }
+        assert errors[0].details["empty_tables"] == ["stg_play_by_play_v2"]
+
+    def test_full_publication_cardinality_mismatch_is_an_error(self, conn):
+        conn.execute("CREATE TABLE stg_cardinality (id INTEGER)")
+        conn.execute("CREATE TABLE fact_cardinality (id INTEGER)")
+        conn.execute("INSERT INTO stg_cardinality VALUES (1), (2)")
+        conn.execute("INSERT INTO fact_cardinality VALUES (1)")
+
+        with (
+            patch.object(DataScanner, "_FULL_PUBLICATION_ANCHORS", frozenset()),
+            patch.object(DataScanner, "_FULL_PUBLICATION_DOMAIN_ANCHORS", {}),
+            patch.object(
+                DataScanner,
+                "_FULL_PUBLICATION_CARDINALITY_PAIRS",
+                (("stg_cardinality", "fact_cardinality"),),
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=[],
+            ),
+            patch(_VALIDATOR),
+        ):
+            report = DataScanner(conn).scan(
+                categories=[ScanCategory.DATA_QUALITY],
+                full_publication=True,
+            )
+
+        errors = report.filter(severity=ScanSeverity.ERROR)
+        assert len(errors) == 1
+        assert errors[0].check == "publication_cardinality_mismatch"
+        assert errors[0].details["source_row_count"] == 2
+        assert errors[0].details["output_row_count"] == 1
+
 
 # ── cross-table checks ───────────────────────────────────────────
 
 
 class TestCrossTableChecks:
+    def test_game_coverage_tables_are_schema_backed_outputs(self):
+        from nbadb.orchestrate.transformers import expected_transform_output_tables
+
+        outputs = expected_transform_output_tables(include_live=True)
+        assert set(DataScanner._GAME_COVERAGE_TABLES) <= outputs
+        assert "fact_box_score_team" in DataScanner._GAME_COVERAGE_TABLES
+        assert "fact_box_score_traditional" not in DataScanner._GAME_COVERAGE_TABLES
+
+    def test_malformed_game_coverage_schema_is_an_error_finding(self, conn):
+        conn.execute("CREATE TABLE fact_box_score_team (team_id INTEGER)")
+
+        report = DataScanner(conn).scan(categories=[ScanCategory.CROSS_TABLE])
+
+        errors = [
+            finding
+            for finding in report.filter(severity=ScanSeverity.ERROR)
+            if finding.table == "fact_box_score_team"
+        ]
+        assert len(errors) == 1
+        assert errors[0].check == "game_coverage_query_failed"
+        assert errors[0].details["failed_check"] == "game_coverage"
+        assert errors[0].details["error_type"] == "BinderException"
+
+    @pytest.mark.parametrize(
+        "category",
+        [
+            ScanCategory.CROSS_TABLE,
+            ScanCategory.TEMPORAL,
+            ScanCategory.DATA_QUALITY,
+        ],
+    )
+    def test_schema_introspection_failure_is_a_hard_finding_for_each_category(
+        self,
+        conn,
+        category,
+    ):
+        table = "fact_introspection_target"
+        conn.execute(f"CREATE TABLE {table} (game_id VARCHAR, value INTEGER)")
+        failing_conn = _FailingSchemaIntrospectionConnection(conn)
+
+        scanner = DataScanner(failing_conn)
+        report = scanner.scan(categories=[category], table_filter=table)
+
+        errors = report.filter(severity=ScanSeverity.ERROR, table=table)
+        assert len(errors) == 1
+        assert errors[0].category == category
+        assert errors[0].check == "schema_introspection_query_failed"
+        assert errors[0].details == {
+            "failed_check": "schema_introspection",
+            "error_type": "CatalogException",
+        }
+        assert table not in scanner._columns_cache
+
     def test_game_coverage_gap(self, conn):
         # fact_game_result covers only 2 of 3 games
         conn.execute("""

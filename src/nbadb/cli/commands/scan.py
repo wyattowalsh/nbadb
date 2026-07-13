@@ -71,10 +71,89 @@ def scan(
             help="Enable GitHub Actions integration (step summary + annotations)",
         ),
     ] = False,
+    full_publication: Annotated[
+        bool,
+        typer.Option(
+            "--full-publication",
+            help="Require bound checkpoint coverage and nonempty publication anchors",
+        ),
+    ] = False,
+    checkpoint_report: Annotated[
+        Path | None,
+        typer.Option(
+            "--checkpoint-report",
+            help="Terminal checkpoint report required for full-publication coverage assurance",
+        ),
+    ] = None,
+    checkpoint_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--checkpoint-manifest",
+            help="Lane manifest that binds the terminal checkpoint report",
+        ),
+    ] = None,
+    checkpoint_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--checkpoint-dir",
+            help="Directory containing the terminal checkpoint nba.duckdb",
+        ),
+    ] = None,
+    checkpoint_chain_id: Annotated[
+        str | None,
+        typer.Option(
+            "--checkpoint-chain-id",
+            help="Extraction chain ID bound to the terminal checkpoint",
+        ),
+    ] = None,
+    checkpoint_source_sha: Annotated[
+        str | None,
+        typer.Option(
+            "--checkpoint-source-sha",
+            help="40-character source commit bound to the terminal checkpoint",
+        ),
+    ] = None,
 ) -> None:
     """Scan the database for missing data, gaps, and quality issues."""
     settings = _build_settings(data_dir)
     db_path = settings.duckdb_path
+
+    if full_publication:
+        checkpoint_inputs = {
+            "--checkpoint-report": checkpoint_report,
+            "--checkpoint-manifest": checkpoint_manifest,
+            "--checkpoint-dir": checkpoint_dir,
+            "--checkpoint-chain-id": checkpoint_chain_id,
+            "--checkpoint-source-sha": checkpoint_source_sha,
+        }
+        missing_checkpoint_inputs = [
+            option for option, value in checkpoint_inputs.items() if value is None or value == ""
+        ]
+        if missing_checkpoint_inputs:
+            typer.echo(
+                "--full-publication requires canonical checkpoint inputs: "
+                + ", ".join(missing_checkpoint_inputs),
+                err=True,
+            )
+            raise typer.Exit(1)
+        assert checkpoint_report is not None
+        assert checkpoint_manifest is not None
+        assert checkpoint_dir is not None
+        assert checkpoint_chain_id is not None
+        assert checkpoint_source_sha is not None
+        from nbadb.orchestrate.scanner import validate_full_publication_checkpoint_report
+
+        try:
+            validate_full_publication_checkpoint_report(
+                checkpoint_report,
+                manifest_path=checkpoint_manifest,
+                checkpoint_dir=checkpoint_dir,
+                chain_id=checkpoint_chain_id,
+                source_sha=checkpoint_source_sha,
+            )
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            typer.echo(f"Full-publication checkpoint assurance failed: {exc}", err=True)
+            raise typer.Exit(1) from exc
 
     if db_path is None or not db_path.exists():
         typer.echo("Database not found. Run 'nbadb init' first.", err=True)
@@ -113,7 +192,11 @@ def scan(
     conn = _open_db_readonly(db_path)
     try:
         scanner = DataScanner(conn)
-        report = scanner.scan(categories=categories, table_filter=table)
+        report = scanner.scan(
+            categories=categories,
+            table_filter=table,
+            full_publication=full_publication,
+        )
 
         # Apply severity filter for display
         findings = report.findings

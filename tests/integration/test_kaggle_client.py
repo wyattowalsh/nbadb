@@ -108,22 +108,116 @@ def _write_upload_metadata(
     )
 
 
-def _add_assured_provenance(data_dir: Path) -> dict[str, str]:
-    provenance = {
-        "chain_id": "full-20260711",
-        "source_sha": "a" * 40,
-        "coverage_fingerprint": "b" * 64,
+_ASSURED_PROVENANCE = {
+    "chain_id": "full-20260711",
+    "source_sha": "a" * 40,
+    "coverage_fingerprint": "b" * 64,
+}
+
+
+def _write_terminal_assurance_report(
+    data_dir: Path,
+    *,
+    overrides: dict[str, object] | None = None,
+) -> dict[str, object]:
+    blocked_evidence = {"schema_version": 1, "contract_blocked_lanes": []}
+    blocked_evidence_sha256 = hashlib.sha256(
+        json.dumps(blocked_evidence, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    checkpoint_report: dict[str, object] = {
+        **_ASSURED_PROVENANCE,
+        "run_id": "123456789",
+        "artifact_name": "full-extraction-checkpoint-full-20260711-iter-3",
+        "checkpoint_generation": 3,
+        "database_sha256": "c" * 64,
+        "terminal_ready": True,
+        "active_lane_count": 0,
+        "manifest_lane_count": 1,
+        "complete_lane_count": 1,
+        "included_lane_ids": ["fixture-lane"],
+        "included_run_ids": ["123456789"],
+        "included_lane_coverage_hashes": {"fixture-lane": "d" * 64},
+        "missing_lane_ids": [],
+        "skipped_lane_count": 0,
+        "skipped_complete_lane_ids": [],
+        "current_lane_attestation_failures": {},
+        "workload_contract_errors": [],
+        "contract_blocked_lane_count": 0,
+        "contract_blocked_evidence": blocked_evidence,
+        "contract_blocked_evidence_sha256": blocked_evidence_sha256,
     }
+    checkpoint_report_sha256 = hashlib.sha256(
+        json.dumps(checkpoint_report, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    report: dict[str, object] = {
+        "schema_version": 2,
+        **_ASSURED_PROVENANCE,
+        "checkpoint_artifact_name": "full-extraction-checkpoint-full-20260711-iter-3",
+        "checkpoint_generation": 3,
+        "checkpoint_database_sha256": "c" * 64,
+        "checkpoint_report_sha256": checkpoint_report_sha256,
+        "checkpoint_report": checkpoint_report,
+        "contract_blocked_lane_count": 0,
+        "contract_blocked_evidence": blocked_evidence,
+        "contract_blocked_evidence_sha256": blocked_evidence_sha256,
+    }
+    report.update(overrides or {})
+    (data_dir / "terminal-assurance-report.json").write_text(
+        json.dumps(report) + "\n",
+        encoding="utf-8",
+    )
+    return report
+
+
+def _rewrite_terminal_checkpoint_report(
+    data_dir: Path,
+    report: dict[str, object],
+    **updates: object,
+) -> dict[str, object]:
+    checkpoint_report = dict(report["checkpoint_report"])
+    checkpoint_report.update(updates)
+    report.update(
+        {
+            "checkpoint_report": checkpoint_report,
+            "checkpoint_report_sha256": hashlib.sha256(
+                json.dumps(
+                    checkpoint_report,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest(),
+        }
+    )
+    (data_dir / "terminal-assurance-report.json").write_text(
+        json.dumps(report) + "\n",
+        encoding="utf-8",
+    )
+    return report
+
+
+def _add_assured_provenance(data_dir: Path) -> dict[str, str]:
+    provenance = dict(_ASSURED_PROVENANCE)
     manifest_path = build_assured_artifact_manifest(data_dir, **provenance)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     metadata_path = data_dir / "dataset-metadata.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    metadata["resources"].append(
-        {
-            "path": manifest_path.name,
-            "name": "Assured Artifact Provenance",
-        }
-    )
+    terminal_report_path = data_dir / "terminal-assurance-report.json"
+    if terminal_report_path.is_file() and not any(
+        resource.get("path") == terminal_report_path.name for resource in metadata["resources"]
+    ):
+        metadata["resources"].append(
+            {
+                "path": terminal_report_path.name,
+                "name": "Terminal Extraction Assurance",
+            }
+        )
+    if not any(resource.get("path") == manifest_path.name for resource in metadata["resources"]):
+        metadata["resources"].append(
+            {
+                "path": manifest_path.name,
+                "name": "Assured Artifact Provenance",
+            }
+        )
     metadata_path.write_text(json.dumps(metadata) + "\n", encoding="utf-8")
     return {
         **provenance,
@@ -309,7 +403,636 @@ def _write_parquet_file(path: Path, rows: list[dict[str, object]]) -> None:
     pl.DataFrame(rows).write_parquet(path)
 
 
+def _write_full_format_test_bundle(
+    data_dir: Path,
+    *,
+    database_rows: int = 2,
+    csv_rows: int = 2,
+    parquet_rows: int = 2,
+    partitioned_parquet: bool = False,
+) -> dict[str, str]:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    table_rows = {"dim_player": database_rows}
+    _write_sqlite_database(data_dir / "nba.sqlite", table_rows=table_rows)
+    _write_duckdb_database(data_dir / "nba.duckdb", table_rows=table_rows)
+    csv_path = data_dir / "csv" / "dim_player.csv"
+    csv_path.parent.mkdir()
+    csv_path.write_text(
+        "id,name\n" + "".join(f"{index},Player {index}\n" for index in range(1, csv_rows + 1)),
+        encoding="utf-8",
+    )
+    parquet_rows_payload = [
+        {"id": index, "name": f"Player {index}"} for index in range(1, parquet_rows + 1)
+    ]
+    if partitioned_parquet:
+        parquet_resource_path = "parquet/dim_player"
+        split = max(1, parquet_rows // 2)
+        _write_parquet_file(
+            data_dir / parquet_resource_path / "part-0.parquet",
+            parquet_rows_payload[:split],
+        )
+        if parquet_rows_payload[split:]:
+            _write_parquet_file(
+                data_dir / parquet_resource_path / "part-1.parquet",
+                parquet_rows_payload[split:],
+            )
+    else:
+        parquet_resource_path = "parquet/dim_player/dim_player.parquet"
+        _write_parquet_file(data_dir / parquet_resource_path, parquet_rows_payload)
+    _write_upload_metadata(
+        data_dir,
+        resources=[
+            {"path": "nba.duckdb"},
+            {"path": "nba.sqlite"},
+            {"path": "csv/dim_player.csv"},
+            {"path": parquet_resource_path},
+        ],
+    )
+    _write_terminal_assurance_report(data_dir)
+    _add_assured_provenance(data_dir)
+    metadata = json.loads((data_dir / "dataset-metadata.json").read_text(encoding="utf-8"))
+    return {
+        str(resource["path"]): (
+            "directory" if (data_dir / str(resource["path"])).is_dir() else "file"
+        )
+        for resource in metadata["resources"]
+    }
+
+
 class TestKaggleClientUpload:
+    @pytest.mark.parametrize(
+        ("overrides", "error_match"),
+        [
+            ({"checkpoint_generation": 0}, "checkpoint_generation is invalid"),
+            (
+                {"checkpoint_artifact_name": "full-extraction-checkpoint-wrong-iter-3"},
+                "checkpoint report artifact_name does not match",
+            ),
+        ],
+        ids=["zero-generation", "noncanonical-name"],
+    )
+    def test_terminal_assurance_rejects_noncanonical_checkpoint_identity(
+        self,
+        tmp_path: Path,
+        overrides: dict[str, object],
+        error_match: str,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        _write_terminal_assurance_report(data_dir, overrides=overrides)
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with pytest.raises(ValueError, match=error_match):
+            KaggleClient._validate_terminal_assurance_report(
+                data_dir / "terminal-assurance-report.json",
+                assured_manifest={**_ASSURED_PROVENANCE},
+            )
+
+    def test_terminal_assurance_rejects_self_consistent_noncanonical_checkpoint_name(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        report = _write_terminal_assurance_report(data_dir)
+        checkpoint_report = dict(report["checkpoint_report"])
+        checkpoint_report["artifact_name"] = "full-extraction-checkpoint-wrong-iter-3"
+        report["checkpoint_artifact_name"] = checkpoint_report["artifact_name"]
+        report["checkpoint_report"] = checkpoint_report
+        report["checkpoint_report_sha256"] = hashlib.sha256(
+            json.dumps(
+                checkpoint_report,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        report_path = data_dir / "terminal-assurance-report.json"
+        report_path.write_text(json.dumps(report) + "\n", encoding="utf-8")
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with pytest.raises(ValueError, match="checkpoint_artifact_name is not canonical"):
+            KaggleClient._validate_terminal_assurance_report(
+                report_path,
+                assured_manifest={**_ASSURED_PROVENANCE},
+            )
+
+    @patch("nbadb.kaggle.client.get_settings")
+    @pytest.mark.parametrize(
+        "upload_kwargs",
+        [{"require_assured": True}, {"full_publication": True}],
+        ids=["explicit", "full-publication"],
+    )
+    def test_upload_require_assured_rejects_one_table_partial_bundle(
+        self,
+        mock_settings: MagicMock,
+        tmp_path: Path,
+        upload_kwargs: dict[str, bool],
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match="requires a declared assured-artifact-manifest.json"),
+        ):
+            KaggleClient().upload(data_dir=data_dir, **upload_kwargs)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_full_publication_rejects_assured_bundle_without_terminal_report(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match="requires a declared terminal-assurance-report.json"),
+        ):
+            KaggleClient().upload(data_dir=data_dir, full_publication=True)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_nonmatching_marker_must_match_current_metadata_version(
+        self,
+        mock_settings: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        stale_dir = tmp_path / "stale"
+        _write_upload_bundle(data_dir)
+        _write_stale_publication_marker(stale_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                return_value=(str(stale_dir), 7),
+            ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=8),
+            pytest.raises(RuntimeError, match="not from the current dataset version"),
+        ):
+            client.upload(data_dir=data_dir, verify_remote=True)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_marker_change_before_upload_fails_closed(
+        self,
+        mock_settings: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        baseline_dir = tmp_path / "baseline"
+        changed_dir = tmp_path / "changed"
+        _write_upload_bundle(data_dir)
+        _write_stale_publication_marker(baseline_dir)
+        changed_marker = _valid_stale_publication_marker()
+        changed_marker["publish_key"] = "9" * 20
+        changed_dir.mkdir()
+        (changed_dir / "nbadb-publication.json").write_text(
+            json.dumps(changed_marker) + "\n",
+            encoding="utf-8",
+        )
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                side_effect=[(str(baseline_dir), 7), (str(changed_dir), 8)],
+            ),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[7, 8],
+            ),
+            pytest.raises(
+                KagglePublicationPendingError,
+                match="changed after baseline verification",
+            ),
+        ):
+            client.upload(data_dir=data_dir, verify_remote=True)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_full_publication_rejects_partial_assured_inventory(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        _write_terminal_assurance_report(data_dir)
+        _add_assured_provenance(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match="resource inventory is incomplete"),
+        ):
+            KaggleClient().upload(data_dir=data_dir, full_publication=True)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_generic_upload_excludes_stale_inherited_assurance_resources(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        _write_terminal_assurance_report(data_dir)
+        _add_assured_provenance(data_dir)
+        connection = sqlite3.connect(data_dir / "nba.sqlite")
+        try:
+            connection.execute("INSERT INTO dim_player VALUES (2, 'Changed')")
+            connection.commit()
+        finally:
+            connection.close()
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        client.ensure_metadata(data_dir)
+        metadata = json.loads((data_dir / "dataset-metadata.json").read_text(encoding="utf-8"))
+        paths = {resource["path"] for resource in metadata["resources"]}
+        assert "assured-artifact-manifest.json" not in paths
+        assert "terminal-assurance-report.json" not in paths
+
+        with patch("kagglehub.dataset_upload") as upload:
+            manifest_path = client.upload(data_dir=data_dir)
+
+        upload.assert_called_once()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "uploaded_unverified"
+
+    def test_terminal_assurance_rejects_noncanonical_blocked_rows(self, tmp_path: Path) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        report = _write_terminal_assurance_report(data_dir)
+        checkpoint_report = dict(report["checkpoint_report"])
+        malformed_evidence = {"schema_version": 1, "contract_blocked_lanes": [42]}
+        malformed_digest = hashlib.sha256(
+            json.dumps(malformed_evidence, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        checkpoint_report.update(
+            {
+                "contract_blocked_lane_count": 1,
+                "contract_blocked_evidence": malformed_evidence,
+                "contract_blocked_evidence_sha256": malformed_digest,
+            }
+        )
+        report.update(
+            {
+                "checkpoint_report": checkpoint_report,
+                "checkpoint_report_sha256": hashlib.sha256(
+                    json.dumps(
+                        checkpoint_report,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
+                "contract_blocked_lane_count": 1,
+                "contract_blocked_evidence": malformed_evidence,
+                "contract_blocked_evidence_sha256": malformed_digest,
+            }
+        )
+        report_path = data_dir / "terminal-assurance-report.json"
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with pytest.raises(ValueError, match="evidence rows must be objects"):
+            KaggleClient._validate_terminal_assurance_report(
+                report_path,
+                assured_manifest={**_ASSURED_PROVENANCE},
+            )
+
+    @pytest.mark.parametrize(
+        ("updates", "error_match"),
+        [
+            ({"run_id": "0"}, "run_id is invalid"),
+            ({"included_lane_ids": []}, "included_lane_ids must be non-empty"),
+            ({"included_run_ids": ["987654321"]}, "contain run_id"),
+            ({"included_lane_coverage_hashes": {}}, "exactly match included_lane_ids"),
+            ({"manifest_lane_count": 2}, "manifest_lane_count does not equal"),
+            ({"complete_lane_count": 0}, "complete_lane_count is invalid"),
+            ({"missing_lane_ids": ["fixture-lane"]}, "missing_lane_ids must be empty"),
+            (
+                {"skipped_complete_lane_ids": ["fixture-lane"]},
+                "skipped_complete_lane_ids must be empty",
+            ),
+            (
+                {"current_lane_attestation_failures": {"fixture-lane": ["bad"]}},
+                "current_lane_attestation_failures must be empty",
+            ),
+            ({"workload_contract_errors": ["bad"]}, "workload_contract_errors must be empty"),
+        ],
+        ids=[
+            "run-id",
+            "lanes",
+            "run-inventory",
+            "coverage-hashes",
+            "manifest-count",
+            "complete-count",
+            "missing",
+            "skipped",
+            "attestation",
+            "workload",
+        ],
+    )
+    def test_terminal_assurance_rejects_forged_checkpoint_semantics(
+        self,
+        tmp_path: Path,
+        updates: dict[str, object],
+        error_match: str,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        report = _write_terminal_assurance_report(data_dir)
+        _rewrite_terminal_checkpoint_report(data_dir, report, **updates)
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with pytest.raises(ValueError, match=error_match):
+            KaggleClient._validate_terminal_assurance_report(
+                data_dir / "terminal-assurance-report.json",
+                assured_manifest={**_ASSURED_PROVENANCE},
+            )
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_full_publication_rejects_wrong_resource_kind(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        database_directory = data_dir / "nba.duckdb"
+        _write_parquet_file(database_directory / "part.parquet", [{"id": 1}])
+        _write_upload_metadata(data_dir, resources=[{"path": "nba.duckdb"}])
+        _write_terminal_assurance_report(data_dir)
+        _add_assured_provenance(data_dir)
+        metadata = json.loads((data_dir / "dataset-metadata.json").read_text(encoding="utf-8"))
+        expected_contract = {str(resource["path"]): "file" for resource in metadata["resources"]}
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch(
+                "nbadb.kaggle.metadata.expected_full_publication_resource_contract",
+                return_value=expected_contract,
+            ),
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match="resource kinds do not match"),
+        ):
+            KaggleClient().upload(data_dir=data_dir, full_publication=True)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    @pytest.mark.parametrize(
+        ("csv_rows", "parquet_rows", "format_name"),
+        [(1, 2, "CSV"), (2, 1, "Parquet")],
+        ids=["truncated-csv", "truncated-parquet"],
+    )
+    def test_full_publication_rejects_truncated_table_exports(
+        self,
+        mock_settings: MagicMock,
+        tmp_path: Path,
+        csv_rows: int,
+        parquet_rows: int,
+        format_name: str,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        expected_contract = _write_full_format_test_bundle(
+            data_dir,
+            csv_rows=csv_rows,
+            parquet_rows=parquet_rows,
+        )
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch(
+                "nbadb.kaggle.metadata.expected_full_publication_resource_contract",
+                return_value=expected_contract,
+            ),
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match=rf"row-count parity failed.*{format_name.lower()}"),
+        ):
+            KaggleClient().upload(data_dir=data_dir, full_publication=True)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_full_publication_rejects_database_vs_export_schema_mismatch(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        expected_contract = _write_full_format_test_bundle(data_dir)
+        sqlite_connection = sqlite3.connect(data_dir / "nba.sqlite")
+        try:
+            sqlite_connection.execute("ALTER TABLE dim_player RENAME COLUMN name TO display_name")
+            sqlite_connection.commit()
+        finally:
+            sqlite_connection.close()
+        import duckdb
+
+        duckdb_connection = duckdb.connect(str(data_dir / "nba.duckdb"))
+        try:
+            duckdb_connection.execute("ALTER TABLE dim_player RENAME COLUMN name TO display_name")
+        finally:
+            duckdb_connection.close()
+        build_assured_artifact_manifest(data_dir, **_ASSURED_PROVENANCE)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch(
+                "nbadb.kaggle.metadata.expected_full_publication_resource_contract",
+                return_value=expected_contract,
+            ),
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match="schema parity failed"),
+        ):
+            KaggleClient().upload(data_dir=data_dir, full_publication=True)
+
+        upload.assert_not_called()
+
+    def test_full_publication_schema_parity_reconstructs_partition_columns(self) -> None:
+        database_resources = [
+            {
+                "path": f"nba.{engine}",
+                "kind": "file",
+                "database_validation": {
+                    "engine": engine,
+                    "tables": {"fact_partitioned": 2},
+                    "columns": {
+                        "fact_partitioned": ["id", "season_year", "name"],
+                    },
+                },
+            }
+            for engine in ("duckdb", "sqlite")
+        ]
+        resources = [
+            *database_resources,
+            {
+                "path": "csv/fact_partitioned.csv",
+                "kind": "file",
+                "csv_validation": {
+                    "row_count": 2,
+                    "columns": ["id", "season_year", "name"],
+                },
+            },
+            {
+                "path": "parquet/fact_partitioned",
+                "kind": "directory",
+                "files": [
+                    {
+                        "path": "season_year=2023-24/part-0.parquet",
+                        "parquet_validation": {
+                            "row_count": 1,
+                            "columns": ["id", "name"],
+                        },
+                    },
+                    {
+                        "path": "season_year=2024-25/part-0.parquet",
+                        "parquet_validation": {
+                            "row_count": 1,
+                            "columns": ["id", "name"],
+                        },
+                    },
+                ],
+            },
+        ]
+
+        from nbadb.kaggle.client import KaggleClient
+
+        KaggleClient._validate_full_publication_format_parity(resources)
+
+        for file_inventory in resources[-1]["files"]:
+            file_inventory["parquet_validation"]["columns"] = ["name", "id"]
+        with pytest.raises(ValueError, match="schema parity failed"):
+            KaggleClient._validate_full_publication_format_parity(resources)
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_full_publication_aggregates_partitioned_parquet_rows(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        expected_contract = _write_full_format_test_bundle(
+            data_dir,
+            partitioned_parquet=True,
+        )
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+
+        from nbadb.kaggle.client import KaggleClient
+
+        with patch(
+            "nbadb.kaggle.metadata.expected_full_publication_resource_contract",
+            return_value=expected_contract,
+        ):
+            preflight = KaggleClient()._snapshot_upload_bundle(
+                data_dir,
+                require_terminal_assurance=True,
+            )
+
+        parquet_resource = next(
+            resource
+            for resource in preflight["resources"]
+            if resource["path"] == "parquet/dim_player"
+        )
+        assert (
+            sum(
+                file_inventory["parquet_validation"]["row_count"]
+                for file_inventory in parquet_resource["files"]
+            )
+            == 2
+        )
+
+    @patch("nbadb.kaggle.client.get_settings")
+    @pytest.mark.parametrize(
+        ("overrides", "error_match"),
+        [
+            ({"schema_version": 1}, "unsupported schema"),
+            ({"chain_id": "different-chain"}, "checkpoint report chain_id does not match"),
+            (
+                {"contract_blocked_evidence_sha256": "e" * 64},
+                "evidence digest does not match",
+            ),
+        ],
+        ids=["schema", "provenance", "blocked-evidence-digest"],
+    )
+    def test_full_publication_rejects_invalid_terminal_assurance(
+        self,
+        mock_settings: MagicMock,
+        tmp_path: Path,
+        overrides: dict[str, object],
+        error_match: str,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        _write_terminal_assurance_report(data_dir, overrides=overrides)
+        _add_assured_provenance(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match=error_match),
+        ):
+            KaggleClient().upload(data_dir=data_dir, full_publication=True)
+
+        upload.assert_not_called()
+
     @patch("nbadb.kaggle.client.get_settings")
     def test_assured_bundle_binds_provenance_to_publication_marker(
         self, mock_settings: MagicMock, tmp_path: Path
@@ -407,7 +1130,7 @@ class TestKaggleClientUpload:
             assert mock_up.call_args.kwargs["handle"] == "wyattowalsh/basketball"
             assert mock_up.call_args.kwargs["version_notes"] == "test upload"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        assert manifest["status"] == "uploaded"
+        assert manifest["status"] == "uploaded_unverified"
         assert manifest["publication"]["result"] == "uploaded_unverified"
         assert manifest["preflight"]["resource_count"] == 1
         assert manifest["preflight"]["resources"][0]["database_validation"] == {
@@ -417,6 +1140,7 @@ class TestKaggleClientUpload:
             "table_count": 1,
             "row_count": 1,
             "tables": {"dim_player": 1},
+            "columns": {"dim_player": ["id", "name"]},
             "excluded_internal_table_count": 0,
             "excluded_internal_tables": [],
         }
@@ -431,6 +1155,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         stale_dir = tmp_path / "stale"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         _write_stale_publication_marker(stale_dir)
         mock_settings.return_value = NbaDbSettings(
             data_dir=data_dir,
@@ -446,15 +1171,15 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 return_value=(str(stale_dir), 40),
             ) as resolver,
-            patch.object(client, "_resolve_remote_dataset_version") as version,
+            patch.object(client, "_resolve_remote_dataset_version", return_value=40) as version,
             patch.object(client, "_sleep") as sleep,
             pytest.raises(OSError, match="archive disk full"),
         ):
             client.upload(data_dir=data_dir, verify_remote=True)
 
         upload.assert_called_once()
-        resolver.assert_called_once()
-        version.assert_not_called()
+        assert resolver.call_count == 2
+        assert version.call_count == 2
         sleep.assert_not_called()
         manifest = json.loads(
             (tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json").read_text(
@@ -1140,11 +1865,27 @@ class TestKaggleClientUpload:
         mock_up.assert_not_called()
 
     @patch("nbadb.kaggle.client.get_settings")
+    @pytest.mark.parametrize("full_publication", [False, True], ids=["generic", "full"])
     def test_upload_verify_remote_records_readback(
-        self, mock_settings: MagicMock, tmp_path: Path
+        self,
+        mock_settings: MagicMock,
+        tmp_path: Path,
+        full_publication: bool,
     ) -> None:
         data_dir = tmp_path / "data"
-        _write_upload_bundle(data_dir)
+        provenance = None
+        expected_full_contract: dict[str, str] = {}
+        if full_publication:
+            expected_full_contract = _write_full_format_test_bundle(data_dir)
+            assured_manifest = json.loads(
+                (data_dir / "assured-artifact-manifest.json").read_text(encoding="utf-8")
+            )
+            provenance = {
+                **_ASSURED_PROVENANCE,
+                "data_tree_fingerprint": assured_manifest["data_tree_fingerprint"],
+            }
+        else:
+            _write_upload_bundle(data_dir)
         uploaded_dir = tmp_path / "uploaded"
         stale_dir = tmp_path / "stale"
         _write_stale_publication_marker(stale_dir)
@@ -1173,6 +1914,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[
                     (str(stale_dir), 11),
+                    (str(stale_dir), 11),
                     (str(uploaded_dir), 12),
                 ],
             ) as mock_resolver,
@@ -1182,16 +1924,30 @@ class TestKaggleClientUpload:
                 side_effect=download_uploaded_file,
             ) as download_file,
             patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
-            patch.object(client, "_resolve_remote_dataset_version", return_value=12),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[11, 11, 12, 12],
+            ),
+            patch(
+                "nbadb.kaggle.metadata.expected_full_publication_resource_contract",
+                return_value=expected_full_contract,
+            ),
         ):
-            manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
+            manifest_path = client.upload(
+                data_dir=data_dir,
+                verify_remote=not full_publication,
+                full_publication=full_publication,
+            )
 
-        assert mock_resolver.call_count == 2
+        assert mock_resolver.call_count == 3
         assert [str(call.args[0]) for call in mock_resolver.call_args_list] == [
+            "wyattowalsh/basketball",
             "wyattowalsh/basketball",
             "wyattowalsh/basketball",
         ]
         assert [call.args[1] for call in mock_resolver.call_args_list] == [
+            "nbadb-publication.json",
             "nbadb-publication.json",
             "nbadb-publication.json",
         ]
@@ -1202,10 +1958,40 @@ class TestKaggleClientUpload:
         inventory_requests = (
             inventory_api.datasets.dataset_api_client.list_dataset_files.call_args_list
         )
-        assert [call.args[0].dataset_version_number for call in inventory_requests] == [12, 12]
-        assert [call.args[0].page_token for call in inventory_requests] == ["", "offset:2"]
+        expected_offsets = list(range(0, len(_remote_file_inventory(uploaded_dir)), 2))
+        assert [call.args[0].dataset_version_number for call in inventory_requests] == [12] * len(
+            expected_offsets
+        )
+        assert [call.args[0].page_token for call in inventory_requests] == [
+            "" if offset == 0 else f"offset:{offset}" for offset in expected_offsets
+        ]
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_remote_verified"
+        assert manifest["preflight"]["provenance"] == provenance
+        if full_publication:
+            assert manifest["preflight"]["terminal_assurance"] == {
+                "schema_version": 2,
+                **_ASSURED_PROVENANCE,
+                "checkpoint_artifact_name": "full-extraction-checkpoint-full-20260711-iter-3",
+                "checkpoint_generation": 3,
+                "checkpoint_database_sha256": "c" * 64,
+                "checkpoint_report_sha256": json.loads(
+                    (data_dir / "terminal-assurance-report.json").read_text(encoding="utf-8")
+                )["checkpoint_report_sha256"],
+                "checkpoint_run_id": "123456789",
+                "included_lane_count": 1,
+                "included_run_count": 1,
+                "contract_blocked_lane_count": 0,
+                "contract_blocked_evidence_sha256": hashlib.sha256(
+                    json.dumps(
+                        {"schema_version": 1, "contract_blocked_lanes": []},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+            }
+        else:
+            assert manifest["preflight"]["terminal_assurance"] is None
         assert (
             manifest["remote_readback"]["bundle_fingerprint"]
             == manifest["preflight"]["fingerprint"]
@@ -1237,6 +2023,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         uploaded_dir = tmp_path / "uploaded"
         stale_dir = tmp_path / "stale"
         _write_stale_publication_marker(stale_dir)
@@ -1268,6 +2055,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[
                     (str(stale_dir), 20),
+                    (str(stale_dir), 20),
                     (str(uploaded_dir), 21),
                 ],
             ) as mock_resolver,
@@ -1277,11 +2065,15 @@ class TestKaggleClientUpload:
                 side_effect=download_uploaded_file,
             ),
             patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
-            patch.object(client, "_resolve_remote_dataset_version", return_value=21),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[20, 20, 21, 21],
+            ),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
-        assert mock_resolver.call_count == 2
+        assert mock_resolver.call_count == 3
         for call in mock_resolver.call_args_list:
             assert str(call.args[0]) == "wyattowalsh/basketball"
             assert call.args[1] == "nbadb-publication.json"
@@ -1311,6 +2103,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         remote_dir = tmp_path / "remote"
         remote_dir.mkdir()
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
@@ -1383,6 +2176,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         remote_dir = tmp_path / "remote"
         remote_dir.mkdir()
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
@@ -1448,6 +2242,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         remote_dir = tmp_path / "remote"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         remote_dir.mkdir()
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
@@ -1534,6 +2329,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         uploaded_dir = tmp_path / "uploaded"
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
@@ -1600,6 +2396,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
@@ -1633,6 +2430,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from kagglehub.exceptions import KaggleApiHTTPError
 
@@ -1665,6 +2463,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         remote_dir = tmp_path / "remote"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         remote_dir.mkdir()
         malformed_marker = {
             **_valid_stale_publication_marker(),
@@ -1703,6 +2502,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
 
@@ -1760,6 +2560,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         stale_dir = tmp_path / "stale"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         _write_stale_publication_marker(stale_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
@@ -1769,14 +2570,17 @@ class TestKaggleClientUpload:
             patch("kagglehub.dataset_upload") as first_upload,
             patch(
                 "kagglehub.registry.dataset_resolver",
-                side_effect=[(str(stale_dir), 60), (str(stale_dir), 60)],
+                return_value=(str(stale_dir), 60),
             ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=60),
+            patch.object(client, "_sleep"),
             pytest.raises(KagglePublicationPendingError),
         ):
             client.upload(
                 data_dir=data_dir,
                 verify_remote=True,
-                remote_timeout_seconds=0,
+                remote_timeout_seconds=0.01,
+                remote_poll_interval_seconds=0.001,
             )
 
         first_upload.assert_called_once()
@@ -1808,6 +2612,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
 
@@ -1887,6 +2692,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
 
@@ -1930,6 +2736,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         stale_dir = tmp_path / "stale"
         _write_stale_publication_marker(stale_dir)
         uploaded_dir = tmp_path / "cache" / "versions" / "999"
@@ -1948,6 +2755,7 @@ class TestKaggleClientUpload:
                 side_effect=[
                     (str(stale_dir), 5),
                     (str(stale_dir), 5),
+                    (str(stale_dir), 5),
                     (str(uploaded_dir), 7),
                 ],
             ) as mock_resolver,
@@ -1958,7 +2766,11 @@ class TestKaggleClientUpload:
             ),
             patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_sleep") as mock_sleep,
-            patch.object(client, "_resolve_remote_dataset_version", return_value=7),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[5, 5, 7, 7],
+            ),
         ):
             manifest_path = client.upload(
                 data_dir=data_dir,
@@ -1968,7 +2780,7 @@ class TestKaggleClientUpload:
             )
 
         mock_upload.assert_called_once()
-        assert mock_resolver.call_count == 3
+        assert mock_resolver.call_count == 4
         mock_sleep.assert_called_once_with(1)
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["publication"]["verification_attempts"] == 2
@@ -1985,6 +2797,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         stale_dir = tmp_path / "stale"
         _write_stale_publication_marker(stale_dir)
         uploaded_dir = tmp_path / "uploaded"
@@ -2003,6 +2816,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[
                     (str(stale_dir), 40),
+                    (str(stale_dir), 40),
                     (str(uploaded_dir), 41),
                 ],
             ),
@@ -2012,7 +2826,11 @@ class TestKaggleClientUpload:
                 side_effect=_versioned_remote_file_downloader({41: uploaded_dir}),
             ),
             patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
-            patch.object(client, "_resolve_remote_dataset_version", return_value=41),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[40, 40, 41, 41],
+            ),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -2040,6 +2858,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         stale_dir = tmp_path / "stale"
         _write_stale_publication_marker(stale_dir)
         uploaded_dir = tmp_path / "uploaded"
@@ -2058,6 +2877,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[
                     (str(stale_dir), 42),
+                    (str(stale_dir), 42),
                     (str(uploaded_dir), 43),
                 ],
             ),
@@ -2067,7 +2887,11 @@ class TestKaggleClientUpload:
                 side_effect=_versioned_remote_file_downloader({43: uploaded_dir}),
             ),
             patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
-            patch.object(client, "_resolve_remote_dataset_version", return_value=43),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[42, 42, 43, 43],
+            ),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -2166,6 +2990,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         remote_current = tmp_path / "remote-current"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         mock_settings.return_value = NbaDbSettings(
             data_dir=data_dir,
             log_dir=tmp_path / "logs",
@@ -2193,6 +3018,7 @@ class TestKaggleClientUpload:
         finally:
             conn.close()
 
+        _add_assured_provenance(data_dir)
         current_snapshot = client._snapshot_upload_bundle(data_dir)
         current_publish_key = hashlib.sha256(
             f"wyattowalsh/basketball:{current_snapshot['fingerprint']}".encode()
@@ -2263,6 +3089,8 @@ class TestKaggleClientUpload:
             conn.commit()
         finally:
             conn.close()
+
+        _add_assured_provenance(data_dir)
 
         def capture_second(**kwargs: object) -> None:
             shutil.copytree(Path(str(kwargs["local_dataset_dir"])), second_remote)
@@ -2356,6 +3184,8 @@ class TestKaggleClientUpload:
         finally:
             conn.close()
 
+        _add_assured_provenance(data_dir)
+
         with (
             patch("kagglehub.dataset_upload") as upload,
             patch(
@@ -2390,6 +3220,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
         stale_dir = tmp_path / "stale"
         _write_stale_publication_marker(stale_dir)
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
@@ -2402,12 +3233,15 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 return_value=(str(stale_dir), 50),
             ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=50),
+            patch.object(client, "_sleep"),
             pytest.raises(KagglePublicationPendingError),
         ):
             client.upload(
                 data_dir=data_dir,
                 verify_remote=True,
-                remote_timeout_seconds=0,
+                remote_timeout_seconds=0.01,
+                remote_poll_interval_seconds=0.001,
             )
 
         mock_upload.assert_called_once()
@@ -2415,7 +3249,7 @@ class TestKaggleClientUpload:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "publication_reconciliation_required"
         assert manifest["publication"]["upload_attempts"] == 1
-        assert manifest["publication"]["verification_attempts"] == 1
+        assert manifest["publication"]["verification_attempts"] >= 1
 
 
 class TestKaggleClientEnsureMetadata:
