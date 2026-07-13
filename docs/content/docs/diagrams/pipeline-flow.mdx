@@ -183,9 +183,10 @@ flowchart TD
 ```
 
 The discovery seed uses one VPN tunnel when VPN mode is effective. Tunnel selection
-requires a full route, a changed exit IP, a strict `TeamYears` result-set response,
-and bounded `common_all_players` plus `league_game_log` canaries through the installed
-`nbadb`/`nba_api` stack. The player canary requires positive player/team membership.
+requires a full route, a changed exit IP, bounded GitHub control-plane reachability,
+a strict `TeamYears` result-set response, and bounded `common_all_players` plus
+`league_game_log` canaries through the installed `nbadb`/`nba_api` stack. The player
+canary requires positive player/team membership.
 A generic-internet-only or endpoint-blocked tunnel is
 rejected, recorded, excluded from fallback technologies, disconnected, and replaced.
 Preflight failures join the effective chain quarantine before fan-out and are persisted

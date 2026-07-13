@@ -78,6 +78,18 @@ inputs:
     description: URL that returns the public exit IP as JSON.
     required: false
     default: "https://api.ipify.org?format=json"
+  control-plane-probe-enabled:
+    description: Whether to require GitHub reachability through the tunnel before accepting a server.
+    required: false
+    default: "true"
+  control-plane-probe-url:
+    description: Small public GitHub resource used to prove the Actions control plane remains reachable.
+    required: false
+    default: "https://github.com/robots.txt"
+  control-plane-probe-timeout-seconds:
+    description: Maximum time for each bounded GitHub reachability request.
+    required: false
+    default: "5"
   nba-probe-enabled:
     description: Whether to require a successful NBA Stats API probe after exit-IP verification.
     required: false
@@ -184,6 +196,9 @@ runs:
         TECHNOLOGY: ${{ inputs.technology }}
         FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}
         VERIFY_URL: ${{ inputs.verify-url }}
+        CONTROL_PLANE_PROBE_ENABLED: ${{ inputs.control-plane-probe-enabled }}
+        CONTROL_PLANE_PROBE_URL: ${{ inputs.control-plane-probe-url }}
+        CONTROL_PLANE_PROBE_TIMEOUT_SECONDS: ${{ inputs.control-plane-probe-timeout-seconds }}
         NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}
         NBA_PROBE_URL: ${{ inputs.nba-probe-url }}
         NBA_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-probe-timeout-seconds }}

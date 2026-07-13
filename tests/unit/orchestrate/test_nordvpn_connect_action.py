@@ -1053,12 +1053,41 @@ def test_verify_connection_keeps_full_tunnel_gate_before_network_probes(
 
     monkeypatch.setattr(action, "route_uses_interface", _route_rejected)
     monkeypatch.setattr(action, "retry_http_get", _unexpected_probe)
+    monkeypatch.setattr(action, "probe_github_control_plane", _unexpected_probe)
     monkeypatch.setattr(action, "probe_nba_stats", _unexpected_probe)
     monkeypatch.setattr(action, "probe_nba_discovery_stack", _unexpected_probe)
 
     assert action.verify_connection("tun0") is False
     assert action.verification_failure == "route"
     assert route_checks == ["default", "0.0.0.0/1"]
+
+
+def test_verify_connection_rejects_tunnel_without_github_control_plane(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True)
+    action.baseline_ip = "1.1.1.1"
+
+    def _fake_retry_http_get(label: str, output_path: Path, url: str, *args, **kwargs) -> bool:
+        assert label == "VPN verification probe"
+        output_path.write_text(json.dumps({"ip": "2.2.2.2"}), encoding="utf-8")
+        return True
+
+    def _unexpected_nba_probe(**kwargs):
+        raise AssertionError("NBA probes ran after the GitHub control-plane probe failed")
+
+    monkeypatch.setattr(action, "route_uses_interface", lambda *args, **kwargs: True)
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+    monkeypatch.setattr(action, "probe_github_control_plane", lambda **kwargs: False)
+    monkeypatch.setattr(action, "probe_nba_stats", _unexpected_nba_probe)
+    monkeypatch.setattr(action, "probe_nba_discovery_stack", _unexpected_nba_probe)
+
+    assert action.verify_connection("tun0") is False
+    assert action.verification_failure == "control_plane"
+    assert action.exit_ip == ""
 
 
 def test_config_url_rejects_untrusted_hostnames(runner_env: Path) -> None:
@@ -1074,6 +1103,9 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
 
     assert "nba-probe-enabled:" in metadata
     assert 'default: "true"' in metadata
+    assert "control-plane-probe-enabled:" in metadata
+    assert "control-plane-probe-url:" in metadata
+    assert "control-plane-probe-timeout-seconds:" in metadata
     assert "nba-probe-url:" in metadata
     assert "nba-probe-timeout-seconds:" in metadata
     assert "nba-stack-probe-enabled:" in metadata
@@ -1409,6 +1441,9 @@ def test_attempt_server_records_verified_tunnel_details(
         if label == "VPN verification probe":
             output_path.write_text(json.dumps({"ip": "2.2.2.2"}), encoding="utf-8")
             return True
+        if label == "GitHub control-plane probe":
+            output_path.write_text("User-agent: *\n", encoding="utf-8")
+            return True
         raise AssertionError(f"unexpected retry label: {label}")
 
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
@@ -1458,8 +1493,8 @@ def test_attempt_server_records_verified_tunnel_details(
     assert action.pid == "12345"
     assert action.attempted_servers == ["us1001.nordvpn.com"]
     assert action.failed_servers == []
-    assert len(network_deadlines) == 2
-    assert network_deadlines[0] == network_deadlines[1]
+    assert len(network_deadlines) == 3
+    assert network_deadlines[0] == network_deadlines[1] == network_deadlines[2]
     assert network_deadlines[0] <= action.deadline
 
 
@@ -1510,6 +1545,9 @@ def test_run_quarantines_nba_blocked_server_and_falls_back(
             return True
         if label == "VPN verification probe":
             output_path.write_text(json.dumps({"ip": "2.2.2.2"}), encoding="utf-8")
+            return True
+        if label == "GitHub control-plane probe":
+            output_path.write_text("User-agent: *\n", encoding="utf-8")
             return True
         raise AssertionError(f"unexpected retry label: {label}")
 

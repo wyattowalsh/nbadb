@@ -32,6 +32,8 @@ NORDVPN_HOSTNAME_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.nordvpn\.com$"
 )
 INIT_COMPLETE_PATTERN: Final[str] = "Initialization Sequence Completed"
+CONTROL_PLANE_PROBE_DEFAULT_URL: Final[str] = "https://github.com/robots.txt"
+CONTROL_PLANE_PROBE_MAX_BYTES: Final[int] = 131_072
 NBA_PROBE_DEFAULT_URL: Final[str] = "https://stats.nba.com/stats/commonteamyears?LeagueID=00"
 NBA_PROBE_MAX_BYTES: Final[int] = 1_048_576
 NBA_PROBE_EXPECTED_HEADERS: Final[frozenset[str]] = frozenset(
@@ -251,6 +253,7 @@ class NordVpnConnectAction:
         self.creds_file = self.work_dir / "nordvpn-creds.json"
         self.servers_file = self.work_dir / "nordvpn-servers.json"
         self.verify_file = self.work_dir / "vpn-exit-ip.json"
+        self.control_plane_probe_file = self.work_dir / "github-control-plane-probe.txt"
         self.nba_probe_file = self.work_dir / "nba-stats-probe.json"
         self.nba_stack_probe_script = (
             Path(__file__).resolve().parents[2] / "scripts" / "probe_discovery_transport.py"
@@ -291,6 +294,18 @@ class NordVpnConnectAction:
         self.technology = os.environ.get("TECHNOLOGY", "openvpn_udp").strip() or "openvpn_udp"
         self.fallback_technology = os.environ.get("FALLBACK_TECHNOLOGY", "openvpn_tcp").strip()
         self.verify_url = os.environ.get("VERIFY_URL", "https://api.ipify.org?format=json").strip()
+        self.control_plane_probe_enabled = (
+            os.environ.get("CONTROL_PLANE_PROBE_ENABLED", "true").strip().lower() != "false"
+        )
+        self.control_plane_probe_url = (
+            os.environ.get("CONTROL_PLANE_PROBE_URL", CONTROL_PLANE_PROBE_DEFAULT_URL).strip()
+            or CONTROL_PLANE_PROBE_DEFAULT_URL
+        )
+        self.control_plane_probe_timeout = env_int(
+            "CONTROL_PLANE_PROBE_TIMEOUT_SECONDS",
+            5,
+            minimum=1,
+        )
         self.require_full_tunnel = (
             os.environ.get("REQUIRE_FULL_TUNNEL", "true").strip().lower() == "true"
         )
@@ -443,6 +458,7 @@ class NordVpnConnectAction:
             self.token_auth_file,
             self.servers_file,
             self.verify_file,
+            self.control_plane_probe_file,
             self.nba_probe_file,
             self.baseline_file,
         ):
@@ -1145,6 +1161,34 @@ class NordVpnConnectAction:
                 return True
         return False
 
+    def probe_github_control_plane(self, *, attempt_deadline: float | None = None) -> bool:
+        if not self.control_plane_probe_enabled:
+            print("::notice::GitHub control-plane probe is disabled")
+            return True
+
+        with suppress(FileNotFoundError):
+            self.control_plane_probe_file.unlink()
+        if not self.retry_http_get(
+            "GitHub control-plane probe",
+            self.control_plane_probe_file,
+            self.control_plane_probe_url,
+            "--max-filesize",
+            str(CONTROL_PLANE_PROBE_MAX_BYTES),
+            attempt_deadline=attempt_deadline,
+            request_timeout=float(self.control_plane_probe_timeout),
+        ):
+            print("::warning::GitHub control-plane probe failed through the VPN tunnel")
+            return False
+        try:
+            size = self.control_plane_probe_file.stat().st_size
+        except OSError:
+            size = 0
+        if size <= 0 or size > CONTROL_PLANE_PROBE_MAX_BYTES:
+            print("::warning::GitHub control-plane probe returned invalid content")
+            return False
+        print("::notice::GitHub control-plane probe passed")
+        return True
+
     def probe_nba_stats(self, *, attempt_deadline: float | None = None) -> bool:
         if not self.nba_probe_enabled:
             self.nba_probe_status = "disabled"
@@ -1404,6 +1448,9 @@ class NordVpnConnectAction:
         if self.baseline_ip and exit_ip == self.baseline_ip:
             self.verification_failure = "exit_ip"
             return False
+        if not self.probe_github_control_plane(attempt_deadline=attempt_deadline):
+            self.verification_failure = "control_plane"
+            return False
         if not self.probe_nba_stats(attempt_deadline=attempt_deadline):
             self.verification_failure = "nba_probe"
             return False
@@ -1423,6 +1470,7 @@ class NordVpnConnectAction:
         for path in (
             self.pid_file,
             self.verify_file,
+            self.control_plane_probe_file,
             self.nba_probe_file,
             self.log_file,
             config_path,

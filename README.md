@@ -249,7 +249,8 @@ request timeout, no in-call retries, a fully-failed-chunk stop, and a 600-second
 no-completed-chunk watchdog. Empty successful responses are journaled only after their
 zero-row staging chunk is durable.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
-strict NBA result-set probe, and installed-stack player/game discovery canaries pass.
+bounded GitHub control-plane reachability probe, strict NBA result-set probe, and
+installed-stack player/game discovery canaries pass.
 The player canary also requires a positive player/team membership row.
 NBA-blocked servers are rejected across fallback technologies and carried from
 preflight into both the current lane quarantine and child manifests. Authentication

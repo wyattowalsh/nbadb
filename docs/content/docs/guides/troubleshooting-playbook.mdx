@@ -220,10 +220,11 @@ tunnel when VPN mode is effective. Seasons are grouped only when they share the
 same season-type set, so the seed does not invent a broader cross product.
 
 VPN acceptance is endpoint-aware. The action first proves the full tunnel route
-and a changed public IP, validates a non-empty `TeamYears` result set, then runs
-bounded `common_all_players` and `league_game_log` canaries through the installed
-`nbadb`/`nba_api` extraction stack. The player canary requires both IDs and at least
-one row with positive player/team membership. Inspect
+and a changed public IP, confirms that GitHub remains reachable through the tunnel,
+validates a non-empty `TeamYears` result set, then runs bounded `common_all_players`
+and `league_game_log` canaries through the installed `nbadb`/`nba_api` extraction
+stack. The player canary requires both IDs and at least one row with positive
+player/team membership. Inspect
 `nba-probe-status`, `nba-probe-diagnostic`, `attempted-servers-json`, and
 `failed-servers-json`. Preflight also emits `auth-source`; discovery and extract
 jobs reuse the source that actually passed instead of replacing proven configured
