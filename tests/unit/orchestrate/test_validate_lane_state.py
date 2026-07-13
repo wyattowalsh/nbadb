@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,9 +46,12 @@ def _write_attestation(
     *,
     expected_empty: bool = False,
     workload_contract: dict[str, object] | None = None,
+    schema_version: int | object | None = None,
 ) -> None:
+    if schema_version is None:
+        schema_version = 2 if workload_contract is not None else 1
     payload: dict[str, object] = {
-        "schema_version": 2 if workload_contract is not None else 1,
+        "schema_version": schema_version,
         "source_sha": "source-sha",
         "chain_id": "chain-1",
         "lane_id": "lane-1",
@@ -57,6 +61,14 @@ def _write_attestation(
     }
     if workload_contract is not None:
         payload["workload_contract"] = workload_contract
+    if schema_version == 3:
+        payload.update(
+            {
+                "run_id": "12345",
+                "artifact_name": "extraction-lane-chain-1-lane-1",
+                "attested": True,
+            }
+        )
     path.write_text(
         json.dumps(payload),
         encoding="utf-8",
@@ -90,6 +102,17 @@ def _workload_scope(tmp_path: Path, params: dict[str, object]):
         season_types=["Regular Season"],
     )
     return anchor, store, scope
+
+
+def _v3_expected_bindings() -> dict[str, str]:
+    return {
+        "expected_source_sha": "source-sha",
+        "expected_chain_id": "chain-1",
+        "expected_lane_id": "lane-1",
+        "expected_coverage_units_hash": "b" * 64,
+        "expected_run_id": "12345",
+        "expected_artifact_name": "extraction-lane-chain-1-lane-1",
+    }
 
 
 def test_validate_lane_state_binds_digest_and_journal(tmp_path: Path) -> None:
@@ -186,6 +209,181 @@ def test_validate_lane_state_rejects_attestation_binding_mismatch(tmp_path: Path
             expected_lane_id="lane-1",
             expected_coverage_units_hash="b" * 64,
         )
+
+
+def test_validate_lane_state_accepts_exact_schema_v3_attestation(tmp_path: Path) -> None:
+    module = _load_module()
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_database(db_path)
+    _write_attestation(attestation_path, db_path, schema_version=3)
+
+    report = module.validate_lane_state(
+        db_path,
+        require_journal=True,
+        attestation_path=attestation_path,
+        **_v3_expected_bindings(),
+    )
+
+    assert report["journal_rows"] == 1
+    assert report["sha256"] == hashlib.sha256(db_path.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("argument", "message"),
+    [
+        ("expected_run_id", "requires expected run_id and artifact_name"),
+        ("expected_artifact_name", "requires expected run_id and artifact_name"),
+    ],
+)
+def test_validate_lane_state_schema_v3_requires_expected_artifact_bindings(
+    tmp_path: Path,
+    argument: str,
+    message: str,
+) -> None:
+    module = _load_module()
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_database(db_path)
+    _write_attestation(attestation_path, db_path, schema_version=3)
+    bindings = _v3_expected_bindings()
+    bindings[argument] = ""
+
+    with pytest.raises(ValueError, match=message):
+        module.validate_lane_state(
+            db_path,
+            attestation_path=attestation_path,
+            **bindings,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "message"),
+    [
+        ("source_sha", "wrong-source", "source_sha does not match"),
+        ("chain_id", "wrong-chain", "chain_id does not match"),
+        ("lane_id", "wrong-lane", "lane_id does not match"),
+        ("coverage_units_hash", "0" * 64, "coverage_units_hash does not match"),
+        ("database_sha256", "0" * 64, "database_sha256 does not match"),
+        ("run_id", "54321", "run_id does not match"),
+        ("run_id", None, "run_id does not match"),
+        ("artifact_name", "wrong-artifact", "artifact_name does not match"),
+        ("artifact_name", None, "artifact_name does not match"),
+    ],
+)
+def test_validate_lane_state_schema_v3_rejects_identity_tampering(
+    tmp_path: Path,
+    field: str,
+    replacement: object,
+    message: str,
+) -> None:
+    module = _load_module()
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_database(db_path)
+    _write_attestation(attestation_path, db_path, schema_version=3)
+    payload = json.loads(attestation_path.read_text(encoding="utf-8"))
+    if replacement is None:
+        payload.pop(field)
+    else:
+        payload[field] = replacement
+    attestation_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        module.validate_lane_state(
+            db_path,
+            attestation_path=attestation_path,
+            **_v3_expected_bindings(),
+        )
+
+
+@pytest.mark.parametrize("attested", [False, None])
+def test_validate_lane_state_schema_v3_requires_explicit_attested_true(
+    tmp_path: Path,
+    attested: bool | None,
+) -> None:
+    module = _load_module()
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_database(db_path)
+    _write_attestation(attestation_path, db_path, schema_version=3)
+    payload = json.loads(attestation_path.read_text(encoding="utf-8"))
+    if attested is None:
+        payload.pop("attested")
+    else:
+        payload["attested"] = attested
+    attestation_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be explicitly attested"):
+        module.validate_lane_state(
+            db_path,
+            attestation_path=attestation_path,
+            **_v3_expected_bindings(),
+        )
+
+
+@pytest.mark.parametrize("schema_version", [None, True, 0, 4, "3"])
+def test_validate_lane_state_rejects_malformed_attestation_schema(
+    tmp_path: Path,
+    schema_version: object,
+) -> None:
+    module = _load_module()
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_database(db_path)
+    _write_attestation(attestation_path, db_path)
+    payload = json.loads(attestation_path.read_text(encoding="utf-8"))
+    if schema_version is None:
+        payload.pop("schema_version")
+    else:
+        payload["schema_version"] = schema_version
+    attestation_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="schema version is invalid"):
+        module.validate_lane_state(
+            db_path,
+            attestation_path=attestation_path,
+            **_v3_expected_bindings(),
+        )
+
+
+def test_validate_lane_state_cli_accepts_schema_v3_artifact_bindings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_database(db_path)
+    _write_attestation(attestation_path, db_path, schema_version=3)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "validate_lane_state.py",
+            str(db_path),
+            "--require-journal",
+            "--attestation-path",
+            str(attestation_path),
+            "--expected-source-sha",
+            "source-sha",
+            "--expected-chain-id",
+            "chain-1",
+            "--expected-lane-id",
+            "lane-1",
+            "--expected-coverage-units-hash",
+            "b" * 64,
+            "--expected-run-id",
+            "12345",
+            "--expected-artifact-name",
+            "extraction-lane-chain-1-lane-1",
+        ],
+    )
+
+    assert module.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["journal_rows"] == 1
 
 
 def test_validate_lane_state_allows_only_explicit_attested_empty_database(

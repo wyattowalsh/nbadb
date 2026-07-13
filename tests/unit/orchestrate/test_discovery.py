@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import Counter
 from threading import Barrier, Event, Lock
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import polars as pl
 import pytest
 
-from nbadb.core.errors import ExtractionError, TransientError
+from nbadb.core.errors import ExtractionError, TransientError, ValidationError
 from nbadb.core.types import PLAY_IN_UPSTREAM_UNAVAILABLE_REASON, SeasonType
 from nbadb.orchestrate.discovery import (
     _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
@@ -102,6 +103,68 @@ class TestExtractWithRetry:
             result = await _extract_with_retry(ext, "test")
         assert result.shape[0] == 1
         assert call_count == 3
+
+    async def test_retries_validation_response_then_succeeds(self):
+        ext = MagicMock()
+        df = pl.DataFrame({"a": [1]})
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=[ValidationError("invalid response"), df],
+        ) as sync_extract:
+            result = await _extract_with_retry(ext, "test")
+
+        assert result.equals(df)
+        assert sync_extract.call_count == 2
+
+    async def test_retries_wrapped_transport_error_then_succeeds(self):
+        ext = MagicMock()
+        df = pl.DataFrame({"a": [1]})
+        call_count = 0
+
+        def _wrapped_transport(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                try:
+                    raise TimeoutError
+                except TimeoutError as exc:
+                    raise ExtractionError("wrapped transport") from exc
+            return df
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=_wrapped_transport,
+        ) as sync_extract:
+            result = await _extract_with_retry(ext, "test")
+
+        assert result.equals(df)
+        assert sync_extract.call_count == 2
+
+    @pytest.mark.parametrize(
+        "root_error",
+        [json.JSONDecodeError("invalid", "", 0), KeyError("missing")],
+    )
+    async def test_retries_wrapped_response_contract_then_succeeds(self, root_error):
+        ext = MagicMock()
+        df = pl.DataFrame({"a": [1]})
+        call_count = 0
+
+        def _wrapped_response(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ExtractionError("wrapped response") from root_error
+            return df
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=_wrapped_response,
+        ) as sync_extract:
+            result = await _extract_with_retry(ext, "test")
+
+        assert result.equals(df)
+        assert sync_extract.call_count == 2
 
     async def test_raises_after_all_retries_exhausted(self):
         ext = MagicMock()
@@ -1011,6 +1074,79 @@ class TestDiscoverPlayerTeamSeasonParams:
             _RECOVERY_DISCOVERY_TIMEOUT,
         ]
         assert result.failures_by_pair == {("2024-25", "Regular Season"): "response"}
+
+    async def test_player_team_recovery_retries_validation_after_transport(self):
+        season = "2010-11"
+        recovered = pl.DataFrame({"player_id": [1], "team_id": [10]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        )
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=[
+                ConnectionError("transport"),
+                ValidationError("invalid response"),
+                recovered,
+            ],
+        ) as sync_extract:
+            result = await EntityDiscovery(
+                reg,
+                settings=settings,
+            ).discover_player_team_season_params_result([season])
+
+        assert result.covered_pairs == {(season, "Regular Season")}
+        assert result.failures_by_pair == {}
+        assert result.params == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": season,
+                "season_type": "Regular Season",
+            }
+        ]
+        assert sync_extract.call_count == settings.extract_max_retries + 1
+
+    async def test_player_team_exhausts_wrapped_response_contract_budget(self):
+        season = "2010-11"
+
+        class _Ext:
+            pass
+
+        def _wrapped_response(*_args, **_kwargs):
+            try:
+                raise json.JSONDecodeError("invalid", "", 0)
+            except json.JSONDecodeError as exc:
+                raise ExtractionError("wrapped response") from exc
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        )
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=_wrapped_response,
+        ) as sync_extract:
+            result = await EntityDiscovery(
+                reg,
+                settings=settings,
+            ).discover_player_team_season_params_result([season])
+
+        assert result.covered_pairs == frozenset()
+        assert result.failures_by_pair == {(season, "Regular Season"): "response"}
+        assert sync_extract.call_count == settings.extract_max_retries + 1
 
     async def test_uses_shorter_timeout_during_concurrent_season_sweep(self):
         call_kwargs: list[dict[str, object]] = []

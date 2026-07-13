@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import shutil
 from contextlib import suppress
 from dataclasses import asdict, dataclass, field, replace
@@ -46,6 +47,8 @@ DEFAULT_HISTORICAL_START = 1946
 MANIFEST_VERSION = 3
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
 MAX_GITHUB_MATRIX_LANES = 256
+SCHEDULER_DIVERSITY_WINDOW = 6
+MAX_CUMULATIVE_LANE_RETRIES = 12
 SCHEDULER_QUEUE_SEQUENCE = (
     "fresh",
     "fresh",
@@ -405,9 +408,15 @@ class FullExtractionChainState:
     previous_checkpoint_coverage_hash: str = ""
     scheduler_rotation_cursor: int = 0
     iteration_budget: int = 0
+    contract_blocked_evidence: tuple[dict[str, Any], ...] = ()
+    contract_blocked_evidence_sha256: str = ""
+    previous_contract_blocked_evidence: tuple[dict[str, Any], ...] = ()
+    previous_contract_blocked_evidence_sha256: str = ""
+    pending_contract_blocked_evidence: tuple[dict[str, Any], ...] = ()
+    pending_contract_blocked_evidence_sha256: str = ""
 
     def to_payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "vpn_quarantined_servers": list(self.vpn_quarantined_servers),
             "artifact_run_ids": list(self.artifact_run_ids),
             "latest_checkpoint_run_id": self.latest_checkpoint_run_id,
@@ -420,7 +429,23 @@ class FullExtractionChainState:
             "previous_checkpoint_coverage_hash": self.previous_checkpoint_coverage_hash,
             "scheduler_rotation_cursor": self.scheduler_rotation_cursor,
             "iteration_budget": self.iteration_budget,
+            "contract_blocked_evidence": [dict(row) for row in self.contract_blocked_evidence],
+            "contract_blocked_evidence_sha256": self.contract_blocked_evidence_sha256,
+            "previous_contract_blocked_evidence": [
+                dict(row) for row in self.previous_contract_blocked_evidence
+            ],
+            "previous_contract_blocked_evidence_sha256": (
+                self.previous_contract_blocked_evidence_sha256
+            ),
         }
+        if self.pending_contract_blocked_evidence or self.pending_contract_blocked_evidence_sha256:
+            payload["pending_contract_blocked_evidence"] = [
+                dict(row) for row in self.pending_contract_blocked_evidence
+            ]
+            payload["pending_contract_blocked_evidence_sha256"] = (
+                self.pending_contract_blocked_evidence_sha256
+            )
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,6 +485,21 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
     if not isinstance(raw_chain_state, dict):
         msg = "Expected chain_state to be an object"
         raise ValueError(msg)
+    raw_blocked_evidence = raw_chain_state.get("contract_blocked_evidence", [])
+    if not isinstance(raw_blocked_evidence, list) or any(
+        not isinstance(row, dict) for row in raw_blocked_evidence
+    ):
+        raise ValueError("chain_state contract_blocked_evidence must be a list of objects")
+    raw_previous_blocked_evidence = raw_chain_state.get("previous_contract_blocked_evidence", [])
+    if not isinstance(raw_previous_blocked_evidence, list) or any(
+        not isinstance(row, dict) for row in raw_previous_blocked_evidence
+    ):
+        raise ValueError("chain_state previous_contract_blocked_evidence must be a list of objects")
+    raw_pending_blocked_evidence = raw_chain_state.get("pending_contract_blocked_evidence", [])
+    if not isinstance(raw_pending_blocked_evidence, list) or any(
+        not isinstance(row, dict) for row in raw_pending_blocked_evidence
+    ):
+        raise ValueError("chain_state pending_contract_blocked_evidence must be a list of objects")
     return FullExtractionChainState(
         vpn_quarantined_servers=_normalize_server_list(
             raw_chain_state.get("vpn_quarantined_servers", [])
@@ -492,6 +532,20 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
             % len(SCHEDULER_QUEUE_SEQUENCE)
         ),
         iteration_budget=int(raw_chain_state.get("iteration_budget") or 0),
+        contract_blocked_evidence=tuple(dict(row) for row in raw_blocked_evidence),
+        contract_blocked_evidence_sha256=_normalize_scalar_string(
+            raw_chain_state.get("contract_blocked_evidence_sha256")
+        ),
+        previous_contract_blocked_evidence=tuple(
+            dict(row) for row in raw_previous_blocked_evidence
+        ),
+        previous_contract_blocked_evidence_sha256=_normalize_scalar_string(
+            raw_chain_state.get("previous_contract_blocked_evidence_sha256")
+        ),
+        pending_contract_blocked_evidence=tuple(dict(row) for row in raw_pending_blocked_evidence),
+        pending_contract_blocked_evidence_sha256=_normalize_scalar_string(
+            raw_chain_state.get("pending_contract_blocked_evidence_sha256")
+        ),
     )
 
 
@@ -1102,6 +1156,12 @@ def _lane_scheduler_queue(lane: FullExtractionLane) -> str:
     return "retry"
 
 
+def _lane_endpoint_identity(lane: FullExtractionLane) -> tuple[str, ...]:
+    if lane.endpoints:
+        return tuple(sorted(lane.endpoints))
+    return (f"family:{lane.endpoint_family or 'default'}",)
+
+
 def _annotate_lane(
     lane: FullExtractionLane,
     *,
@@ -1191,16 +1251,38 @@ def _schedule_lanes(
                 for queue in queues.values()
                 for candidate in queue
             )
+            recent_lanes = [*scheduled, *wave][-(SCHEDULER_DIVERSITY_WINDOW - 1) :]
+            homogeneous_endpoint = (
+                _lane_endpoint_identity(recent_lanes[0])
+                if len(recent_lanes) == SCHEDULER_DIVERSITY_WINDOW - 1
+                and len({_lane_endpoint_identity(lane) for lane in recent_lanes}) == 1
+                else None
+            )
+            diverse_candidate_available = homogeneous_endpoint is not None and any(
+                (
+                    family_counts.get(candidate.endpoint_family or "default", 0) < family_cap
+                    or not uncapped_family_available
+                )
+                and _lane_endpoint_identity(candidate) != homogeneous_endpoint
+                for queue in queues.values()
+                for candidate in queue
+            )
             selected_queue = ""
             selected_index = -1
             for queue_name in queue_order:
                 queue = queues[queue_name]
                 for candidate_index, candidate in enumerate(queue):
                     family = candidate.endpoint_family or "default"
-                    if family_counts.get(family, 0) < family_cap or not uncapped_family_available:
-                        selected_queue = queue_name
-                        selected_index = candidate_index
-                        break
+                    if family_counts.get(family, 0) >= family_cap and uncapped_family_available:
+                        continue
+                    if (
+                        diverse_candidate_available
+                        and _lane_endpoint_identity(candidate) == homogeneous_endpoint
+                    ):
+                        continue
+                    selected_queue = queue_name
+                    selected_index = candidate_index
+                    break
                 if selected_queue:
                     break
             if not selected_queue:
@@ -2089,8 +2171,10 @@ def _load_manifest_argument(
     return None
 
 
-def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
-    payloads: dict[str, dict[str, Any]] = {}
+def _metadata_records_by_lane(
+    metadata_dir: Path,
+) -> dict[str, list[tuple[Path, dict[str, Any]]]]:
+    records: dict[str, list[tuple[Path, dict[str, Any]]]] = {}
     canonical_candidates = sorted(metadata_dir.rglob("lane-metadata.json"))
     candidates = canonical_candidates or sorted(metadata_dir.rglob("*.json"))
     for candidate in candidates:
@@ -2100,10 +2184,19 @@ def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
             # Checkout/setup failures can leave zero-byte metadata artifacts; treat
             # those as missing metadata so resume policy can decide whether to retry.
             continue
+        if not isinstance(payload, dict):
+            continue
         lane_id = str(payload.get("lane_id", "")).strip()
         if lane_id:
-            payloads[lane_id] = payload
-    return payloads
+            records.setdefault(lane_id, []).append((candidate, payload))
+    return records
+
+
+def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
+    return {
+        lane_id: lane_records[-1][1]
+        for lane_id, lane_records in _metadata_records_by_lane(metadata_dir).items()
+    }
 
 
 def _metadata_quarantined_servers(metadata: dict[str, dict[str, Any]]) -> tuple[str, ...]:
@@ -2365,6 +2458,11 @@ def _metadata_support_rules_match(
 
 
 def _metadata_failure_class(payload: dict[str, Any], *, raw_status: str) -> str:
+    if raw_status == "state-artifact-upload-failed" or (
+        str(payload.get("status") or "").strip() == "complete"
+        and not _metadata_state_artifact_is_durable(payload)
+    ):
+        return "runner_infrastructure"
     failure_class = str(payload.get("failure_class") or "").strip()
     if failure_class:
         return failure_class
@@ -2404,17 +2502,36 @@ def _metadata_state_artifact(payload: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
-def _metadata_state_artifact_is_attested(payload: dict[str, Any]) -> bool:
+def _metadata_state_artifact_is_durable(payload: dict[str, Any]) -> bool:
     artifact = payload.get("state_artifact")
     if not isinstance(artifact, dict) or artifact.get("attested") is not True:
         return False
     run_id, name, digest = _metadata_state_artifact(payload)
-    return bool(run_id) and bool(name) and _is_sha256(digest)
+    artifact_id = _normalize_scalar_string(artifact.get("artifact_id"))
+    artifact_digest = _normalize_scalar_string(artifact.get("artifact_digest")).lower()
+    return (
+        bool(run_id)
+        and bool(name)
+        and _is_sha256(digest)
+        and artifact.get("uploaded") is True
+        and _is_positive_run_id(artifact_id)
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is not None
+    )
 
 
 def _retry_budget_exhausted(failure_class: str, streak: int) -> bool:
     budget = FAILURE_RETRY_BUDGETS.get(failure_class, 1)
     return budget > 0 and streak >= budget
+
+
+def _lane_retry_budget_exhausted(lane: FullExtractionLane) -> bool:
+    return (
+        _retry_budget_exhausted(
+            lane.last_failure_class,
+            lane.class_failure_streak,
+        )
+        or max(lane.attempt_count, lane.zero_progress_streak) >= MAX_CUMULATIVE_LANE_RETRIES
+    )
 
 
 def _retry_lane_from_metadata(
@@ -2439,8 +2556,8 @@ def _retry_lane_from_metadata(
     class_streak = previous_class_streak + 1 if previous_failure_class == failure_class else 1
     zero_progress_streak = 0 if progress_increased else lane.zero_progress_streak + 1
     state_run_id, state_name, state_digest = _metadata_state_artifact(payload)
-    state_artifact_attested = _metadata_state_artifact_is_attested(payload)
-    if not state_artifact_attested:
+    state_artifact_durable = _metadata_state_artifact_is_durable(payload)
+    if not state_artifact_durable:
         state_run_id = state_name = state_digest = ""
     cooldown = 1 if failure_class in {"transport_transient", "response_contract"} else 0
     return replace(
@@ -2471,7 +2588,7 @@ def lane_outcome_from_metadata(
         payload.get("raw_status") or payload.get("extract_status") or metadata_status
     ).strip()
     if metadata_status == "complete":
-        return "complete"
+        return "complete" if _metadata_state_artifact_is_durable(payload) else "pipeline_failure"
     if not _metadata_has_required_noncomplete_artifacts(payload):
         return "pipeline_failure"
 
@@ -2546,6 +2663,58 @@ def lane_outcome_from_metadata(
     return "pipeline_failure"
 
 
+def _canonical_contract_blocked_row_for_lane(
+    lane: FullExtractionLane,
+) -> dict[str, Any]:
+    return _canonical_contract_blocked_audit_row(
+        lane.lane_id,
+        {
+            "lane_kind": lane.lane_kind,
+            "endpoints": list(lane.endpoints),
+            "patterns": list(lane.patterns),
+            "season_start": lane.season_start,
+            "season_end": lane.season_end,
+            "season_types": list(lane.season_types),
+            "context_measures": list(lane.context_measures),
+            "coverage_units_hash": _coverage_hash_for_lane(lane),
+            "support_rules": list(_lane_contract_blocking_rules(lane)),
+        },
+    )
+
+
+def _validated_pending_contract_blocked_evidence(
+    chain_state: FullExtractionChainState,
+) -> list[dict[str, Any]]:
+    raw_rows = list(chain_state.pending_contract_blocked_evidence)
+    raw_digest = chain_state.pending_contract_blocked_evidence_sha256.strip().lower()
+    if not raw_rows:
+        if raw_digest:
+            raise ValueError(
+                "Pending contract-blocked evidence digest exists without evidence rows"
+            )
+        return []
+
+    rows: list[dict[str, Any]] = []
+    seen_lane_ids: set[str] = set()
+    for raw_row in raw_rows:
+        lane_id = str(raw_row.get("lane_id") or "").strip()
+        if not lane_id or lane_id in seen_lane_ids:
+            raise ValueError("Pending contract-blocked lane IDs must be non-empty and unique")
+        canonical_input = dict(raw_row)
+        canonical_input["lane_kind"] = raw_row.get("kind")
+        canonical_row = _canonical_contract_blocked_audit_row(lane_id, canonical_input)
+        if _hash_payload(canonical_row) != _hash_payload(raw_row):
+            raise ValueError(f"Pending contract-blocked evidence is not canonical for {lane_id}")
+        seen_lane_ids.add(lane_id)
+        rows.append(canonical_row)
+
+    rows.sort(key=lambda row: str(row["lane_id"]))
+    evidence = {"schema_version": 1, "contract_blocked_lanes": rows}
+    if raw_digest != _hash_payload(evidence):
+        raise ValueError("Pending contract-blocked evidence digest does not match")
+    return rows
+
+
 def build_resume_manifest(
     lanes: list[FullExtractionLane],
     metadata_dir: Path,
@@ -2564,6 +2733,11 @@ def build_resume_manifest(
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
 ) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
+    previous_state = chain_state or FullExtractionChainState()
+    pending_contract_blocked_rows = {
+        str(row["lane_id"]): row
+        for row in _validated_pending_contract_blocked_evidence(previous_state)
+    }
     next_lanes: list[FullExtractionLane] = []
     resumed = 0
     active = 0
@@ -2578,6 +2752,13 @@ def build_resume_manifest(
     pipeline_failure_retries = 0
     profile_override = _validate_chunk_profile(chunk_profile) if chunk_profile else None
 
+    def record_pending_contract_blocked_lane(lane: FullExtractionLane) -> None:
+        row = _canonical_contract_blocked_row_for_lane(lane)
+        existing = pending_contract_blocked_rows.get(lane.lane_id)
+        if existing is not None and existing != row:
+            raise ValueError(f"Pending contract-blocked evidence changed for {lane.lane_id}")
+        pending_contract_blocked_rows[lane.lane_id] = row
+
     for source_lane in lanes:
         lane = (
             replace(source_lane, chunk_profile=profile_override)
@@ -2586,6 +2767,11 @@ def build_resume_manifest(
         )
         payload = metadata.get(lane.lane_id)
         raw_status = str(payload.get("status", "")) if payload else ""
+        if not raw_status and _lane_is_contract_blocked(lane):
+            record_pending_contract_blocked_lane(lane)
+            contract_blocked += 1
+            outcome_counts["contract_blocked"] = outcome_counts.get("contract_blocked", 0) + 1
+            continue
         if not raw_status and lane.resume_only:
             next_lanes.append(lane)
             resumed += 1
@@ -2617,7 +2803,7 @@ def build_resume_manifest(
             failure_class_counts["runner_infrastructure"] = (
                 failure_class_counts.get("runner_infrastructure", 0) + 1
             )
-            if _retry_budget_exhausted("runner_infrastructure", infrastructure_streak):
+            if _lane_retry_budget_exhausted(retry_lane):
                 blocked_lanes.append(retry_lane)
                 next_lanes.append(retry_lane)
                 active += 1
@@ -2641,10 +2827,6 @@ def build_resume_manifest(
                 failure_reason_counts.get("missing-metadata", 0) + 1
             )
             outcome_counts["needs_resume"] = outcome_counts.get("needs_resume", 0) + 1
-            continue
-        if not raw_status and _lane_is_contract_blocked(lane):
-            contract_blocked += 1
-            outcome_counts["contract_blocked"] = outcome_counts.get("contract_blocked", 0) + 1
             continue
         if (
             not raw_status
@@ -2691,6 +2873,7 @@ def build_resume_manifest(
             resumed += 1
             continue
         if status == "contract_blocked":
+            record_pending_contract_blocked_lane(lane)
             contract_blocked += 1
             continue
         failure_reason = str(payload.get("raw_status") or raw_status or status)
@@ -2712,10 +2895,7 @@ def build_resume_manifest(
                 failure_streak=failure_streak,
                 last_failure_reason=status,
             )
-            if _retry_budget_exhausted(
-                retry_lane.last_failure_class,
-                retry_lane.class_failure_streak,
-            ):
+            if _lane_retry_budget_exhausted(retry_lane):
                 blocked_lanes.append(retry_lane)
                 next_lanes.append(retry_lane)
                 active += 1
@@ -2745,10 +2925,7 @@ def build_resume_manifest(
             failure_streak=failure_streak,
             last_failure_reason=status,
         )
-        if _retry_budget_exhausted(
-            retry_lane.last_failure_class,
-            retry_lane.class_failure_streak,
-        ):
+        if _lane_retry_budget_exhausted(retry_lane):
             blocked_lanes.append(retry_lane)
             next_lanes.append(retry_lane)
             active += 1
@@ -2794,7 +2971,6 @@ def build_resume_manifest(
             *_metadata_quarantined_servers(metadata),
         ]
     )
-    previous_state = chain_state or FullExtractionChainState()
     dispatched_lane_count = sum(
         1
         for lane in lanes
@@ -2823,6 +2999,19 @@ def build_resume_manifest(
         int(latest_checkpoint_generation)
         if latest_checkpoint_generation is not None
         else previous_state.latest_checkpoint_generation
+    )
+    pending_contract_blocked_evidence = tuple(
+        pending_contract_blocked_rows[lane_id] for lane_id in sorted(pending_contract_blocked_rows)
+    )
+    pending_contract_blocked_evidence_sha256 = (
+        _hash_payload(
+            {
+                "schema_version": 1,
+                "contract_blocked_lanes": list(pending_contract_blocked_evidence),
+            }
+        )
+        if pending_contract_blocked_evidence
+        else ""
     )
     next_chain_state = FullExtractionChainState(
         vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers)),
@@ -2862,6 +3051,20 @@ def build_resume_manifest(
         ),
         scheduler_rotation_cursor=next_scheduler_cursor,
         iteration_budget=previous_state.iteration_budget,
+        contract_blocked_evidence=previous_state.contract_blocked_evidence,
+        contract_blocked_evidence_sha256=previous_state.contract_blocked_evidence_sha256,
+        previous_contract_blocked_evidence=(
+            previous_state.contract_blocked_evidence
+            if replacing_checkpoint
+            else previous_state.previous_contract_blocked_evidence
+        ),
+        previous_contract_blocked_evidence_sha256=(
+            previous_state.contract_blocked_evidence_sha256
+            if replacing_checkpoint
+            else previous_state.previous_contract_blocked_evidence_sha256
+        ),
+        pending_contract_blocked_evidence=pending_contract_blocked_evidence,
+        pending_contract_blocked_evidence_sha256=(pending_contract_blocked_evidence_sha256),
     )
 
     return (
@@ -2888,6 +3091,201 @@ def build_resume_manifest(
     )
 
 
+def _audit_scope_sequence(
+    payload: dict[str, Any],
+    field_name: str,
+    *,
+    required: bool = False,
+) -> tuple[str, ...]:
+    raw_values = payload.get(field_name, [])
+    if not isinstance(raw_values, list):
+        raise ValueError(f"contract-blocked {field_name} must be a list")
+    values: list[str] = []
+    for raw_value in raw_values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError(f"contract-blocked {field_name} entries must be strings")
+        value = raw_value.strip()
+        if value in values:
+            raise ValueError(f"contract-blocked {field_name} entries must be unique")
+        values.append(value)
+    if required and not values:
+        raise ValueError(f"contract-blocked {field_name} must be non-empty")
+    return tuple(values)
+
+
+def _audit_scope_season(payload: dict[str, Any], field_name: str) -> int | None:
+    raw_value = payload.get(field_name)
+    if raw_value is None or raw_value == "":
+        return None
+    if isinstance(raw_value, bool) or not isinstance(raw_value, int | str):
+        raise ValueError(f"contract-blocked {field_name} must be an integer or empty")
+    raw_text = str(raw_value).strip()
+    if not raw_text.isdigit():
+        raise ValueError(f"contract-blocked {field_name} must be a non-negative integer")
+    return int(raw_text)
+
+
+def _canonical_contract_blocked_audit_row(
+    lane_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    kind = payload.get("lane_kind")
+    if not isinstance(kind, str) or not kind.strip():
+        raise ValueError("contract-blocked lane_kind must be a non-empty string")
+    endpoints = _audit_scope_sequence(payload, "endpoints", required=True)
+    patterns = _audit_scope_sequence(payload, "patterns", required=True)
+    season_types = _audit_scope_sequence(payload, "season_types")
+    context_measures = _audit_scope_sequence(payload, "context_measures")
+    season_start = _audit_scope_season(payload, "season_start")
+    season_end = _audit_scope_season(payload, "season_end")
+    if (season_start is None) != (season_end is None):
+        raise ValueError("contract-blocked season bounds must both be set or both be empty")
+    if season_start is not None and season_end is not None and season_start > season_end:
+        raise ValueError("contract-blocked season_start must not exceed season_end")
+    if set(context_measures) - set(VIDEO_CONTEXT_MEASURES):
+        raise ValueError("contract-blocked context_measures contain unknown values")
+    if context_measures and not set(endpoints) <= VIDEO_ENDPOINTS:
+        raise ValueError("contract-blocked context_measures require video endpoints")
+
+    lane = FullExtractionLane(
+        lane_id=lane_id,
+        lane_index=0,
+        lane_name=lane_id,
+        lane_kind=kind.strip(),
+        season_start=season_start,
+        season_end=season_end,
+        patterns=patterns,
+        season_types=season_types,
+        context_measures=context_measures,
+        endpoints=endpoints,
+        resume_only=True,
+        timeout_seconds=1,
+    )
+    support_rules = sorted(
+        _lane_contract_blocking_rules(lane),
+        key=lambda rule: json.dumps(rule, sort_keys=True, separators=(",", ":")),
+    )
+    if not support_rules:
+        raise ValueError("contract-blocked scope has no recomputed support rules")
+    reported_rules = payload.get("support_rules")
+    if reported_rules is not None and _support_rule_fingerprints(reported_rules) != (
+        _support_rule_fingerprints(support_rules)
+    ):
+        raise ValueError("contract-blocked support rules do not match recomputed rules")
+    coverage_units_hash = _coverage_hash_for_lane(lane)
+    reported_coverage_hash = payload.get("coverage_units_hash")
+    if (
+        not isinstance(reported_coverage_hash, str)
+        or not _is_sha256(reported_coverage_hash)
+        or reported_coverage_hash != coverage_units_hash
+    ):
+        raise ValueError("contract-blocked coverage hash does not match recomputed scope")
+
+    return {
+        "lane_id": lane_id,
+        "status": "contract_blocked",
+        "kind": lane.lane_kind,
+        "endpoints": list(endpoints),
+        "patterns": list(patterns),
+        "season_start": season_start,
+        "season_end": season_end,
+        "season_types": list(season_types),
+        "context_measures": list(context_measures),
+        "coverage_units_hash": coverage_units_hash,
+        "support_rules": support_rules,
+    }
+
+
+def _validated_checkpoint_contract_blocked_evidence(
+    report: dict[str, Any],
+) -> tuple[list[dict[str, Any]], str]:
+    """Validate and canonicalize cumulative contract-blocked checkpoint evidence."""
+    raw_count = report.get("contract_blocked_lane_count", 0)
+    if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
+        raise ValueError("Checkpoint contract-blocked lane count must be non-negative")
+    raw_bundle = report.get("contract_blocked_evidence")
+    raw_digest = str(report.get("contract_blocked_evidence_sha256") or "").strip().lower()
+    if raw_bundle is None and raw_count == 0 and not raw_digest:
+        return [], ""
+    if not isinstance(raw_bundle, dict) or raw_bundle.get("schema_version") != 1:
+        raise ValueError("Checkpoint contract-blocked evidence is invalid")
+    raw_rows = raw_bundle.get("contract_blocked_lanes")
+    if not isinstance(raw_rows, list):
+        raise ValueError("Checkpoint contract-blocked evidence rows must be a list")
+
+    rows: list[dict[str, Any]] = []
+    seen_lane_ids: set[str] = set()
+    for raw_row in raw_rows:
+        if not isinstance(raw_row, dict):
+            raise ValueError("Checkpoint contract-blocked evidence rows must be objects")
+        lane_id = str(raw_row.get("lane_id") or "").strip()
+        if not lane_id or lane_id in seen_lane_ids:
+            raise ValueError("Checkpoint contract-blocked lane IDs must be non-empty and unique")
+        canonical_input = dict(raw_row)
+        canonical_input["lane_kind"] = raw_row.get("kind")
+        canonical_row = _canonical_contract_blocked_audit_row(lane_id, canonical_input)
+        if _hash_payload(canonical_row) != _hash_payload(raw_row):
+            raise ValueError(f"Checkpoint contract-blocked evidence is not canonical for {lane_id}")
+        seen_lane_ids.add(lane_id)
+        rows.append(canonical_row)
+
+    rows.sort(key=lambda row: str(row["lane_id"]))
+    bundle = {"schema_version": 1, "contract_blocked_lanes": rows}
+    actual_digest = _hash_payload(bundle)
+    if raw_digest != actual_digest:
+        raise ValueError("Checkpoint contract-blocked evidence digest does not match")
+    if raw_count != len(rows):
+        raise ValueError("Checkpoint contract-blocked evidence count does not match")
+    return rows, actual_digest
+
+
+def _validate_contract_blocked_evidence_commitment(
+    report: dict[str, Any],
+    chain_state: FullExtractionChainState,
+    *,
+    pointer_prefix: str,
+) -> tuple[list[dict[str, Any]], str]:
+    rows, digest = _validated_checkpoint_contract_blocked_evidence(report)
+    if pointer_prefix == "latest":
+        committed_rows = list(chain_state.contract_blocked_evidence)
+        committed_digest = chain_state.contract_blocked_evidence_sha256
+    elif pointer_prefix == "previous":
+        committed_rows = list(chain_state.previous_contract_blocked_evidence)
+        committed_digest = chain_state.previous_contract_blocked_evidence_sha256
+    else:
+        raise ValueError(f"Unknown checkpoint pointer prefix: {pointer_prefix}")
+    if committed_rows != rows:
+        raise ValueError(
+            f"Checkpoint contract-blocked evidence does not match the {pointer_prefix} "
+            "chain-state commitment"
+        )
+    if committed_digest != digest:
+        raise ValueError(
+            f"Checkpoint contract-blocked evidence digest does not match the {pointer_prefix} "
+            "chain-state commitment"
+        )
+    return rows, digest
+
+
+def _validated_chain_state_contract_blocked_evidence(
+    chain_state: FullExtractionChainState,
+) -> tuple[list[dict[str, Any]], str]:
+    rows = list(chain_state.contract_blocked_evidence)
+    digest = chain_state.contract_blocked_evidence_sha256.strip().lower()
+    report: dict[str, Any] = {"contract_blocked_lane_count": len(rows)}
+    if rows or digest:
+        report.update(
+            {
+                "contract_blocked_evidence": {
+                    "schema_version": 1,
+                    "contract_blocked_lanes": rows,
+                },
+                "contract_blocked_evidence_sha256": digest,
+            }
+        )
+    return _validated_checkpoint_contract_blocked_evidence(report)
+
+
 def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
     metadata = _metadata_by_lane(metadata_dir)
     status_counts: dict[str, int] = {}
@@ -2908,6 +3306,15 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
 
     for lane_id, payload in sorted(metadata.items()):
         status = str(lane_outcome_from_metadata(payload))
+        contract_blocked_row: dict[str, Any] | None = None
+        if status == "contract_blocked":
+            try:
+                contract_blocked_row = _canonical_contract_blocked_audit_row(
+                    lane_id,
+                    payload,
+                )
+            except ValueError:
+                status = "pipeline_failure"
         kind = str(payload.get("lane_kind") or "unknown")
         status_counts[status] = status_counts.get(status, 0) + 1
         kind_bucket = kind_counts.setdefault(kind, {})
@@ -2969,8 +3376,9 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
             "root_error_type": str(payload.get("root_error_type") or ""),
         }
         if status == "contract_blocked":
-            blocker["support_rules"] = payload.get("support_rules", [])
-            contract_blocked_lanes.append(blocker)
+            if contract_blocked_row is None:
+                raise AssertionError("contract-blocked audit row was not validated")
+            contract_blocked_lanes.append(contract_blocked_row)
         elif status == "pipeline_failure":
             pipeline_failure_lanes.append(blocker)
             blockers.append(blocker)
@@ -3363,6 +3771,141 @@ def _is_sha256(value: str) -> bool:
     return len(value) == 64 and all(character in "0123456789abcdef" for character in value.lower())
 
 
+def _is_source_sha(value: str) -> bool:
+    return len(value) == 40 and all(character in "0123456789abcdef" for character in value.lower())
+
+
+def _is_positive_run_id(value: str) -> bool:
+    return value.isdigit() and not value.startswith("0")
+
+
+def _checkpoint_artifact_name(chain_id: str, generation: int) -> str:
+    return f"full-extraction-checkpoint-{chain_id}-iter-{generation}"
+
+
+def _lane_artifact_name(chain_id: str, lane_id: str) -> str:
+    return f"extraction-lane-{chain_id}-{lane_id}"
+
+
+def _lane_metadata_artifact_name(chain_id: str, lane_id: str) -> str:
+    return f"extraction-lane-metadata-{chain_id}-{lane_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class _CheckpointPointer:
+    run_id: str
+    artifact_name: str
+    generation: int
+    coverage_hash: str
+
+
+def _checkpoint_pointer(
+    chain_state: FullExtractionChainState,
+    *,
+    prefix: str,
+    chain_id: str,
+) -> _CheckpointPointer | None:
+    if prefix not in {"latest", "previous"}:
+        raise ValueError(f"Unsupported checkpoint pointer prefix: {prefix}")
+    run_id = getattr(chain_state, f"{prefix}_checkpoint_run_id")
+    artifact_name = getattr(chain_state, f"{prefix}_checkpoint_artifact_name")
+    generation = getattr(chain_state, f"{prefix}_checkpoint_generation")
+    coverage_hash = getattr(chain_state, f"{prefix}_checkpoint_coverage_hash").lower()
+    present = (bool(run_id), bool(artifact_name), generation != 0, bool(coverage_hash))
+    if any(present) and not all(present):
+        raise ValueError(
+            f"The {prefix} checkpoint pointer must set run ID, artifact name, "
+            "generation, and coverage hash together"
+        )
+    if not any(present):
+        return None
+    if not _is_positive_run_id(run_id):
+        raise ValueError(f"The {prefix} checkpoint run ID must be a positive integer")
+    if generation < 1:
+        raise ValueError(f"The {prefix} checkpoint generation must be positive")
+    expected_name = _checkpoint_artifact_name(chain_id, generation)
+    if artifact_name != expected_name:
+        raise ValueError(
+            f"The {prefix} checkpoint artifact name must be {expected_name}, got {artifact_name}"
+        )
+    if not _is_sha256(coverage_hash):
+        raise ValueError(f"The {prefix} checkpoint coverage hash must be a SHA-256")
+    return _CheckpointPointer(
+        run_id=run_id,
+        artifact_name=artifact_name,
+        generation=generation,
+        coverage_hash=coverage_hash,
+    )
+
+
+def _validate_checkpoint_trust_root(
+    raw_manifest: Any,
+    *,
+    chain_id: str,
+    source_sha: str,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    if not chain_id:
+        raise ValueError("Checkpoint chain_id must be non-empty")
+    normalized_source_sha = source_sha.strip().lower()
+    if not _is_source_sha(normalized_source_sha):
+        raise ValueError("Checkpoint source_sha must be a 40-character commit SHA")
+    if run_id is not None and not _is_positive_run_id(run_id):
+        raise ValueError("Checkpoint run_id must be a positive integer")
+    if not isinstance(raw_manifest, dict):
+        raise ValueError("Checkpoint manifest must be an object")
+    raw_chain_state = raw_manifest.get("chain_state", {})
+    if not isinstance(raw_chain_state, dict):
+        raise ValueError("Checkpoint manifest chain_state must be an object")
+    for prefix in ("latest", "previous"):
+        raw_generation = raw_chain_state.get(f"{prefix}_checkpoint_generation", 0)
+        if isinstance(raw_generation, bool) or not isinstance(raw_generation, int):
+            raise ValueError(
+                f"The {prefix} checkpoint generation must be represented as an integer"
+            )
+    if str(raw_manifest.get("chain_id") or "") != chain_id:
+        raise ValueError("Checkpoint manifest chain_id does not match the trusted chain")
+    if str(raw_manifest.get("workflow_source_sha") or "").strip().lower() != normalized_source_sha:
+        raise ValueError("Checkpoint manifest source SHA does not match the trusted source")
+    return raw_manifest
+
+
+def _artifact_root_for_provenance(
+    *,
+    path: Path,
+    root: Path,
+    run_id: str,
+    artifact_name: str,
+) -> Path | None:
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return None
+    matches = [index for index, part in enumerate(relative.parts) if part == artifact_name]
+    if len(matches) != 1:
+        return None
+    artifact_index = matches[0]
+    if artifact_index == 0 or relative.parts[artifact_index - 1] != f"run-{run_id}":
+        return None
+    return root.joinpath(*relative.parts[: artifact_index + 1])
+
+
+def _read_lane_state_attestation(artifact_root: Path) -> tuple[dict[str, Any], str]:
+    candidates = sorted(artifact_root.rglob("lane-state-attestation.json"))
+    if len(candidates) != 1:
+        return {}, f"lane_state_attestation_count:{len(candidates)}"
+    attestation_path = candidates[0]
+    if attestation_path.is_symlink() or not attestation_path.is_file():
+        return {}, "lane_state_attestation_not_regular"
+    try:
+        payload = json.loads(attestation_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}, "lane_state_attestation_invalid_json"
+    if not isinstance(payload, dict):
+        return {}, "lane_state_attestation_not_object"
+    return payload, ""
+
+
 def _checkpoint_lane_coverage_hashes(
     lanes_by_id: dict[str, FullExtractionLane],
     lane_ids: set[str],
@@ -3398,16 +3941,42 @@ def _validate_previous_checkpoint_report(
     previous_report_path: Path | None,
     previous_report: dict[str, Any],
     lanes_by_id: dict[str, FullExtractionLane],
+    pointer: _CheckpointPointer,
+    chain_id: str,
+    source_sha: str,
     expected_workload_store: PlayerTeamSeasonWorkloadStore | None = None,
 ) -> tuple[set[str], list[str], dict[str, str]]:
     if previous_report_path is None or not previous_report_path.is_file() or not previous_report:
         msg = "Previous checkpoint database has no readable checkpoint report"
         raise ValueError(msg)
+    if previous_report_path.is_symlink():
+        raise ValueError("Previous checkpoint report must be a regular file")
+
+    provenance_fields = (
+        ("chain_id", chain_id),
+        ("run_id", pointer.run_id),
+        ("artifact_name", pointer.artifact_name),
+        ("source_sha", source_sha),
+        ("coverage_fingerprint", pointer.coverage_hash),
+    )
+    for field_name, expected in provenance_fields:
+        actual = str(previous_report.get(field_name) or "").strip()
+        if field_name in {"source_sha", "coverage_fingerprint"}:
+            actual = actual.lower()
+        if actual != expected:
+            raise ValueError(f"Previous checkpoint report {field_name} does not match its pointer")
+    reported_generation = previous_report.get("checkpoint_generation")
+    if (
+        isinstance(reported_generation, bool)
+        or not isinstance(reported_generation, int)
+        or reported_generation != pointer.generation
+    ):
+        raise ValueError(
+            "Previous checkpoint report checkpoint_generation does not match its pointer"
+        )
 
     reported_database_sha256 = str(previous_report.get("database_sha256") or "").strip()
-    if len(reported_database_sha256) != 64 or any(
-        character not in "0123456789abcdef" for character in reported_database_sha256.lower()
-    ):
+    if not _is_sha256(reported_database_sha256):
         msg = "Previous checkpoint report is missing a valid database_sha256"
         raise ValueError(msg)
     actual_database_sha256 = _file_sha256(previous_db_path)
@@ -3419,7 +3988,18 @@ def _validate_previous_checkpoint_report(
     if not isinstance(raw_lane_ids, list):
         msg = "Previous checkpoint report included_lane_ids must be a list"
         raise ValueError(msg)
-    included_lane_ids = {str(value).strip() for value in raw_lane_ids if str(value).strip()}
+    normalized_lane_ids = [str(value).strip() for value in raw_lane_ids]
+    if any(not lane_id for lane_id in normalized_lane_ids):
+        raise ValueError("Previous checkpoint report included_lane_ids must be non-empty")
+    if len(set(normalized_lane_ids)) != len(normalized_lane_ids):
+        raise ValueError("Previous checkpoint report included_lane_ids must be unique")
+    included_lane_ids = set(normalized_lane_ids)
+    out_of_scope_lane_ids = included_lane_ids - set(lanes_by_id)
+    if out_of_scope_lane_ids:
+        raise ValueError(
+            "Previous checkpoint report contains lanes outside the current manifest: "
+            + ", ".join(sorted(out_of_scope_lane_ids))
+        )
 
     raw_coverage_hashes = previous_report.get("included_lane_coverage_hashes")
     if not isinstance(raw_coverage_hashes, dict):
@@ -3430,12 +4010,30 @@ def _validate_previous_checkpoint_report(
         for lane_id, coverage_hash in raw_coverage_hashes.items()
         if str(lane_id).strip()
     }
-    unexpected_hash_ids = set(coverage_hashes) - included_lane_ids
-    if unexpected_hash_ids:
-        msg = "Previous checkpoint report has coverage hashes for non-included lanes: " + ", ".join(
-            sorted(unexpected_hash_ids)
+    if len(coverage_hashes) != len(raw_coverage_hashes):
+        raise ValueError("Previous checkpoint report has invalid lane coverage hash keys")
+    if set(coverage_hashes) != included_lane_ids:
+        missing_hash_ids = included_lane_ids - set(coverage_hashes)
+        unexpected_hash_ids = set(coverage_hashes) - included_lane_ids
+        details = []
+        if missing_hash_ids:
+            details.append("missing=" + ",".join(sorted(missing_hash_ids)))
+        if unexpected_hash_ids:
+            details.append("unexpected=" + ",".join(sorted(unexpected_hash_ids)))
+        raise ValueError(
+            "Previous checkpoint report lane coverage hash inventory does not match "
+            "included_lane_ids: " + "; ".join(details)
         )
-        raise ValueError(msg)
+    invalid_hash_ids = sorted(
+        lane_id
+        for lane_id, coverage_hash in coverage_hashes.items()
+        if not _is_sha256(coverage_hash)
+    )
+    if invalid_hash_ids:
+        raise ValueError(
+            "Previous checkpoint report has invalid lane coverage hashes: "
+            + ", ".join(invalid_hash_ids)
+        )
 
     for lane_id in sorted(included_lane_ids & set(lanes_by_id)):
         expected_hash = _coverage_hash_for_lane(lanes_by_id[lane_id])
@@ -3511,11 +4109,20 @@ def _validate_previous_checkpoint_report(
                         f"Previous checkpoint lane workload identity mismatch for {lane_id}"
                     )
 
-    raw_run_ids = previous_report.get("included_run_ids", [])
+    raw_run_ids = previous_report.get("included_run_ids")
     if not isinstance(raw_run_ids, list):
         msg = "Previous checkpoint report included_run_ids must be a list"
         raise ValueError(msg)
-    included_run_ids = [str(value) for value in raw_run_ids if str(value).strip()]
+    included_run_ids = [str(value).strip() for value in raw_run_ids]
+    if (
+        any(not _is_positive_run_id(value) for value in included_run_ids)
+        or len(set(included_run_ids)) != len(included_run_ids)
+        or pointer.run_id not in included_run_ids
+    ):
+        raise ValueError(
+            "Previous checkpoint report included_run_ids must be unique positive integers "
+            "and include the checkpoint run"
+        )
     return included_lane_ids, included_run_ids, coverage_hashes
 
 
@@ -3526,6 +4133,79 @@ def _first_database_path(root: Path | None) -> Path | None:
         if path.is_file():
             return path
     return None
+
+
+def _single_database_path(root: Path | None, *, label: str) -> Path:
+    candidates = (
+        []
+        if root is None or not root.exists()
+        else sorted(path for path in root.rglob("nba.duckdb") if path.is_file())
+    )
+    if len(candidates) != 1:
+        raise ValueError(f"{label} must contain exactly one nba.duckdb, found {len(candidates)}")
+    database_path = candidates[0]
+    if database_path.is_symlink():
+        raise ValueError(f"{label} database must be a regular file")
+    return database_path
+
+
+def validate_checkpoint_artifact(
+    *,
+    manifest_path: Path,
+    checkpoint_dir: Path,
+    checkpoint_report_path: Path,
+    chain_id: str,
+    source_sha: str,
+    pointer_prefix: str = "latest",
+) -> dict[str, Any]:
+    """Validate a checkpoint before its report is used to select lane inventory."""
+    raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    trusted_manifest = _validate_checkpoint_trust_root(
+        raw_manifest,
+        chain_id=chain_id,
+        source_sha=source_sha,
+    )
+    manifest = normalize_manifest(trusted_manifest)
+    pointer = _checkpoint_pointer(
+        manifest.chain_state,
+        prefix=pointer_prefix,
+        chain_id=chain_id,
+    )
+    if pointer is None:
+        raise ValueError(f"The manifest has no {pointer_prefix} checkpoint pointer")
+    checkpoint_db_path = _single_database_path(
+        checkpoint_dir,
+        label=f"{pointer_prefix.capitalize()} checkpoint artifact",
+    )
+    report = _read_json_file(checkpoint_report_path)
+    lane_ids, run_ids, coverage_hashes = _validate_previous_checkpoint_report(
+        previous_db_path=checkpoint_db_path,
+        previous_report_path=checkpoint_report_path,
+        previous_report=report,
+        lanes_by_id={lane.lane_id: lane for lane in manifest.lanes},
+        pointer=pointer,
+        chain_id=chain_id,
+        source_sha=source_sha.strip().lower(),
+    )
+    contract_blocked_rows, contract_blocked_evidence_sha256 = (
+        _validate_contract_blocked_evidence_commitment(
+            report,
+            manifest.chain_state,
+            pointer_prefix=pointer_prefix,
+        )
+    )
+    return {
+        "run_id": pointer.run_id,
+        "artifact_name": pointer.artifact_name,
+        "checkpoint_generation": pointer.generation,
+        "coverage_fingerprint": pointer.coverage_hash,
+        "database_sha256": str(report["database_sha256"]).lower(),
+        "included_lane_ids": sorted(lane_ids),
+        "included_run_ids": run_ids,
+        "included_lane_coverage_hashes": coverage_hashes,
+        "contract_blocked_lane_count": len(contract_blocked_rows),
+        "contract_blocked_evidence_sha256": contract_blocked_evidence_sha256,
+    }
 
 
 def _database_row_counts(db_path: Path) -> tuple[dict[str, int], int]:
@@ -4290,44 +4970,129 @@ def _validate_current_lane_artifact(
     *,
     lane: FullExtractionLane,
     metadata: dict[str, Any],
+    metadata_path: Path,
+    metadata_dir: Path,
     db_path: Path,
+    artifacts_dir: Path,
+    chain_id: str,
+    source_sha: str,
+    authorized_run_ids: set[str],
     workload_store: PlayerTeamSeasonWorkloadStore | None = None,
 ) -> list[str]:
     schema_version = _int_metadata_value(metadata.get("metadata_schema_version"))
-    strict = schema_version >= 3
-    errors = _metadata_lane_contract_errors(metadata, lane, strict=strict)
+    errors = _metadata_lane_contract_errors(metadata, lane, strict=True)
+    if schema_version < 3:
+        errors.append("metadata_schema_version_unsupported")
+    if metadata_path.is_symlink() or not metadata_path.is_file():
+        errors.append("lane_metadata_not_regular")
+    if metadata_path.name != "lane-metadata.json":
+        errors.append("lane_metadata_filename_mismatch")
+    if db_path.is_symlink() or not db_path.is_file():
+        errors.append("lane_database_not_regular")
     actual_database_sha256 = _file_sha256(db_path)
-    if strict:
-        expected_coverage_hash = _coverage_hash_for_lane(lane)
-        metadata_coverage_hash = str(metadata.get("coverage_units_hash") or "").strip().lower()
-        if metadata_coverage_hash != expected_coverage_hash:
-            errors.append("metadata_coverage_units_hash_mismatch")
+    expected_coverage_hash = _coverage_hash_for_lane(lane)
+    expected_artifact_name = _lane_artifact_name(chain_id, lane.lane_id)
+    expected_metadata_artifact_name = _lane_metadata_artifact_name(chain_id, lane.lane_id)
+    normalized_source_sha = source_sha.strip().lower()
 
-        metadata_database_sha256 = str(metadata.get("database_sha256") or "").strip().lower()
-        if not _is_sha256(metadata_database_sha256):
-            errors.append("metadata_database_sha256_missing_or_invalid")
-        elif metadata_database_sha256 != actual_database_sha256:
-            errors.append("metadata_database_sha256_mismatch")
+    if str(metadata.get("chain_id") or "") != chain_id:
+        errors.append("metadata_chain_id_mismatch")
+    if str(metadata.get("source_sha") or "").strip().lower() != normalized_source_sha:
+        errors.append("metadata_source_sha_mismatch")
+    metadata_coverage_hash = str(metadata.get("coverage_units_hash") or "").strip().lower()
+    if metadata_coverage_hash != expected_coverage_hash:
+        errors.append("metadata_coverage_units_hash_mismatch")
 
-        state_artifact = metadata.get("state_artifact")
-        state_payload = state_artifact if isinstance(state_artifact, dict) else {}
-        state_digest = str(state_payload.get("sha256") or "").strip().lower()
-        if state_digest and state_digest != actual_database_sha256:
-            errors.append("metadata_state_artifact_sha256_mismatch")
+    metadata_database_sha256 = str(metadata.get("database_sha256") or "").strip().lower()
+    if not _is_sha256(metadata_database_sha256):
+        errors.append("metadata_database_sha256_missing_or_invalid")
+    elif metadata_database_sha256 != actual_database_sha256:
+        errors.append("metadata_database_sha256_mismatch")
 
-        _expected_units, expected_workload_contract, workload_errors = _workload_scope_contract(
-            lane, workload_store
-        )
-        if not workload_errors and expected_workload_contract:
-            metadata_workload_contract = metadata.get("workload_contract")
-            if metadata_workload_contract != expected_workload_contract:
-                errors.append("metadata_workload_contract_mismatch")
+    state_artifact = metadata.get("state_artifact")
+    state_payload = state_artifact if isinstance(state_artifact, dict) else {}
+    if not isinstance(state_artifact, dict):
+        errors.append("metadata_state_artifact_missing")
+    state_run_id = str(state_payload.get("run_id") or "").strip()
+    state_name = str(state_payload.get("name") or "").strip()
+    state_digest = str(state_payload.get("sha256") or "").strip().lower()
+    state_artifact_id = str(state_payload.get("artifact_id") or "").strip()
+    state_artifact_digest = str(state_payload.get("artifact_digest") or "").strip().lower()
+    if state_payload.get("attested") is not True:
+        errors.append("metadata_state_artifact_not_attested")
+    if state_payload.get("uploaded") is not True:
+        errors.append("metadata_state_artifact_not_uploaded")
+    if not _is_positive_run_id(state_artifact_id):
+        errors.append("metadata_state_artifact_id_invalid")
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", state_artifact_digest) is None:
+        errors.append("metadata_state_artifact_digest_invalid")
+    if not _is_positive_run_id(state_run_id):
+        errors.append("metadata_state_artifact_run_id_invalid")
+    elif state_run_id not in authorized_run_ids:
+        errors.append("metadata_state_artifact_run_id_unauthorized")
+    if state_name != expected_artifact_name:
+        errors.append("metadata_state_artifact_name_mismatch")
+    if state_digest != actual_database_sha256:
+        errors.append("metadata_state_artifact_sha256_mismatch")
+
+    metadata_artifact_root = _artifact_root_for_provenance(
+        path=metadata_path,
+        root=metadata_dir,
+        run_id=state_run_id,
+        artifact_name=expected_metadata_artifact_name,
+    )
+    if metadata_artifact_root is None:
+        errors.append("metadata_artifact_path_provenance_mismatch")
+    database_artifact_root = _artifact_root_for_provenance(
+        path=db_path,
+        root=artifacts_dir,
+        run_id=state_run_id,
+        artifact_name=expected_artifact_name,
+    )
+    if database_artifact_root is None:
+        errors.append("lane_database_path_provenance_mismatch")
+    else:
+        attestation, attestation_error = _read_lane_state_attestation(database_artifact_root)
+        if attestation_error:
+            errors.append(attestation_error)
+        else:
+            if attestation.get("schema_version") != 3:
+                errors.append("lane_state_attestation_schema_version_mismatch")
+            attested_fields = (
+                ("chain_id", chain_id),
+                ("source_sha", normalized_source_sha),
+                ("lane_id", lane.lane_id),
+                ("run_id", state_run_id),
+                ("artifact_name", expected_artifact_name),
+                ("coverage_units_hash", expected_coverage_hash),
+                ("database_sha256", actual_database_sha256),
+            )
+            for field_name, expected in attested_fields:
+                actual = str(attestation.get(field_name) or "").strip()
+                if field_name in {
+                    "source_sha",
+                    "coverage_units_hash",
+                    "database_sha256",
+                }:
+                    actual = actual.lower()
+                if actual != expected:
+                    errors.append(f"lane_state_attestation_{field_name}_mismatch")
+            if attestation.get("attested") is not True:
+                errors.append("lane_state_attestation_not_attested")
+
+    _expected_units, expected_workload_contract, workload_errors = _workload_scope_contract(
+        lane, workload_store
+    )
+    if not workload_errors and expected_workload_contract:
+        metadata_workload_contract = metadata.get("workload_contract")
+        if metadata_workload_contract != expected_workload_contract:
+            errors.append("metadata_workload_contract_mismatch")
 
     errors.extend(
         _lane_database_journal_errors(
             db_path,
             lane,
-            require_complete_contract_evidence=strict,
+            require_complete_contract_evidence=True,
             workload_store=workload_store,
         )
     )
@@ -4400,31 +5165,21 @@ def _lane_artifact_database_paths(
 def _attested_current_lane_artifacts(
     *,
     artifacts_dir: Path,
+    metadata_dir: Path,
     complete_lane_ids: set[str],
     metadata: dict[str, dict[str, Any]],
+    metadata_records: dict[str, list[tuple[Path, dict[str, Any]]]],
     lanes_by_id: dict[str, FullExtractionLane],
+    chain_id: str,
+    source_sha: str,
+    authorized_run_ids: set[str],
     workload_store: PlayerTeamSeasonWorkloadStore | None = None,
-) -> tuple[list[Path], set[str], dict[str, list[str]]]:
+) -> tuple[list[Path], set[str], dict[str, list[str]], set[str]]:
     failures: dict[str, list[str]] = {}
     if not complete_lane_ids:
-        return [], set(), failures
+        return [], set(), failures, set()
 
     candidates: dict[str, list[Path]] = {lane_id: [] for lane_id in complete_lane_ids}
-    declared_artifact_names: dict[str, str] = {}
-    fallback_lane_ids: set[str] = set()
-    for lane_id in complete_lane_ids:
-        state_artifact = metadata[lane_id].get("state_artifact")
-        state_payload = state_artifact if isinstance(state_artifact, dict) else {}
-        artifact_name = str(state_payload.get("name") or "").strip()
-        if artifact_name:
-            declared_artifact_names[lane_id] = artifact_name
-        else:
-            fallback_lane_ids.add(lane_id)
-    ordered_fallback_lane_ids = sorted(
-        fallback_lane_ids,
-        key=lambda lane_id: len(lane_id),
-        reverse=True,
-    )
     if artifacts_dir.exists():
         for db_path in sorted(artifacts_dir.rglob("nba.duckdb")):
             ancestor_components = set(
@@ -4433,24 +5188,25 @@ def _attested_current_lane_artifacts(
                     artifacts_dir=artifacts_dir,
                 )
             )
-            for lane_id, artifact_name in declared_artifact_names.items():
-                if artifact_name in ancestor_components:
-                    candidates[lane_id].append(db_path)
-            if ordered_fallback_lane_ids:
-                lane_id = _artifact_lane_id_for_database(
-                    db_path=db_path,
-                    artifacts_dir=artifacts_dir,
-                    ordered_lane_ids=ordered_fallback_lane_ids,
-                )
-                if lane_id is not None:
+            for lane_id in complete_lane_ids:
+                if _lane_artifact_name(chain_id, lane_id) in ancestor_components:
                     candidates[lane_id].append(db_path)
 
     attested_paths: list[Path] = []
     attested_lane_ids: set[str] = set()
+    attested_run_ids: set[str] = set()
     for lane_id in sorted(complete_lane_ids):
         lane = lanes_by_id.get(lane_id)
         if lane is None:
             failures[lane_id] = ["lane_not_in_manifest"]
+            continue
+        lane_metadata_records = metadata_records.get(lane_id, [])
+        if len(lane_metadata_records) != 1:
+            failures[lane_id] = [f"lane_metadata_ambiguous:{len(lane_metadata_records)}"]
+            continue
+        metadata_path, lane_metadata = lane_metadata_records[0]
+        if lane_metadata is not metadata[lane_id]:
+            failures[lane_id] = ["lane_metadata_selection_mismatch"]
             continue
         lane_candidates = candidates.get(lane_id, [])
         if not lane_candidates:
@@ -4462,8 +5218,14 @@ def _attested_current_lane_artifacts(
         db_path = lane_candidates[0]
         errors = _validate_current_lane_artifact(
             lane=lane,
-            metadata=metadata[lane_id],
+            metadata=lane_metadata,
+            metadata_path=metadata_path,
+            metadata_dir=metadata_dir,
             db_path=db_path,
+            artifacts_dir=artifacts_dir,
+            chain_id=chain_id,
+            source_sha=source_sha,
+            authorized_run_ids=authorized_run_ids,
             workload_store=workload_store,
         )
         if errors:
@@ -4471,7 +5233,9 @@ def _attested_current_lane_artifacts(
             continue
         attested_paths.append(db_path)
         attested_lane_ids.add(lane_id)
-    return attested_paths, attested_lane_ids, failures
+        state_artifact = lane_metadata["state_artifact"]
+        attested_run_ids.add(str(state_artifact["run_id"]))
+    return attested_paths, attested_lane_ids, failures, attested_run_ids
 
 
 def _legacy_cross_product_spans(lane_ids: set[str]) -> set[tuple[str, int, int]]:
@@ -4650,11 +5414,68 @@ def build_checkpoint_database(
     workload_duckdb_path: Path | None = None,
     chain_id: str = "",
     run_id: str = "",
+    source_sha: str = "",
 ) -> dict[str, Any]:
-    manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
+    raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    trusted_manifest = _validate_checkpoint_trust_root(
+        raw_manifest,
+        chain_id=chain_id,
+        source_sha=source_sha,
+        run_id=run_id,
+    )
+    normalized_source_sha = source_sha.strip().lower()
+    manifest = normalize_manifest(trusted_manifest)
     lanes = list(manifest.lanes)
     _validate_unique_lane_ids(lanes)
     lanes_by_id = {lane.lane_id: lane for lane in lanes}
+    committed_contract_blocked_rows, _committed_contract_blocked_digest = (
+        _validated_chain_state_contract_blocked_evidence(manifest.chain_state)
+    )
+    committed_contract_blocked_lane_ids = {
+        str(row["lane_id"]) for row in committed_contract_blocked_rows
+    }
+    duplicate_accounted_lane_ids = sorted(set(lanes_by_id) & committed_contract_blocked_lane_ids)
+    if duplicate_accounted_lane_ids:
+        raise ValueError(
+            "Checkpoint manifest lanes overlap committed contract-blocked evidence: "
+            + ", ".join(duplicate_accounted_lane_ids)
+        )
+    latest_pointer = _checkpoint_pointer(
+        manifest.chain_state,
+        prefix="latest",
+        chain_id=chain_id,
+    )
+    if latest_pointer is None:
+        raise ValueError("Checkpoint manifest is missing its latest checkpoint pointer")
+    if latest_pointer.run_id != run_id:
+        raise ValueError("Latest checkpoint pointer run ID does not match checkpoint run_id")
+    previous_pointer = _checkpoint_pointer(
+        manifest.chain_state,
+        prefix="previous",
+        chain_id=chain_id,
+    )
+    expected_previous_generation = previous_pointer.generation if previous_pointer else 0
+    if latest_pointer.generation != expected_previous_generation + 1:
+        raise ValueError("Checkpoint pointer generations are not contiguous")
+    previous_inputs = (
+        previous_checkpoint_dir is not None,
+        previous_checkpoint_report_path is not None,
+    )
+    if any(previous_inputs) and not all(previous_inputs):
+        raise ValueError("Previous checkpoint directory and report path must be provided together")
+    if bool(previous_pointer) != all(previous_inputs):
+        raise ValueError(
+            "Previous checkpoint inputs must exactly match the manifest previous pointer"
+        )
+    authorized_run_ids = {*manifest.chain_state.artifact_run_ids, run_id}
+    invalid_authorized_run_ids = sorted(
+        value for value in authorized_run_ids if not _is_positive_run_id(value)
+    )
+    if invalid_authorized_run_ids:
+        raise ValueError(
+            "Checkpoint manifest has invalid artifact run IDs: "
+            + ", ".join(invalid_authorized_run_ids)
+        )
     requires_workload_contract = any("player_team_season" in lane.patterns for lane in lanes)
     workload_store = (
         PlayerTeamSeasonWorkloadStore.from_duckdb_path(workload_duckdb_path)
@@ -4669,27 +5490,22 @@ def build_checkpoint_database(
         if requires_workload_contract and workload_integrity is None
         else []
     )
-    metadata = _metadata_by_lane(metadata_dir)
-    previous_report = _read_json_file(previous_checkpoint_report_path)
-    complete_current_lane_ids = _metadata_complete_lane_ids(metadata)
-    contract_blocked_lane_ids = _metadata_contract_blocked_lane_ids(metadata, lanes_by_id)
-    (
-        current_db_paths,
-        current_included_lane_ids,
-        current_lane_attestation_failures,
-    ) = _attested_current_lane_artifacts(
-        artifacts_dir=lane_artifacts_dir,
-        complete_lane_ids=complete_current_lane_ids,
-        metadata=metadata,
-        lanes_by_id=lanes_by_id,
-        workload_store=workload_store,
-    )
-    skipped_complete_lane_ids = sorted(complete_current_lane_ids - current_included_lane_ids)
-    previous_db_path = _first_database_path(previous_checkpoint_dir)
+    previous_report: dict[str, Any] = {}
+    previous_db_path: Path | None = None
     previous_included_lane_ids: set[str] = set()
     previous_run_ids: list[str] = []
     previous_coverage_hashes: dict[str, str] = {}
-    if previous_db_path is not None:
+    if previous_pointer is not None:
+        previous_db_path = _single_database_path(
+            previous_checkpoint_dir,
+            label="Previous checkpoint artifact",
+        )
+        previous_report = _read_json_file(previous_checkpoint_report_path)
+        _validate_contract_blocked_evidence_commitment(
+            previous_report,
+            manifest.chain_state,
+            pointer_prefix="previous",
+        )
         (
             previous_included_lane_ids,
             previous_run_ids,
@@ -4699,8 +5515,36 @@ def build_checkpoint_database(
             previous_report_path=previous_checkpoint_report_path,
             previous_report=previous_report,
             lanes_by_id=lanes_by_id,
+            pointer=previous_pointer,
+            chain_id=chain_id,
+            source_sha=normalized_source_sha,
             expected_workload_store=(workload_store if requires_workload_contract else None),
         )
+    metadata_records = _metadata_records_by_lane(metadata_dir)
+    metadata = {lane_id: lane_records[-1][1] for lane_id, lane_records in metadata_records.items()}
+    complete_current_lane_ids = _metadata_complete_lane_ids(metadata)
+    contract_blocked_lane_ids = _metadata_contract_blocked_lane_ids(metadata, lanes_by_id)
+    accounted_contract_blocked_lane_ids = (
+        committed_contract_blocked_lane_ids | contract_blocked_lane_ids
+    )
+    (
+        current_db_paths,
+        current_included_lane_ids,
+        current_lane_attestation_failures,
+        current_artifact_run_ids,
+    ) = _attested_current_lane_artifacts(
+        artifacts_dir=lane_artifacts_dir,
+        metadata_dir=metadata_dir,
+        complete_lane_ids=complete_current_lane_ids,
+        metadata=metadata,
+        metadata_records=metadata_records,
+        lanes_by_id=lanes_by_id,
+        chain_id=chain_id,
+        source_sha=normalized_source_sha,
+        authorized_run_ids=authorized_run_ids,
+        workload_store=workload_store,
+    )
+    skipped_complete_lane_ids = sorted(complete_current_lane_ids - current_included_lane_ids)
     compatible_previous_lane_ids = _compatible_previous_checkpoint_lane_ids(
         lanes,
         previous_included_lane_ids=previous_included_lane_ids,
@@ -4750,22 +5594,34 @@ def build_checkpoint_database(
         )
     )
     workload_contract_errors.extend(included_workload_contract_errors)
-    checkpoint_generation = int(previous_report.get("checkpoint_generation") or 0) + 1
-    included_run_ids = list(dict.fromkeys([*previous_run_ids, *([run_id] if run_id else [])]))
+    checkpoint_generation = latest_pointer.generation
+    included_run_ids = list(
+        dict.fromkeys([*previous_run_ids, *sorted(current_artifact_run_ids), run_id])
+    )
     database_sha256 = _file_sha256(Path(output_path)) if output_path else ""
+    manifest_lane_count = len(lanes) + len(committed_contract_blocked_lane_ids)
+    complete_lane_count = len(effective_included_lane_ids)
+    contract_blocked_lane_count = len(accounted_contract_blocked_lane_ids)
+    if coverage_fingerprint != latest_pointer.coverage_hash:
+        raise ValueError(
+            "Latest checkpoint pointer coverage hash does not match the built checkpoint"
+        )
     report = {
         "chain_id": chain_id,
         "run_id": run_id,
+        "artifact_name": latest_pointer.artifact_name,
+        "source_sha": normalized_source_sha,
         "chunk_profile": _manifest_chunk_profile(lanes),
         "checkpoint_generation": checkpoint_generation,
-        "previous_checkpoint_generation": int(previous_report.get("checkpoint_generation") or 0),
+        "previous_checkpoint_generation": expected_previous_generation,
         "included_lane_ids": sorted(included_lane_ids),
         "included_lane_coverage_hashes": included_lane_coverage_hashes,
         "included_lane_workload_contracts": included_lane_workload_contracts,
         "compatible_previous_lane_ids": sorted(compatible_previous_lane_ids),
         "included_run_ids": included_run_ids,
-        "complete_lane_count": len(effective_included_lane_ids),
-        "contract_blocked_lane_count": len(contract_blocked_lane_ids),
+        "manifest_lane_count": manifest_lane_count,
+        "complete_lane_count": complete_lane_count,
+        "contract_blocked_lane_count": contract_blocked_lane_count,
         "active_lane_count": len(missing_lane_ids),
         "skipped_lane_count": len(skipped_complete_lane_ids),
         "missing_lane_ids": missing_lane_ids,
@@ -4787,6 +5643,7 @@ def build_checkpoint_database(
             and bool(database_sha256)
             and set(effective_included_lane_ids) <= set(included_lane_coverage_hashes)
             and not workload_contract_errors
+            and manifest_lane_count == complete_lane_count + contract_blocked_lane_count
         ),
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -4975,6 +5832,20 @@ def _command_checkpoint(args: argparse.Namespace) -> int:
         workload_duckdb_path=args.workload_duckdb_path,
         chain_id=args.chain_id,
         run_id=args.run_id,
+        source_sha=args.source_sha,
+    )
+    print(json.dumps(summary))
+    return 0
+
+
+def _command_verify_checkpoint(args: argparse.Namespace) -> int:
+    summary = validate_checkpoint_artifact(
+        manifest_path=args.lane_manifest_path,
+        checkpoint_dir=args.checkpoint_dir,
+        checkpoint_report_path=args.checkpoint_report_path,
+        chain_id=args.chain_id,
+        source_sha=args.source_sha,
+        pointer_prefix=args.pointer_prefix,
     )
     print(json.dumps(summary))
     return 0
@@ -5031,9 +5902,26 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument("--workload-duckdb-path", type=Path, default=None)
     checkpoint.add_argument("--output-dir", type=Path, required=True)
     checkpoint.add_argument("--report-path", type=Path, required=True)
-    checkpoint.add_argument("--chain-id", type=str, default="")
-    checkpoint.add_argument("--run-id", type=str, default="")
+    checkpoint.add_argument("--chain-id", type=str, required=True)
+    checkpoint.add_argument("--run-id", type=str, required=True)
+    checkpoint.add_argument("--source-sha", type=str, required=True)
     checkpoint.set_defaults(func=_command_checkpoint)
+
+    verify_checkpoint = subparsers.add_parser(
+        "verify-checkpoint",
+        help="Validate checkpoint provenance before trusting its lane inventory.",
+    )
+    verify_checkpoint.add_argument("--lane-manifest-path", type=Path, required=True)
+    verify_checkpoint.add_argument("--checkpoint-dir", type=Path, required=True)
+    verify_checkpoint.add_argument("--checkpoint-report-path", type=Path, required=True)
+    verify_checkpoint.add_argument("--chain-id", type=str, required=True)
+    verify_checkpoint.add_argument("--source-sha", type=str, required=True)
+    verify_checkpoint.add_argument(
+        "--pointer-prefix",
+        choices=("latest", "previous"),
+        default="latest",
+    )
+    verify_checkpoint.set_defaults(func=_command_verify_checkpoint)
 
     merge = subparsers.add_parser("merge", help="Merge lane DuckDB artifacts.")
     merge.add_argument("--artifacts-dir", type=Path, required=True)

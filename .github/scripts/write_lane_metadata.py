@@ -351,6 +351,10 @@ def _is_sha256(value: str) -> bool:
     return len(value) == 64 and all(character in "0123456789abcdef" for character in value.lower())
 
 
+def _is_positive_run_id(value: str) -> bool:
+    return re.fullmatch(r"[1-9][0-9]*", value) is not None
+
+
 def _completion_evidence_errors(
     *,
     db_telemetry: dict[str, Any],
@@ -700,6 +704,13 @@ def main() -> int:
     expected_empty_complete = bool(
         payload.get("status") == "complete" and payload.get("expected_empty") is True
     )
+    state_artifact = payload.get("state_artifact")
+    state_payload = state_artifact if isinstance(state_artifact, dict) else {}
+    run_id = str(state_payload.get("run_id") or "").strip()
+    state_artifact_name = str(state_payload.get("name") or "").strip()
+    canonical_artifact_name = (
+        f"extraction-lane-{payload.get('chain_id', '')}-{payload.get('lane_id', '')}"
+    )
     attestation_error = ""
     if Path("artifacts/extraction/lane-state-untrusted").exists():
         attestation_error = "restored lane state was rejected as untrusted"
@@ -729,36 +740,49 @@ def main() -> int:
         str(payload.get(key) or "").strip() for key in ("source_sha", "chain_id", "lane_id")
     ):
         attestation_error = "source, chain, or lane identity is missing"
+    elif not isinstance(state_artifact, dict):
+        attestation_error = "lane metadata state artifact is missing"
+    elif not _is_positive_run_id(run_id):
+        attestation_error = "GitHub run ID is missing or invalid"
+    elif not state_artifact_name:
+        attestation_error = "lane artifact name is missing"
+    elif payload["status"] == "complete" and state_artifact_name != canonical_artifact_name:
+        attestation_error = "complete lane artifact name is not canonical"
 
     if attestation_error:
+        state_payload["attested"] = False
+        if payload["status"] == "complete":
+            payload["status"] = "pipeline_failure"
+            payload["raw_status"] = "snapshot-unattested"
+            completion_errors = telemetry_payload.get("completion_evidence_errors")
+            if isinstance(completion_errors, list):
+                completion_errors.append(f"snapshot_unattested:{attestation_error}")
+        _write_json_atomically(metadata_path, payload)
         print(f"Lane snapshot not attested: {attestation_error}")
+        append_output("final-outcome", str(payload["status"]))
+        append_output("snapshot-attested", "false")
         return 0
 
     attestation = {
-        "schema_version": 2,
+        "schema_version": 3,
         "source_sha": str(payload["source_sha"]),
         "chain_id": str(payload["chain_id"]),
         "lane_id": str(payload["lane_id"]),
+        "run_id": run_id,
+        "artifact_name": state_artifact_name,
         "coverage_units_hash": str(payload["coverage_units_hash"]),
         "database_sha256": database_sha256,
+        "attested": True,
         "expected_empty": bool(payload.get("expected_empty") is True),
         "workload_contract": payload.get("workload_contract"),
     }
-    temporary_attestation_path = attestation_path.with_suffix(".json.tmp")
-    temporary_attestation_path.write_text(
-        json.dumps(attestation, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    temporary_attestation_path.replace(attestation_path)
+    _write_json_atomically(attestation_path, attestation)
     if attestation_path.is_symlink() or not attestation_path.is_file():
         raise RuntimeError(
             f"Lane-state attestation was not created as a regular file: {attestation_path}"
         )
 
-    state_artifact = payload.get("state_artifact")
-    if not isinstance(state_artifact, dict):
-        raise RuntimeError("Lane metadata state_artifact must be an object")
-    state_artifact["attested"] = True
+    state_payload["attested"] = True
     _write_json_atomically(metadata_path, payload)
 
     append_output("final-outcome", str(payload["status"]))

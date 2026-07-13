@@ -10,9 +10,14 @@ from aiolimiter import AsyncLimiter
 from loguru import logger
 
 from nbadb.core.config import get_settings
-from nbadb.core.errors import ExtractionError, NbaDbError, TransientError
+from nbadb.core.errors import (
+    ExtractionError,
+    NbaDbError,
+    TransientError,
+    ValidationError,
+)
+from nbadb.core.extraction_failures import classify_exception
 from nbadb.core.types import season_type_upstream_unavailable_reason
-from nbadb.extract.base import is_retryable_error
 from nbadb.orchestrate.extractor_runner import _sync_extract
 from nbadb.orchestrate.seasons import season_range
 
@@ -204,19 +209,27 @@ async def _extract_with_retry(
                     )
             return validate(df) if validate is not None else df
         except Exception as exc:
-            if isinstance(exc, NbaDbError) and not isinstance(exc, TransientError):
-                raise
-            retryable = isinstance(exc, (_DiscoveryResponseError, TransientError)) or (
-                is_retryable_error(exc)
+            failure_class = classify_exception(exc)
+            response_failure = (
+                isinstance(
+                    exc,
+                    (_DiscoveryResponseError, ValidationError),
+                )
+                or failure_class == "response_contract"
+            )
+            retryable = (
+                response_failure
+                or isinstance(exc, TransientError)
+                or failure_class == "transport_transient"
             )
             if not retryable:
+                if isinstance(exc, NbaDbError):
+                    raise
                 raise ExtractionError(f"{label}: extraction failed") from exc
 
             overall_attempt = attempt_offset + attempt
             failure = (
-                f"response shape: {exc}"
-                if isinstance(exc, _DiscoveryResponseError)
-                else type(exc).__name__
+                f"response shape: {type(exc).__name__}" if response_failure else type(exc).__name__
             )
             if attempt < attempts:
                 delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
@@ -237,7 +250,11 @@ async def _extract_with_retry(
                     attempt_total,
                     failure,
                 )
-                if isinstance(exc, (_DiscoveryResponseError, TransientError)):
+                if response_failure:
+                    if isinstance(exc, _DiscoveryResponseError):
+                        raise
+                    raise _DiscoveryResponseError(f"{label}: response validation failed") from exc
+                if isinstance(exc, TransientError):
                     raise
                 raise TransientError(f"{label}: transient extraction failure") from exc
     return pl.DataFrame()  # unreachable, satisfies type checker

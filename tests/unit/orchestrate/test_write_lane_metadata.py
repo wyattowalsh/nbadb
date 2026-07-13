@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -315,12 +316,15 @@ def test_main_emits_snapshot_attestation_only_after_metadata_and_hash(
     assert payload["database_sha256"] == payload["state_artifact"]["sha256"]
     assert payload["state_artifact"]["attested"] is True
     assert attestation == {
-        "schema_version": 2,
+        "schema_version": 3,
         "source_sha": "abc123",
         "chain_id": "chain-1",
         "lane_id": "lane-1",
+        "run_id": "12345",
+        "artifact_name": "extraction-lane-recovery-chain-1-lane-1-run-12345-attempt-1",
         "coverage_units_hash": "b" * 64,
         "database_sha256": payload["database_sha256"],
+        "attested": True,
         "expected_empty": False,
         "workload_contract": None,
     }
@@ -329,6 +333,115 @@ def test_main_emits_snapshot_attestation_only_after_metadata_and_hash(
         "final-outcome=needs_resume",
         "snapshot-attested=true",
     ]
+
+
+@pytest.mark.parametrize("run_id", ["", "0", "00123", "not-a-run-id"])
+def test_main_does_not_attest_without_positive_run_id(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    run_id: str,
+) -> None:
+    _set_env(monkeypatch, tmp_path, status="extract-timeout")
+    monkeypatch.setenv("GITHUB_RUN_ID", run_id)
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    conn = duckdb.connect(str(db_path))
+    conn.execute("create table _extraction_journal(status varchar, rows_extracted bigint)")
+    conn.execute("insert into _extraction_journal values ('done', 0)")
+    conn.close()
+
+    assert metadata_module.main() == 0
+
+    metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["state_artifact"]["attested"] is False
+    assert not (metadata_path.parent / "lane-state-attestation.json").exists()
+
+
+def test_writer_attestation_is_accepted_by_checkpoint_consumer(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from nbadb.orchestrate import full_extraction_control as checkpoint_control
+
+    lane = checkpoint_control.FullExtractionLane(
+        lane_id="lane-1",
+        lane_index=0,
+        lane_name="Lane 1",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("common_all_players",),
+        timeout_seconds=3600,
+    )
+    coverage_hash = checkpoint_control._coverage_hash_for_lane(lane)
+    _set_env(monkeypatch, tmp_path, status="complete")
+    monkeypatch.setenv("KIND", lane.lane_kind)
+    monkeypatch.setenv("PATTERNS", ",".join(lane.patterns))
+    monkeypatch.setenv("ENDPOINTS", ",".join(lane.endpoints))
+    monkeypatch.setenv("SEASON_TYPES", "")
+    monkeypatch.setenv("SEASON_START", "")
+    monkeypatch.setenv("SEASON_END", "")
+    monkeypatch.setenv("COVERAGE_UNITS_HASH", coverage_hash)
+
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        "create table _extraction_journal "
+        "(endpoint varchar, params varchar, status varchar, rows_extracted bigint)"
+    )
+    conn.execute("insert into _extraction_journal values ('common_all_players', '{}', 'done', 1)")
+    conn.close()
+
+    assert metadata_module.main() == 0
+
+    run_id = "12345"
+    artifact_name = "extraction-lane-chain-1-lane-1"
+    metadata_artifact_name = "extraction-lane-metadata-chain-1-lane-1"
+    source_dir = tmp_path / "artifacts" / "extraction"
+    metadata_dir = tmp_path / "checkpoint-metadata"
+    metadata_path = metadata_dir / f"run-{run_id}" / metadata_artifact_name / "lane-metadata.json"
+    metadata_path.parent.mkdir(parents=True)
+    shutil.copy2(source_dir / "lane-metadata.json", metadata_path)
+    finalized_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    finalized_payload["state_artifact"].update(
+        {
+            "uploaded": True,
+            "artifact_id": "67890",
+            "artifact_digest": f"sha256:{'c' * 64}",
+        }
+    )
+    metadata_path.write_text(json.dumps(finalized_payload) + "\n", encoding="utf-8")
+
+    lane_artifacts_dir = tmp_path / "checkpoint-lanes"
+    lane_artifact_dir = lane_artifacts_dir / f"run-{run_id}" / artifact_name
+    lane_artifact_dir.mkdir(parents=True)
+    checkpoint_db_path = lane_artifact_dir / "nba.duckdb"
+    shutil.copy2(db_path, checkpoint_db_path)
+    shutil.copy2(
+        source_dir / "lane-state-attestation.json",
+        lane_artifact_dir / "lane-state-attestation.json",
+    )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert (
+        checkpoint_control._validate_current_lane_artifact(
+            lane=lane,
+            metadata=payload,
+            metadata_path=metadata_path,
+            metadata_dir=metadata_dir,
+            db_path=checkpoint_db_path,
+            artifacts_dir=lane_artifacts_dir,
+            chain_id="chain-1",
+            source_sha="abc123",
+            authorized_run_ids={run_id},
+        )
+        == []
+    )
 
 
 def test_main_does_not_attest_when_checkpoint_fails(
@@ -398,24 +511,30 @@ def test_main_writes_diagnostics_metadata_without_attesting_missing_database(
     metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
     assert metadata_path.is_file()
     payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "pipeline_failure"
     assert payload["state_artifact"]["attested"] is False
     assert not (tmp_path / "artifacts" / "extraction" / "lane-state-attestation.json").exists()
-    assert not output_path.exists()
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "final-outcome=pipeline_failure",
+        "snapshot-attested=false",
+    ]
 
 
-def test_main_never_reattests_state_rejected_by_restore(
+def test_complete_lane_with_untrusted_snapshot_is_downgraded_to_pipeline_failure(
     metadata_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _set_env(monkeypatch, tmp_path, status="extract-timeout")
+    _set_env(monkeypatch, tmp_path, status="complete")
     output_path = tmp_path / "github-output.txt"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
     db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
     db_path.parent.mkdir(parents=True)
     conn = duckdb.connect(str(db_path))
-    conn.execute("create table _extraction_journal(status varchar, rows_extracted bigint)")
-    conn.execute("insert into _extraction_journal values ('done', 0)")
+    conn.execute(
+        "create table _extraction_journal (endpoint varchar, status varchar, rows_extracted bigint)"
+    )
+    conn.execute("insert into _extraction_journal values ('draft_history', 'done', 1)")
     conn.close()
     marker = tmp_path / "artifacts" / "extraction" / "lane-state-untrusted"
     marker.parent.mkdir(parents=True, exist_ok=True)
@@ -423,8 +542,19 @@ def test_main_never_reattests_state_rejected_by_restore(
 
     assert metadata_module.main() == 0
 
-    assert not output_path.exists()
+    metadata_path = marker.parent / "lane-metadata.json"
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "pipeline_failure"
+    assert payload["raw_status"] == "snapshot-unattested"
+    assert payload["state_artifact"]["attested"] is False
+    assert payload["telemetry"]["completion_evidence_errors"] == [
+        "snapshot_unattested:restored lane state was rejected as untrusted"
+    ]
     assert not (marker.parent / "lane-state-attestation.json").exists()
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "final-outcome=pipeline_failure",
+        "snapshot-attested=false",
+    ]
 
 
 def test_player_team_season_workload_contract_binds_exact_base_units(

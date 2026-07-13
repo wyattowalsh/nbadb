@@ -31,11 +31,12 @@ def _load_attestation(path: Path) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError("Lane-state attestation is not valid JSON") from exc
-    if not isinstance(payload, dict) or payload.get("schema_version") not in {1, 2}:
+    schema_version = payload.get("schema_version") if isinstance(payload, dict) else None
+    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
         raise ValueError("Lane-state attestation schema version is invalid")
     if not isinstance(payload.get("expected_empty"), bool):
         raise ValueError("Lane-state attestation expected_empty must be boolean")
-    if payload["schema_version"] >= 2:
+    if schema_version >= 2:
         workload_contract = payload.get("workload_contract")
         if workload_contract is not None and not isinstance(workload_contract, dict):
             raise ValueError("Lane-state attestation workload_contract must be an object or null")
@@ -52,6 +53,8 @@ def validate_lane_state(
     expected_chain_id: str = "",
     expected_lane_id: str = "",
     expected_coverage_units_hash: str = "",
+    expected_run_id: str = "",
+    expected_artifact_name: str = "",
     allow_attested_empty: bool = False,
     workload_duckdb_path: Path | None = None,
     workload_season_start: int | None = None,
@@ -81,6 +84,19 @@ def validate_lane_state(
             "lane_id": expected_lane_id,
             "coverage_units_hash": expected_coverage_units_hash,
         }
+        if attestation["schema_version"] >= 3:
+            if not expected_run_id or not expected_artifact_name:
+                raise ValueError(
+                    "Lane-state attestation schema v3 requires expected run_id and artifact_name"
+                )
+            if attestation.get("attested") is not True:
+                raise ValueError("Lane-state attestation schema v3 must be explicitly attested")
+            bound_values.update(
+                {
+                    "run_id": expected_run_id,
+                    "artifact_name": expected_artifact_name,
+                }
+            )
         for key, expected in bound_values.items():
             actual = str(attestation.get(key) or "")
             if not expected or actual != expected:
@@ -93,6 +109,8 @@ def validate_lane_state(
             expected_chain_id,
             expected_lane_id,
             expected_coverage_units_hash,
+            expected_run_id,
+            expected_artifact_name,
         )
     ):
         raise ValueError("Expected lane-state bindings require an attestation file")
@@ -231,6 +249,8 @@ def main() -> int:
     parser.add_argument("--expected-chain-id", default="")
     parser.add_argument("--expected-lane-id", default="")
     parser.add_argument("--expected-coverage-units-hash", default="")
+    parser.add_argument("--expected-run-id", default="")
+    parser.add_argument("--expected-artifact-name", default="")
     parser.add_argument("--allow-attested-empty", action="store_true")
     parser.add_argument("--workload-duckdb-path", type=Path)
     parser.add_argument("--workload-season-start", type=int)
@@ -248,6 +268,8 @@ def main() -> int:
                 expected_chain_id=args.expected_chain_id,
                 expected_lane_id=args.expected_lane_id,
                 expected_coverage_units_hash=args.expected_coverage_units_hash,
+                expected_run_id=args.expected_run_id,
+                expected_artifact_name=args.expected_artifact_name,
                 allow_attested_empty=args.allow_attested_empty,
                 workload_duckdb_path=args.workload_duckdb_path,
                 workload_season_start=args.workload_season_start,
