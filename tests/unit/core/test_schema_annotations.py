@@ -176,6 +176,345 @@ def test_schema_annotation_audit_blocks_when_required_bronze_contracts_missing()
     assert "bronze_contract_missing_count=1" in schema_annotation_strict_issues(payload)
 
 
+@pytest.mark.parametrize(
+    ("zero_column_summary", "expected_strict_pass"),
+    [
+        (
+            {
+                "zero_column_table_count": 2,
+                "classified_zero_column_table_count": 2,
+                "blocking_zero_column_table_count": 0,
+            },
+            True,
+        ),
+        (
+            {
+                "zero_column_table_count": 1,
+                "classified_zero_column_table_count": 0,
+                "blocking_zero_column_table_count": 1,
+            },
+            False,
+        ),
+        ({"zero_column_table_count": 1}, False),
+    ],
+)
+def test_schema_annotation_strict_uses_only_blocking_zero_column_contracts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    zero_column_summary: dict[str, int],
+    expected_strict_pass: bool,
+) -> None:
+    bronze_path = tmp_path / "bronze.json"
+    bronze_path.write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "summary": {"table_count": 1, **zero_column_summary},
+                "tables": [
+                    {
+                        "bronze_table": "bronze_static_reference",
+                        "source_family": "static",
+                        "endpoint": "players",
+                        "result_set_name": "shape_1",
+                        "columns": [{"name": "record_id"}],
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _patch_schema_annotation_sources(monkeypatch, raw={}, staging={}, star={})
+
+    payload = build_schema_annotation_artifacts(bronze_contracts_path=bronze_path)
+    summary = payload["schema_annotation_audit"]["summary"]
+    classified_count = zero_column_summary.get("classified_zero_column_table_count", 0)
+    blocking_count = max(
+        zero_column_summary.get("blocking_zero_column_table_count", 0),
+        zero_column_summary["zero_column_table_count"] - classified_count,
+    )
+
+    assert (
+        summary["bronze_contract_zero_column_table_count"]
+        == zero_column_summary["zero_column_table_count"]
+    )
+    assert summary["bronze_contract_classified_zero_column_table_count"] == classified_count
+    assert summary["bronze_contract_blocking_zero_column_table_count"] == blocking_count
+    assert (
+        summary["blocking_issue_counts"]["bronze_contract_blocking_zero_column_table_count"]
+        == blocking_count
+    )
+    assert "bronze_contract_zero_column_table_count" not in summary["blocking_issue_counts"]
+    assert summary["strict_pass"] is expected_strict_pass
+    assert (
+        f"bronze_contract_blocking_zero_column_table_count={blocking_count}"
+        in schema_annotation_strict_issues(payload)
+    ) is bool(blocking_count)
+
+
+def test_stats_bronze_fates_use_authoritative_route_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class StagingScheduleSchema(BaseSchema):
+        game_date: str | None = pa.Field(nullable=True)
+
+    class StagingSynergySchema(BaseSchema):
+        to_pct: float | None = pa.Field(nullable=True)
+
+    class StagingOpenLeadersSchema(BaseSchema):
+        player_id: int | None = pa.Field(nullable=True)
+
+    bronze_path = tmp_path / "bronze.json"
+    bronze_path.write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "summary": {"table_count": 4},
+                "tables": [
+                    {
+                        "bronze_table": "bronze_schedule",
+                        "source_family": "stats",
+                        "endpoint": "ScheduleLeagueV2",
+                        "result_set_name": "Schedule",
+                        "columns": [{"name": "gameDate"}],
+                    },
+                    {
+                        "bronze_table": "bronze_synergy",
+                        "source_family": "stats",
+                        "endpoint": "SynergyPlayTypes",
+                        "result_set_name": "Synergy",
+                        "columns": [{"name": "TOV_POSS_PCT"}],
+                    },
+                    {
+                        "bronze_table": "bronze_open_leaders",
+                        "source_family": "stats",
+                        "endpoint": "LeagueLeaders",
+                        "result_set_name": "LeagueLeaders",
+                        "columns": [{"name": "PTS"}],
+                    },
+                    {
+                        "bronze_table": "bronze_superseded",
+                        "source_family": "stats",
+                        "endpoint": "BoxScoreMiscV2",
+                        "result_set_name": "PlayerStats",
+                        "columns": [{"name": "points"}],
+                    },
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    provenance = {
+        "routes": [
+            {
+                "endpoint_name": "schedule",
+                "runtime_class_name": "ScheduleLeagueV2",
+                "source_result_set_name": "Schedule",
+                "source_result_set_index": 1,
+                "declared_result_set_index": 0,
+                "staging_key": "stg_schedule",
+                "source_column": "gameDate",
+                "normalized_column": "game_date",
+                "schema_behavior": "closed",
+                "route_status": "declared",
+            },
+            {
+                "endpoint_name": "synergy_play_types",
+                "runtime_class_name": "SynergyPlayTypes",
+                "source_result_set_name": "Synergy",
+                "source_result_set_index": 0,
+                "declared_result_set_index": 0,
+                "staging_key": "stg_synergy",
+                "source_column": "TOV_POSS_PCT",
+                "normalized_column": "to_pct",
+                "schema_behavior": "closed",
+                "route_status": "declared",
+            },
+            {
+                "endpoint_name": "league_leaders",
+                "runtime_class_name": "LeagueLeaders",
+                "source_result_set_name": "LeagueLeaders",
+                "source_result_set_index": 0,
+                "declared_result_set_index": 0,
+                "staging_key": "stg_open_leaders",
+                "source_column": "PTS",
+                "normalized_column": "pts",
+                "schema_behavior": "passthrough",
+                "route_status": "open_passthrough",
+            },
+        ],
+        "superseded_runtime_classes": {"BoxScoreMiscV2": "BoxScoreMiscV3"},
+        "summary": {
+            "route_field_count": 3,
+            "route_status_counts": {"declared": 2, "open_passthrough": 1},
+            "blocking_route_field_count": 0,
+        },
+    }
+
+    class FakeEndpointCoverageGenerator:
+        def __init__(self, **_kwargs: Any) -> None:
+            pass
+
+        def build_schema_annotation_route_provenance(self) -> dict[str, Any]:
+            return provenance
+
+    _patch_schema_annotation_sources(
+        monkeypatch,
+        raw={},
+        staging={
+            "stg_schedule": StagingScheduleSchema,
+            "stg_synergy": StagingSynergySchema,
+            "stg_open_leaders": StagingOpenLeadersSchema,
+        },
+        star={},
+    )
+    monkeypatch.setattr(annotations, "EndpointCoverageGenerator", FakeEndpointCoverageGenerator)
+
+    rows, _ = annotations._bronze_fate_rows(
+        ("staging", "star"),
+        tmp_path / "endpoint-analysis",
+        bronze_path,
+    )
+    rows_by_endpoint = {row["endpoint"]: row for row in rows}
+
+    schedule = rows_by_endpoint["ScheduleLeagueV2"]
+    assert schedule["fate"] == "staged_normalized"
+    assert schedule["verified_staging_tables"] == ["stg_schedule"]
+    assert schedule["contract_route_endpoint_names"] == ["schedule"]
+    assert schedule["contract_route_result_set_names"] == ["Schedule"]
+    assert schedule["contract_route_result_set_indices"] == [1]
+    assert schedule["contract_route_declared_result_set_indices"] == [0]
+    assert schedule["lineage_match_basis"] == "runtime_contract_declared_route"
+
+    synergy = rows_by_endpoint["SynergyPlayTypes"]
+    assert synergy["fate"] == "staged_renamed"
+    assert synergy["classified_staging_columns"] == [
+        {"table_name": "stg_synergy", "column_name": "to_pct"}
+    ]
+
+    open_field = rows_by_endpoint["LeagueLeaders"]
+    assert open_field["fate"] == "staged_normalized"
+    assert open_field["contract_route_statuses"] == ["open_passthrough"]
+    assert open_field["lineage_match_basis"] == "runtime_contract_open_schema_route"
+
+    superseded = rows_by_endpoint["BoxScoreMiscV2"]
+    assert superseded["fate"] == "excluded_deprecated_or_superseded"
+    assert superseded["superseded_by_runtime_class"] == "BoxScoreMiscV3"
+    assert superseded["verified_staging_tables"] == []
+    assert all(row["requires_followup"] is False for row in rows)
+
+
+def test_live_bronze_fates_require_exact_packet_json_roots(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class StagingLivePlayerSchema(BaseSchema):
+        points: int | None = pa.Field(nullable=True)
+        payload_json: str | None = pa.Field(nullable=True)
+
+    class FactLivePlayerSchema(BaseSchema):
+        points: int | None = pa.Field(nullable=True)
+        payload_json: str | None = pa.Field(nullable=True)
+
+    bronze_path = tmp_path / "bronze.json"
+    bronze_path.write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "summary": {"table_count": 3},
+                "tables": [
+                    {
+                        "bronze_table": "bronze_live_players",
+                        "source_family": "live",
+                        "endpoint": "BoxScore",
+                        "result_set_name": "game_hometeam_players_statistics",
+                        "columns": [
+                            {
+                                "name": "points",
+                                "json_path": "$.game.homeTeam.players.statistics.points",
+                            },
+                            {
+                                "name": "assists",
+                                "json_path": "$.game.homeTeam.players.statistics.assists",
+                            },
+                            {"name": "request", "json_path": "$.meta.request"},
+                        ],
+                    },
+                    {
+                        "bronze_table": "bronze_live_scoreboard_envelope",
+                        "source_family": "live",
+                        "endpoint": "ScoreBoard",
+                        "result_set_name": "scoreboard",
+                        "columns": [
+                            {"name": "gameDate", "json_path": "$.scoreboard.gameDate"},
+                            {
+                                "name": "points",
+                                "json_path": "$.scoreboard.gamesExtra.points",
+                            },
+                        ],
+                    },
+                    {
+                        "bronze_table": "bronze_live_missing_path",
+                        "source_family": "live",
+                        "endpoint": "Odds",
+                        "result_set_name": "games",
+                        "columns": [{"name": "wins", "json_path": None}],
+                    },
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _patch_schema_annotation_sources(
+        monkeypatch,
+        raw={},
+        staging={
+            "stg_live_box_score_player_stats_home": StagingLivePlayerSchema,
+        },
+        star={"fact_live_box_score_player": FactLivePlayerSchema},
+    )
+
+    rows, _ = annotations._bronze_fate_rows(("staging", "star"), None, bronze_path)
+    rows_by_path = {row["json_path"]: row for row in rows}
+
+    points = rows_by_path["$.game.homeTeam.players.statistics.points"]
+    assert points["fate"] == "staged_same_name"
+    assert points["lineage_match_basis"] == "live_packet_typed_projection"
+    assert points["packet_json_root"] == "$.game.homeTeam.players"
+    assert points["representation_column"] == "points"
+    assert points["verified_staging_tables"] == ["stg_live_box_score_player_stats_home"]
+    assert points["verified_star_tables"] == ["fact_live_box_score_player"]
+
+    assists = rows_by_path["$.game.homeTeam.players.statistics.assists"]
+    assert assists["fate"] == "staged_json_payload"
+    assert assists["lineage_match_basis"] == "live_packet_json_path"
+    assert assists["packet_json_root"] == "$.game.homeTeam.players"
+    assert assists["representation_column"] == "payload_json"
+    assert assists["requires_followup"] is False
+
+    meta = rows_by_path["$.meta.request"]
+    assert meta["fate"] == "excluded_non_analytic_payload"
+    assert meta["requires_followup"] is False
+
+    envelope = rows_by_path["$.scoreboard.gameDate"]
+    assert envelope["fate"] == "raw_only_reference"
+    assert envelope["lineage_match_status"] == "classified"
+    assert envelope["requires_followup"] is False
+
+    prefix_collision = rows_by_path["$.scoreboard.gamesExtra.points"]
+    assert prefix_collision["fate"] == "blocked_needs_contract_work"
+    assert prefix_collision["lineage_match_basis"] == "live_json_path_outside_packet_contract"
+    assert prefix_collision["requires_followup"] is True
+
+    missing_path = rows_by_path[None]
+    assert missing_path["fate"] == "blocked_needs_contract_work"
+    assert missing_path["lineage_match_basis"] == "live_json_path_missing"
+    assert missing_path["requires_followup"] is True
+
+
 def test_schema_annotation_strict_blocks_unmatched_raw_and_bronze_useful_fields(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

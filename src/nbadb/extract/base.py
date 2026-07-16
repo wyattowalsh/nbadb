@@ -4,6 +4,7 @@ import json
 import os
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from datetime import UTC, date, datetime, time
 from typing import Any, ClassVar
 
@@ -562,7 +563,11 @@ class BaseExtractor(ABC):
         return self._call_nba_api(endpoint_cls, **kwargs)
 
     @staticmethod
-    def _live_payload_to_frame(payload: Any) -> pl.DataFrame:
+    def _live_payload_to_frame(
+        payload: Any,
+        *,
+        field_projections: Mapping[str, str] | None = None,
+    ) -> pl.DataFrame:
         if hasattr(payload, "get_dict"):
             payload = payload.get_dict()
         elif hasattr(payload, "data"):
@@ -583,7 +588,20 @@ class BaseExtractor(ABC):
             return pl.DataFrame({"value": [payload]})
 
         serialized_records = [json.dumps(record, sort_keys=True, default=str) for record in records]
-        df = pl.from_dicts(records)
+        projected_records: list[dict[str, Any]] = []
+        for record in records:
+            projected = dict(record)
+            for source_path, target_column in (field_projections or {}).items():
+                value: Any = record
+                for path_part in source_path.split("."):
+                    if not isinstance(value, Mapping) or path_part not in value:
+                        break
+                    value = value[path_part]
+                else:
+                    projected[target_column] = value
+            projected_records.append(projected)
+
+        df = pl.from_dicts(projected_records)
         df = df.rename({c: _to_snake_case(c) for c in df.columns})
         return df.with_columns(pl.Series("payload_json", serialized_records))
 
@@ -672,6 +690,8 @@ class BaseExtractor(ABC):
         self,
         endpoint_cls: type,
         specs: list[tuple[str, str, tuple[str, ...]]],
+        *,
+        field_projections_by_source: Mapping[str, Mapping[str, str]] | None = None,
         **kwargs: Any,
     ) -> list[pl.DataFrame]:
         """Call nba_api live endpoint and convert multiple datasets to Polars.
@@ -688,7 +708,10 @@ class BaseExtractor(ABC):
                 logger.warning(f"{self.endpoint_name}: live dataset {attr!r} was not returned")
                 frame = pl.DataFrame()
             else:
-                frame = self._live_payload_to_frame(dataset)
+                frame = self._live_payload_to_frame(
+                    dataset,
+                    field_projections=(field_projections_by_source or {}).get(source_endpoint),
+                )
             frame = self._apply_live_snapshot_contract(
                 frame,
                 source_endpoint=source_endpoint,

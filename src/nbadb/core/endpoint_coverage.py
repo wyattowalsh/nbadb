@@ -1704,6 +1704,96 @@ class EndpointCoverageGenerator:
         return result_set
 
     @classmethod
+    def _build_schema_annotation_route_provenance(
+        cls,
+        *,
+        contracts_by_endpoint: Mapping[str, NbaApiEndpointContract],
+        staging_entries_by_endpoint: Mapping[str, list[StagingEntry]],
+        input_schema_columns: Mapping[str, set[str]],
+        input_schema_behaviors: Mapping[str, str],
+    ) -> dict[str, Any]:
+        """Build exact upstream-field routes for the schema annotation audit.
+
+        This intentionally reuses the contract resolver used by endpoint coverage,
+        but does not construct the full endpoint-coverage artifact set.
+        """
+        rows: list[dict[str, Any]] = []
+        route_status_counts: Counter[str] = Counter()
+
+        for endpoint_name, contract in sorted(contracts_by_endpoint.items()):
+            indexed_result_sets = {
+                result_set.result_set_index: result_set for result_set in contract.result_sets
+            }
+            for entry in staging_entries_by_endpoint.get(endpoint_name, []):
+                declared_result_set_index = entry.result_set_index if entry.use_multi else 0
+                input_columns = cls._input_columns_for_staging_key(
+                    entry.staging_key,
+                    input_schema_columns,
+                )
+                schema_behavior = (
+                    cls._input_behavior_for_staging_key(
+                        entry.staging_key,
+                        input_schema_behaviors,
+                    )
+                    or "missing"
+                )
+                result_set = cls._resolve_result_set_for_staging_entry(
+                    contract=contract,
+                    indexed_result_sets=indexed_result_sets,
+                    declared_result_set_index=declared_result_set_index,
+                    input_columns=input_columns,
+                )
+                if result_set is None or not result_set.expected_columns:
+                    continue
+
+                normalized_columns = cls._normalized_expected_columns(
+                    contract,
+                    declared_result_set_index,
+                    result_set.expected_columns,
+                )
+                for source_column, normalized_column in zip(
+                    result_set.expected_columns,
+                    normalized_columns,
+                    strict=True,
+                ):
+                    if input_columns is None:
+                        route_status = "missing_input_schema"
+                    elif normalized_column in input_columns:
+                        route_status = "declared"
+                    elif schema_behavior == "passthrough":
+                        route_status = "open_passthrough"
+                    else:
+                        route_status = "missing_sink"
+                    route_status_counts[route_status] += 1
+                    rows.append(
+                        {
+                            "endpoint_name": endpoint_name,
+                            "runtime_class_name": contract.runtime_class_name,
+                            "source_result_set_name": result_set.result_set_name,
+                            "source_result_set_index": result_set.result_set_index,
+                            "declared_result_set_index": declared_result_set_index,
+                            "staging_key": entry.staging_key,
+                            "source_column": source_column,
+                            "normalized_column": normalized_column,
+                            "schema_behavior": schema_behavior,
+                            "route_status": route_status,
+                        }
+                    )
+
+        return {
+            "routes": rows,
+            "superseded_runtime_classes": dict(sorted(_RUNTIME_CLASS_ALIASES.items())),
+            "summary": {
+                "route_field_count": len(rows),
+                "route_status_counts": dict(sorted(route_status_counts.items())),
+                "blocking_route_field_count": (
+                    route_status_counts["missing_input_schema"]
+                    + route_status_counts["missing_sink"]
+                ),
+            },
+        }
+
+    @classmethod
     def _build_upstream_contract_diff(
         cls,
         *,
@@ -2920,6 +3010,45 @@ class EndpointCoverageGenerator:
             "temporal_support_ledger": temporal_support_ledger["summary"],
         }
         return {"scorecard": scorecard, "summary": summary}
+
+    def build_schema_annotation_route_provenance(self) -> dict[str, Any]:
+        """Return only the exact stats routes needed by schema annotation."""
+        extractor_map = self._extractor_endpoint_map()
+        staging_entries_by_endpoint: dict[str, list[StagingEntry]] = {}
+        for entry in self.staging_entries:
+            canonical = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
+            staging_entries_by_endpoint.setdefault(canonical, []).append(entry)
+
+        known_stats_surfaces = set(staging_entries_by_endpoint) | set(extractor_map)
+        docs_runtime_contracts = discover_endpoint_analysis_doc_contracts(
+            self.endpoint_analysis_docs_root
+        )
+        docs_contracts_by_endpoint = self._runtime_contracts_by_endpoint(
+            docs_runtime_contracts,
+            known_stats_surfaces,
+        )
+        staging_schema_metadata = self._schema_table_info(
+            schema_subdir="staging",
+            class_prefix="Staging",
+            table_prefix="stg_",
+        )
+        raw_schema_metadata = self._schema_table_info(
+            schema_subdir="raw",
+            class_prefix="Raw",
+            table_prefix="raw_",
+        )
+        input_schema_metadata = {**staging_schema_metadata, **raw_schema_metadata}
+        return self._build_schema_annotation_route_provenance(
+            contracts_by_endpoint=docs_contracts_by_endpoint,
+            staging_entries_by_endpoint=staging_entries_by_endpoint,
+            input_schema_columns={
+                table_name: set(info["columns"])
+                for table_name, info in input_schema_metadata.items()
+            },
+            input_schema_behaviors={
+                table_name: info["behavior"] for table_name, info in input_schema_metadata.items()
+            },
+        )
 
     def build_artifacts(
         self,

@@ -50,8 +50,8 @@ class _FakeBoxScore:
         self.officials = _FakeDataSet([{"personId": 1}])
         self.home_team_stats = _FakeDataSet({"teamId": 1610612738, "score": 110})
         self.away_team_stats = _FakeDataSet({"teamId": 1610612737, "score": 108})
-        self.home_team_player_stats = _FakeDataSet([{"personId": 1, "points": 20}])
-        self.away_team_player_stats = _FakeDataSet([{"personId": 2, "points": 18}])
+        self.home_team_player_stats = _FakeDataSet([{"personId": 1, "statistics": {"points": 20}}])
+        self.away_team_player_stats = _FakeDataSet([{"personId": 2, "statistics": {"points": 18}}])
 
 
 class TestLiveScoreBoardExtractor:
@@ -143,3 +143,9 @@ class TestLiveBoxScoreExtractor:
         assert frames[2]["person_id"][0] == 1
         assert frames[3]["team_id"][0] == 1610612738
         assert frames[5]["person_id"][0] == 1
+        assert frames[5]["points"][0] == 20
+        assert frames[6]["points"][0] == 18
+        assert json.loads(frames[5]["payload_json"][0]) == {
+            "personId": 1,
+            "statistics": {"points": 20},
+        }

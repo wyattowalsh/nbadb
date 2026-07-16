@@ -9,10 +9,17 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
 from nbadb.core.field_docs import resolved_field_description
 from nbadb.core.nba_api_contract import (
     build_nba_api_bronze_contracts_from_bundle,
     build_nba_api_upstream_contract_bundle,
+)
+from nbadb.extract.live.endpoints import (
+    LIVE_NON_ANALYTIC_JSON_ROOTS,
+    LIVE_PACKET_CONTRACTS,
+    LIVE_PARAMETER_FIELD_ROUTES,
+    LIVE_RAW_ONLY_REFERENCE_JSON_PATHS,
 )
 from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.schemas.base import BaseSchema
@@ -1016,6 +1023,390 @@ def _raw_schema_fate_rows(tiers: Iterable[Tier]) -> list[dict[str, Any]]:
     return rows
 
 
+def _stats_route_index(
+    provenance: dict[str, Any] | None,
+) -> dict[tuple[str, str, str], list[dict[str, Any]]]:
+    index: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for route in (provenance or {}).get("routes", []):
+        route_key = _contract_lineage_key(
+            endpoint=route.get("runtime_class_name"),
+            result_set_name=route.get("source_result_set_name"),
+            column_name=route.get("source_column"),
+        )
+        if route_key is not None:
+            index[route_key].append(route)
+    return dict(index)
+
+
+def _routed_column_fate(source_column: str, routed_column: str) -> RawFate:
+    if source_column == routed_column:
+        return "staged_same_name"
+    if _camel_to_snake(source_column) == routed_column:
+        return "staged_normalized"
+    return "staged_renamed"
+
+
+def _apply_stats_contract_route_fate(
+    fate_match: dict[str, Any],
+    *,
+    source_column: str,
+    route_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not route_rows:
+        return fate_match
+
+    updated = dict(fate_match)
+    route_statuses = sorted({str(route.get("route_status") or "missing") for route in route_rows})
+    staging_tables = sorted(
+        {str(route["staging_key"]) for route in route_rows if route.get("staging_key")}
+    )
+    updated["candidate_staging_tables"] = sorted(
+        {*fate_match.get("candidate_staging_tables", []), *staging_tables}
+    )
+    updated["contract_route_statuses"] = route_statuses
+    updated["contract_route_endpoint_names"] = sorted(
+        {str(route["endpoint_name"]) for route in route_rows if route.get("endpoint_name")}
+    )
+    updated["contract_route_result_set_names"] = sorted(
+        {
+            str(route["source_result_set_name"])
+            for route in route_rows
+            if route.get("source_result_set_name")
+        }
+    )
+    updated["contract_route_result_set_indices"] = sorted(
+        {
+            int(route["source_result_set_index"])
+            for route in route_rows
+            if route.get("source_result_set_index") is not None
+        }
+    )
+    updated["contract_route_declared_result_set_indices"] = sorted(
+        {
+            int(route["declared_result_set_index"])
+            for route in route_rows
+            if route.get("declared_result_set_index") is not None
+        }
+    )
+
+    blocking_statuses = {"missing_input_schema", "missing_sink"}
+    if blocking_statuses.intersection(route_statuses):
+        updated.update(
+            {
+                "fate": "blocked_needs_contract_work",
+                "lineage_match_status": "unresolved",
+                "lineage_match_basis": "runtime_contract_route_gap",
+                "classification_reason": (
+                    "The authoritative runtime field route has no declared or open staging sink."
+                ),
+            }
+        )
+        return updated
+
+    routed_columns = {
+        str(route["normalized_column"]) for route in route_rows if route.get("normalized_column")
+    }
+    if len(routed_columns) != 1:
+        updated.update(
+            {
+                "fate": "blocked_needs_contract_work",
+                "lineage_match_status": "unresolved",
+                "lineage_match_basis": "runtime_contract_route_ambiguous",
+                "classification_reason": (
+                    "The authoritative runtime field routes disagree on the normalized column."
+                ),
+            }
+        )
+        return updated
+
+    routed_column = routed_columns.pop()
+    schema_behaviors = sorted(
+        {str(route.get("schema_behavior") or "missing") for route in route_rows}
+    )
+    updated.update(
+        {
+            "fate": _routed_column_fate(source_column, routed_column),
+            "verified_staging_tables": staging_tables,
+            "lineage_match_status": "verified",
+            "lineage_match_basis": (
+                "runtime_contract_open_schema_route"
+                if "open_passthrough" in route_statuses
+                else "runtime_contract_declared_route"
+            ),
+            "schema_behaviors": schema_behaviors,
+            "classified_staging_columns": [
+                {"table_name": table_name, "column_name": routed_column}
+                for table_name in staging_tables
+            ],
+        }
+    )
+    return updated
+
+
+def _apply_superseded_stats_fate(
+    fate_match: dict[str, Any],
+    *,
+    endpoint: object,
+    superseded_runtime_classes: dict[str, str],
+) -> dict[str, Any]:
+    endpoint_name = str(endpoint or "")
+    superseded_by = superseded_runtime_classes.get(endpoint_name)
+    if superseded_by is None or fate_match.get("lineage_match_status") == "verified":
+        return fate_match
+
+    updated = dict(fate_match)
+    updated.update(
+        {
+            "fate": "excluded_deprecated_or_superseded",
+            "verified_staging_tables": [],
+            "verified_star_tables": [],
+            "lineage_match_status": "classified",
+            "lineage_match_basis": "runtime_class_superseded",
+            "superseded_by_runtime_class": superseded_by,
+            "classification_reason": (
+                f"{endpoint_name} is superseded by the authoritative runtime alias {superseded_by}."
+            ),
+        }
+    )
+    return updated
+
+
+def _path_is_within(json_path: str, json_root: str) -> bool:
+    return json_path == json_root or json_path.startswith(f"{json_root}.")
+
+
+def _live_packet_for_path(endpoint: str, json_path: str) -> Any | None:
+    matching_packets = [
+        packet
+        for packet in LIVE_PACKET_CONTRACTS
+        if packet.upstream_endpoint == endpoint and _path_is_within(json_path, packet.json_root)
+    ]
+    if not matching_packets:
+        return None
+    return max(matching_packets, key=lambda packet: len(packet.json_root))
+
+
+def _live_typed_fate(
+    fate_match: dict[str, Any],
+    *,
+    source_column: str,
+    target_column: str,
+    staging_key: str,
+    star_tables: Iterable[str],
+    staging_columns: dict[str, set[str]],
+    star_columns: dict[str, set[str]],
+    lineage_match_basis: str,
+    json_root: str | None = None,
+) -> dict[str, Any]:
+    updated = dict(fate_match)
+    if target_column not in staging_columns.get(staging_key, set()):
+        updated.update(
+            {
+                "fate": "blocked_needs_contract_work",
+                "lineage_match_status": "unresolved",
+                "lineage_match_basis": "live_typed_projection_missing_staging_column",
+                "classification_reason": (
+                    f"The live route projects {source_column} to missing column "
+                    f"{staging_key}.{target_column}."
+                ),
+            }
+        )
+        return updated
+
+    verified_star_tables = sorted(
+        table_name
+        for table_name in star_tables
+        if target_column in star_columns.get(table_name, set())
+    )
+    updated.update(
+        {
+            "fate": _routed_column_fate(source_column, target_column),
+            "candidate_staging_tables": sorted(
+                {*fate_match.get("candidate_staging_tables", []), staging_key}
+            ),
+            "candidate_star_tables": sorted(
+                {*fate_match.get("candidate_star_tables", []), *verified_star_tables}
+            ),
+            "verified_staging_tables": [staging_key],
+            "verified_star_tables": verified_star_tables,
+            "lineage_match_status": "verified",
+            "lineage_match_basis": lineage_match_basis,
+            "representation_column": target_column,
+            "classified_staging_columns": [
+                {"table_name": staging_key, "column_name": target_column}
+            ],
+            "classified_star_columns": [
+                {"table_name": table_name, "column_name": target_column}
+                for table_name in verified_star_tables
+            ],
+        }
+    )
+    if json_root is not None:
+        updated["packet_json_root"] = json_root
+    return updated
+
+
+def _apply_live_contract_fate(
+    fate_match: dict[str, Any],
+    *,
+    endpoint: object,
+    source_column: str,
+    json_path: object,
+    staging_columns: dict[str, set[str]],
+    star_columns: dict[str, set[str]],
+) -> dict[str, Any]:
+    endpoint_name = str(endpoint or "")
+    path = str(json_path or "")
+    if not path:
+        updated = dict(fate_match)
+        updated.update(
+            {
+                "fate": "blocked_needs_contract_work",
+                "lineage_match_status": "unresolved",
+                "lineage_match_basis": "live_json_path_missing",
+                "classification_reason": "The live upstream field has no JSON path provenance.",
+            }
+        )
+        return updated
+
+    parameter_route = LIVE_PARAMETER_FIELD_ROUTES.get((endpoint_name, path))
+    if parameter_route is not None:
+        return _live_typed_fate(
+            fate_match,
+            source_column=source_column,
+            target_column=str(parameter_route["target_column"]),
+            staging_key=str(parameter_route["staging_key"]),
+            star_tables=parameter_route["star_tables"],
+            staging_columns=staging_columns,
+            star_columns=star_columns,
+            lineage_match_basis="live_request_parameter_route",
+        )
+
+    for excluded_root in LIVE_NON_ANALYTIC_JSON_ROOTS.get(endpoint_name, ()):
+        if _path_is_within(path, excluded_root):
+            updated = dict(fate_match)
+            updated.update(
+                {
+                    "fate": "excluded_non_analytic_payload",
+                    "verified_staging_tables": [],
+                    "verified_star_tables": [],
+                    "lineage_match_status": "classified",
+                    "lineage_match_basis": "live_non_analytic_json_root",
+                    "classification_reason": (
+                        f"{path} is inside the exact non-analytic envelope root {excluded_root}."
+                    ),
+                }
+            )
+            return updated
+
+    if path in LIVE_RAW_ONLY_REFERENCE_JSON_PATHS.get(endpoint_name, frozenset()):
+        updated = dict(fate_match)
+        updated.update(
+            {
+                "fate": "raw_only_reference",
+                "verified_staging_tables": [],
+                "verified_star_tables": [],
+                "lineage_match_status": "classified",
+                "lineage_match_basis": "live_raw_only_reference_path",
+                "classification_reason": (
+                    f"{path} is an exact live response-envelope reference field, not a packet row."
+                ),
+            }
+        )
+        return updated
+
+    packet = _live_packet_for_path(endpoint_name, path)
+    if packet is None:
+        updated = dict(fate_match)
+        updated.update(
+            {
+                "fate": "blocked_needs_contract_work",
+                "lineage_match_status": "unresolved",
+                "lineage_match_basis": "live_json_path_outside_packet_contract",
+                "classification_reason": (
+                    f"{path} is not inside an exact extracted packet root for {endpoint_name}."
+                ),
+            }
+        )
+        return updated
+
+    relative_path = path.removeprefix(packet.json_root).removeprefix(".")
+    configured_projection = dict(packet.typed_projections).get(relative_path)
+    if configured_projection is not None:
+        return _live_typed_fate(
+            fate_match,
+            source_column=source_column,
+            target_column=configured_projection,
+            staging_key=packet.staging_key,
+            star_tables=packet.star_tables,
+            staging_columns=staging_columns,
+            star_columns=star_columns,
+            lineage_match_basis="live_packet_typed_projection",
+            json_root=packet.json_root,
+        )
+
+    direct_column = _camel_to_snake(source_column)
+    if "." not in relative_path and direct_column in staging_columns.get(packet.staging_key, set()):
+        return _live_typed_fate(
+            fate_match,
+            source_column=source_column,
+            target_column=direct_column,
+            staging_key=packet.staging_key,
+            star_tables=packet.star_tables,
+            staging_columns=staging_columns,
+            star_columns=star_columns,
+            lineage_match_basis="live_packet_direct_column",
+            json_root=packet.json_root,
+        )
+
+    if "payload_json" not in staging_columns.get(packet.staging_key, set()):
+        updated = dict(fate_match)
+        updated.update(
+            {
+                "fate": "blocked_needs_contract_work",
+                "lineage_match_status": "unresolved",
+                "lineage_match_basis": "live_packet_missing_payload_json",
+                "classification_reason": (
+                    f"{packet.staging_key} does not declare payload_json for packet root "
+                    f"{packet.json_root}."
+                ),
+            }
+        )
+        return updated
+
+    verified_star_tables = sorted(
+        table_name
+        for table_name in packet.star_tables
+        if "payload_json" in star_columns.get(table_name, set())
+    )
+    updated = dict(fate_match)
+    updated.update(
+        {
+            "fate": "staged_json_payload",
+            "candidate_staging_tables": sorted(
+                {*fate_match.get("candidate_staging_tables", []), packet.staging_key}
+            ),
+            "candidate_star_tables": sorted(
+                {*fate_match.get("candidate_star_tables", []), *verified_star_tables}
+            ),
+            "verified_staging_tables": [packet.staging_key],
+            "verified_star_tables": verified_star_tables,
+            "lineage_match_status": "verified",
+            "lineage_match_basis": "live_packet_json_path",
+            "packet_json_root": packet.json_root,
+            "representation_column": "payload_json",
+            "classified_staging_columns": [
+                {"table_name": packet.staging_key, "column_name": "payload_json"}
+            ],
+            "classified_star_columns": [
+                {"table_name": table_name, "column_name": "payload_json"}
+                for table_name in verified_star_tables
+            ],
+        }
+    )
+    return updated
+
+
 def _bronze_fate_rows(
     tiers: Iterable[Tier],
     endpoint_analysis_docs_root: Path | str | None,
@@ -1042,6 +1433,25 @@ def _bronze_fate_rows(
         normalized_star,
     ) = _column_indexes(tiers)
     staging_by_source, star_by_source = _source_lineage_indexes(tiers)
+    staging_columns = {
+        table_name: set(schema_cls.to_schema().columns)
+        for table_name, schema_cls in _staging_schema_registry().items()
+    }
+    star_columns = {
+        table_name: set(schema_cls.to_schema().columns)
+        for table_name, schema_cls in _star_schema_registry().items()
+    }
+    stats_provenance = (
+        EndpointCoverageGenerator(
+            endpoint_analysis_docs_root=Path(endpoint_analysis_docs_root)
+        ).build_schema_annotation_route_provenance()
+        if endpoint_analysis_docs_root is not None
+        else None
+    )
+    stats_routes = _stats_route_index(stats_provenance)
+    superseded_runtime_classes = dict(
+        (stats_provenance or {}).get("superseded_runtime_classes", {})
+    )
     rows: list[dict[str, Any]] = []
     for table in bronze_tables:
         table_name = str(table.get("bronze_table") or "")
@@ -1064,6 +1474,28 @@ def _bronze_fate_rows(
                 star_by_source=star_by_source,
                 source_key=source_key,
             )
+            source_family = str(table.get("source_family") or "")
+            if source_family == "stats":
+                fate_match = _apply_stats_contract_route_fate(
+                    fate_match,
+                    source_column=column_name,
+                    route_rows=stats_routes.get(source_key, []) if source_key else [],
+                )
+                if not (source_key and stats_routes.get(source_key)):
+                    fate_match = _apply_superseded_stats_fate(
+                        fate_match,
+                        endpoint=table.get("endpoint"),
+                        superseded_runtime_classes=superseded_runtime_classes,
+                    )
+            elif source_family == "live":
+                fate_match = _apply_live_contract_fate(
+                    fate_match,
+                    endpoint=table.get("endpoint"),
+                    source_column=column_name,
+                    json_path=column.get("json_path"),
+                    staging_columns=staging_columns,
+                    star_columns=star_columns,
+                )
             fate = fate_match["fate"]
             rows.append(
                 {
@@ -1072,8 +1504,9 @@ def _bronze_fate_rows(
                     "source_column": column_name,
                     "ordinal": ordinal,
                     "endpoint": table.get("endpoint"),
-                    "source_family": table.get("source_family"),
+                    "source_family": source_family,
                     "result_set_name": table.get("result_set_name"),
+                    "json_path": column.get("json_path"),
                     "source_lineage_key": ".".join(source_key) if source_key else "",
                     **fate_match,
                     "description": column.get("description"),
@@ -1247,6 +1680,21 @@ def _audit_summary(
     bronze_contract_zero_column_table_count = (
         int(bronze_summary.get("zero_column_table_count", 0)) if bronze_summary is not None else 0
     )
+    bronze_contract_classified_zero_column_table_count = (
+        int(bronze_summary.get("classified_zero_column_table_count", 0))
+        if bronze_summary is not None
+        else 0
+    )
+    reported_blocking_zero_column_table_count = (
+        int(bronze_summary.get("blocking_zero_column_table_count", 0))
+        if bronze_summary is not None
+        else 0
+    )
+    bronze_contract_blocking_zero_column_table_count = max(
+        reported_blocking_zero_column_table_count,
+        bronze_contract_zero_column_table_count
+        - bronze_contract_classified_zero_column_table_count,
+    )
     blocking_issue_counts = {
         "missing_description_count": description_missing_count,
         "unclassified_semantic_primary_count": unclassified_count,
@@ -1263,7 +1711,9 @@ def _audit_summary(
         "bronze_contract_missing_count": bronze_contract_missing_count,
         "bronze_contract_disabled_count": bronze_contract_disabled_count,
         "bronze_contract_zero_table_count": bronze_contract_zero_table_count,
-        "bronze_contract_zero_column_table_count": bronze_contract_zero_column_table_count,
+        "bronze_contract_blocking_zero_column_table_count": (
+            bronze_contract_blocking_zero_column_table_count
+        ),
     }
     return {
         "tiers": list(tiers),
@@ -1271,6 +1721,13 @@ def _audit_summary(
         "public_feature_column_count": len(feature_rows),
         "raw_and_bronze_fate_count": len(fate_rows),
         "bronze_contracts": bronze_summary,
+        "bronze_contract_zero_column_table_count": bronze_contract_zero_column_table_count,
+        "bronze_contract_classified_zero_column_table_count": (
+            bronze_contract_classified_zero_column_table_count
+        ),
+        "bronze_contract_blocking_zero_column_table_count": (
+            bronze_contract_blocking_zero_column_table_count
+        ),
         "blocking_issue_counts": blocking_issue_counts,
         "strict_pass": all(value == 0 for value in blocking_issue_counts.values()),
         "transform_schema_parity": parity,

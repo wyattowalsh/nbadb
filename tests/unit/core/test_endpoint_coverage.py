@@ -1832,6 +1832,171 @@ def test_docs_upstream_contract_diff_resolves_result_sets_by_schema_when_order_d
     assert rows["stg_arena_info"]["resolved_result_set_index"] == 0
 
 
+def test_schema_annotation_routes_reuse_docs_result_set_remap() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="BoxScoreSummaryV3",
+        module_name="nba_api.docs.nba_api.stats.endpoints.boxscoresummaryv3",
+        endpoint_slug="boxscoresummaryv3",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=0,
+                result_set_name="ArenaInfo",
+                expected_columns=("gameId", "arenaId", "arenaName"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=1,
+                result_set_name="GameSummary",
+                expected_columns=("gameId", "gameCode", "gameStatusText"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    provenance = EndpointCoverageGenerator._build_schema_annotation_route_provenance(
+        contracts_by_endpoint={"box_score_summary_v3": docs_contract},
+        staging_entries_by_endpoint={
+            "box_score_summary_v3": [
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_summary_v3_game_summary",
+                    "game",
+                    result_set_index=0,
+                    use_multi=True,
+                ),
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_arena_info",
+                    "game",
+                    result_set_index=1,
+                    use_multi=True,
+                ),
+            ]
+        },
+        input_schema_columns={
+            "stg_summary_v3_game_summary": {
+                "game_id",
+                "game_code",
+                "game_status_text",
+            },
+            "stg_arena_info": {"game_id", "arena_id", "arena_name"},
+        },
+        input_schema_behaviors={
+            "stg_summary_v3_game_summary": "closed",
+            "stg_arena_info": "closed",
+        },
+    )
+
+    game_summary_routes = [
+        route
+        for route in provenance["routes"]
+        if route["staging_key"] == "stg_summary_v3_game_summary"
+    ]
+    arena_routes = [
+        route for route in provenance["routes"] if route["staging_key"] == "stg_arena_info"
+    ]
+    assert provenance["summary"] == {
+        "route_field_count": 6,
+        "route_status_counts": {"declared": 6},
+        "blocking_route_field_count": 0,
+    }
+    assert {route["source_result_set_name"] for route in game_summary_routes} == {"GameSummary"}
+    assert {route["source_result_set_index"] for route in game_summary_routes} == {1}
+    assert {route["declared_result_set_index"] for route in game_summary_routes} == {0}
+    assert {route["source_result_set_name"] for route in arena_routes} == {"ArenaInfo"}
+    assert {route["source_result_set_index"] for route in arena_routes} == {0}
+    assert {route["declared_result_set_index"] for route in arena_routes} == {1}
+
+
+def test_schema_annotation_routes_reuse_canonical_aliases_and_open_schemas() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    schedule_contract = NbaApiEndpointContract(
+        runtime_class_name="ScheduleLeagueV2",
+        module_name="nba_api.docs.nba_api.stats.endpoints.scheduleleaguev2",
+        endpoint_slug="scheduleleaguev2",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="ScheduleLeagueV2",
+                result_set_index=0,
+                result_set_name="Schedule",
+                expected_columns=("gameDate",),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+    synergy_contract = NbaApiEndpointContract(
+        runtime_class_name="SynergyPlayTypes",
+        module_name="nba_api.docs.nba_api.stats.endpoints.synergyplaytypes",
+        endpoint_slug="synergyplaytypes",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="SynergyPlayTypes",
+                result_set_index=0,
+                result_set_name="Synergy",
+                expected_columns=("TOV_POSS_PCT", "UNMODELED_VALUE"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    provenance = EndpointCoverageGenerator._build_schema_annotation_route_provenance(
+        contracts_by_endpoint={
+            "schedule": schedule_contract,
+            "synergy_play_types": synergy_contract,
+        },
+        staging_entries_by_endpoint={
+            "schedule": [StagingEntry("schedule", "stg_schedule", "season")],
+            "synergy_play_types": [
+                StagingEntry("synergy_play_types", "stg_synergy_play_types", "season")
+            ],
+        },
+        input_schema_columns={
+            "stg_schedule": {"game_date"},
+            "stg_synergy_play_types": {"to_pct"},
+        },
+        input_schema_behaviors={
+            "stg_schedule": "closed",
+            "stg_synergy_play_types": "passthrough",
+        },
+    )
+
+    routes = {route["source_column"]: route for route in provenance["routes"]}
+    assert routes["gameDate"]["normalized_column"] == "game_date"
+    assert routes["gameDate"]["route_status"] == "declared"
+    assert routes["TOV_POSS_PCT"]["normalized_column"] == "to_pct"
+    assert routes["TOV_POSS_PCT"]["route_status"] == "declared"
+    assert routes["UNMODELED_VALUE"]["normalized_column"] == "unmodeled_value"
+    assert routes["UNMODELED_VALUE"]["route_status"] == "open_passthrough"
+    assert provenance["summary"]["blocking_route_field_count"] == 0
+    assert provenance["superseded_runtime_classes"]["BoxScoreMiscV2"] == "BoxScoreMiscV3"
+
+
 def test_docs_upstream_contract_diff_resolves_with_declared_index_column_aliases() -> None:
     from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
     from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
