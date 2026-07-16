@@ -52,7 +52,7 @@ export default async function Layout({
     >
       <div
         id="main-content"
-        className="flex min-h-[calc(100vh-3.5rem)] flex-col"
+        className="min-w-0 [grid-area:main] flex min-h-[calc(100vh-3.5rem)] flex-col"
       >
         <div className="flex-1">{children}</div>
         <DocsFooter />

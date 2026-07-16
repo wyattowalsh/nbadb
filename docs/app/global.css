@@ -1150,6 +1150,11 @@ kbd {
 
 /* ── Mermaid ───────────────────────────────────────── */
 .nba-mermaid-shell {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border: 1px solid var(--border);
   background: var(--card);
   padding: 0;
@@ -1183,8 +1188,11 @@ kbd {
 
 .nba-mermaid-viewport {
   position: relative;
+  box-sizing: border-box;
   overflow: hidden;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 20rem;
   cursor: grab;
   touch-action: none;
@@ -1204,7 +1212,7 @@ kbd {
   transform-origin: 0 0;
 }
 
-.nba-mermaid-canvas > svg {
+.nba-mermaid-canvas > iframe {
   display: block;
   width: auto;
   height: auto;
@@ -1213,6 +1221,10 @@ kbd {
 
 /* ── Zoom controls ─────────────────────────────────── */
 .nba-viz-shell {
+  contain: inline-size;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-block: 1.5rem;
 }
 
@@ -1324,6 +1336,10 @@ kbd {
 @media (max-width: 768px) {
   .nba-docs-page :where(p, li) {
     line-height: 1.7;
+  }
+
+  .nba-viz-toolbar {
+    flex-wrap: wrap;
   }
 }
 

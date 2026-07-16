@@ -10,16 +10,17 @@ import {
   type RefCallback,
 } from "react";
 
-interface ZoomPanState {
+export interface ZoomPanState {
   scale: number;
   tx: number;
   ty: number;
 }
 
-type Action =
+export type ZoomPanAction =
   | { type: "ZOOM"; cx: number; cy: number; delta: number }
   | { type: "PAN"; dx: number; dy: number }
   | { type: "SET"; scale: number; tx: number; ty: number }
+  | { type: "FIT"; scale: number; tx: number; ty: number }
   | { type: "RESET" };
 
 const MIN_SCALE = 0.1;
@@ -34,7 +35,10 @@ function clampScale(s: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
 }
 
-function reducer(state: ZoomPanState, action: Action): ZoomPanState {
+export function zoomPanReducer(
+  state: ZoomPanState,
+  action: ZoomPanAction,
+): ZoomPanState {
   switch (action.type) {
     case "ZOOM": {
       const { cx, cy, delta } = action;
@@ -56,6 +60,21 @@ function reducer(state: ZoomPanState, action: Action): ZoomPanState {
         tx: action.tx,
         ty: action.ty,
       };
+    case "FIT":
+      if (
+        !Number.isFinite(action.scale) ||
+        action.scale <= 0 ||
+        action.scale > 1 ||
+        !Number.isFinite(action.tx) ||
+        !Number.isFinite(action.ty)
+      ) {
+        return state;
+      }
+      return {
+        scale: action.scale,
+        tx: action.tx,
+        ty: action.ty,
+      };
     case "RESET":
       return INITIAL;
     default:
@@ -63,8 +82,38 @@ function reducer(state: ZoomPanState, action: Action): ZoomPanState {
   }
 }
 
+export function calculateFitTransform(
+  viewportWidth: number,
+  viewportHeight: number,
+  contentWidth: number,
+  contentHeight: number,
+): ZoomPanState | null {
+  const dimensions = [
+    viewportWidth,
+    viewportHeight,
+    contentWidth,
+    contentHeight,
+  ];
+  if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) {
+    return null;
+  }
+
+  const scale = Math.min(
+    viewportWidth / contentWidth,
+    viewportHeight / contentHeight,
+    1,
+  );
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+
+  return {
+    scale,
+    tx: (viewportWidth - contentWidth * scale) / 2,
+    ty: (viewportHeight - contentHeight * scale) / 2,
+  };
+}
+
 export function useZoomPan() {
-  const [state, dispatch] = useReducer(reducer, INITIAL);
+  const [state, dispatch] = useReducer(zoomPanReducer, INITIAL);
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
   const canvasElRef = useRef<HTMLElement | null>(null);
   const pointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
@@ -207,15 +256,13 @@ export function useZoomPan() {
     const contentW = canvas.scrollWidth;
     const contentH = canvas.scrollHeight;
 
-    if (contentW === 0 || contentH === 0) {
+    const transform = calculateFitTransform(vpW, vpH, contentW, contentH);
+    if (transform === null) {
       dispatch({ type: "RESET" });
       return;
     }
 
-    const fitScale = Math.min(vpW / contentW, vpH / contentH, 1);
-    const tx = (vpW - contentW * fitScale) / 2;
-    const ty = (vpH - contentH * fitScale) / 2;
-    dispatch({ type: "SET", scale: fitScale, tx, ty });
+    dispatch({ type: "FIT", ...transform });
   }, [viewportEl]);
 
   const zoomAt = useCallback(

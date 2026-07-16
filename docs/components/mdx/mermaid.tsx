@@ -13,6 +13,10 @@ import {
 import type { ErrorInfo, ReactNode } from "react";
 import { useTheme } from "next-themes";
 import { Maximize2, Minus, Plus } from "lucide-react";
+import {
+  createMermaidSandboxFrame,
+  sanitizeMermaidSvg,
+} from "@/lib/mermaid-svg";
 import { useZoomPan } from "@/lib/use-zoom-pan";
 
 /* ── Render timeout ─────────────────────────────────── */
@@ -283,7 +287,7 @@ function MermaidContent({ chart }: { chart: string }) {
   });
 
   const cacheKey = `${chart}-${resolvedTheme ?? "system"}`;
-  const { svg, bindFunctions } = use(
+  const { svg } = use(
     cachePromise(cacheKey, () => {
       return withTimeout(
         mermaid.render(id, chart),
@@ -318,22 +322,19 @@ function MermaidContent({ chart }: { chart: string }) {
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-    const parserError = parsed.querySelector("parsererror");
-    const nextSvg = parsed.documentElement;
-
-    if (parserError || nextSvg.tagName.toLowerCase() !== "svg") {
-      throw new Error("Mermaid returned invalid SVG output");
-    }
-
-    el.replaceChildren(nextSvg);
-    bindFunctions?.(el);
+    const sanitized = sanitizeMermaidSvg(svg);
+    const frame = createMermaidSandboxFrame(el.ownerDocument, sanitized);
+    el.replaceChildren(frame);
 
     // Fit after the browser has laid out the SVG
-    requestAnimationFrame(() => {
+    const frameRequest = requestAnimationFrame(() => {
       fitToView();
     });
-  }, [svg, bindFunctions, fitToView]);
+    return () => {
+      cancelAnimationFrame(frameRequest);
+      if (frame.parentNode === el) frame.remove();
+    };
+  }, [svg, fitToView]);
 
   return (
     <div className="nba-viz-shell">
@@ -361,6 +362,7 @@ function MermaidContent({ chart }: { chart: string }) {
         <div
           className="nba-mermaid-viewport"
           ref={viewportRef}
+          style={{ height: "20rem", maxWidth: "100%", minWidth: 0 }}
           tabIndex={0}
           role="application"
           aria-label="Zoomable Mermaid diagram"
