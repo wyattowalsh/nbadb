@@ -110,6 +110,7 @@ def _write_metadata(
     lane_id: str,
     status: str,
     raw_status: str | None = None,
+    completed_calls: int = 0,
     rows_persisted: int = 0,
     failed_calls: int = 0,
     running_calls: int = 0,
@@ -128,13 +129,14 @@ def _write_metadata(
         "season_start": "" if season_start is None else str(season_start),
         "season_end": "" if season_end is None else str(season_end),
         "telemetry": {
+            "completed_calls": completed_calls,
             "rows_persisted": rows_persisted,
             "failed_calls": failed_calls,
             "journal_skips": 0,
             "db_telemetry": {"running_calls": running_calls},
         },
     }
-    if status == "complete" or rows_persisted > 0:
+    if status == "complete" or completed_calls > 0 or rows_persisted > 0:
         payload["state_artifact"] = {
             "run_id": "12345",
             "name": f"extraction-lane-chain-{lane_id}",
@@ -2257,6 +2259,7 @@ def test_video_timeout_split_ids_are_unique_across_season_type_and_context_axes(
         state_artifact_run_id="stale-run",
         state_artifact_name="stale-state",
         state_artifact_digest="a" * 64,
+        last_rows_persisted=1,
     )
     first_metadata = tmp_path / "first-metadata"
     first_metadata.mkdir()
@@ -2281,6 +2284,8 @@ def test_video_timeout_split_ids_are_unique_across_season_type_and_context_axes(
         and not child.state_artifact_digest
         for child in season_type_children
     )
+    assert all(child.last_completed_calls == 0 for child in season_type_children)
+    assert all(child.last_rows_persisted == 0 for child in season_type_children)
 
     second_metadata = tmp_path / "second-metadata"
     second_metadata.mkdir()
@@ -2290,16 +2295,43 @@ def test_video_timeout_split_ids_are_unique_across_season_type_and_context_axes(
             lane_id=child.lane_id,
             status="needs_resume",
             raw_status="extract-timeout",
-            rows_persisted=2,
+            rows_persisted=1,
             endpoints=list(child.endpoints),
             patterns=list(child.patterns),
             season_start=2024,
             season_end=2024,
         )
 
-    context_children, _state, second_summary = build_resume_manifest(
+    progressed_children, next_chain_state, second_summary = build_resume_manifest(
         season_type_children,
         second_metadata,
+    )
+
+    assert len(progressed_children) == 2
+    assert second_summary["split_lane_count"] == 0
+    assert all(child.last_rows_persisted == 1 for child in progressed_children)
+    assert all(child.state_artifact_run_id == "12345" for child in progressed_children)
+
+    third_metadata = tmp_path / "third-metadata"
+    third_metadata.mkdir()
+    for child in progressed_children:
+        _write_metadata(
+            third_metadata / f"{child.lane_id}.json",
+            lane_id=child.lane_id,
+            status="needs_resume",
+            raw_status="extract-timeout",
+            rows_persisted=1,
+            endpoints=list(child.endpoints),
+            patterns=list(child.patterns),
+            season_start=2024,
+            season_end=2024,
+        )
+
+    context_children, _state, third_summary = build_resume_manifest(
+        progressed_children,
+        third_metadata,
+        chain_state=next_chain_state,
+        current_iteration=3,
     )
 
     validate_manifest(context_children)
@@ -2317,7 +2349,9 @@ def test_video_timeout_split_ids_are_unique_across_season_type_and_context_axes(
         and not child.state_artifact_digest
         for child in context_children
     )
-    assert second_summary["split_lane_count"] == 4
+    assert all(child.last_completed_calls == 0 for child in context_children)
+    assert all(child.last_rows_persisted == 0 for child in context_children)
+    assert third_summary["split_lane_count"] == 4
 
 
 def test_build_resume_manifest_allows_missing_attempted_metadata_for_manual_resume(
@@ -2490,7 +2524,72 @@ def test_diagnostic_metadata_clears_stale_state_and_preserves_vpn_quarantine(
     assert summary["durable_state_lane_count"] == 0
 
 
-def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
+def test_build_resume_manifest_preserves_progress_then_splits_stalled_timeout(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2020-2023",
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        rows_persisted=12,
+    )
+
+    next_lanes, next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.lane_id == lane.lane_id
+    assert retry_lane.last_rows_persisted == 12
+    assert retry_lane.state_artifact_run_id == "12345"
+    assert summary["active_lane_count"] == 1
+    assert summary["split_lane_count"] == 0
+
+    stalled_metadata_dir = tmp_path / "stalled-metadata"
+    stalled_metadata_dir.mkdir()
+    _write_metadata(
+        stalled_metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        rows_persisted=12,
+    )
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [retry_lane],
+        stalled_metadata_dir,
+        chain_state=next_chain_state,
+        current_iteration=2,
+    )
+
+    validate_manifest(next_lanes)
+    assert [child.season_start for child in next_lanes] == [2020, 2021, 2022, 2023]
+    assert [child.season_end for child in next_lanes] == [2020, 2021, 2022, 2023]
+    assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
+    assert all(child.split_generation == 1 for child in next_lanes)
+    assert all(child.failure_streak == 2 for child in next_lanes)
+    assert all(child.class_failure_streak == 2 for child in next_lanes)
+    assert all(child.last_failure_class == "timeout_progress" for child in next_lanes)
+    assert all(child.last_completed_calls == 0 for child in next_lanes)
+    assert all(child.last_rows_persisted == 0 for child in next_lanes)
+    assert summary["active_lane_count"] == 4
+    assert summary["split_lane_count"] == 4
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+
+
+def test_build_resume_manifest_preserves_progress_before_legacy_reshard(
+    tmp_path: Path,
+) -> None:
     lane = FullExtractionLane(
         lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
         lane_index=0,
@@ -2502,28 +2601,270 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
         endpoints=("box_score_summary",),
         timeout_seconds=7200,
     )
-    metadata_dir = tmp_path / "metadata"
-    metadata_dir.mkdir()
+    progress_metadata_dir = tmp_path / "progress-metadata"
+    progress_metadata_dir.mkdir()
     _write_metadata(
-        metadata_dir / "historical.json",
-        lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
+        progress_metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
         status="extract-timeout",
         rows_persisted=12,
     )
 
-    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+    next_lanes, next_chain_state, summary = build_resume_manifest(
+        [lane],
+        progress_metadata_dir,
+    )
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.lane_id == lane.lane_id
+    assert retry_lane.last_rows_persisted == 12
+    assert retry_lane.state_artifact_run_id == "12345"
+    assert summary["split_lane_count"] == 0
+    validate_manifest(next_lanes)
+
+    stalled_metadata_dir = tmp_path / "stalled-metadata"
+    stalled_metadata_dir.mkdir()
+    _write_metadata(
+        stalled_metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        rows_persisted=12,
+    )
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [retry_lane],
+        stalled_metadata_dir,
+        chain_state=next_chain_state,
+        current_iteration=2,
+    )
 
     validate_manifest(next_lanes)
     assert [child.season_start for child in next_lanes] == [1994, 1998, 2002]
     assert [child.season_end for child in next_lanes] == [1997, 2001, 2005]
     assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
-    assert all(child.split_generation == 1 for child in next_lanes)
-    assert all(child.failure_streak == 1 for child in next_lanes)
-    assert all(child.class_failure_streak == 1 for child in next_lanes)
-    assert all(child.last_failure_class == "timeout_progress" for child in next_lanes)
-    assert summary["active_lane_count"] == 3
+    assert all(not child.state_artifact_run_id for child in next_lanes)
+    assert all(child.last_completed_calls == 0 for child in next_lanes)
+    assert all(child.last_rows_persisted == 0 for child in next_lanes)
     assert summary["split_lane_count"] == 3
-    assert summary["outcome_counts"] == {"needs_resume": 1}
+
+
+def test_build_resume_manifest_preserves_high_progress_transport_partial(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-video-details-asset-ctx-01-2004-2011",
+        lane_index=0,
+        lane_name="Cross Product Video Details Asset 2004-2011",
+        lane_kind="cross_product",
+        season_start=2004,
+        season_end=2011,
+        patterns=("player_team_season",),
+        season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+        context_measures=("AST", "BLK", "FG3A"),
+        endpoints=("video_details_asset",),
+        timeout_seconds=19_800,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "lane.json",
+        lane_id=lane.lane_id,
+        status="needs_resume",
+        raw_status="extract-error",
+        completed_calls=14_918,
+        failed_calls=1,
+        endpoints=list(lane.endpoints),
+        patterns=list(lane.patterns),
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.lane_id == lane.lane_id
+    assert retry_lane.last_completed_calls == 14_918
+    assert retry_lane.state_artifact_run_id == "12345"
+    assert retry_lane.state_artifact_name
+    assert retry_lane.state_artifact_digest == "a" * 64
+    assert retry_lane.last_failure_class == "transport_transient"
+    assert retry_lane.class_failure_streak == 1
+    assert retry_lane.next_eligible_iteration == 2
+    assert summary["active_lane_count"] == 1
+    assert summary["split_lane_count"] == 0
+    assert summary["durable_state_lane_count"] == 1
+    validate_manifest(next_lanes)
+
+
+def test_validate_manifest_rejects_oversized_lane_with_untrusted_state_pointer() -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
+        lane_index=0,
+        lane_name="Historical game 1994-2005",
+        lane_kind="historical",
+        season_start=1994,
+        season_end=2005,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        state_artifact_run_id="stale-run",
+        state_artifact_name=(
+            "extraction-lane-chain-historical-game-box-score-summary-no-season-type-1994-2005"
+        ),
+        state_artifact_digest="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="span 12 exceeds lane policy max 4"):
+        validate_manifest([lane])
+
+
+@pytest.mark.parametrize(
+    ("receipt_field", "receipt_value"),
+    [
+        ("attested", False),
+        ("uploaded", False),
+        ("artifact_id", "0"),
+        ("artifact_digest", "invalid"),
+    ],
+)
+def test_timeout_progress_requires_durable_artifact_receipt(
+    tmp_path: Path,
+    receipt_field: str,
+    receipt_value: object,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2020-2023",
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    metadata_path = tmp_path / f"{receipt_field}.json"
+    _write_metadata(
+        metadata_path,
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        completed_calls=10,
+    )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    state_artifact = payload["state_artifact"]
+    assert isinstance(state_artifact, dict)
+    state_artifact[receipt_field] = receipt_value
+    metadata_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], tmp_path)
+
+    assert len(next_lanes) == 4
+    assert all(not child.state_artifact_run_id for child in next_lanes)
+    assert all(child.last_completed_calls == 0 for child in next_lanes)
+    assert summary["split_lane_count"] == 4
+
+
+def test_timeout_progress_without_state_artifact_fails_closed(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2020-2023",
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    metadata_path = tmp_path / "missing-artifact.json"
+    _write_metadata(
+        metadata_path,
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        completed_calls=10,
+    )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    payload.pop("state_artifact")
+    metadata_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
+        build_resume_manifest([lane], tmp_path)
+
+
+def test_zero_row_timeout_progress_then_stall(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2020-2023",
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    progress_dir = tmp_path / "progress"
+    progress_dir.mkdir()
+    _write_metadata(
+        progress_dir / "lane.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        completed_calls=10,
+    )
+
+    progressed_lanes, next_chain_state, summary = build_resume_manifest([lane], progress_dir)
+
+    assert len(progressed_lanes) == 1
+    assert progressed_lanes[0].last_completed_calls == 10
+    assert progressed_lanes[0].last_rows_persisted == 0
+    assert progressed_lanes[0].state_artifact_run_id == "12345"
+    assert summary["split_lane_count"] == 0
+
+    stalled_dir = tmp_path / "stalled"
+    stalled_dir.mkdir()
+    _write_metadata(
+        stalled_dir / "lane.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        completed_calls=10,
+    )
+    split_lanes, _next_chain_state, summary = build_resume_manifest(
+        progressed_lanes,
+        stalled_dir,
+        chain_state=next_chain_state,
+        current_iteration=2,
+    )
+
+    assert len(split_lanes) == 4
+    assert all(child.last_completed_calls == 0 for child in split_lanes)
+    assert summary["split_lane_count"] == 4
+
+
+def test_build_resume_manifest_rejects_regressing_durable_progress(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2020-2023",
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        last_completed_calls=10,
+        last_rows_persisted=100,
+    )
+    _write_metadata(
+        tmp_path / "lane.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        completed_calls=11,
+        rows_persisted=99,
+    )
+
+    with pytest.raises(ValueError, match="Durable lane state progress regressed"):
+        build_resume_manifest([lane], tmp_path)
 
 
 def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
@@ -3279,6 +3620,7 @@ def test_build_resume_manifest_splits_repeated_game_date_timeout_to_one_season(
         timeout_seconds=7200,
         failure_streak=1,
         last_failure_reason="needs_resume",
+        last_rows_persisted=18,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
@@ -3736,6 +4078,7 @@ def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Pa
         patterns=("game",),
         endpoints=("box_score_summary",),
         timeout_seconds=7200,
+        last_rows_persisted=4,
     )
     deferred_lane = FullExtractionLane(
         lane_id="historical-game-box-score-summary-no-season-type-1998-2001",
@@ -4577,6 +4920,7 @@ def test_retry_budget_is_checked_before_timeout_split(tmp_path: Path) -> None:
         timeout_seconds=7200,
         class_failure_streak=7,
         last_failure_class="timeout_progress",
+        last_rows_persisted=1,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()

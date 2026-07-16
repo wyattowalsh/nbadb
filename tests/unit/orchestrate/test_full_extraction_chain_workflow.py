@@ -413,6 +413,12 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     metadata_step = _step_block(extract, "Write lane metadata")
     complete_upload = _step_block(extract, "Upload complete lane artifact")
     recovery_upload = _step_block(extract, "Upload incomplete lane state artifact")
+    artifact_retry_wait = _step_block(extract, "Wait before retrying lane artifact upload")
+    complete_upload_retry = _step_block(extract, "Retry complete lane artifact upload")
+    recovery_upload_retry = _step_block(
+        extract,
+        "Retry incomplete lane state artifact upload",
+    )
     finalize_receipt = _step_block(extract, "Finalize durable lane artifact receipt")
     metadata_upload = _step_block(extract, "Upload lane metadata")
     metadata_retry = _step_block(extract, "Retry lane metadata upload")
@@ -435,11 +441,32 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert complete_name not in recovery_upload
     assert "steps.lane_metadata.outcome == 'success'" in complete_upload
     assert "steps.lane_metadata.outputs.snapshot-attested == 'true'" in complete_upload
+    assert "continue-on-error: true" in complete_upload
     assert "if-no-files-found: error" in complete_upload
     assert "steps.lane_metadata.outcome == 'success'" in recovery_upload
     assert "steps.lane_metadata.outputs.snapshot-attested == 'true'" in recovery_upload
     assert "steps.lane_metadata.outputs.final-outcome != 'complete'" in recovery_upload
+    assert "continue-on-error: true" in recovery_upload
     assert "if-no-files-found: error" in recovery_upload
+    assert "steps.complete_lane_artifact.outcome == 'failure'" in artifact_retry_wait
+    assert "steps.recovery_lane_artifact.outcome == 'failure'" in artifact_retry_wait
+    assert "sleep 15" in artifact_retry_wait
+    assert "steps.complete_lane_artifact.outcome == 'failure'" in complete_upload_retry
+    assert "steps.recovery_lane_artifact.outcome == 'failure'" in recovery_upload_retry
+    assert "continue-on-error" not in complete_upload_retry
+    assert "continue-on-error" not in recovery_upload_retry
+    assert complete_name in complete_upload_retry
+    assert recovery_name in recovery_upload_retry
+    assert "overwrite: true" in complete_upload_retry
+    assert "overwrite: true" in recovery_upload_retry
+    assert "lane-state-attestation.json" in complete_upload_retry
+    assert "lane-state-attestation.json" in recovery_upload_retry
+    assert "steps.complete_lane_artifact_retry.outputs.artifact-id" in finalize_receipt
+    assert "steps.complete_lane_artifact_retry.outputs.artifact-digest" in finalize_receipt
+    assert "steps.recovery_lane_artifact_retry.outputs.artifact-id" in finalize_receipt
+    assert "steps.recovery_lane_artifact_retry.outputs.artifact-digest" in finalize_receipt
+    assert "steps.complete_lane_artifact_retry.outcome" in finalize_receipt
+    assert "steps.recovery_lane_artifact_retry.outcome" in finalize_receipt
     assert "steps.lane_metadata.outcome == 'success'" in metadata_upload
     assert "steps.finalize_lane_metadata.outcome == 'success'" in metadata_upload
     assert "continue-on-error: true" in metadata_upload
@@ -474,6 +501,15 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
         "- name: Finalize durable lane artifact receipt"
     )
     assert extract.index("- name: Upload incomplete lane state artifact") < extract.index(
+        "- name: Wait before retrying lane artifact upload"
+    )
+    assert extract.index("- name: Wait before retrying lane artifact upload") < extract.index(
+        "- name: Retry complete lane artifact upload"
+    )
+    assert extract.index("- name: Retry complete lane artifact upload") < extract.index(
+        "- name: Retry incomplete lane state artifact upload"
+    )
+    assert extract.index("- name: Retry incomplete lane state artifact upload") < extract.index(
         "- name: Finalize durable lane artifact receipt"
     )
     assert extract.index("- name: Finalize durable lane artifact receipt") < extract.index(

@@ -2174,6 +2174,7 @@ jobs:
       - name: Upload complete lane artifact
         id: complete_lane_artifact
         if: ${{ always() && steps.lane_metadata.outcome == 'success' && steps.lane_metadata.outputs.snapshot-attested == 'true' && steps.lane_metadata.outputs.final-outcome == 'complete' }}
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -2188,6 +2189,39 @@ jobs:
       - name: Upload incomplete lane state artifact
         id: recovery_lane_artifact
         if: ${{ always() && steps.lane_metadata.outcome == 'success' && steps.lane_metadata.outputs.snapshot-attested == 'true' && steps.lane_metadata.outputs.final-outcome != 'complete' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: extraction-lane-recovery-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            data/nbadb/nba.duckdb
+            artifacts/extraction/lane-state-attestation.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Wait before retrying lane artifact upload
+        if: ${{ always() && (steps.complete_lane_artifact.outcome == 'failure' || steps.recovery_lane_artifact.outcome == 'failure') }}
+        run: sleep 15
+
+      - name: Retry complete lane artifact upload
+        id: complete_lane_artifact_retry
+        if: ${{ always() && steps.complete_lane_artifact.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: |
+            data/nbadb/nba.duckdb
+            artifacts/extraction/lane-state-attestation.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Retry incomplete lane state artifact upload
+        id: recovery_lane_artifact_retry
+        if: ${{ always() && steps.recovery_lane_artifact.outcome == 'failure' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -2203,13 +2237,13 @@ jobs:
         id: finalize_lane_metadata
         if: ${{ always() && steps.lane_metadata.outcome == 'success' }}
         env:
-          COMPLETE_ARTIFACT_DIGEST: ${{ steps.complete_lane_artifact.outputs.artifact-digest }}
-          COMPLETE_ARTIFACT_ID: ${{ steps.complete_lane_artifact.outputs.artifact-id }}
-          COMPLETE_ARTIFACT_OUTCOME: ${{ steps.complete_lane_artifact.outcome }}
+          COMPLETE_ARTIFACT_DIGEST: ${{ steps.complete_lane_artifact.outcome == 'success' && steps.complete_lane_artifact.outputs.artifact-digest || steps.complete_lane_artifact_retry.outputs.artifact-digest }}
+          COMPLETE_ARTIFACT_ID: ${{ steps.complete_lane_artifact.outcome == 'success' && steps.complete_lane_artifact.outputs.artifact-id || steps.complete_lane_artifact_retry.outputs.artifact-id }}
+          COMPLETE_ARTIFACT_OUTCOME: ${{ steps.complete_lane_artifact.outcome == 'success' && steps.complete_lane_artifact.outcome || steps.complete_lane_artifact_retry.outcome }}
           FINAL_OUTCOME: ${{ steps.lane_metadata.outputs.final-outcome }}
-          RECOVERY_ARTIFACT_DIGEST: ${{ steps.recovery_lane_artifact.outputs.artifact-digest }}
-          RECOVERY_ARTIFACT_ID: ${{ steps.recovery_lane_artifact.outputs.artifact-id }}
-          RECOVERY_ARTIFACT_OUTCOME: ${{ steps.recovery_lane_artifact.outcome }}
+          RECOVERY_ARTIFACT_DIGEST: ${{ steps.recovery_lane_artifact.outcome == 'success' && steps.recovery_lane_artifact.outputs.artifact-digest || steps.recovery_lane_artifact_retry.outputs.artifact-digest }}
+          RECOVERY_ARTIFACT_ID: ${{ steps.recovery_lane_artifact.outcome == 'success' && steps.recovery_lane_artifact.outputs.artifact-id || steps.recovery_lane_artifact_retry.outputs.artifact-id }}
+          RECOVERY_ARTIFACT_OUTCOME: ${{ steps.recovery_lane_artifact.outcome == 'success' && steps.recovery_lane_artifact.outcome || steps.recovery_lane_artifact_retry.outcome }}
           SNAPSHOT_ATTESTED: ${{ steps.lane_metadata.outputs.snapshot-attested }}
         run: |
           python - <<'PY'

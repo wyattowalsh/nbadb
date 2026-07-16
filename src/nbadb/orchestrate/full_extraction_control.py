@@ -1371,6 +1371,17 @@ def _duplicate_lane_id_errors(lanes: list[FullExtractionLane]) -> list[str]:
     )
 
 
+def _lane_has_state_artifact_pointer(lane: FullExtractionLane) -> bool:
+    # Restore revalidates the receipt and full provenance before the VPN step.
+    expected_name_suffix = f"-{lane.lane_id}"
+    return bool(
+        _is_positive_run_id(lane.state_artifact_run_id)
+        and lane.state_artifact_name.startswith("extraction-lane-")
+        and lane.state_artifact_name.endswith(expected_name_suffix)
+        and _is_sha256(lane.state_artifact_digest)
+    )
+
+
 def _raise_manifest_errors(errors: list[str]) -> None:
     if errors:
         msg = "Invalid full extraction manifest:\n- " + "\n- ".join(errors)
@@ -1440,7 +1451,12 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: persisted progress counters must be >= 0")
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
-        if not lane.resume_only and max_span is not None and span > max_span:
+        if (
+            not lane.resume_only
+            and max_span is not None
+            and span > max_span
+            and not _lane_has_state_artifact_pointer(lane)
+        ):
             errors.append(f"{lane.lane_id}: span {span} exceeds lane policy max {max_span}")
     _raise_manifest_errors(errors)
 
@@ -2304,6 +2320,8 @@ def _split_lane_by_segments(
                     state_artifact_run_id="",
                     state_artifact_name="",
                     state_artifact_digest="",
+                    last_completed_calls=0,
+                    last_rows_persisted=0,
                 )
             )
     return children
@@ -2349,6 +2367,8 @@ def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullEx
                 state_artifact_run_id="",
                 state_artifact_name="",
                 state_artifact_digest="",
+                last_completed_calls=0,
+                last_rows_persisted=0,
             )
             for context_measure in lane.context_measures
         ]
@@ -2432,6 +2452,38 @@ def _metadata_progress(payload: dict[str, Any]) -> tuple[int, int]:
         progress_payload.get("rows_persisted") or telemetry_payload.get("rows_persisted")
     )
     return completed_calls, rows_persisted
+
+
+def _metadata_progress_increased(
+    lane: FullExtractionLane,
+    payload: dict[str, Any],
+) -> bool:
+    completed_calls, rows_persisted = _metadata_progress(payload)
+    return (
+        completed_calls >= lane.last_completed_calls
+        and rows_persisted >= lane.last_rows_persisted
+        and (
+            completed_calls > lane.last_completed_calls or rows_persisted > lane.last_rows_persisted
+        )
+    )
+
+
+def _metadata_progress_regressed(
+    lane: FullExtractionLane,
+    payload: dict[str, Any],
+) -> bool:
+    completed_calls, rows_persisted = _metadata_progress(payload)
+    return completed_calls < lane.last_completed_calls or rows_persisted < lane.last_rows_persisted
+
+
+def _metadata_added_durable_progress(
+    lane: FullExtractionLane,
+    payload: dict[str, Any],
+) -> bool:
+    return _metadata_progress_increased(
+        lane,
+        payload,
+    ) and _metadata_state_artifact_is_durable(payload)
 
 
 def _support_rule_fingerprints(raw_rules: Any) -> tuple[str, ...] | None:
@@ -2542,13 +2594,16 @@ def _retry_lane_from_metadata(
     current_iteration: int,
 ) -> FullExtractionLane:
     completed_calls, rows_persisted = _metadata_progress(payload)
-    progress_increased = (
-        completed_calls > lane.last_completed_calls or rows_persisted > lane.last_rows_persisted
-    )
+    state_artifact_durable = _metadata_state_artifact_is_durable(payload)
+    if state_artifact_durable and _metadata_progress_regressed(lane, payload):
+        raise ValueError(
+            f"Durable lane state progress regressed for {lane.lane_id}: "
+            f"calls {lane.last_completed_calls}->{completed_calls}, "
+            f"rows {lane.last_rows_persisted}->{rows_persisted}"
+        )
+    progress_increased = _metadata_progress_increased(lane, payload)
     raw_status = str(payload.get("raw_status") or payload.get("status") or outcome).strip()
     failure_class = _metadata_failure_class(payload, raw_status=raw_status)
-    if outcome == "needs_resume" and progress_increased:
-        failure_class = "timeout_progress"
     previous_failure_class = lane.last_failure_class or _legacy_failure_class(
         lane.last_failure_reason
     )
@@ -2556,7 +2611,6 @@ def _retry_lane_from_metadata(
     class_streak = previous_class_streak + 1 if previous_failure_class == failure_class else 1
     zero_progress_streak = 0 if progress_increased else lane.zero_progress_streak + 1
     state_run_id, state_name, state_digest = _metadata_state_artifact(payload)
-    state_artifact_durable = _metadata_state_artifact_is_durable(payload)
     if not state_artifact_durable:
         state_run_id = state_name = state_digest = ""
     cooldown = 1 if failure_class in {"transport_transient", "response_contract"} else 0
@@ -2574,6 +2628,23 @@ def _retry_lane_from_metadata(
         state_artifact_name=state_name,
         state_artifact_digest=state_digest,
     )
+
+
+def _timeout_retry_should_split(
+    lane: FullExtractionLane,
+    payload: dict[str, Any],
+    *,
+    outcome: str,
+) -> bool:
+    if outcome not in SPLITTABLE_TIMEOUT_STATUSES or not _timeout_lane_can_split(lane):
+        return False
+
+    raw_status = str(payload.get("raw_status") or payload.get("status") or outcome).strip()
+    failure_class = _metadata_failure_class(payload, raw_status=raw_status)
+    if failure_class not in {"timeout_progress", "timeout_stalled"}:
+        return False
+
+    return not _metadata_added_durable_progress(lane, payload)
 
 
 def lane_outcome_from_metadata(
@@ -2808,7 +2879,7 @@ def build_resume_manifest(
                 next_lanes.append(retry_lane)
                 active += 1
                 continue
-            if _lane_exceeds_policy(lane):
+            if _lane_exceeds_policy(lane) and not _lane_has_state_artifact_pointer(retry_lane):
                 child_lanes = _split_legacy_oversized_lane(
                     retry_lane,
                     reason="missing-metadata-profile-oversized",
@@ -2839,7 +2910,7 @@ def build_resume_manifest(
             else:
                 active += 1
                 deferred += 1
-                if _lane_exceeds_policy(lane):
+                if _lane_exceeds_policy(lane) and not _lane_has_state_artifact_pointer(lane):
                     next_lanes.pop()
                     child_lanes = _split_legacy_oversized_lane(
                         lane,
@@ -2900,7 +2971,7 @@ def build_resume_manifest(
                 next_lanes.append(retry_lane)
                 active += 1
                 continue
-            if _lane_exceeds_policy(lane):
+            if _lane_exceeds_policy(lane) and not _metadata_added_durable_progress(lane, payload):
                 child_lanes = _split_legacy_oversized_lane(
                     retry_lane,
                     reason=f"pipeline-failure-{failure_reason}",
@@ -2930,7 +3001,11 @@ def build_resume_manifest(
             next_lanes.append(retry_lane)
             active += 1
             continue
-        if _status_allows_legacy_split(status) and _lane_exceeds_policy(lane):
+        if (
+            _status_allows_legacy_split(status)
+            and _lane_exceeds_policy(lane)
+            and not _metadata_added_durable_progress(lane, payload)
+        ):
             child_lanes = _split_legacy_oversized_lane(
                 retry_lane,
                 reason=f"legacy-oversized-{status}",
@@ -2939,7 +3014,11 @@ def build_resume_manifest(
             split_lane_count += len(child_lanes)
             active += len(child_lanes)
             continue
-        if status in SPLITTABLE_TIMEOUT_STATUSES and _timeout_lane_can_split(lane):
+        if _timeout_retry_should_split(
+            lane,
+            payload,
+            outcome=status,
+        ):
             child_lanes = _split_timeout_lane(retry_lane, reason=status)
             next_lanes.extend(child_lanes)
             split_lane_count += len(child_lanes)

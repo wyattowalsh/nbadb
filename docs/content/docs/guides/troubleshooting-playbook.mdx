@@ -526,11 +526,17 @@ PY
 
 ### 4) Remediate
 
-- Retry `needs_resume` lanes by default. Repeated temporal timeouts for `game`,
-  `date`, `season`, `player_season`, `team_season`, and `player_team_season`
-  are split before redispatch; short `game`/`date` spans split to one-season
-  children, while the season and cross-product patterns split by their lane
-  policy span.
+- Retry `needs_resume` lanes by default. Keep a parent lane intact when the latest
+  attempt added calls or rows and its attested snapshot was durably uploaded with
+  a finalized artifact receipt; this preserves journal skips for transport-class
+  partials and progress-making timeouts. A timeout-class lane is split only after
+  an attempt adds no durable progress. Short `game`/`date` spans split to
+  one-season children, while `season`, `player_season`, `team_season`, and
+  `player_team_season` lanes split by their lane policy span.
+- Let the workflow retry a failed complete or partial lane-state upload once with
+  the exact same artifact name. Only the successful attempt's positive artifact ID
+  and SHA-256 receipt may finalize resumable state; two failed attempts downgrade
+  the snapshot to diagnostics-only runner-infrastructure evidence.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
 - Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; the cumulative zero-progress budget continues across alternating classes. Application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
 - If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct; resume it only through `lane_manifest_run_id`, which reruns integrity, exact-coverage, and canonical bundle gates. Both transport and response-contract/validation failures should consume the bounded recovery attempts; a first response-shape failure must not terminate the remaining budget. Do not treat a broader aggregate cache as proof of an exact missing scope.
