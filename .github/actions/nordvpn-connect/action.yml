@@ -42,6 +42,10 @@ inputs:
     description: Maximum authentication rejections before pausing a server sweep.
     required: false
     default: "3"
+  auth-recovery-rejection-limit:
+    description: Maximum authentication rejections in each post-cooldown recovery sweep.
+    required: false
+    default: "3"
   auth-recovery-rounds:
     description: Bounded cooldown rounds after transient authentication-capacity failures.
     required: false
@@ -50,6 +54,10 @@ inputs:
     description: Base cooldown multiplied by the authentication recovery round.
     required: false
     default: "10"
+  require-auth-recovery-budget:
+    description: Require the initial authentication probe to reserve both attempts, diagnostics permissions, cleanup, outputs, and the first cooldown.
+    required: false
+    default: "false"
   quarantined-servers-json:
     description: JSON array of NordVPN server hostnames to avoid for this chain.
     required: false
@@ -187,8 +195,10 @@ runs:
         SERVER_LIMIT: ${{ inputs.server-limit }}
         SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}
         AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}
+        AUTH_RECOVERY_REJECTION_LIMIT: ${{ inputs.auth-recovery-rejection-limit }}
         AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}
         AUTH_RECOVERY_BASE_DELAY_SECONDS: ${{ inputs.auth-recovery-base-delay-seconds }}
+        REQUIRE_AUTH_RECOVERY_BUDGET: ${{ inputs.require-auth-recovery-budget }}
         QUARANTINED_SERVERS_JSON: ${{ inputs.quarantined-servers-json }}
         PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}
         PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}

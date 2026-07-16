@@ -65,7 +65,10 @@ jobs:
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
             .github/scripts/probe_discovery_transport.py \
+            .github/scripts/run_extract_lane.py \
             .github/scripts/seed_discovery_artifacts.py \
+            .github/scripts/vpn_control_plane.py \
+            .github/scripts/write_lane_metadata.py \
             .github/scripts/verify_discovery_bundle.py
       - name: Check formatting for package, tests, and extraction runtime scripts
         run: |
@@ -75,7 +78,10 @@ jobs:
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
             .github/scripts/probe_discovery_transport.py \
+            .github/scripts/run_extract_lane.py \
             .github/scripts/seed_discovery_artifacts.py \
+            .github/scripts/vpn_control_plane.py \
+            .github/scripts/write_lane_metadata.py \
             .github/scripts/verify_discovery_bundle.py
 
   metadata:
@@ -123,7 +129,10 @@ jobs:
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
             .github/scripts/probe_discovery_transport.py \
+            .github/scripts/run_extract_lane.py \
             .github/scripts/seed_discovery_artifacts.py \
+            .github/scripts/vpn_control_plane.py \
+            .github/scripts/write_lane_metadata.py \
             .github/scripts/verify_discovery_bundle.py
 
   docs:

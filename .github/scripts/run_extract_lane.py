@@ -8,6 +8,7 @@ import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 DIRECT_TIMEOUT_CAP_PATTERNS = frozenset(
     {
@@ -18,9 +19,17 @@ DIRECT_TIMEOUT_CAP_PATTERNS = frozenset(
         "player_team_season",
     }
 )
+JOB_DEADLINE_ENV = "NBADB_EXTRACT_JOB_DEADLINE_EPOCH_SECONDS"
+FINALIZATION_RESERVE_ENV = "NBADB_EXTRACT_FINALIZATION_RESERVE_SECONDS"
 ENDPOINT_STALL_TIMEOUT_SECONDS = {
     "video_details_asset": 600,
 }
+
+
+class ExtractionInterruptedError(RuntimeError):
+    def __init__(self, signal_number: int) -> None:
+        super().__init__(f"extraction interrupted by signal {signal_number}")
+        self.signal_number = signal_number
 
 
 def append_output(key: str, value: str) -> None:
@@ -61,8 +70,13 @@ def descendant_pids(root_pid: int) -> set[int]:
     return descendants
 
 
-def terminate_tree(root_pid: int) -> None:
-    descendants = descendant_pids(root_pid)
+def terminate_tree(
+    root_pid: int,
+    *,
+    grace_seconds: float = 5.0,
+    discover_descendants: bool = True,
+) -> None:
+    descendants = descendant_pids(root_pid) if discover_descendants else set()
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
         with suppress(ProcessLookupError):
             os.killpg(root_pid, sig)
@@ -70,7 +84,7 @@ def terminate_tree(root_pid: int) -> None:
             with suppress(ProcessLookupError):
                 os.kill(pid, sig)
         if sig is not signal.SIGKILL:
-            time.sleep(5)
+            time.sleep(grace_seconds)
 
 
 def build_command() -> list[str]:
@@ -136,6 +150,30 @@ def direct_timeout_cap_applies() -> bool:
     return bool(patterns & DIRECT_TIMEOUT_CAP_PATTERNS)
 
 
+def job_budget_cap_seconds() -> int | None:
+    raw_deadline = os.environ.get(JOB_DEADLINE_ENV, "").strip()
+    raw_reserve = os.environ.get(FINALIZATION_RESERVE_ENV, "").strip()
+    if not raw_deadline and not raw_reserve:
+        return None
+    if not raw_deadline or not raw_reserve:
+        raise ValueError(f"{JOB_DEADLINE_ENV} and {FINALIZATION_RESERVE_ENV} must be set together")
+    try:
+        deadline = int(raw_deadline)
+        reserve = int(raw_reserve)
+    except ValueError as exc:
+        raise ValueError(
+            "Extraction job deadline and finalization reserve must be integers"
+        ) from exc
+    if deadline <= 0:
+        raise ValueError(f"{JOB_DEADLINE_ENV} must be > 0, got {deadline}")
+    if reserve <= 0:
+        raise ValueError(f"{FINALIZATION_RESERVE_ENV} must be > 0, got {reserve}")
+    remaining = int(deadline - time.time() - reserve)
+    if remaining <= 0:
+        raise ValueError("Extraction job budget is exhausted before the finalization reserve")
+    return remaining
+
+
 def selected_endpoints() -> set[str]:
     return {
         value.strip()
@@ -174,6 +212,9 @@ def effective_timeout_seconds(timeout_seconds: int) -> int:
         cap_seconds = direct_timeout_cap_seconds()
         if cap_seconds is not None:
             effective_timeout = min(effective_timeout, cap_seconds)
+    job_cap = job_budget_cap_seconds()
+    if job_cap is not None:
+        effective_timeout = min(effective_timeout, job_cap)
     return effective_timeout
 
 
@@ -194,15 +235,9 @@ def describe_timeout(timeout_seconds: int, effective_timeout_seconds: int) -> No
 def status_for_exit_code(exit_code: int) -> str:
     if exit_code == 0:
         return "complete"
-    if exit_code in {
-        124,
-        130,
-        137,
-        143,
-        -signal.SIGINT,
-        -signal.SIGTERM,
-        -signal.SIGKILL,
-    }:
+    if exit_code in {130, 143, -signal.SIGINT, -signal.SIGTERM}:
+        return "cancelled"
+    if exit_code in {124, 137, -signal.SIGKILL}:
         return "extract-timeout"
     return "extract-error"
 
@@ -233,15 +268,23 @@ def main() -> int:
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     append_output("started-at", started_at)
 
-    child = subprocess.Popen(cmd, start_new_session=True, env=child_env)
-    deadline = time.monotonic() + effective_timeout
-    if heartbeat_path is None:
-        last_heartbeat_mtime_ns = None
-    last_progress_at = time.monotonic()
-
     exit_code: int
     status: str
+    child: subprocess.Popen[bytes] | None = None
+    previous_signal_handlers: dict[int, Any] = {}
+
+    def interrupt_handler(signal_number: int, _frame: object) -> None:
+        raise ExtractionInterruptedError(signal_number)
+
+    for signal_number in (signal.SIGINT, signal.SIGTERM):
+        previous_signal_handlers[signal_number] = signal.getsignal(signal_number)
+        signal.signal(signal_number, interrupt_handler)
     try:
+        child = subprocess.Popen(cmd, start_new_session=True, env=child_env)
+        deadline = time.monotonic() + effective_timeout
+        if heartbeat_path is None:
+            last_heartbeat_mtime_ns = None
+        last_progress_at = time.monotonic()
         while True:
             rc = child.poll()
             if rc is not None:
@@ -279,10 +322,25 @@ def main() -> int:
                 status = "extract-timeout"
                 break
             time.sleep(1)
+    except (KeyboardInterrupt, ExtractionInterruptedError) as exc:
+        signal_number = (
+            exc.signal_number if isinstance(exc, ExtractionInterruptedError) else signal.SIGINT
+        )
+        if child is not None:
+            terminate_tree(
+                child.pid,
+                grace_seconds=2.0,
+                discover_descendants=False,
+            )
+        exit_code = 128 + signal_number
+        status = "cancelled"
     except BaseException:
-        terminate_tree(child.pid)
+        if child is not None:
+            terminate_tree(child.pid)
         raise
     finally:
+        for signal_number, previous_handler in previous_signal_handlers.items():
+            signal.signal(signal_number, previous_handler)
         if heartbeat_path is not None:
             heartbeat_path.unlink(missing_ok=True)
 

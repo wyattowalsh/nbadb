@@ -78,6 +78,9 @@ SPLITTABLE_TIMEOUT_STATUSES = frozenset(
 RETRYABLE_PIPELINE_FAILURE_STATUSES = frozenset(
     {"cancelled", "vpn_auth_failure", "vpn_connect_timeout", "vpn_network_error"}
 )
+VPN_AUTH_CIRCUIT_DEFERRED_RAW_STATUS = "vpn_auth_circuit_open"
+VPN_AUTH_CIRCUIT_CHECK_FAILED_RAW_STATUS = "vpn_auth_circuit_check_failed"
+VPN_AUTH_CIRCUIT_DEFERRED_FAILURE_CLASS = "vpn_circuit_deferred"
 FINAL_LANE_OUTCOMES: frozenset[str] = frozenset(
     {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}
 )
@@ -453,6 +456,8 @@ class FullExtractionManifest:
     lanes: tuple[FullExtractionLane, ...]
     chain_state: FullExtractionChainState = field(default_factory=FullExtractionChainState)
     matrix_lane_ids: frozenset[str] = field(default_factory=frozenset)
+    chain_id: str = ""
+    workflow_source_sha: str = ""
 
 
 def _normalize_server_list(raw: Any) -> tuple[str, ...]:
@@ -1945,6 +1950,16 @@ def normalize_manifest(
         lanes=lanes,
         chain_state=chain_state,
         matrix_lane_ids=matrix_lane_ids,
+        chain_id=(
+            str(raw_manifest.get("chain_id") or "").strip()
+            if isinstance(raw_manifest, dict)
+            else ""
+        ),
+        workflow_source_sha=(
+            str(raw_manifest.get("workflow_source_sha") or "").strip().lower()
+            if isinstance(raw_manifest, dict)
+            else ""
+        ),
     )
 
 
@@ -2021,12 +2036,32 @@ def _remaining_dispatch_credits(lane: FullExtractionLane) -> int:
     return max(1, max(FAILURE_RETRY_BUDGETS.values(), default=1))
 
 
+def _manifest_provenance_payload(
+    chain_id: str | None,
+    workflow_source_sha: str | None,
+) -> dict[str, str]:
+    normalized_chain_id = str(chain_id or "").strip()
+    normalized_source_sha = str(workflow_source_sha or "").strip().lower()
+    if not normalized_chain_id and not normalized_source_sha:
+        return {}
+    if not normalized_chain_id or any(ord(character) < 32 for character in normalized_chain_id):
+        raise ValueError("chain_id and workflow_source_sha must be supplied together")
+    if not _is_source_sha(normalized_source_sha):
+        raise ValueError("workflow_source_sha must be a 40-character hexadecimal commit SHA")
+    return {
+        "chain_id": normalized_chain_id,
+        "workflow_source_sha": normalized_source_sha,
+    }
+
+
 def manifest_payload(
     lanes: list[FullExtractionLane],
     *,
     chain_state: FullExtractionChainState | None = None,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
     current_iteration: int = 1,
+    chain_id: str | None = None,
+    workflow_source_sha: str | None = None,
 ) -> dict[str, Any]:
     if max_matrix_lanes < 1 or max_matrix_lanes > MAX_GITHUB_MATRIX_LANES:
         msg = (
@@ -2062,7 +2097,7 @@ def manifest_payload(
     pattern_summary = _lane_cost_summary(active_lanes, dimension="pattern")
     family_summary = _lane_cost_summary(active_lanes, dimension="family")
     tier_summary = _lane_cost_summary(active_lanes, dimension="tier")
-    return {
+    payload = {
         "manifest_version": MANIFEST_VERSION,
         "chunk_profile": chunk_profiles[0] if len(chunk_profiles) == 1 else "mixed",
         "coverage_fingerprint": coverage_fingerprint,
@@ -2106,6 +2141,8 @@ def manifest_payload(
         "chain_state": resolved_chain_state.to_payload(),
         "github_matrix": {"include": [lane.to_workflow_dict() for lane in matrix_lanes]},
     }
+    payload.update(_manifest_provenance_payload(chain_id, workflow_source_sha))
+    return payload
 
 
 def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[str, Any]:
@@ -2175,11 +2212,15 @@ def redispatch_manifest_payload(
     lanes: list[FullExtractionLane],
     *,
     chain_state: FullExtractionChainState | None = None,
+    chain_id: str | None = None,
+    workflow_source_sha: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "lanes": [_lane_payload(lane, compact=True) for lane in lanes],
         "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
     }
+    payload.update(_manifest_provenance_payload(chain_id, workflow_source_sha))
+    return payload
 
 
 def validate_workflow_dispatch_manifest_json(
@@ -2478,6 +2519,300 @@ def _metadata_progress(payload: dict[str, Any]) -> tuple[int, int]:
         progress_payload.get("rows_persisted") or telemetry_payload.get("rows_persisted")
     )
     return completed_calls, rows_persisted
+
+
+def _strict_metadata_lane_provenance_matches(
+    payload: dict[str, Any],
+    lane: FullExtractionLane,
+    *,
+    expected_chain_id: str,
+    expected_source_sha: str,
+    expected_iteration: int,
+) -> bool:
+    if type(payload.get("metadata_schema_version")) is not int:  # bool is not valid JSON int
+        return False
+    if payload["metadata_schema_version"] != 3:
+        return False
+    expected_scalars: dict[str, str] = {
+        "chain_id": expected_chain_id,
+        "source_sha": expected_source_sha,
+        "coverage_units_hash": _coverage_hash_for_lane(lane),
+        "iteration": str(expected_iteration),
+        "lane_id": lane.lane_id,
+        "lane_index": str(lane.lane_index),
+        "lane_name": lane.lane_name,
+        "lane_kind": lane.lane_kind,
+        "season_start": "" if lane.season_start is None else str(lane.season_start),
+        "season_end": "" if lane.season_end is None else str(lane.season_end),
+        "parent_lane_id": lane.parent_lane_id,
+    }
+    if any(type(payload.get(metadata_field)) is not str for metadata_field in expected_scalars):
+        return False
+    if any(
+        payload[metadata_field] != expected for metadata_field, expected in expected_scalars.items()
+    ):
+        return False
+    if type(payload.get("split_generation")) is not int:
+        return False
+    if payload["split_generation"] != lane.split_generation:
+        return False
+    expected_sequences: dict[str, tuple[str, ...]] = {
+        "patterns": lane.patterns,
+        "season_types": lane.season_types,
+        "context_measures": lane.context_measures,
+        "endpoints": lane.endpoints,
+    }
+    for metadata_field, expected in expected_sequences.items():
+        value = payload.get(metadata_field)
+        if not isinstance(value, list) or any(type(item) is not str for item in value):
+            return False
+        if tuple(value) != expected:
+            return False
+    return True
+
+
+def _strict_zero_work_circuit_metadata_matches(
+    payload: dict[str, Any],
+    lane: FullExtractionLane,
+    *,
+    expected_chain_id: str,
+    expected_source_sha: str,
+    expected_iteration: int,
+    expected_raw_status: str,
+    expected_failure_class: str,
+) -> bool:
+    if not _strict_metadata_lane_provenance_matches(
+        payload,
+        lane,
+        expected_chain_id=expected_chain_id,
+        expected_source_sha=expected_source_sha,
+        expected_iteration=expected_iteration,
+    ):
+        return False
+    expected_top_level: dict[str, object] = {
+        "status": "needs_resume",
+        "raw_status": expected_raw_status,
+        "failure_class": expected_failure_class,
+        "extract_status": "not-run",
+        "vpn_status": expected_raw_status,
+    }
+    if any(
+        payload.get(metadata_field) != expected
+        for metadata_field, expected in expected_top_level.items()
+    ):
+        return False
+    progress = payload.get("progress")
+    if not isinstance(progress, dict):
+        return False
+    if type(progress.get("completed_calls")) is not int or progress["completed_calls"] != 0:
+        return False
+    if type(progress.get("rows_persisted")) is not int or progress["rows_persisted"] != 0:
+        return False
+    expected_fingerprint = hashlib.sha256(
+        json.dumps(
+            {"completed_calls": 0, "rows_persisted": 0},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if (
+        type(progress.get("fingerprint")) is not str
+        or progress["fingerprint"] != expected_fingerprint
+    ):
+        return False
+    telemetry = payload.get("telemetry")
+    if not isinstance(telemetry, dict):
+        return False
+    for metadata_field in (
+        "planned_calls",
+        "journal_skips",
+        "failed_calls",
+        "completed_calls",
+        "tables_persisted",
+        "rows_persisted",
+    ):
+        if type(telemetry.get(metadata_field)) is not int or telemetry[metadata_field] != 0:
+            return False
+    db_telemetry = telemetry.get("db_telemetry")
+    if not isinstance(db_telemetry, dict):
+        return False
+    for metadata_field in (
+        "planned_calls",
+        "journal_skips",
+        "failed_calls",
+        "running_calls",
+        "completed_calls",
+        "tables_persisted",
+        "rows_persisted",
+    ):
+        if type(db_telemetry.get(metadata_field)) is not int or db_telemetry[metadata_field] != 0:
+            return False
+    state_artifact = payload.get("state_artifact")
+    if not isinstance(state_artifact, dict):
+        return False
+    expected_state: dict[str, object] = {
+        "run_id": "",
+        "name": "",
+        "sha256": "",
+        "artifact_id": "",
+        "artifact_digest": "",
+        "required": False,
+        "attested": False,
+        "uploaded": False,
+    }
+    if any(state_artifact.get(field) != expected for field, expected in expected_state.items()):
+        return False
+    vpn = payload.get("vpn")
+    return isinstance(vpn, dict) and vpn.get("status") == expected_raw_status
+
+
+def _strict_no_new_work_auth_rejection_metadata_matches(
+    payload: dict[str, Any],
+    lane: FullExtractionLane,
+    *,
+    expected_chain_id: str,
+    expected_source_sha: str,
+    expected_iteration: int,
+) -> bool:
+    prior_state = payload.get("prior_state")
+    if prior_state is None:
+        return (
+            not _lane_has_state_artifact_pointer(lane)
+            and lane.last_completed_calls == 0
+            and lane.last_rows_persisted == 0
+            and payload.get("database_sha256") == ""
+            and payload.get("restore_source") == "none"
+            and payload.get("restore_usable") is False
+            and payload.get("restart_mode") == "clean-restart"
+            and _strict_zero_work_circuit_metadata_matches(
+                payload,
+                lane,
+                expected_chain_id=expected_chain_id,
+                expected_source_sha=expected_source_sha,
+                expected_iteration=expected_iteration,
+                expected_raw_status="vpn_auth_failure",
+                expected_failure_class="vpn_egress",
+            )
+        )
+
+    if (
+        not isinstance(prior_state, dict)
+        or not _lane_has_state_artifact_pointer(lane)
+        or not _strict_metadata_lane_provenance_matches(
+            payload,
+            lane,
+            expected_chain_id=expected_chain_id,
+            expected_source_sha=expected_source_sha,
+            expected_iteration=expected_iteration,
+        )
+    ):
+        return False
+
+    expected_top_level: dict[str, object] = {
+        "status": "needs_resume",
+        "raw_status": "vpn_auth_failure",
+        "failure_class": "vpn_egress",
+        "extract_status": "not-run",
+        "vpn_status": "vpn_auth_failure",
+        "restore_source": "artifact",
+        "restore_usable": True,
+        "restart_mode": "resume",
+        "database_sha256": lane.state_artifact_digest,
+    }
+    if any(
+        payload.get(metadata_field) != expected
+        for metadata_field, expected in expected_top_level.items()
+    ):
+        return False
+    if payload.get("extract_summary") != {}:
+        return False
+
+    expected_progress = {
+        "completed_calls": lane.last_completed_calls,
+        "rows_persisted": lane.last_rows_persisted,
+    }
+    expected_progress["fingerprint"] = _hash_payload(expected_progress)
+    if payload.get("progress") != expected_progress:
+        return False
+    if prior_state.get("progress") != expected_progress:
+        return False
+
+    expected_prior_pointer = {
+        "run_id": lane.state_artifact_run_id,
+        "name": lane.state_artifact_name,
+        "sha256": lane.state_artifact_digest,
+    }
+    if any(
+        prior_state.get(metadata_field) != expected
+        for metadata_field, expected in expected_prior_pointer.items()
+    ):
+        return False
+
+    baseline = prior_state.get("telemetry")
+    baseline_fields = (
+        "planned_calls",
+        "journal_skips",
+        "failed_calls",
+        "running_calls",
+        "completed_calls",
+        "tables_persisted",
+        "rows_persisted",
+    )
+    if not isinstance(baseline, dict) or any(
+        type(baseline.get(counter_name)) is not int or baseline[counter_name] < 0
+        for counter_name in baseline_fields
+    ):
+        return False
+    if (
+        baseline["completed_calls"] != lane.last_completed_calls
+        or baseline["rows_persisted"] != lane.last_rows_persisted
+    ):
+        return False
+
+    telemetry = payload.get("telemetry")
+    if not isinstance(telemetry, dict) or telemetry.get("extract_summary_parse_error") != "":
+        return False
+    for counter_name in (
+        "planned_calls",
+        "journal_skips",
+        "failed_calls",
+        "completed_calls",
+        "tables_persisted",
+        "rows_persisted",
+    ):
+        if (
+            type(telemetry.get(counter_name)) is not int
+            or telemetry[counter_name] != baseline[counter_name]
+        ):
+            return False
+    db_telemetry = telemetry.get("db_telemetry")
+    if not isinstance(db_telemetry, dict):
+        return False
+    for counter_name in baseline_fields:
+        if (
+            type(db_telemetry.get(counter_name)) is not int
+            or db_telemetry[counter_name] != baseline[counter_name]
+        ):
+            return False
+
+    state_artifact = payload.get("state_artifact")
+    if not isinstance(state_artifact, dict):
+        return False
+    expected_state: dict[str, object] = {
+        **expected_prior_pointer,
+        "artifact_id": "",
+        "artifact_digest": "",
+        "required": False,
+        "attested": False,
+        "uploaded": False,
+    }
+    if any(
+        state_artifact.get(metadata_field) != expected
+        for metadata_field, expected in expected_state.items()
+    ):
+        return False
+    vpn = payload.get("vpn")
+    return isinstance(vpn, dict) and vpn.get("status") == "vpn_auth_failure"
 
 
 def _metadata_progress_increased(
@@ -2856,6 +3191,8 @@ def build_resume_manifest(
     latest_checkpoint_coverage_hash: str | None = None,
     current_iteration: int = 1,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
+    expected_chain_id: str | None = None,
+    expected_source_sha: str | None = None,
 ) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
     previous_state = chain_state or FullExtractionChainState()
@@ -2875,7 +3212,16 @@ def build_resume_manifest(
     blocked_lanes: list[FullExtractionLane] = []
     pipeline_failures: list[str] = []
     pipeline_failure_retries = 0
+    vpn_auth_circuit_deferred = 0
+    vpn_auth_circuit_check_failed = 0
+    vpn_auth_circuit_rejections = 0
     profile_override = _validate_chunk_profile(chunk_profile) if chunk_profile else None
+
+    normalized_expected_chain_id = str(expected_chain_id or "").strip()
+    normalized_expected_source_sha = str(expected_source_sha or "").strip().lower()
+    expected_provenance_available = bool(normalized_expected_chain_id) and _is_source_sha(
+        normalized_expected_source_sha
+    )
 
     def record_pending_contract_blocked_lane(lane: FullExtractionLane) -> None:
         row = _canonical_contract_blocked_row_for_lane(lane)
@@ -2977,7 +3323,60 @@ def build_resume_manifest(
             continue
         if payload is None:
             payload = {"lane_id": lane.lane_id, "status": "missing-metadata", "vpn": {}}
+        metadata_raw_status = str(payload.get("raw_status") or "").strip()
+        auth_circuit_status_declared = metadata_raw_status == VPN_AUTH_CIRCUIT_DEFERRED_RAW_STATUS
+        auth_circuit_check_failed_status_declared = (
+            metadata_raw_status == VPN_AUTH_CIRCUIT_CHECK_FAILED_RAW_STATUS
+        )
+        valid_auth_circuit_metadata = (
+            auth_circuit_status_declared
+            and expected_provenance_available
+            and _strict_zero_work_circuit_metadata_matches(
+                payload,
+                lane,
+                expected_chain_id=normalized_expected_chain_id,
+                expected_source_sha=normalized_expected_source_sha,
+                expected_iteration=current_iteration,
+                expected_raw_status=VPN_AUTH_CIRCUIT_DEFERRED_RAW_STATUS,
+                expected_failure_class=VPN_AUTH_CIRCUIT_DEFERRED_FAILURE_CLASS,
+            )
+        )
+        valid_auth_circuit_check_failed_metadata = (
+            auth_circuit_check_failed_status_declared
+            and expected_provenance_available
+            and _strict_zero_work_circuit_metadata_matches(
+                payload,
+                lane,
+                expected_chain_id=normalized_expected_chain_id,
+                expected_source_sha=normalized_expected_source_sha,
+                expected_iteration=current_iteration,
+                expected_raw_status=VPN_AUTH_CIRCUIT_CHECK_FAILED_RAW_STATUS,
+                expected_failure_class="runner_infrastructure",
+            )
+        )
+        auth_rejection_status_declared = metadata_raw_status == "vpn_auth_failure"
+        auth_rejection_metadata_valid = (
+            auth_rejection_status_declared
+            and expected_provenance_available
+            and _strict_no_new_work_auth_rejection_metadata_matches(
+                payload,
+                lane,
+                expected_chain_id=normalized_expected_chain_id,
+                expected_source_sha=normalized_expected_source_sha,
+                expected_iteration=current_iteration,
+            )
+        )
         status = str(lane_outcome_from_metadata(payload, lane))
+        if auth_rejection_metadata_valid:
+            status = "needs_resume"
+        if (auth_circuit_status_declared and not valid_auth_circuit_metadata) or (
+            auth_circuit_check_failed_status_declared
+            and not valid_auth_circuit_check_failed_metadata
+        ):
+            # The producer intended a retry-neutral circuit deferral, but its
+            # provenance or zero-work contract is invalid. Consume a bounded
+            # infrastructure retry instead of trusting it or hard-stopping the chain.
+            status = "needs_resume"
         outcome_counts[status] = outcome_counts.get(status, 0) + 1
         if status == "complete":
             next_lanes.append(
@@ -3004,7 +3403,68 @@ def build_resume_manifest(
             contract_blocked += 1
             continue
         failure_reason = str(payload.get("raw_status") or raw_status or status)
+        if (
+            not lane.resume_only
+            and status == "needs_resume"
+            and failure_reason == VPN_AUTH_CIRCUIT_DEFERRED_RAW_STATUS
+            and str(payload.get("failure_class") or "").strip()
+            == VPN_AUTH_CIRCUIT_DEFERRED_FAILURE_CLASS
+            and valid_auth_circuit_metadata
+        ):
+            # A sibling lane already proved an account-level authentication
+            # rejection. This lane made no connector or extraction attempt, so
+            # preserve every retry, progress, and durable-state field exactly.
+            next_lanes.append(lane)
+            active += 1
+            deferred += 1
+            vpn_auth_circuit_deferred += 1
+            failure_reason_counts[failure_reason] = failure_reason_counts.get(failure_reason, 0) + 1
+            continue
+        if status == "needs_resume" and failure_reason == VPN_AUTH_CIRCUIT_DEFERRED_RAW_STATUS:
+            payload = dict(payload)
+            payload["failure_class"] = "runner_infrastructure"
+            failure_reason = "invalid-vpn-auth-circuit-metadata"
+        if (
+            status == "needs_resume"
+            and failure_reason == VPN_AUTH_CIRCUIT_CHECK_FAILED_RAW_STATUS
+            and auth_circuit_check_failed_status_declared
+            and not valid_auth_circuit_check_failed_metadata
+        ):
+            payload = dict(payload)
+            payload["failure_class"] = "runner_infrastructure"
+            failure_reason = "invalid-vpn-auth-circuit-metadata"
+        if failure_reason == "vpn_auth_failure" and not auth_rejection_metadata_valid:
+            payload = dict(payload)
+            payload["failure_class"] = "runner_infrastructure"
+            failure_reason = "invalid-vpn-auth-rejection-metadata"
+        if auth_rejection_metadata_valid:
+            # This lane reached the provider and consumed one bounded VPN-egress
+            # attempt, but it accepted no new extraction work. Preserve any prior
+            # durable state while the account-level circuit suppresses redispatch.
+            failure_reason_counts[failure_reason] = failure_reason_counts.get(failure_reason, 0) + 1
+            failure_class = _metadata_failure_class(payload, raw_status=failure_reason)
+            failure_class_counts[failure_class] = failure_class_counts.get(failure_class, 0) + 1
+            failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
+            retry_lane = replace(
+                _retry_lane_from_metadata(
+                    lane,
+                    payload,
+                    outcome=status,
+                    current_iteration=current_iteration,
+                ),
+                failure_streak=failure_streak,
+                last_failure_reason=status,
+            )
+            if _lane_retry_budget_exhausted(retry_lane):
+                blocked_lanes.append(retry_lane)
+            next_lanes.append(retry_lane)
+            active += 1
+            deferred += 1
+            vpn_auth_circuit_rejections += 1
+            continue
         failure_reason_counts[failure_reason] = failure_reason_counts.get(failure_reason, 0) + 1
+        if valid_auth_circuit_check_failed_metadata:
+            vpn_auth_circuit_check_failed += 1
         failure_class = _metadata_failure_class(payload, raw_status=failure_reason)
         failure_class_counts[failure_class] = failure_class_counts.get(failure_class, 0) + 1
         if status == "pipeline_failure":
@@ -3210,6 +3670,9 @@ def build_resume_manifest(
             "active_lane_count": active,
             "resume_only_lane_count": resumed,
             "deferred_lane_count": deferred,
+            "vpn_auth_circuit_deferred_lane_count": vpn_auth_circuit_deferred,
+            "vpn_auth_circuit_check_failed_lane_count": vpn_auth_circuit_check_failed,
+            "vpn_auth_circuit_rejection_lane_count": vpn_auth_circuit_rejections,
             "contract_blocked_lane_count": contract_blocked,
             "blocked_lane_count": 0,
             "split_lane_count": split_lane_count,
@@ -5884,6 +6347,8 @@ def _command_plan(args: argparse.Namespace) -> int:
             max_matrix_lanes=args.max_matrix_lanes,
         )
         chain_state = FullExtractionChainState()
+        chain_id = ""
+        workflow_source_sha = ""
     else:
         lanes = _schedule_lanes(
             list(manifest.lanes),
@@ -5892,6 +6357,8 @@ def _command_plan(args: argparse.Namespace) -> int:
             rotation_cursor=manifest.chain_state.scheduler_rotation_cursor,
         )
         chain_state = manifest.chain_state
+        chain_id = manifest.chain_id
+        workflow_source_sha = manifest.workflow_source_sha
 
     validate_manifest(lanes)
     payload = manifest_payload(
@@ -5899,6 +6366,8 @@ def _command_plan(args: argparse.Namespace) -> int:
         chain_state=chain_state,
         max_matrix_lanes=args.max_matrix_lanes,
         current_iteration=args.iteration,
+        chain_id=chain_id,
+        workflow_source_sha=workflow_source_sha,
     )
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -5927,6 +6396,8 @@ def _command_resume(args: argparse.Namespace) -> int:
         latest_checkpoint_coverage_hash=args.latest_checkpoint_coverage_hash,
         current_iteration=args.iteration,
         max_matrix_lanes=args.max_matrix_lanes,
+        expected_chain_id=manifest.chain_id,
+        expected_source_sha=manifest.workflow_source_sha,
     )
     validate_manifest(next_lanes)
     payload = manifest_payload(
@@ -5934,6 +6405,8 @@ def _command_resume(args: argparse.Namespace) -> int:
         chain_state=next_chain_state,
         max_matrix_lanes=args.max_matrix_lanes,
         current_iteration=args.iteration,
+        chain_id=manifest.chain_id,
+        workflow_source_sha=manifest.workflow_source_sha,
     )
     payload["resume_summary"] = summary
     args.output_path.parent.mkdir(parents=True, exist_ok=True)

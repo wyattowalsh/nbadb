@@ -394,6 +394,159 @@ def _progress_fingerprint(*, completed_calls: int, rows_persisted: int) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _exact_restored_state_contract(
+    *,
+    db_path: Path,
+    database_sha256: str,
+    db_telemetry: dict[str, Any],
+    completed_calls: int,
+    rows_persisted: int,
+    restore_source: str,
+    restore_usable: bool,
+    restart_mode: str,
+) -> dict[str, Any] | None:
+    if (
+        restore_source != "artifact"
+        or not restore_usable
+        or restart_mode != "resume"
+        or not _is_sha256(database_sha256)
+        or not db_telemetry.get("readable")
+        or db_telemetry.get("error")
+        or Path("artifacts/extraction/lane-state-untrusted").exists()
+    ):
+        return None
+
+    attestation_path = Path("artifacts/extraction/lane-state-attestation.json")
+    if attestation_path.is_symlink() or not attestation_path.is_file():
+        return None
+    try:
+        attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(attestation, dict):
+        return None
+
+    expected_values: dict[str, object] = {
+        "schema_version": 3,
+        "source_sha": os.environ["SOURCE_SHA"],
+        "chain_id": os.environ["CHAIN_ID"],
+        "lane_id": os.environ["LANE_ID"],
+        "coverage_units_hash": os.environ.get("COVERAGE_UNITS_HASH", "").strip().lower(),
+        "attested": True,
+    }
+    if any(attestation.get(field) != expected for field, expected in expected_values.items()):
+        return None
+
+    run_id = str(attestation.get("run_id") or "").strip()
+    artifact_name = str(attestation.get("artifact_name") or "").strip()
+    prior_digest = str(attestation.get("database_sha256") or "").strip().lower()
+    if (
+        not _is_positive_run_id(run_id)
+        or not artifact_name
+        or not _is_sha256(prior_digest)
+        or prior_digest != database_sha256
+        or not db_path.is_file()
+        or db_path.is_symlink()
+    ):
+        return None
+
+    progress = {
+        "completed_calls": completed_calls,
+        "rows_persisted": rows_persisted,
+    }
+    baseline_fields = (
+        "planned_calls",
+        "journal_skips",
+        "failed_calls",
+        "running_calls",
+        "completed_calls",
+        "tables_persisted",
+        "rows_persisted",
+    )
+    return {
+        "run_id": run_id,
+        "name": artifact_name,
+        "sha256": prior_digest,
+        "progress": {
+            **progress,
+            "fingerprint": _progress_fingerprint(**progress),
+        },
+        "telemetry": {field: _int_value(db_telemetry.get(field)) for field in baseline_fields},
+    }
+
+
+def _is_no_new_work_vpn_auth_failure(
+    *,
+    raw_status: str,
+    vpn_status: str,
+    extract_status: str,
+    planned_calls: int,
+    journal_skips: int,
+    failed_calls: int,
+    running_calls: int,
+    completed_calls: int,
+    tables_persisted: int,
+    rows_persisted: int,
+    db_telemetry: dict[str, Any],
+    extract_summary_parse_error: str,
+    extract_summary_work_detected: bool,
+    restore_source: str,
+    restore_usable: bool,
+    restart_mode: str,
+    prior_state: dict[str, Any] | None,
+) -> bool:
+    if (
+        raw_status != "vpn_auth_failure"
+        or vpn_status != raw_status
+        or extract_status != "not-run"
+        or extract_summary_parse_error
+        or extract_summary_work_detected
+    ):
+        return False
+
+    if restore_usable:
+        return restore_source == "artifact" and restart_mode == "resume" and prior_state is not None
+    if restore_source != "none" or restart_mode != "clean-restart" or prior_state is not None:
+        return False
+
+    counters = (
+        planned_calls,
+        journal_skips,
+        failed_calls,
+        running_calls,
+        completed_calls,
+        tables_persisted,
+        rows_persisted,
+    )
+    db_counter_fields = (
+        "planned_calls",
+        "journal_skips",
+        "failed_calls",
+        "running_calls",
+        "done_calls",
+        "completed_calls",
+        "tables_persisted",
+        "rows_persisted",
+        "journal_rows_extracted",
+        "staging_rows_persisted",
+    )
+    return all(value == 0 for value in counters) and all(
+        _int_value(db_telemetry.get(field)) == 0 for field in db_counter_fields
+    )
+
+
+def _zero_work_db_telemetry() -> dict[str, int]:
+    return {
+        "planned_calls": 0,
+        "journal_skips": 0,
+        "failed_calls": 0,
+        "running_calls": 0,
+        "completed_calls": 0,
+        "tables_persisted": 0,
+        "rows_persisted": 0,
+    }
+
+
 def _final_outcome(
     *,
     raw_status: str,
@@ -405,7 +558,10 @@ def _final_outcome(
     running_calls: int,
     support_rules: list[dict[str, Any]],
     completion_evidence_errors: list[str],
+    zero_work_vpn_auth_failure: bool,
 ) -> str:
+    if zero_work_vpn_auth_failure:
+        return "needs_resume"
     if raw_status == "complete":
         return "pipeline_failure" if completion_evidence_errors else "complete"
     if raw_status in {"needs_resume", "contract_blocked", "pipeline_failure"}:
@@ -471,6 +627,18 @@ def build_payload() -> dict[str, Any]:
         if isinstance(progress_summary.get("patterns", []), list)
         else 0
     )
+    extract_summary_work_detected = any(
+        (
+            planned_calls,
+            journal_skips,
+            failed_calls,
+            tables_persisted,
+            rows_persisted,
+            _int_value(totals.get("completed")),
+            _int_value(totals.get("succeeded")),
+            _int_value(totals.get("running")),
+        )
+    )
 
     db_path = Path("data/nbadb/nba.duckdb")
     _checkpoint_duckdb(db_path)
@@ -486,7 +654,11 @@ def build_payload() -> dict[str, Any]:
     if not journal_skips:
         journal_skips = _int_value(db_telemetry.get("journal_skips"))
 
-    raw_status = os.environ["STATUS"]
+    raw_status = os.environ["STATUS"].strip()
+    extract_status = os.environ.get("EXTRACT_STATUS", "").strip()
+    restore_source = os.environ["RESTORE_SOURCE"].strip()
+    restore_usable = os.environ["RESTORE_USABLE"].lower() == "true"
+    restart_mode = os.environ["RESTART_MODE"].strip()
     endpoints = _csv_values(os.environ.get("ENDPOINTS", ""))
     patterns = _csv_values(os.environ.get("PATTERNS", ""))
     season_types = _csv_values(os.environ.get("SEASON_TYPES", ""))
@@ -524,6 +696,16 @@ def build_payload() -> dict[str, Any]:
     coverage_units_hash = os.environ.get("COVERAGE_UNITS_HASH", "").strip().lower()
     running_calls = _int_value(db_telemetry.get("running_calls"))
     completed_calls = _int_value(db_telemetry.get("completed_calls"))
+    prior_state = _exact_restored_state_contract(
+        db_path=db_path,
+        database_sha256=database_sha256,
+        db_telemetry=db_telemetry,
+        completed_calls=completed_calls,
+        rows_persisted=rows_persisted,
+        restore_source=restore_source,
+        restore_usable=restore_usable,
+        restart_mode=restart_mode,
+    )
     completion_evidence_errors = _completion_evidence_errors(
         db_telemetry=db_telemetry,
         expected_endpoints=endpoints,
@@ -531,6 +713,30 @@ def build_payload() -> dict[str, Any]:
         database_sha256=database_sha256,
         expected_empty=expected_empty,
     )
+    no_new_work_vpn_auth_failure = _is_no_new_work_vpn_auth_failure(
+        raw_status=raw_status,
+        vpn_status=vpn_status,
+        extract_status=extract_status,
+        planned_calls=planned_calls,
+        journal_skips=journal_skips,
+        failed_calls=failed_calls,
+        running_calls=running_calls,
+        completed_calls=completed_calls,
+        tables_persisted=tables_persisted,
+        rows_persisted=rows_persisted,
+        db_telemetry=db_telemetry,
+        extract_summary_parse_error=extract_summary_parse_error,
+        extract_summary_work_detected=extract_summary_work_detected,
+        restore_source=restore_source,
+        restore_usable=restore_usable,
+        restart_mode=restart_mode,
+        prior_state=prior_state,
+    )
+    if no_new_work_vpn_auth_failure and prior_state is None:
+        database_sha256 = ""
+        db_telemetry = _zero_work_db_telemetry()
+    if no_new_work_vpn_auth_failure:
+        completion_evidence_errors = []
     final_outcome = _final_outcome(
         raw_status=raw_status,
         effective_network_mode=effective_network_mode,
@@ -541,6 +747,7 @@ def build_payload() -> dict[str, Any]:
         running_calls=running_calls,
         support_rules=support_rules,
         completion_evidence_errors=completion_evidence_errors,
+        zero_work_vpn_auth_failure=no_new_work_vpn_auth_failure,
     )
     error_diagnostics = _error_diagnostics(extract_summary)
     failure_class = _failure_class(
@@ -555,7 +762,9 @@ def build_payload() -> dict[str, Any]:
 
     zero_row_reason = ""
     if rows_persisted == 0:
-        if final_outcome == "complete":
+        if no_new_work_vpn_auth_failure:
+            zero_row_reason = "vpn_auth_failure"
+        elif final_outcome == "complete":
             zero_row_reason = "expected_empty"
         elif final_outcome == "contract_blocked":
             zero_row_reason = "contract_blocked"
@@ -577,6 +786,27 @@ def build_payload() -> dict[str, Any]:
         state_artifact_name = (
             os.environ.get("RECOVERY_ARTIFACT_NAME", "").strip() or state_artifact_name
         )
+    state_artifact: dict[str, Any]
+    if no_new_work_vpn_auth_failure:
+        state_artifact = {
+            "run_id": str(prior_state.get("run_id") or "") if prior_state else "",
+            "name": str(prior_state.get("name") or "") if prior_state else "",
+            "sha256": str(prior_state.get("sha256") or "") if prior_state else "",
+            "artifact_id": "",
+            "artifact_digest": "",
+            "required": False,
+            "attested": False,
+            "uploaded": False,
+        }
+    else:
+        state_artifact = {
+            "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+            "name": state_artifact_name,
+            "sha256": database_sha256,
+            "attested": False,
+            "required": final_outcome != "complete",
+            "retention_days": 7 if final_outcome == "complete" else 30,
+        }
     return {
         "metadata_schema_version": 3,
         "chain_id": os.environ["CHAIN_ID"],
@@ -595,16 +825,16 @@ def build_payload() -> dict[str, Any]:
         "status": final_outcome,
         "raw_status": raw_status,
         "cache_hit": os.environ["CACHE_HIT"],
-        "restore_source": os.environ["RESTORE_SOURCE"],
-        "restore_usable": os.environ["RESTORE_USABLE"].lower() == "true",
-        "restart_mode": os.environ["RESTART_MODE"],
+        "restore_source": restore_source,
+        "restore_usable": restore_usable,
+        "restart_mode": restart_mode,
         "restore_error": os.environ.get("RESTORE_ERROR", ""),
         "resume_only": resume_only,
         "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
         "effective_timeout_seconds": int(os.environ["EFFECTIVE_TIMEOUT_SECONDS"]),
         "started_at": os.environ.get("STARTED_AT", ""),
         "finished_at": os.environ.get("FINISHED_AT", ""),
-        "extract_status": os.environ.get("EXTRACT_STATUS", ""),
+        "extract_status": extract_status,
         "extract_exit_code": os.environ.get("EXTRACT_EXIT_CODE", ""),
         "network_mode": network_mode,
         "effective_network_mode": effective_network_mode,
@@ -631,14 +861,8 @@ def build_payload() -> dict[str, Any]:
                 rows_persisted=rows_persisted,
             ),
         },
-        "state_artifact": {
-            "run_id": os.environ.get("GITHUB_RUN_ID", ""),
-            "name": state_artifact_name,
-            "sha256": database_sha256,
-            "attested": False,
-            "required": final_outcome != "complete",
-            "retention_days": 7 if final_outcome == "complete" else 30,
-        },
+        "prior_state": prior_state,
+        "state_artifact": state_artifact,
         "artifact_requirements": {
             "lane_metadata": final_outcome != "complete",
             "vpn_diagnostics": (
@@ -706,6 +930,16 @@ def main() -> int:
     )
     state_artifact = payload.get("state_artifact")
     state_payload = state_artifact if isinstance(state_artifact, dict) else {}
+    if (
+        payload.get("status") == "needs_resume"
+        and payload.get("raw_status") == "vpn_auth_failure"
+        and payload.get("failure_class") == "vpn_egress"
+        and state_payload.get("required") is False
+    ):
+        append_output("final-outcome", "needs_resume")
+        append_output("snapshot-attested", "false")
+        return 0
+
     run_id = str(state_payload.get("run_id") or "").strip()
     state_artifact_name = str(state_payload.get("name") or "").strip()
     canonical_artifact_name = (

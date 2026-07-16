@@ -8,7 +8,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
-SUPERVISOR_HEADROOM_SECONDS = 10
+SUPERVISOR_HEADROOM_SECONDS = 130
 
 
 def append_output(key: str, value: str) -> None:
@@ -82,10 +82,14 @@ def main() -> int:
     action_dir = Path(__file__).resolve().parent
     connect_script = action_dir / "connect.py"
     overall_timeout = int(os.environ.get("OVERALL_TIMEOUT_SECONDS", "300").strip() or "300")
-    deadline = time.monotonic() + overall_timeout + SUPERVISOR_HEADROOM_SECONDS
+    connection_deadline = time.monotonic() + overall_timeout
+    deadline = connection_deadline + SUPERVISOR_HEADROOM_SECONDS
+    child_env = os.environ.copy()
+    child_env["VPN_CONNECTION_DEADLINE_MONOTONIC"] = repr(connection_deadline)
 
     child = subprocess.Popen(
         [sys.executable, str(connect_script)],
+        env=child_env,
         start_new_session=True,
     )
 

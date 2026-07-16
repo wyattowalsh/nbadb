@@ -125,6 +125,33 @@ def test_effective_timeout_ignores_direct_cap_for_vpn_lanes(
     assert module.effective_timeout_seconds(7200) == 7200
 
 
+def test_effective_timeout_preserves_job_finalization_reserve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_EXTRACT_JOB_DEADLINE_EPOCH_SECONDS", "22000")
+    monkeypatch.setenv("NBADB_EXTRACT_FINALIZATION_RESERVE_SECONDS", "1200")
+    monkeypatch.setattr(module.time, "time", lambda: 1000.0)
+
+    assert module.job_budget_cap_seconds() == 19800
+    assert module.effective_timeout_seconds(20000) == 19800
+    assert module.effective_timeout_seconds(300) == 300
+
+
+def test_job_budget_requires_paired_live_deadline_and_positive_headroom(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_EXTRACT_JOB_DEADLINE_EPOCH_SECONDS", "22000")
+    with pytest.raises(ValueError, match="must be set together"):
+        module.job_budget_cap_seconds()
+
+    monkeypatch.setenv("NBADB_EXTRACT_FINALIZATION_RESERVE_SECONDS", "1200")
+    monkeypatch.setattr(module.time, "time", lambda: 21000.0)
+    with pytest.raises(ValueError, match="budget is exhausted"):
+        module.job_budget_cap_seconds()
+
+
 def test_video_details_asset_uses_stall_watchdog_without_shortening_lane_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -185,11 +212,11 @@ def test_status_for_exit_code_classifies_runner_interrupts() -> None:
 
     assert module.status_for_exit_code(0) == "complete"
     assert module.status_for_exit_code(124) == "extract-timeout"
-    assert module.status_for_exit_code(130) == "extract-timeout"
+    assert module.status_for_exit_code(130) == "cancelled"
     assert module.status_for_exit_code(137) == "extract-timeout"
-    assert module.status_for_exit_code(143) == "extract-timeout"
-    assert module.status_for_exit_code(-module.signal.SIGINT) == "extract-timeout"
-    assert module.status_for_exit_code(-module.signal.SIGTERM) == "extract-timeout"
+    assert module.status_for_exit_code(143) == "cancelled"
+    assert module.status_for_exit_code(-module.signal.SIGINT) == "cancelled"
+    assert module.status_for_exit_code(-module.signal.SIGTERM) == "cancelled"
     assert module.status_for_exit_code(2) == "extract-error"
 
 
@@ -213,7 +240,85 @@ def test_main_reports_interrupted_child_without_canceling_post_steps(
     assert module.main() == 0
     output = output_path.read_text(encoding="utf-8")
     assert "exit-code=130" in output
-    assert "status=extract-timeout" in output
+    assert "status=cancelled" in output
+
+
+def test_main_finalizes_outputs_after_runner_termination_signal(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    output_path = tmp_path / "github-output.txt"
+    terminations: list[tuple[int, dict[str, object]]] = []
+
+    class FakeProcess:
+        pid = 54321
+
+        def poll(self) -> None:
+            raise module.ExtractionInterruptedError(module.signal.SIGTERM)
+
+    monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "7200")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *_args, **_kwargs: FakeProcess())
+    monkeypatch.setattr(
+        module,
+        "terminate_tree",
+        lambda pid, **kwargs: terminations.append((pid, kwargs)),
+    )
+
+    assert module.main() == 0
+    assert terminations == [(54321, {"grace_seconds": 2.0, "discover_descendants": False})]
+    output = output_path.read_text(encoding="utf-8")
+    assert "exit-code=143" in output
+    assert "status=cancelled" in output
+
+
+def test_main_installs_signal_handlers_before_spawning_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    installed: set[int] = set()
+
+    class FakeProcess:
+        pid = 54322
+
+        def poll(self) -> int:
+            return 0
+
+    def fake_signal(signal_number: int, _handler: object) -> None:
+        installed.add(signal_number)
+
+    def fake_popen(*_args, **_kwargs):
+        assert installed == {module.signal.SIGINT, module.signal.SIGTERM}
+        return FakeProcess()
+
+    monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "7200")
+    monkeypatch.setattr(module.signal, "signal", fake_signal)
+    monkeypatch.setattr(module.subprocess, "Popen", fake_popen)
+
+    assert module.main() == 0
+
+
+def test_main_terminates_live_child_after_unexpected_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    terminated: list[int] = []
+
+    class FakeProcess:
+        pid = 54323
+
+        def poll(self) -> None:
+            raise RuntimeError("unexpected monitoring failure")
+
+    monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "7200")
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *_args, **_kwargs: FakeProcess())
+    monkeypatch.setattr(module, "terminate_tree", terminated.append)
+
+    with pytest.raises(RuntimeError, match="unexpected monitoring failure"):
+        module.main()
+
+    assert terminated == [FakeProcess.pid]
 
 
 def test_main_terminates_asset_lane_after_no_completed_chunk(

@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,6 +16,8 @@ from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 
 if TYPE_CHECKING:
     from types import ModuleType
+
+    from nbadb.orchestrate.full_extraction_control import FullExtractionLane
 
 
 def _load_module() -> ModuleType:
@@ -83,6 +87,94 @@ def _write_workload(
     return store
 
 
+def _set_auth_failure_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> FullExtractionLane:
+    from nbadb.orchestrate import full_extraction_control as resume_control
+
+    lane = resume_control.FullExtractionLane(
+        lane_id="lane-1",
+        lane_index=0,
+        lane_name="Lane 1",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2020,
+        patterns=("season",),
+        endpoints=("draft_history",),
+        season_types=("Regular Season",),
+        timeout_seconds=3600,
+    )
+    _set_env(monkeypatch, tmp_path, status="vpn_auth_failure")
+    monkeypatch.setenv("SOURCE_SHA", "a" * 40)
+    monkeypatch.setenv("COVERAGE_UNITS_HASH", resume_control._coverage_hash_for_lane(lane))
+    monkeypatch.setenv("EXTRACT_STATUS", "not-run")
+    monkeypatch.setenv("VPN_STATUS", "vpn_auth_failure")
+    monkeypatch.setenv("VPN_SERVER", "us-test-1")
+    return lane
+
+
+def _set_restored_auth_failure_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> FullExtractionLane:
+    lane = _set_auth_failure_env(monkeypatch, tmp_path)
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        "create table _extraction_journal "
+        "(endpoint varchar, params varchar, status varchar, rows_extracted bigint)"
+    )
+    conn.execute("insert into _extraction_journal values ('draft_history', '{}', 'done', 5)")
+    conn.execute("create table stg_example(value integer)")
+    conn.execute("insert into stg_example values (1), (2)")
+    conn.execute("checkpoint")
+    conn.close()
+
+    run_id = "9988"
+    artifact_name = "extraction-lane-recovery-chain-1-lane-1-run-9988-attempt-1"
+    database_sha256 = hashlib.sha256(db_path.read_bytes()).hexdigest()
+    attestation_path = tmp_path / "artifacts" / "extraction" / "lane-state-attestation.json"
+    attestation_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "source_sha": "a" * 40,
+                "chain_id": "chain-1",
+                "lane_id": lane.lane_id,
+                "run_id": run_id,
+                "artifact_name": artifact_name,
+                "coverage_units_hash": os.environ["COVERAGE_UNITS_HASH"],
+                "database_sha256": database_sha256,
+                "attested": True,
+                "expected_empty": False,
+                "workload_contract": None,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RESTORE_SOURCE", "artifact")
+    monkeypatch.setenv("RESTORE_USABLE", "true")
+    monkeypatch.setenv("RESTART_MODE", "resume")
+    return replace(
+        lane,
+        attempt_count=3,
+        failure_streak=2,
+        class_failure_streak=1,
+        zero_progress_streak=1,
+        last_failure_reason="needs_resume",
+        last_failure_class="transport_transient",
+        last_completed_calls=1,
+        last_rows_persisted=5,
+        next_eligible_iteration=2,
+        state_artifact_run_id=run_id,
+        state_artifact_name=artifact_name,
+        state_artifact_digest=database_sha256,
+    )
+
+
 def test_context_measures_default_to_empty_for_existing_payloads(
     metadata_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
@@ -141,6 +233,277 @@ def test_vpn_producer_failures_are_classified_as_vpn_egress(
         "failed_servers": [],
     }
     assert "must-not-be-serialized" not in json.dumps(payload, sort_keys=True)
+
+
+def test_zero_work_vpn_auth_failure_writer_is_accepted_by_resume_manifest(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from nbadb.orchestrate import full_extraction_control as resume_control
+
+    lane = _set_auth_failure_env(monkeypatch, tmp_path)
+    github_output = tmp_path / "github-output.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(github_output))
+
+    assert metadata_module.main() == 0
+
+    metadata_dir = tmp_path / "artifacts" / "extraction"
+    payload = json.loads((metadata_dir / "lane-metadata.json").read_text(encoding="utf-8"))
+    assert payload["status"] == "needs_resume"
+    assert payload["raw_status"] == "vpn_auth_failure"
+    assert payload["failure_class"] == "vpn_egress"
+    assert payload["extract_status"] == "not-run"
+    assert payload["database_sha256"] == ""
+    assert payload["progress"] == {
+        "completed_calls": 0,
+        "rows_persisted": 0,
+        "fingerprint": metadata_module._progress_fingerprint(
+            completed_calls=0,
+            rows_persisted=0,
+        ),
+    }
+    assert payload["prior_state"] is None
+    telemetry = payload["telemetry"]
+    assert {
+        key: telemetry[key]
+        for key in (
+            "planned_calls",
+            "journal_skips",
+            "failed_calls",
+            "completed_calls",
+            "tables_persisted",
+            "rows_persisted",
+        )
+    } == {
+        "planned_calls": 0,
+        "journal_skips": 0,
+        "failed_calls": 0,
+        "completed_calls": 0,
+        "tables_persisted": 0,
+        "rows_persisted": 0,
+    }
+    assert telemetry["db_telemetry"] == {
+        "planned_calls": 0,
+        "journal_skips": 0,
+        "failed_calls": 0,
+        "running_calls": 0,
+        "completed_calls": 0,
+        "tables_persisted": 0,
+        "rows_persisted": 0,
+    }
+    assert payload["state_artifact"] == {
+        "run_id": "",
+        "name": "",
+        "sha256": "",
+        "artifact_id": "",
+        "artifact_digest": "",
+        "required": False,
+        "attested": False,
+        "uploaded": False,
+    }
+    assert not (metadata_dir / "lane-state-attestation.json").exists()
+    assert github_output.read_text(encoding="utf-8").splitlines() == [
+        "final-outcome=needs_resume",
+        "snapshot-attested=false",
+    ]
+
+    next_lanes, _next_state, summary = resume_control.build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        current_iteration=2,
+        expected_chain_id="chain-1",
+        expected_source_sha="a" * 40,
+    )
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.attempt_count == lane.attempt_count + 1
+    assert retry_lane.failure_streak == 1
+    assert retry_lane.class_failure_streak == 1
+    assert retry_lane.zero_progress_streak == 1
+    assert retry_lane.last_failure_reason == "needs_resume"
+    assert retry_lane.last_failure_class == "vpn_egress"
+    assert summary["deferred_lane_count"] == 1
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 1
+    assert summary["failure_reason_counts"] == {"vpn_auth_failure": 1}
+    assert summary["failure_class_counts"] == {"vpn_egress": 1}
+
+
+def test_restored_vpn_auth_failure_with_no_new_work_preserves_prior_state(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from nbadb.orchestrate import full_extraction_control as resume_control
+
+    lane = _set_restored_auth_failure_env(monkeypatch, tmp_path)
+    github_output = tmp_path / "github-output.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(github_output))
+
+    assert metadata_module.main() == 0
+
+    metadata_dir = tmp_path / "artifacts" / "extraction"
+    payload = json.loads((metadata_dir / "lane-metadata.json").read_text(encoding="utf-8"))
+    expected_progress = {
+        "completed_calls": lane.last_completed_calls,
+        "rows_persisted": lane.last_rows_persisted,
+        "fingerprint": metadata_module._progress_fingerprint(
+            completed_calls=lane.last_completed_calls,
+            rows_persisted=lane.last_rows_persisted,
+        ),
+    }
+    assert payload["status"] == "needs_resume"
+    assert payload["raw_status"] == "vpn_auth_failure"
+    assert payload["progress"] == expected_progress
+    assert payload["database_sha256"] == lane.state_artifact_digest
+    assert payload["prior_state"] == {
+        "run_id": lane.state_artifact_run_id,
+        "name": lane.state_artifact_name,
+        "sha256": lane.state_artifact_digest,
+        "progress": expected_progress,
+        "telemetry": {
+            "planned_calls": 1,
+            "journal_skips": 0,
+            "failed_calls": 0,
+            "running_calls": 0,
+            "completed_calls": 1,
+            "tables_persisted": 1,
+            "rows_persisted": 5,
+        },
+    }
+    assert payload["state_artifact"] == {
+        "run_id": lane.state_artifact_run_id,
+        "name": lane.state_artifact_name,
+        "sha256": lane.state_artifact_digest,
+        "artifact_id": "",
+        "artifact_digest": "",
+        "required": False,
+        "attested": False,
+        "uploaded": False,
+    }
+    assert not (metadata_dir / "lane-state-attestation.json").exists()
+    assert github_output.read_text(encoding="utf-8").splitlines() == [
+        "final-outcome=needs_resume",
+        "snapshot-attested=false",
+    ]
+
+    next_lanes, _next_state, summary = resume_control.build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        current_iteration=2,
+        expected_chain_id="chain-1",
+        expected_source_sha="a" * 40,
+    )
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.attempt_count == lane.attempt_count + 1
+    assert retry_lane.failure_streak == lane.failure_streak + 1
+    assert retry_lane.class_failure_streak == 1
+    assert retry_lane.zero_progress_streak == lane.zero_progress_streak + 1
+    assert retry_lane.last_failure_reason == "needs_resume"
+    assert retry_lane.last_failure_class == "vpn_egress"
+    assert retry_lane.last_completed_calls == lane.last_completed_calls
+    assert retry_lane.last_rows_persisted == lane.last_rows_persisted
+    assert retry_lane.state_artifact_run_id == lane.state_artifact_run_id
+    assert retry_lane.state_artifact_name == lane.state_artifact_name
+    assert retry_lane.state_artifact_digest == lane.state_artifact_digest
+    assert summary["deferred_lane_count"] == 1
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 1
+    assert summary["failure_reason_counts"] == {"vpn_auth_failure": 1}
+    assert summary["failure_class_counts"] == {"vpn_egress": 1}
+
+
+def test_restored_vpn_auth_failure_rejects_post_restore_progress(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from nbadb.orchestrate import full_extraction_control as resume_control
+
+    lane = _set_restored_auth_failure_env(monkeypatch, tmp_path)
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        "insert into _extraction_journal values "
+        "('draft_history', '{\"season\":\"2020-21\"}', 'done', 2)"
+    )
+    conn.execute("checkpoint")
+    conn.close()
+
+    assert metadata_module.main() == 0
+
+    metadata_dir = tmp_path / "artifacts" / "extraction"
+    payload = json.loads((metadata_dir / "lane-metadata.json").read_text(encoding="utf-8"))
+    assert payload["status"] == "pipeline_failure"
+    assert payload["raw_status"] == "vpn_auth_failure"
+    assert payload["progress"]["completed_calls"] == lane.last_completed_calls + 1
+    assert payload["progress"]["rows_persisted"] == lane.last_rows_persisted + 2
+    assert payload["prior_state"] is None
+    assert payload["state_artifact"]["name"] != lane.state_artifact_name
+
+    next_lanes, _next_state, summary = resume_control.build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        current_iteration=2,
+        expected_chain_id="chain-1",
+        expected_source_sha="a" * 40,
+    )
+
+    assert next_lanes[0].attempt_count == lane.attempt_count + 1
+    assert next_lanes[0].state_artifact_run_id == lane.state_artifact_run_id
+    assert next_lanes[0].state_artifact_name == lane.state_artifact_name
+    assert next_lanes[0].state_artifact_digest == lane.state_artifact_digest
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-rejection-metadata": 1}
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
+
+
+def test_partial_vpn_auth_failure_writer_metadata_cannot_open_auth_circuit(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from nbadb.orchestrate import full_extraction_control as resume_control
+
+    lane = _set_auth_failure_env(monkeypatch, tmp_path)
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        "create table _extraction_journal (endpoint varchar, status varchar, rows_extracted bigint)"
+    )
+    conn.execute("insert into _extraction_journal values ('draft_history', 'done', 1)")
+    conn.close()
+
+    assert metadata_module.main() == 0
+
+    metadata_dir = tmp_path / "artifacts" / "extraction"
+    payload = json.loads((metadata_dir / "lane-metadata.json").read_text(encoding="utf-8"))
+    assert payload["status"] == "pipeline_failure"
+    assert payload["progress"]["completed_calls"] == 1
+    assert payload["progress"]["rows_persisted"] == 1
+    assert payload["state_artifact"]["required"] is True
+    assert payload["state_artifact"]["attested"] is True
+
+    next_lanes, _next_state, summary = resume_control.build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        current_iteration=2,
+        expected_chain_id="chain-1",
+        expected_source_sha="a" * 40,
+    )
+
+    assert next_lanes[0].attempt_count == lane.attempt_count + 1
+    assert next_lanes[0].last_failure_class == "runner_infrastructure"
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-rejection-metadata": 1}
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
 
 
 def test_metadata_v2_records_durable_progress_and_artifact(

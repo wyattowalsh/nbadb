@@ -350,8 +350,9 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     lane_control_header = lane_control.split("    steps:\n", 1)[0]
 
     assert "needs.discovery_seed.result == 'success'" in extract
-    assert "needs: [plan, preflight, discovery_seed, extract, terminal_replay]" in (
-        lane_control_header
+    assert (
+        "needs: [plan, preflight, discovery_seed, vpn_quarantine, extract, terminal_replay]"
+        in lane_control_header
     )
     assert "needs.discovery_seed.result == 'success'" in lane_control_header
     assert "needs.extract.result != 'skipped'" in lane_control_header
@@ -384,9 +385,24 @@ def test_successful_nonpublishing_preflight_reaches_discovery_seed() -> None:
 
     assert "needs: [plan, preflight]" in discovery_header
     assert (
-        "if: ${{ always() && needs.plan.outputs.matrix-lane-count != '0' && "
+        "if: ${{ always() && !cancelled() && needs.plan.outputs.matrix-lane-count != '0' && "
         "needs.preflight.result == 'success' }}" in discovery_header
     )
+
+
+def test_cancellation_cannot_admit_new_network_or_extraction_jobs() -> None:
+    workflow = _workflow_text()
+    for job_name in (
+        "preflight",
+        "discovery_seed",
+        "vpn_capacity",
+        "vpn_quarantine",
+        "extract",
+        "terminal_replay",
+        "targeted_smoke_assurance",
+    ):
+        header = _job_block(workflow, job_name).split("    steps:\n", 1)[0]
+        assert "if: ${{ always() && !cancelled() && " in header, job_name
 
 
 def test_extract_runner_uses_planner_isolated_matrix_endpoints() -> None:
@@ -553,6 +569,47 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert "FINALIZE_LANE_ARTIFACT_RECEIPT" in finalize_receipt
 
 
+def test_vpn_control_artifacts_retry_without_consuming_lane_retries() -> None:
+    workflow = _workflow_text()
+    capacity = _job_block(workflow, "vpn_capacity")
+    extract = _job_block(workflow, "extract")
+
+    capacity_upload = _step_block(capacity, "Publish connected VPN capacity marker")
+    capacity_retry = _step_block(capacity, "Retry connected VPN capacity marker")
+    capacity_barrier = _step_block(capacity, "Wait for simultaneous VPN capacity")
+    capacity_enforcement = _step_block(capacity, "Enforce concurrent VPN capacity")
+    auth_upload = _step_block(extract, "Publish VPN auth circuit marker")
+    auth_lookup = _step_block(extract, "Check for a sibling VPN auth circuit marker")
+    auth_retry = _step_block(extract, "Retry VPN auth circuit marker publication")
+    auth_verify = _step_block(extract, "Verify VPN auth circuit marker")
+    deferred_upload = _step_block(extract, "Upload circuit-deferred lane metadata")
+    deferred_retry = _step_block(extract, "Retry circuit-deferred lane metadata upload")
+    diagnostic_upload = _step_block(extract, "Upload diagnostics-only lane snapshot")
+
+    assert "continue-on-error: true" in capacity_upload
+    assert "steps.capacity_marker.outcome == 'failure'" in capacity_retry
+    assert "overwrite: true" in capacity_retry
+    assert "steps.capacity_marker_retry.outcome == 'success'" in capacity_barrier
+    assert "steps.capacity_marker_retry.outcome" in capacity_enforcement
+
+    assert "continue-on-error: true" in auth_upload
+    assert "steps.vpn_auth_circuit_marker.outcome == 'failure'" in auth_lookup
+    assert "--timeout-seconds 30" in auth_lookup
+    assert "continue-on-error: true" in auth_lookup
+    assert "steps.vpn_auth_circuit_lookup.outcome != 'success'" in auth_retry
+    assert "continue-on-error: true" in auth_retry
+    assert "overwrite: false" in auth_retry
+    assert "--timeout-seconds 120" in auth_verify
+
+    assert "continue-on-error: true" in deferred_upload
+    assert "steps.circuit_lane_metadata_artifact.outcome == 'failure'" in deferred_retry
+    assert "overwrite: true" in deferred_retry
+    assert "steps.circuit_lane_metadata_artifact_retry.outcome != 'success'" in diagnostic_upload
+    assert extract.index("Retry circuit-deferred lane metadata upload") < extract.index(
+        "Upload diagnostics-only lane snapshot"
+    )
+
+
 def test_durable_lane_artifact_receipt_is_bound_or_downgraded(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -618,6 +675,8 @@ def test_durable_lane_artifact_receipt_is_bound_or_downgraded(
     assert payload["root_error_type_counts"] == {"StateArtifactUploadFailure": 1}
     assert payload["state_artifact"] == {
         "artifact_name": "extraction-lane-chain-1-lane-1",
+        "artifact_id": "",
+        "artifact_digest": "",
         "attested": False,
         "uploaded": False,
     }
@@ -661,6 +720,27 @@ def test_redispatch_rejects_active_or_successful_chain_iteration_before_enqueue(
     duplicate_rejection = dispatch.index("Refusing duplicate redispatch")
     enqueue = dispatch.index("gh workflow run full-extraction.yml")
     assert duplicate_lookup < duplicate_rejection < enqueue
+
+
+def test_redispatch_cancels_an_unacknowledged_child_when_parent_stops() -> None:
+    dispatch = _job_block(_workflow_text(), "dispatch_next")
+
+    assert "cancel_dispatched_child()" in dispatch
+    assert "on_dispatch_signal()" in dispatch
+    assert "on_dispatch_exit()" in dispatch
+    assert "trap on_dispatch_exit EXIT" in dispatch
+    assert "trap on_dispatch_signal INT TERM" in dispatch
+    assert "child_dispatch_may_exist=true\n          gh workflow run" in dispatch
+    assert 'child_run_id="$acknowledged_child_run_id"' in dispatch
+    assert "child_acknowledged=true" in dispatch
+    assert "/actions/runs/${candidate_id}/cancel" in dispatch
+    assert "unacknowledged child run" in dispatch
+
+    dispatch_start = dispatch.index("child_dispatch_may_exist=true")
+    enqueue = dispatch.index("gh workflow run full-extraction.yml")
+    acknowledgement = dispatch.index("child_acknowledged=true")
+    trap_disarm = dispatch.index("trap - EXIT INT TERM", acknowledgement)
+    assert dispatch_start < enqueue < acknowledgement < trap_disarm
 
 
 def test_redispatch_allows_failed_history_and_acknowledges_only_the_new_child(
@@ -2073,7 +2153,7 @@ def test_targeted_smoke_is_one_shot_checkpoint_assurance_without_merge() -> None
     assert '[ "$DEFERRED_LANE_COUNT" != "0" ]' in plan_gate
     assert plan.index("Validate targeted smoke plan") < plan.index("Upload lane manifest")
 
-    assert "if: ${{ always() && inputs.targeted_smoke }}" in smoke
+    assert "if: ${{ always() && !cancelled() && inputs.targeted_smoke }}" in smoke
     assert "needs: [plan, preflight, discovery_seed, extract, lane_control, checkpoint]" in smoke
     assert 'if [ "$LANE_COUNT" != "1" ] || [ "$MATRIX_LANE_COUNT" != "1" ]; then' in smoke
     assert 'if [ "$ACTIVE_LANE_COUNT" != "0" ]' in smoke
@@ -3188,6 +3268,8 @@ def test_ci_runs_checksum_pinned_actionlint_on_all_workflows() -> None:
     assert "/latest" not in actionlint.lower()
     assert "@latest" not in actionlint.lower()
     assert "needs: [workflow-lint, lint, metadata, typecheck]" in workflow
+    assert workflow.count(".github/scripts/run_extract_lane.py") == 3
+    assert workflow.count(".github/scripts/vpn_control_plane.py") == 3
 
 
 def test_full_extraction_artifacts_are_safe_to_replace_on_job_reruns() -> None:
@@ -3201,7 +3283,12 @@ def test_full_extraction_artifacts_are_safe_to_replace_on_job_reruns() -> None:
 
     assert len(upload_steps) == workflow.count("uses: actions/upload-artifact@")
     assert upload_steps
-    assert all("overwrite: true" in inputs for inputs in upload_steps)
+    assert all(
+        "overwrite: true" in inputs or "overwrite: false" in inputs for inputs in upload_steps
+    )
+    assert workflow.count("overwrite: false") == 3
+    assert "vpn-capacity-connected-run-${{ github.run_id }}-attempt-" in workflow
+    assert "full-extraction-vpn-auth-circuit-run-${{ github.run_id }}-attempt-" in workflow
 
 
 def test_planner_output_drives_exact_discovery_scope_cardinality(
@@ -3407,6 +3494,7 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
     workflow = _workflow_text()
     preflight = _job_block(workflow, "preflight")
     seed = _job_block(workflow, "discovery_seed")
+    final_quarantine = _job_block(workflow, "vpn_quarantine")
     extract = _job_block(workflow, "extract")
     vpn_step = _step_block(preflight, "Preflight VPN validation")
     quarantine_step = _step_block(
@@ -3414,7 +3502,7 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
         "Carry preflight VPN failures into the chain quarantine",
     )
 
-    assert "timeout-minutes: 7" in vpn_step
+    assert "timeout-minutes: 8" in vpn_step
     assert 'SERVER_LIMIT: "4"' in vpn_step
     assert "RUN_ATTEMPT: ${{ github.run_attempt }}" in vpn_step
     assert "export LANE_INDEX=$((RUN_ATTEMPT - 1))" in vpn_step
@@ -3429,14 +3517,22 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
         "QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}"
     )
     assert downstream_quarantine in seed
-    assert downstream_quarantine in extract
+    assert "BASELINE_QUARANTINE_JSON: ${{ needs.preflight.outputs." in final_quarantine
+    assert (
+        "DISCOVERY_FAILED_SERVERS_JSON: "
+        "${{ needs.discovery_seed.outputs.vpn-failed-servers-json || '[]' }}"
+    ) in final_quarantine
+    assert "aggregate-quarantine" in final_quarantine
+    assert (
+        "QUARANTINED_SERVERS_JSON: ${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}"
+    ) in extract
     assert 'CONNECT_TIMEOUT_SECONDS: "60"' in seed
     assert 'CONNECT_TIMEOUT_SECONDS: "60"' in extract
     assert 'SERVER_POOL_SIZE: "96"' in seed
     assert 'SERVER_POOL_SIZE: "96"' in extract
-    for job in (preflight, seed, extract):
-        assert "timeout-minutes: 7" in job
-        assert "350 \\" in job
+    for job in (preflight, seed):
+        assert "timeout-minutes: 8" in job
+        assert "450 \\" in job
         assert "10 \\" in job
 
     output_path = tmp_path / "github-output.txt"
@@ -3478,6 +3574,271 @@ def test_preflight_auth_attestation_controls_downstream_vpn_recovery() -> None:
         assert configured_prevalidated in job
 
     assert "needs.preflight.outputs.vpn-auth-source == 'token' && '1'" in extract
+
+
+def test_configured_auth_capacity_gate_bounds_matrix_admission(
+    tmp_path: pathlib.Path,
+) -> None:
+    workflow = _workflow_text()
+    preflight = _job_block(workflow, "preflight")
+    capacity = _job_block(workflow, "vpn_capacity")
+    quarantine = _job_block(workflow, "vpn_quarantine")
+    extract = _job_block(workflow, "extract")
+    matrix_step = _step_block(preflight, "Build concurrent VPN capacity gate")
+    connect_step = _step_block(capacity, "Prove concurrent VPN capacity")
+    quarantine_step = _step_block(capacity, "Merge discovery failures into capacity quarantine")
+    barrier_step = _step_block(capacity, "Wait for simultaneous VPN capacity")
+    rerun_guard = _step_block(capacity, "Reject partial VPN capacity reruns")
+    recheck_step = _step_block(capacity, "Revalidate VPN after capacity barrier")
+
+    assert "vpn-capacity-required: ${{ steps.vpn_capacity.outputs.required }}" in preflight
+    assert "vpn-capacity-count: ${{ steps.vpn_capacity.outputs.capacity-count }}" in preflight
+    assert "vpn-capacity-matrix: ${{ steps.vpn_capacity.outputs.matrix }}" in preflight
+    assert "needs.preflight.outputs.vpn-capacity-required == 'true'" in capacity
+    assert "timeout-minutes: 35" in capacity
+    assert "fail-fast: false" in capacity
+    assert "max-parallel: ${{ fromJSON(inputs.vpn_parallelism) }}" in capacity
+    assert "matrix: ${{ fromJSON(needs.preflight.outputs.vpn-capacity-matrix) }}" in capacity
+    assert "timeout-minutes: 15" in connect_step
+    assert "continue-on-error: true" in connect_step
+    assert 'configured-auth-prevalidated: "true"' in connect_step
+    assert 'auth-recovery-base-delay-seconds: "300"' in connect_step
+    assert 'require-auth-recovery-budget: "true"' in connect_step
+    assert (
+        "quarantined-servers-json: "
+        "${{ steps.capacity_quarantine.outputs.vpn-quarantined-servers-json }}"
+    ) in connect_step
+    assert "DISCOVERY_FAILED_SERVERS_JSON" in quarantine_step
+    assert "PREFLIGHT_QUARANTINE_JSON" in quarantine_step
+    assert 'overall-timeout-seconds: "720"' in connect_step
+    assert "vpn-capacity-connected-run-${{ github.run_id }}-attempt-" in capacity
+    assert "python3 .github/scripts/vpn_control_plane.py capacity-wait" in barrier_step
+    assert "github.run_attempt > 1" in rerun_guard
+    assert "/attempts/${RUN_ATTEMPT}/jobs?per_page=100" in rerun_guard
+    assert 'startswith("vpn_capacity (")' in rerun_guard
+    assert "len(cohort) != expected" in rerun_guard
+    assert "rerun all jobs" in rerun_guard
+    assert "EXPECTED_CAPACITY: ${{ matrix.expected_capacity }}" in barrier_step
+    assert 'sudo kill -0 "$VPN_PID"' in recheck_step
+    assert "ip route get 1.1.1.1" in recheck_step
+    assert "Enforce concurrent VPN capacity" in capacity
+    assert (
+        "vpn-capacity-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_index }}"
+    ) in capacity
+    assert "needs: [plan, preflight, discovery_seed, vpn_capacity]" in quarantine
+    assert "needs: [plan, preflight, discovery_seed, vpn_capacity, vpn_quarantine]" in extract
+    assert (
+        "needs.vpn_capacity.result == 'success' || needs.vpn_capacity.result == 'skipped'"
+    ) in extract
+    assert "needs.vpn_quarantine.result == 'success'" in extract
+    assert (
+        "pattern: vpn-capacity-connected-run-${{ github.run_id }}-attempt-"
+        "${{ github.run_attempt }}-lane-*"
+    ) in quarantine
+    assert "EXPECTED_CAPACITY: ${{ needs.preflight.outputs.vpn-capacity-count }}" in quarantine
+
+    artifacts = tmp_path / "artifacts" / "full-extraction"
+    artifacts.mkdir(parents=True)
+    (artifacts / "preflight-manifest.json").write_text(
+        json.dumps(
+            {
+                "github_matrix": {
+                    "include": [
+                        {"lane_id": "fresh-1", "resume_only": "false"},
+                        {"lane_id": "fresh-2", "resume_only": False},
+                        {"lane_id": "resume", "resume_only": "true"},
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "github-output.txt"
+    result = _run_python(
+        _embedded_python(matrix_step, "VPN_CAPACITY_MATRIX"),
+        cwd=tmp_path,
+        env={
+            "EFFECTIVE_NETWORK_MODE": "vpn",
+            "GITHUB_OUTPUT": str(output_path),
+            "ACTIVE_LANE_COUNT": "2",
+            "MATRIX_LANE_COUNT": "3",
+            "REQUESTED_VPN_PARALLELISM": "6",
+            "VPN_AUTH_SOURCE": "configured",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert output_path.read_text(encoding="utf-8") == (
+        "required=true\n"
+        "capacity-count=2\n"
+        'matrix={"include":[{"lane_index":0,"expected_capacity":2},'
+        '{"lane_index":1,"expected_capacity":2}]}\n'
+    )
+
+
+def test_auth_rejection_itself_suppresses_small_wave_redispatch() -> None:
+    workflow = _workflow_text()
+    lane_control = _job_block(workflow, "lane_control")
+    dispatch = _job_block(workflow, "dispatch_next")
+
+    assert 'summary.get("vpn_auth_circuit_rejection_lane_count", 0)' in lane_control
+    assert 'summary.get("vpn_auth_circuit_check_failed_lane_count", 0)' in lane_control
+    assert 'or int(summary.get("vpn_auth_circuit_rejection_lane_count", 0)) > 0' in lane_control
+    assert (
+        'or int(summary.get("vpn_auth_circuit_check_failed_lane_count", 0)) > 0' not in lane_control
+    )
+    assert "needs.lane_control.outputs.vpn-auth-circuit-open != 'true'" in dispatch
+
+
+@pytest.mark.parametrize(
+    ("github_matrix", "matrix_lane_count", "active_lane_count", "error"),
+    [
+        (None, "1", "1", "github_matrix must be an object"),
+        ({}, "1", "1", "github_matrix.include must be a list"),
+        ({"include": []}, "1", "1", "lane count does not match"),
+        (
+            {"include": [{"lane_id": "resume", "resume_only": "true"}]},
+            "1",
+            "1",
+            "contains no executable lanes",
+        ),
+    ],
+)
+def test_configured_auth_capacity_gate_rejects_inconsistent_manifest(
+    tmp_path: pathlib.Path,
+    github_matrix: object,
+    matrix_lane_count: str,
+    active_lane_count: str,
+    error: str,
+) -> None:
+    preflight = _job_block(_workflow_text(), "preflight")
+    matrix_step = _step_block(preflight, "Build concurrent VPN capacity gate")
+    artifacts = tmp_path / "artifacts" / "full-extraction"
+    artifacts.mkdir(parents=True)
+    (artifacts / "preflight-manifest.json").write_text(
+        json.dumps({"github_matrix": github_matrix}),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "github-output.txt"
+
+    result = _run_python(
+        _embedded_python(matrix_step, "VPN_CAPACITY_MATRIX"),
+        cwd=tmp_path,
+        env={
+            "ACTIVE_LANE_COUNT": active_lane_count,
+            "EFFECTIVE_NETWORK_MODE": "vpn",
+            "GITHUB_OUTPUT": str(output_path),
+            "MATRIX_LANE_COUNT": matrix_lane_count,
+            "REQUESTED_VPN_PARALLELISM": "2",
+            "VPN_AUTH_SOURCE": "configured",
+        },
+    )
+
+    assert result.returncode != 0
+    assert error in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("effective_mode", "auth_source", "active_lane_count", "resume_only"),
+    [
+        ("direct", "configured", "1", "false"),
+        ("vpn", "token", "1", "false"),
+        ("vpn", "configured", "0", "true"),
+    ],
+)
+def test_vpn_capacity_gate_skips_nonconfigured_or_nonexecutable_waves(
+    tmp_path: pathlib.Path,
+    effective_mode: str,
+    auth_source: str,
+    active_lane_count: str,
+    resume_only: str,
+) -> None:
+    preflight = _job_block(_workflow_text(), "preflight")
+    matrix_step = _step_block(preflight, "Build concurrent VPN capacity gate")
+    artifacts = tmp_path / "artifacts" / "full-extraction"
+    artifacts.mkdir(parents=True)
+    (artifacts / "preflight-manifest.json").write_text(
+        json.dumps(
+            {"github_matrix": {"include": [{"lane_id": "lane", "resume_only": resume_only}]}}
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "github-output.txt"
+
+    result = _run_python(
+        _embedded_python(matrix_step, "VPN_CAPACITY_MATRIX"),
+        cwd=tmp_path,
+        env={
+            "ACTIVE_LANE_COUNT": active_lane_count,
+            "EFFECTIVE_NETWORK_MODE": effective_mode,
+            "GITHUB_OUTPUT": str(output_path),
+            "MATRIX_LANE_COUNT": "1",
+            "REQUESTED_VPN_PARALLELISM": "2",
+            "VPN_AUTH_SOURCE": auth_source,
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert output_path.read_text(encoding="utf-8") == (
+        'required=false\ncapacity-count=0\nmatrix={"include":'
+        '[{"lane_index":0,"expected_capacity":0}]}\n'
+    )
+
+
+def test_vpn_matrix_batch_exposure_is_capped_per_parallel_tunnel() -> None:
+    workflow = _workflow_text()
+    plan = _job_block(workflow, "plan")
+    lane_control = _job_block(workflow, "lane_control")
+    build_manifest = _step_block(plan, "Build lane manifest")
+    next_manifest = _step_block(lane_control, "Build next manifest")
+
+    for step in (build_manifest, next_manifest):
+        assert "vpn_matrix_cap=$((VPN_PARALLELISM * 32))" in step
+        assert '--max-matrix-lanes "$effective_matrix_batch_size"' in step
+    assert "NETWORK_MODE: ${{ inputs.network_mode }}" in build_manifest
+    assert (
+        "EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}"
+    ) in next_manifest
+
+
+def test_extract_auth_throttle_recovery_holds_the_active_matrix_slot() -> None:
+    extract = _job_block(_workflow_text(), "extract")
+    vpn_step = _step_block(extract, "Connect NordVPN tunnel")
+    budget_step = _step_block(extract, "Initialize lane job budget")
+
+    assert 'JOB_TIMEOUT_SECONDS: "21000"' in budget_step
+    assert 'FINALIZATION_RESERVE_SECONDS: "1200"' in budget_step
+    assert "NBADB_EXTRACT_JOB_DEADLINE_EPOCH_SECONDS" in budget_step
+    assert "NBADB_EXTRACT_FINALIZATION_RESERVE_SECONDS" in budget_step
+    assert extract.index("- name: Initialize lane job budget") < extract.index(
+        "- uses: actions/checkout@"
+    )
+    assert "timeout-minutes: 15" in vpn_step
+    assert 'AUTH_REJECTION_LIMIT: "1"' in vpn_step
+    assert 'AUTH_RECOVERY_REJECTION_LIMIT: "3"' in vpn_step
+    assert 'AUTH_RECOVERY_ROUNDS: "1"' in vpn_step
+    assert 'AUTH_RECOVERY_BASE_DELAY_SECONDS: "300"' in vpn_step
+    assert 'REQUIRE_AUTH_RECOVERY_BUDGET: "true"' in vpn_step
+    assert 'OVERALL_TIMEOUT_SECONDS: "720"' in vpn_step
+    assert "            870 \\" in vpn_step
+    assert "            5 \\" in vpn_step
+
+    step_timeout = re.search(r"timeout-minutes: (?P<value>\d+)", vpn_step)
+    overall_timeout = re.search(r'OVERALL_TIMEOUT_SECONDS: "(?P<value>\d+)"', vpn_step)
+    wrapper = re.search(
+        r"run_with_deadline\.sh \\\n\s+(?P<deadline>\d+) \\\n\s+(?P<grace>\d+) \\",
+        vpn_step,
+    )
+    assert step_timeout is not None
+    assert overall_timeout is not None
+    assert wrapper is not None
+
+    step_seconds = int(step_timeout.group("value")) * 60
+    overall_seconds = int(overall_timeout.group("value"))
+    wrapper_seconds = int(wrapper.group("deadline"))
+    grace_seconds = int(wrapper.group("grace"))
+    assert overall_seconds + 10 < wrapper_seconds
+    assert wrapper_seconds + grace_seconds < step_seconds
 
 
 def test_verified_vpn_servers_are_assigned_to_distinct_extract_slots() -> None:
@@ -3543,14 +3904,14 @@ def test_network_mode_resolution_rejects_unattested_connected_tunnels(
         assert output_path.read_text(encoding="utf-8") == expected_output
 
 
-def test_effective_preflight_quarantine_is_persisted_into_the_next_manifest(
+def test_effective_attempt_quarantine_is_persisted_into_the_next_manifest(
     tmp_path: pathlib.Path,
 ) -> None:
     lane_control = _job_block(_workflow_text(), "lane_control")
     build_step = _step_block(lane_control, "Build next manifest")
     assert (
         "PREFLIGHT_QUARANTINE_JSON: "
-        "${{ needs.preflight.outputs.vpn-quarantined-servers-json }}" in build_step
+        "${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}" in build_step
     )
     script = _embedded_python(build_step, "PREFLIGHT_QUARANTINE_PERSISTENCE")
     manifest_path = tmp_path / "artifacts" / "full-extraction" / "current-manifest.json"

@@ -16,6 +16,12 @@ MODULE_PATH = (
 )
 ACTION_METADATA_PATH = MODULE_PATH.with_name("action.yml")
 MODULE_CODE = compile(MODULE_PATH.read_text(encoding="utf-8"), str(MODULE_PATH), "exec")
+SUPERVISOR_PATH = MODULE_PATH.with_name("supervise.py")
+SUPERVISOR_CODE = compile(
+    SUPERVISOR_PATH.read_text(encoding="utf-8"),
+    str(SUPERVISOR_PATH),
+    "exec",
+)
 
 
 def _load_module():
@@ -25,12 +31,47 @@ def _load_module():
     return module
 
 
+def _load_supervisor_module():
+    module = types.ModuleType("nordvpn_connect_supervisor")
+    module.__file__ = str(SUPERVISOR_PATH)
+    exec(SUPERVISOR_CODE, module.__dict__)
+    return module
+
+
 def _read_outputs(path: Path) -> dict[str, str]:
     outputs: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         key, value = line.split("=", 1)
         outputs[key] = value
     return outputs
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.advance(seconds)
+
+
+def _configure_capacity_connector_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("VPN_CONNECTION_DEADLINE_MONOTONIC", raising=False)
+    monkeypatch.setenv("LANE_INDEX", "0")
+    monkeypatch.setenv("CONNECT_TIMEOUT_SECONDS", "60")
+    monkeypatch.setenv("OVERALL_TIMEOUT_SECONDS", "720")
+    monkeypatch.setenv("AUTH_REJECTION_LIMIT", "1")
+    monkeypatch.setenv("AUTH_RECOVERY_REJECTION_LIMIT", "3")
+    monkeypatch.setenv("AUTH_RECOVERY_ROUNDS", "1")
+    monkeypatch.setenv("AUTH_RECOVERY_BASE_DELAY_SECONDS", "300")
+    monkeypatch.setenv("REQUIRE_AUTH_RECOVERY_BUDGET", "true")
 
 
 def _write_valid_nba_response(path: Path) -> None:
@@ -87,6 +128,38 @@ def test_env_int_validates_type_and_bounds(
     monkeypatch.setenv("SHARD_INDEX", "201")
     with pytest.raises(module.ActionError, match="SHARD_INDEX must be <= 200"):
         module.env_int("SHARD_INDEX", 7, minimum=0, maximum=200)
+
+
+def test_supervisor_and_connector_share_one_absolute_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    supervisor = _load_supervisor_module()
+    monkeypatch.setenv("OVERALL_TIMEOUT_SECONDS", "300")
+    monkeypatch.setattr(supervisor.time, "monotonic", lambda: 100.0)
+    captured_env: dict[str, str] = {}
+
+    class _CompletedChild:
+        pid = 12345
+
+        @staticmethod
+        def poll() -> int:
+            return 0
+
+    def _popen(cmd: list[str], **kwargs) -> _CompletedChild:
+        captured_env.update(kwargs["env"])
+        return _CompletedChild()
+
+    monkeypatch.setattr(supervisor.subprocess, "Popen", _popen)
+
+    assert supervisor.main() == 0
+    assert captured_env["VPN_CONNECTION_DEADLINE_MONOTONIC"] == "400.0"
+    assert supervisor.SUPERVISOR_HEADROOM_SECONDS == 130
+
+    monkeypatch.setenv("VPN_CONNECTION_DEADLINE_MONOTONIC", "400.0")
+    connector = _load_module()
+    monkeypatch.setattr(connector.time, "monotonic", lambda: 101.0)
+    assert connector.NordVpnConnectAction().deadline == 400.0
 
 
 def test_parse_quarantined_servers_normalizes_and_rejects_non_arrays(
@@ -212,6 +285,157 @@ def test_sleep_with_budget_reserves_a_viable_follow_up_operation(
     monkeypatch.setattr(action, "remaining_budget", lambda: 16.0)
     assert action.sleep_with_budget("Recovery", 10, minimum_after=5)
     assert sleeps == [10]
+
+    monkeypatch.setattr(action, "remaining_budget", lambda: 360.0)
+    assert not action.sleep_with_budget("Authentication recovery", 300, minimum_after=60)
+    assert sleeps == [10]
+
+    monkeypatch.setattr(action, "remaining_budget", lambda: 361.0)
+    assert action.sleep_with_budget("Authentication recovery", 300, minimum_after=60)
+    assert sleeps == [10, 300]
+
+
+def test_initial_auth_probe_reserves_attempt_cleanup_cooldown_and_follow_up(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.connect_timeout = 60
+    action.auth_recovery_rounds = 1
+    action.auth_recovery_base_delay = 300
+    action.require_auth_recovery_budget = True
+    action.selector_index = 2
+
+    required = 60 + module.ATTEMPT_FINALIZATION_RESERVE_SECONDS + 302 + 60
+    required += module.ATTEMPT_FINALIZATION_RESERVE_SECONDS
+    monkeypatch.setattr(action, "remaining_budget", lambda: required)
+    with pytest.raises(module.ActionError) as excinfo:
+        action.ensure_initial_auth_recovery_budget()
+    assert excinfo.value.status == "vpn_connect_timeout"
+
+    monkeypatch.setattr(action, "remaining_budget", lambda: required + 0.001)
+    action.ensure_initial_auth_recovery_budget()
+
+    follow_up_reserve = 60 + module.ATTEMPT_FINALIZATION_RESERVE_SECONDS
+    monkeypatch.setattr(action, "remaining_budget", lambda: 300 + follow_up_reserve)
+    assert not action.sleep_with_budget(
+        "Authentication recovery",
+        300,
+        minimum_after=follow_up_reserve,
+    )
+
+    action.auth_recovery_rounds = 0
+    monkeypatch.setattr(action, "remaining_budget", lambda: 0.0)
+    action.ensure_initial_auth_recovery_budget()
+
+
+def test_run_slow_setup_at_boundary_cannot_consume_capacity_recovery_reserve(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    _configure_capacity_connector_budget(monkeypatch)
+    module = _load_module()
+    clock = _FakeClock()
+    monkeypatch.setattr(module.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(module.time, "sleep", clock.sleep)
+    action = module.NordVpnConnectAction()
+    action.fallback_technology = ""
+
+    protected_budget = (
+        2 * action.connect_timeout
+        + 2 * module.ATTEMPT_FINALIZATION_RESERVE_SECONDS
+        + action.auth_recovery_delay(1)
+    )
+    setup_allowance = action.overall_timeout - protected_budget
+    assert action.overall_timeout == 720
+    assert protected_budget == 660
+    assert setup_allowance == 60
+
+    def _slow_setup(**_kwargs: object) -> None:
+        clock.advance(setup_allowance / 4)
+
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+    ):
+        monkeypatch.setattr(action, method_name, _slow_setup)
+
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: ["us1001.nordvpn.com"],
+    )
+
+    with pytest.raises(
+        module.ActionError, match="initial authentication-capacity probe"
+    ) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "vpn_connect_timeout"
+    assert clock.now == setup_allowance
+    assert clock.sleeps == []
+    assert action.attempt_count_by_technology == {}
+    assert action.attempted_servers == []
+
+
+def test_run_slow_setup_preserves_full_recovery_sequence_within_720_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    _configure_capacity_connector_budget(monkeypatch)
+    module = _load_module()
+    clock = _FakeClock()
+    monkeypatch.setattr(module.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(module.time, "sleep", clock.sleep)
+    action = module.NordVpnConnectAction()
+    action.fallback_technology = ""
+
+    protected_budget = (
+        2 * action.connect_timeout
+        + 2 * module.ATTEMPT_FINALIZATION_RESERVE_SECONDS
+        + action.auth_recovery_delay(1)
+    )
+    setup_elapsed = action.overall_timeout - protected_budget - 1
+
+    def _slow_setup(**_kwargs: object) -> None:
+        clock.advance(setup_elapsed / 4)
+
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+    ):
+        monkeypatch.setattr(action, method_name, _slow_setup)
+
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: ["us1001.nordvpn.com"],
+    )
+    attempt_budgets: list[float] = []
+
+    def _reject_after_full_attempt_and_cleanup(server: str, technology: str) -> bool:
+        attempt_budgets.append(action.remaining_budget())
+        action.last_attempt_auth_failed = True
+        clock.advance(action.connect_timeout + module.ATTEMPT_FINALIZATION_RESERVE_SECONDS)
+        return False
+
+    monkeypatch.setattr(action, "attempt_server", _reject_after_full_attempt_and_cleanup)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "vpn_auth_failure"
+    assert attempt_budgets == [661, 181]
+    assert clock.sleeps == [300]
+    assert clock.now == 719
+    assert clock.now < action.deadline == 720
+    assert action.attempt_count_by_technology == {"openvpn_udp": 2}
 
 
 def test_verification_helpers_honor_attempt_and_overall_deadlines(
@@ -1116,7 +1340,11 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "require-token-auth:" in metadata
     assert "configured-auth-prevalidated:" in metadata
     assert "auth-rejection-limit:" in metadata
+    assert "auth-recovery-rejection-limit:" in metadata
     assert "auth-recovery-rounds:" in metadata
+    assert "auth-recovery-base-delay-seconds:" in metadata
+    assert "require-auth-recovery-budget:" in metadata
+    assert "overall-timeout-seconds:" in metadata
     assert "server-pool-size:" in metadata
     assert "preferred-servers-json:" in metadata
     assert "preferred-server-slot-count:" in metadata
@@ -1133,7 +1361,14 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "REQUIRE_TOKEN_AUTH: ${{ inputs.require-token-auth }}" in metadata
     assert "CONFIGURED_AUTH_PREVALIDATED: ${{ inputs.configured-auth-prevalidated }}" in metadata
     assert "AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}" in metadata
+    assert "AUTH_RECOVERY_REJECTION_LIMIT: ${{ inputs.auth-recovery-rejection-limit }}" in metadata
     assert "AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}" in metadata
+    assert (
+        "AUTH_RECOVERY_BASE_DELAY_SECONDS: ${{ inputs.auth-recovery-base-delay-seconds }}"
+        in metadata
+    )
+    assert "REQUIRE_AUTH_RECOVERY_BUDGET: ${{ inputs.require-auth-recovery-budget }}" in metadata
+    assert "OVERALL_TIMEOUT_SECONDS: ${{ inputs.overall-timeout-seconds }}" in metadata
     assert "SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}" in metadata
     assert "PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}" in metadata
     assert "PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}" in metadata
@@ -1206,11 +1441,30 @@ def test_make_workdir_readable_keeps_auth_material_private(
 
     assert ["sudo", "chmod", "-R", "a+rX", str(action.work_dir)] not in calls
     assert ["sudo", "chmod", "a+rx", str(action.work_dir)] in calls
-    assert ["sudo", "chmod", "600", str(action.auth_file)] in calls
-    assert ["sudo", "chmod", "600", str(action.creds_file)] in calls
-    assert ["sudo", "chmod", "600", str(action.token_auth_file)] in calls
-    assert ["sudo", "chmod", "a+rX", str(action.log_file)] in calls
-    assert ["sudo", "chmod", "a+rX", str(config_path)] in calls
+    private_call = next(call for call in calls if call[:3] == ["sudo", "chmod", "600"])
+    assert set(private_call[3:]) == {
+        str(action.auth_file),
+        str(action.creds_file),
+        str(action.token_auth_file),
+    }
+    public_call = next(call for call in calls if call[:3] == ["sudo", "chmod", "a+rX"])
+    assert set(public_call[3:]) == {str(action.log_file), str(config_path)}
+    assert len(calls) == 3
+
+    action.make_workdir_readable()
+    assert len(calls) == 3
+
+    action.workdir_permissions_current = False
+    action.make_workdir_readable()
+    assert len(calls) == 6
+
+
+def test_workdir_readability_reserve_includes_command_termination_grace() -> None:
+    module = _load_module()
+
+    assert module.WORKDIR_PERMISSION_COMMAND_WORST_CASE_SECONDS == 20
+    assert module.WORKDIR_READABILITY_RESERVE_SECONDS == 60
+    assert module.ATTEMPT_FINALIZATION_RESERVE_SECONDS == 120
 
 
 def test_finalize_preserves_auth_file_for_connected_tunnel(runner_env: Path) -> None:
@@ -1269,6 +1523,7 @@ import time
 child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
 with open(sys.argv[1], "w", encoding="utf-8") as handle:
     handle.write(str(child.pid))
+    handle.flush()
 time.sleep(60)
 """
 
@@ -1495,7 +1750,23 @@ def test_attempt_server_records_verified_tunnel_details(
     assert action.failed_servers == []
     assert len(network_deadlines) == 3
     assert network_deadlines[0] == network_deadlines[1] == network_deadlines[2]
-    assert network_deadlines[0] <= action.deadline
+    assert network_deadlines[0] <= action.deadline - module.ATTEMPT_FINALIZATION_RESERVE_SECONDS
+
+
+def test_attempt_server_refuses_to_consume_finalization_headroom(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.deadline = 100.0
+    monkeypatch.setattr(module.time, "monotonic", lambda: 20.0)
+
+    with pytest.raises(module.ActionError, match="finalization headroom") as exc_info:
+        action.attempt_server("us1001.nordvpn.com", "openvpn_udp")
+
+    assert exc_info.value.status == "vpn_connect_timeout"
+    assert action.attempted_servers == ["us1001.nordvpn.com"]
 
 
 def test_run_quarantines_nba_blocked_server_and_falls_back(
@@ -1706,6 +1977,51 @@ def test_attempt_server_classifies_auth_failure_when_openvpn_exits_early(
     assert action.failed_servers == []
 
 
+def test_attempt_server_rechecks_auth_log_at_process_exit_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_file.write_text("user\npassword\n", encoding="utf-8")
+
+    def _config_download(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
+        output_path.write_text("client\n", encoding="utf-8")
+        return True
+
+    class _ExitedProcess:
+        pid = 98765
+
+        @staticmethod
+        def poll() -> int:
+            return 1
+
+    auth_checks = iter((False, False, True))
+    cleanup_calls: list[str] = []
+    monkeypatch.setattr(action, "retry_http_get", _config_download)
+    monkeypatch.setattr(
+        action,
+        "config_url",
+        lambda server, technology: "https://example.test/server.ovpn",
+    )
+    monkeypatch.setattr(action, "auth_failed_in_log", lambda: next(auth_checks))
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: cleanup_calls.append("cleanup"))
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *args, **kwargs: _ExitedProcess())
+
+    assert action.attempt_server("us1001.nordvpn.com", "openvpn_udp") is False
+    assert action.last_attempt_auth_failed is True
+    assert action.failed_servers == []
+    assert cleanup_calls == ["cleanup"]
+
+
 def test_run_reports_auth_failure_after_all_recommended_servers_reject_credentials(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
@@ -1747,9 +2063,11 @@ def test_run_retries_prevalidated_configured_auth_after_capacity_cooldown(
     module = _load_module()
     action = module.NordVpnConnectAction()
     action.work_dir.mkdir(parents=True, exist_ok=True)
-    action.auth_rejection_limit = 3
+    action.auth_rejection_limit = 1
+    action.auth_recovery_rejection_limit = 3
     action.auth_recovery_rounds = 1
-    action.auth_recovery_base_delay = 0
+    action.auth_recovery_base_delay = 300
+    action.require_auth_recovery_budget = True
     action.fallback_technology = ""
 
     def _unexpected_token_auth() -> tuple[str, str]:
@@ -1761,7 +2079,7 @@ def test_run_retries_prevalidated_configured_auth_after_capacity_cooldown(
     monkeypatch.setattr(action, "install_dependencies", lambda: None)
     monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
     monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
-    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 721.0)
     monkeypatch.setattr(
         action,
         "recommendation_servers",
@@ -1794,11 +2112,11 @@ def test_run_retries_prevalidated_configured_auth_after_capacity_cooldown(
     assert action.run() == 0
     assert attempts == [
         "us1001.nordvpn.com",
+        "us1001.nordvpn.com",
         "us1002.nordvpn.com",
         "us1003.nordvpn.com",
-        "us1001.nordvpn.com",
     ]
-    assert waits == [("Authentication recovery round 1/1", 0, {"minimum_after": 90.0})]
+    assert waits == [("Authentication recovery round 1/1", 300, {"minimum_after": 210.0})]
     assert action.auth_source == "configured"
     assert action.auth_file.read_text(encoding="utf-8") == ("validated-user\nvalidated-password\n")
     assert action.technology_cursor == 1

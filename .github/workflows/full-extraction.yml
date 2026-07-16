@@ -15,7 +15,7 @@ on:
       vpn_parallelism:
         description: "Max simultaneous VPN-backed extract lanes"
         type: choice
-        default: "3"
+        default: "2"
         options:
           - "1"
           - "2"
@@ -464,13 +464,23 @@ jobs:
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
           MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
+          NETWORK_MODE: ${{ inputs.network_mode }}
+          VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
           ITERATION: ${{ inputs.iteration }}
         run: |
           mkdir -p artifacts/full-extraction
+          effective_matrix_batch_size="$MATRIX_BATCH_SIZE"
+          if [ "$NETWORK_MODE" != "direct" ]; then
+            vpn_matrix_cap=$((VPN_PARALLELISM * 32))
+            if [ "$effective_matrix_batch_size" -gt "$vpn_matrix_cap" ]; then
+              effective_matrix_batch_size="$vpn_matrix_cap"
+            fi
+          fi
+          echo "::notice::Effective matrix batch size: $effective_matrix_batch_size (requested=$MATRIX_BATCH_SIZE, network_mode=$NETWORK_MODE)"
           args=(
             plan
             --iteration "$ITERATION"
-            --max-matrix-lanes "$MATRIX_BATCH_SIZE"
+            --max-matrix-lanes "$effective_matrix_batch_size"
             --output-path artifacts/full-extraction/manifest.json
           )
           if [ -n "$INPUT_LANE_MANIFEST_JSON" ]; then
@@ -668,7 +678,7 @@ jobs:
               --completed-artifact-run-id "$RESUME_SOURCE_RUN_ID"
               --chunk-profile "$CHUNK_PROFILE"
               --iteration "$ITERATION"
-              --max-matrix-lanes "$MATRIX_BATCH_SIZE"
+              --max-matrix-lanes "$effective_matrix_batch_size"
               --allow-missing-attempted-metadata
               --output-path artifacts/full-extraction/resume-source-manifest.json
             )
@@ -1055,7 +1065,7 @@ jobs:
 
   preflight:
     needs: [plan, publication_preflight]
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' && (!inputs.publish || needs.publication_preflight.result == 'success') }}
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' && (!inputs.publish || needs.publication_preflight.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -1065,6 +1075,9 @@ jobs:
       vpn-auth-source: ${{ steps.vpn.outputs.auth-source }}
       vpn-server: ${{ steps.vpn.outputs.server }}
       vpn-quarantined-servers-json: ${{ steps.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
+      vpn-capacity-required: ${{ steps.vpn_capacity.outputs.required }}
+      vpn-capacity-count: ${{ steps.vpn_capacity.outputs.capacity-count }}
+      vpn-capacity-matrix: ${{ steps.vpn_capacity.outputs.matrix }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -1131,7 +1144,7 @@ jobs:
       - name: Preflight VPN validation
         id: vpn
         if: ${{ inputs.network_mode != 'direct' }}
-        timeout-minutes: 7
+        timeout-minutes: 8
         continue-on-error: true
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
@@ -1148,7 +1161,7 @@ jobs:
           export LANE_INDEX=$((RUN_ATTEMPT - 1))
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            350 \
+            450 \
             10 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
@@ -1243,6 +1256,81 @@ jobs:
               )
           PY
 
+      - name: Build concurrent VPN capacity gate
+        id: vpn_capacity
+        if: always()
+        env:
+          EFFECTIVE_NETWORK_MODE: ${{ steps.network_mode.outputs.effective-network-mode }}
+          MATRIX_LANE_COUNT: ${{ needs.plan.outputs.matrix-lane-count }}
+          ACTIVE_LANE_COUNT: ${{ needs.plan.outputs.active-lane-count }}
+          REQUESTED_VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
+          VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}
+        run: |
+          python3 - <<'PY'
+          # VPN_CAPACITY_MATRIX
+          import json
+          import os
+          from pathlib import Path
+
+          requested = int(os.environ["REQUESTED_VPN_PARALLELISM"])
+          matrix_lane_count = int(os.environ["MATRIX_LANE_COUNT"])
+          active_lane_count = int(os.environ["ACTIVE_LANE_COUNT"])
+          effective_mode = os.environ.get("EFFECTIVE_NETWORK_MODE", "")
+          auth_source = os.environ.get("VPN_AUTH_SOURCE", "")
+
+          manifest = json.loads(
+              Path("artifacts/full-extraction/preflight-manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          github_matrix = manifest.get("github_matrix")
+          if not isinstance(github_matrix, dict):
+              raise SystemExit("preflight manifest github_matrix must be an object")
+          include = github_matrix.get("include")
+          if not isinstance(include, list):
+              raise SystemExit("preflight manifest github_matrix.include must be a list")
+          if len(include) != matrix_lane_count:
+              raise SystemExit(
+                  "preflight matrix lane count does not match github_matrix.include: "
+                  f"declared={matrix_lane_count}, observed={len(include)}"
+              )
+          if any(not isinstance(lane, dict) for lane in include):
+              raise SystemExit("preflight manifest matrix entries must be objects")
+          active_matrix_lanes = sum(
+              str(lane.get("resume_only", "false")).lower() != "true"
+              for lane in include
+          )
+          if active_lane_count > 0 and matrix_lane_count > 0 and active_matrix_lanes == 0:
+              raise SystemExit(
+                  "active extraction lanes exist but this matrix contains no executable lanes"
+              )
+          capacity = min(requested, active_matrix_lanes)
+          required = effective_mode == "vpn" and auth_source == "configured" and capacity > 0
+          capacity_matrix = {
+              "include": [
+                  {
+                      "lane_index": lane_index,
+                      "expected_capacity": capacity if required else 0,
+                  }
+                  for lane_index in range(capacity if required else 1)
+              ]
+          }
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"required={str(required).lower()}\n")
+              handle.write(f"capacity-count={capacity if required else 0}\n")
+              handle.write(
+                  "matrix="
+                  + json.dumps(capacity_matrix, separators=(",", ":"))
+                  + "\n"
+              )
+          print(
+              "Concurrent VPN capacity gate: "
+              f"required={str(required).lower()}, lanes={capacity if required else 0}, "
+              f"active_matrix_lanes={active_matrix_lanes}"
+          )
+          PY
+
       - name: Summarize preflight network mode
         if: always()
         env:
@@ -1269,7 +1357,7 @@ jobs:
 
   discovery_seed:
     needs: [plan, preflight]
-    if: ${{ always() && needs.plan.outputs.matrix-lane-count != '0' && needs.preflight.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.matrix-lane-count != '0' && needs.preflight.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -1277,6 +1365,7 @@ jobs:
       contents: read
     outputs:
       vpn-server: ${{ steps.vpn.outputs.server }}
+      vpn-failed-servers-json: ${{ steps.vpn.outputs.failed-servers-json }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -1469,7 +1558,7 @@ jobs:
       - name: Connect NordVPN tunnel for discovery seeding
         id: vpn
         if: ${{ needs.preflight.outputs.effective-network-mode == 'vpn' }}
-        timeout-minutes: 7
+        timeout-minutes: 8
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
@@ -1489,7 +1578,7 @@ jobs:
           export LANE_INDEX=$((RUN_ATTEMPT - 1))
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            350 \
+            450 \
             10 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
@@ -1579,9 +1668,303 @@ jobs:
           pid-file: ${{ steps.vpn.outputs.pid-file }}
           work-dir: ${{ steps.vpn.outputs.work-dir }}
 
-  extract:
+  vpn_capacity:
     needs: [plan, preflight, discovery_seed]
-    if: ${{ always() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.preflight.outputs.vpn-capacity-required == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.vpn_parallelism) }}
+      matrix: ${{ fromJSON(needs.preflight.outputs.vpn-capacity-matrix) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Reject partial VPN capacity reruns
+        if: ${{ github.run_attempt > 1 }}
+        env:
+          EXPECTED_CAPACITY: ${{ matrix.expected_capacity }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          jobs_path="$RUNNER_TEMP/vpn-capacity-attempt-jobs.json"
+          gh api \
+            --method GET \
+            --paginate \
+            --slurp \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${RUN_ATTEMPT}/jobs?per_page=100" \
+            > "$jobs_path"
+          JOBS_PATH="$jobs_path" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          expected = int(os.environ["EXPECTED_CAPACITY"])
+          pages = json.loads(Path(os.environ["JOBS_PATH"]).read_text(encoding="utf-8"))
+          if not isinstance(pages, list):
+              raise SystemExit("VPN capacity attempt job inventory must be a list of pages")
+          jobs = []
+          for page in pages:
+              if not isinstance(page, dict) or not isinstance(page.get("jobs"), list):
+                  raise SystemExit("VPN capacity attempt job inventory is malformed")
+              jobs.extend(page["jobs"])
+          cohort = [
+              job
+              for job in jobs
+              if isinstance(job, dict)
+              and str(job.get("name") or "").startswith("vpn_capacity (")
+          ]
+          if len(cohort) != expected:
+              raise SystemExit(
+                  "partial VPN capacity rerun detected: current attempt contains "
+                  f"{len(cohort)} of {expected} matrix jobs; rerun all jobs so every "
+                  "simultaneous-capacity marker is produced in one run attempt"
+              )
+          print(f"::notice::VPN capacity rerun contains the complete {expected}-job cohort")
+          PY
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Merge discovery failures into capacity quarantine
+        id: capacity_quarantine
+        env:
+          PREFLIGHT_QUARANTINE_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
+          DISCOVERY_FAILED_SERVERS_JSON: ${{ needs.discovery_seed.outputs.vpn-failed-servers-json || '[]' }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          combined: list[str] = []
+          for name in ("PREFLIGHT_QUARANTINE_JSON", "DISCOVERY_FAILED_SERVERS_JSON"):
+              values = json.loads(os.environ.get(name, "") or "[]")
+              if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                  raise SystemExit(f"{name} must be a JSON array of server hostnames")
+              for value in values:
+                  server = value.strip().lower()
+                  if server and server not in combined:
+                      combined.append(server)
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(
+                  "vpn-quarantined-servers-json="
+                  + json.dumps(combined, separators=(",", ":"))
+                  + "\n"
+              )
+          PY
+
+      - name: Prove concurrent VPN capacity
+        id: vpn
+        timeout-minutes: 15
+        continue-on-error: true
+        uses: ./.github/actions/nordvpn-connect
+        with:
+          openvpn-user: ${{ secrets.OPENVPN_USER }}
+          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
+          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
+          configured-auth-prevalidated: "true"
+          lane-index: ${{ matrix.lane_index }}
+          server-limit: "6"
+          server-pool-size: "96"
+          auth-rejection-limit: "1"
+          auth-recovery-rejection-limit: "3"
+          auth-recovery-rounds: "1"
+          auth-recovery-base-delay-seconds: "300"
+          require-auth-recovery-budget: "true"
+          quarantined-servers-json: ${{ steps.capacity_quarantine.outputs.vpn-quarantined-servers-json }}
+          preferred-servers-json: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
+          preferred-server-slot-count: ${{ inputs.vpn_parallelism }}
+          fallback-technology: openvpn_tcp
+          connect-timeout-seconds: "60"
+          overall-timeout-seconds: "720"
+
+      - name: Write connected VPN capacity marker
+        if: ${{ steps.vpn.outcome == 'success' && steps.vpn.outputs.status == 'connected' && steps.vpn.outputs.auth-source == 'configured' }}
+        env:
+          MARKER_KIND: capacity
+          MARKER_PATH: artifacts/vpn-control/capacity-marker.json
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          LANE_ID: capacity-${{ matrix.lane_index }}
+          LANE_INDEX: ${{ matrix.lane_index }}
+          VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          VPN_SERVER: ${{ steps.vpn.outputs.server }}
+          VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+          VPN_ATTEMPTED_SERVERS_JSON: ${{ steps.vpn.outputs.attempted-servers-json }}
+          VPN_FAILED_SERVERS_JSON: ${{ steps.vpn.outputs.failed-servers-json }}
+        run: python3 .github/scripts/vpn_control_plane.py write-marker --kind capacity
+
+      - name: Publish connected VPN capacity marker
+        id: capacity_marker
+        if: ${{ steps.vpn.outcome == 'success' && steps.vpn.outputs.status == 'connected' && steps.vpn.outputs.auth-source == 'configured' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: false
+          name: vpn-capacity-connected-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-lane-${{ matrix.lane_index }}
+          path: artifacts/vpn-control/capacity-marker.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Wait before retrying VPN capacity marker upload
+        if: ${{ steps.capacity_marker.outcome == 'failure' }}
+        run: sleep 15
+
+      - name: Retry connected VPN capacity marker
+        id: capacity_marker_retry
+        if: ${{ steps.capacity_marker.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: vpn-capacity-connected-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-lane-${{ matrix.lane_index }}
+          path: artifacts/vpn-control/capacity-marker.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Wait for simultaneous VPN capacity
+        id: capacity_barrier
+        if: ${{ steps.capacity_marker.outcome == 'success' || steps.capacity_marker_retry.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_CAPACITY: ${{ matrix.expected_capacity }}
+        run: >-
+          python3 .github/scripts/vpn_control_plane.py capacity-wait
+          --timeout-seconds 780
+          --poll-interval-seconds 10
+
+      - name: Revalidate VPN after capacity barrier
+        id: capacity_recheck
+        if: ${{ steps.capacity_barrier.outcome == 'success' }}
+        env:
+          VPN_PID: ${{ steps.vpn.outputs.pid }}
+          VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
+          VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VPN_PID" ] || [ -z "$VPN_INTERFACE" ] || [ -z "$VPN_EXIT_IP" ]; then
+            echo "::error::VPN capacity marker lacks a complete live-tunnel attestation"
+            exit 1
+          fi
+          sudo kill -0 "$VPN_PID"
+          ip route get 1.1.1.1 | grep -Eq "(^| )dev ${VPN_INTERFACE}( |$)"
+          observed_exit_ip="$(curl --fail --silent --show-error --connect-timeout 5 --max-time 10 https://api.ipify.org)"
+          if [ "$observed_exit_ip" != "$VPN_EXIT_IP" ]; then
+            echo "::error::VPN exit IP changed before the simultaneous-capacity barrier completed"
+            exit 1
+          fi
+          echo "::notice::Simultaneous VPN capacity remains live on ${VPN_INTERFACE} (${VPN_EXIT_IP})"
+
+      - name: Upload VPN capacity diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: vpn-capacity-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_index }}
+          path: |
+            ${{ runner.temp }}/nordvpn/openvpn.log
+            ${{ runner.temp }}/nordvpn/openvpn.pid
+            ${{ runner.temp }}/nordvpn/vpn-exit-ip.json
+            ${{ runner.temp }}/nordvpn/baseline-ip.json
+            ${{ runner.temp }}/nordvpn/*.ovpn
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+
+      - name: Disconnect VPN capacity probe
+        if: always()
+        uses: ./.github/actions/nordvpn-disconnect
+        with:
+          pid: ${{ steps.vpn.outputs.pid }}
+          pid-file: ${{ steps.vpn.outputs.pid-file }}
+          work-dir: ${{ steps.vpn.outputs.work-dir }}
+
+      - name: Enforce concurrent VPN capacity
+        if: always()
+        env:
+          CONNECT_OUTCOME: ${{ steps.vpn.outcome }}
+          MARKER_OUTCOME: ${{ steps.capacity_marker.outcome == 'success' && steps.capacity_marker.outcome || steps.capacity_marker_retry.outcome }}
+          BARRIER_OUTCOME: ${{ steps.capacity_barrier.outcome }}
+          RECHECK_OUTCOME: ${{ steps.capacity_recheck.outcome }}
+          VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+        run: |
+          if [ "$CONNECT_OUTCOME" != "success" ] || \
+             [ "$VPN_STATUS" != "connected" ] || \
+             [ "$VPN_AUTH_SOURCE" != "configured" ] || \
+             [ "$MARKER_OUTCOME" != "success" ] || \
+             [ "$BARRIER_OUTCOME" != "success" ] || \
+             [ "$RECHECK_OUTCOME" != "success" ]; then
+            echo "::error::Concurrent VPN capacity probe ${{ matrix.lane_index }} failed: outcome=${CONNECT_OUTCOME:-unknown}, status=${VPN_STATUS:-unknown}, auth_source=${VPN_AUTH_SOURCE:-unknown}, marker=${MARKER_OUTCOME:-unknown}, barrier=${BARRIER_OUTCOME:-unknown}, recheck=${RECHECK_OUTCOME:-unknown}"
+            exit 1
+          fi
+          echo "::notice::Concurrent VPN capacity probe ${{ matrix.lane_index }} passed"
+
+  vpn_quarantine:
+    needs: [plan, preflight, discovery_seed, vpn_capacity]
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && (needs.vpn_capacity.result == 'success' || needs.vpn_capacity.result == 'skipped') && needs.plan.outputs.matrix-lane-count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      vpn-quarantined-servers-json: ${{ steps.aggregate.outputs.vpn-quarantined-servers-json }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Download VPN capacity markers
+        if: ${{ needs.preflight.outputs.vpn-capacity-required == 'true' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: vpn-capacity-connected-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-lane-*
+          path: capacity-markers/
+
+      - name: Validate VPN capacity evidence and finalize quarantine
+        id: aggregate
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          EXPECTED_CAPACITY: ${{ needs.preflight.outputs.vpn-capacity-count }}
+          BASELINE_QUARANTINE_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
+          DISCOVERY_FAILED_SERVERS_JSON: ${{ needs.discovery_seed.outputs.vpn-failed-servers-json || '[]' }}
+          VPN_CAPACITY_MARKER_DIRECTORY: capacity-markers
+          VPN_QUARANTINE_REPORT_PATH: artifacts/vpn-control/effective-quarantine.json
+        run: python3 .github/scripts/vpn_control_plane.py aggregate-quarantine
+
+      - name: Upload effective VPN quarantine report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: vpn-quarantine-${{ env.ACTIVE_CHAIN_ID }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: artifacts/vpn-control/effective-quarantine.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  extract:
+    needs: [plan, preflight, discovery_seed, vpn_capacity, vpn_quarantine]
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && (needs.vpn_capacity.result == 'success' || needs.vpn_capacity.result == 'skipped') && needs.vpn_quarantine.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -1593,10 +1976,31 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
+      - name: Initialize lane job budget
+        env:
+          JOB_TIMEOUT_SECONDS: "21000"
+          FINALIZATION_RESERVE_SECONDS: "1200"
+        run: |
+          started_at="$(date +%s)"
+          {
+            echo "NBADB_EXTRACT_JOB_DEADLINE_EPOCH_SECONDS=$((started_at + JOB_TIMEOUT_SECONDS))"
+            echo "NBADB_EXTRACT_FINALIZATION_RESERVE_SECONDS=$FINALIZATION_RESERVE_SECONDS"
+          } >> "$GITHUB_ENV"
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Check run-attempt VPN auth circuit
+        id: vpn_auth_circuit
+        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
+        run: python3 .github/scripts/vpn_control_plane.py auth-guard
 
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
@@ -1860,8 +2264,8 @@ jobs:
       # ── Connect NordVPN tunnel for active extraction lanes ──
       - name: Connect NordVPN tunnel
         id: vpn
-        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' }}
-        timeout-minutes: 7
+        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status == 'closed' }}
+        timeout-minutes: 15
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
@@ -1875,18 +2279,94 @@ jobs:
           SERVER_POOL_SIZE: "96"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
           CONNECT_TIMEOUT_SECONDS: "60"
-          OVERALL_TIMEOUT_SECONDS: "300"
-          QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
+          # Hold a throttled matrix slot instead of immediately admitting another
+          # runner that would amplify an account-wide authentication cooldown.
+          AUTH_REJECTION_LIMIT: "1"
+          AUTH_RECOVERY_REJECTION_LIMIT: "3"
+          AUTH_RECOVERY_ROUNDS: "1"
+          AUTH_RECOVERY_BASE_DELAY_SECONDS: "300"
+          REQUIRE_AUTH_RECOVERY_BUDGET: "true"
+          OVERALL_TIMEOUT_SECONDS: "720"
+          QUARANTINED_SERVERS_JSON: ${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
           PREFERRED_SERVERS_JSON: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
           PREFERRED_SERVER_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            350 \
-            10 \
+            870 \
+            5 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
           exit "$rc"
+
+      - name: Write VPN auth circuit marker
+        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          LANE_ID: ${{ matrix.lane_id }}
+          LANE_INDEX: ${{ matrix.lane_index }}
+          VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          VPN_SERVER: ${{ steps.vpn.outputs.server || needs.preflight.outputs.vpn-server }}
+          VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+          VPN_ATTEMPTED_SERVERS_JSON: ${{ steps.vpn.outputs.attempted-servers-json || '[]' }}
+          VPN_FAILED_SERVERS_JSON: ${{ steps.vpn.outputs.failed-servers-json || '[]' }}
+          MARKER_PATH: artifacts/vpn-control/auth-circuit-marker.json
+        run: python3 .github/scripts/vpn_control_plane.py write-marker --kind auth-circuit
+
+      - name: Publish VPN auth circuit marker
+        id: vpn_auth_circuit_marker
+        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: false
+          name: full-extraction-vpn-auth-circuit-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: artifacts/vpn-control/auth-circuit-marker.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Check for a sibling VPN auth circuit marker
+        id: vpn_auth_circuit_lookup
+        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' && steps.vpn_auth_circuit_marker.outcome == 'failure' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
+        run: >-
+          python3 .github/scripts/vpn_control_plane.py verify-auth
+          --timeout-seconds 30
+          --poll-interval-seconds 5
+
+      - name: Retry VPN auth circuit marker publication
+        id: vpn_auth_circuit_marker_retry
+        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' && steps.vpn_auth_circuit_marker.outcome == 'failure' && steps.vpn_auth_circuit_lookup.outcome != 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: false
+          name: full-extraction-vpn-auth-circuit-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: artifacts/vpn-control/auth-circuit-marker.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Verify VPN auth circuit marker
+        id: vpn_auth_circuit_verify
+        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
+        run: >-
+          python3 .github/scripts/vpn_control_plane.py verify-auth
+          --timeout-seconds 120
+          --poll-interval-seconds 5
 
       # ── Configure environment ──
       - name: Configure extraction environment
@@ -2034,6 +2514,30 @@ jobs:
           mkdir -p artifacts/extraction
           python .github/scripts/run_extract_lane.py
 
+      - name: Upload VPN diagnostics
+        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_open' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_check_failed' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: |
+            ${{ runner.temp }}/nordvpn/openvpn.log
+            ${{ runner.temp }}/nordvpn/openvpn.pid
+            ${{ runner.temp }}/nordvpn/vpn-exit-ip.json
+            ${{ runner.temp }}/nordvpn/baseline-ip.json
+            ${{ runner.temp }}/nordvpn/*.ovpn
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+
+      - name: Disconnect VPN
+        if: ${{ always() && !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_open' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_check_failed' }}
+        uses: ./.github/actions/nordvpn-disconnect
+        with:
+          pid: ${{ steps.vpn.outputs.pid }}
+          pid-file: ${{ steps.vpn.outputs.pid-file }}
+          work-dir: ${{ steps.vpn.outputs.work-dir }}
+
       - name: Finalize lane status
         id: lane_status
         if: always()
@@ -2043,6 +2547,7 @@ jobs:
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          VPN_AUTH_CIRCUIT_STATUS: ${{ steps.vpn_auth_circuit.outputs.status }}
           EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
         run: |
           if [ "$JOB_STATUS" = "cancelled" ]; then
@@ -2051,6 +2556,9 @@ jobs:
             status="complete"
           elif [ -n "$EXTRACT_STATUS" ]; then
             status="$EXTRACT_STATUS"
+          elif [ "$VPN_AUTH_CIRCUIT_STATUS" = "vpn_auth_circuit_open" ] || \
+               [ "$VPN_AUTH_CIRCUIT_STATUS" = "vpn_auth_circuit_check_failed" ]; then
+            status="$VPN_AUTH_CIRCUIT_STATUS"
           elif [ -n "$VPN_STATUS" ] && [ "$VPN_STATUS" != "connected" ]; then
             status="$VPN_STATUS"
           elif [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then
@@ -2116,7 +2624,7 @@ jobs:
 
       - name: Write lane metadata
         id: lane_metadata
-        if: always()
+        if: ${{ always() && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_open' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_check_failed' }}
         env:
           LANE_ID: ${{ matrix.lane_id }}
           LANE_INDEX: ${{ matrix.lane_index }}
@@ -2169,6 +2677,61 @@ jobs:
             fi
           fi
           uv run python .github/scripts/write_lane_metadata.py
+
+      - name: Write circuit-deferred lane metadata
+        id: circuit_lane_metadata
+        if: ${{ always() && (steps.vpn_auth_circuit.outputs.status == 'vpn_auth_circuit_open' || steps.vpn_auth_circuit.outputs.status == 'vpn_auth_circuit_check_failed') }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          ITERATION: ${{ inputs.iteration }}
+          LANE_ID: ${{ matrix.lane_id }}
+          LANE_INDEX: ${{ matrix.lane_index }}
+          NAME: ${{ matrix.lane_name }}
+          KIND: ${{ matrix.lane_kind }}
+          SOURCE_REF: ${{ env.WORKFLOW_SOURCE_REF }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          COVERAGE_UNITS_HASH: ${{ matrix.coverage_units_hash }}
+          TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
+          EFFECTIVE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
+          RESUME_ONLY: ${{ matrix.resume_only }}
+          PATTERNS: ${{ matrix.patterns }}
+          SEASON_TYPES: ${{ matrix.season_types }}
+          ENDPOINTS: ${{ matrix.endpoints }}
+          CONTEXT_MEASURES: ${{ matrix.context_measures }}
+          SEASON_START: ${{ matrix.season_start }}
+          SEASON_END: ${{ matrix.season_end }}
+          PARENT_LANE_ID: ${{ matrix.parent_lane_id }}
+          SPLIT_GENERATION: ${{ matrix.split_generation }}
+          NETWORK_MODE: ${{ inputs.network_mode }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
+          VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
+          VPN_AUTH_CIRCUIT_STATUS: ${{ steps.vpn_auth_circuit.outputs.status }}
+        run: python3 .github/scripts/vpn_control_plane.py write-deferred-metadata
+
+      - name: Upload circuit-deferred lane metadata
+        id: circuit_lane_metadata_artifact
+        if: ${{ always() && steps.circuit_lane_metadata.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: artifacts/extraction/lane-metadata.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+
+      - name: Retry circuit-deferred lane metadata upload
+        id: circuit_lane_metadata_artifact_retry
+        if: ${{ always() && steps.circuit_lane_metadata_artifact.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: artifacts/extraction/lane-metadata.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
 
       # ── Upload lane artifact ──
       - name: Upload complete lane artifact
@@ -2285,8 +2848,8 @@ jobs:
               state_artifact["artifact_digest"] = artifact_digest
           else:
               state_artifact["attested"] = False
-              state_artifact.pop("artifact_id", None)
-              state_artifact.pop("artifact_digest", None)
+              state_artifact["artifact_id"] = ""
+              state_artifact["artifact_digest"] = ""
               if snapshot_attested:
                   payload["status"] = "pipeline_failure"
                   payload["raw_status"] = "state-artifact-upload-failed"
@@ -2351,7 +2914,7 @@ jobs:
           compression-level: 6
 
       - name: Upload diagnostics-only lane snapshot
-        if: ${{ always() && (steps.lane_metadata.outcome != 'success' || steps.finalize_lane_metadata.outcome != 'success' || steps.finalize_lane_metadata.outputs.artifact-durable != 'true' || (steps.lane_metadata_artifact.outcome == 'failure' && steps.lane_metadata_artifact_retry.outcome != 'success')) }}
+        if: ${{ always() && ((steps.circuit_lane_metadata.outcome == 'success' && steps.circuit_lane_metadata_artifact.outcome == 'failure' && steps.circuit_lane_metadata_artifact_retry.outcome != 'success') || (steps.circuit_lane_metadata.outcome != 'success' && (steps.lane_metadata.outcome != 'success' || steps.finalize_lane_metadata.outcome != 'success' || steps.finalize_lane_metadata.outputs.artifact-durable != 'true' || (steps.lane_metadata_artifact.outcome == 'failure' && steps.lane_metadata_artifact_retry.outcome != 'success')))) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -2367,37 +2930,12 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-      - name: Upload VPN diagnostics
-        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          overwrite: true
-          name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
-          path: |
-            ${{ runner.temp }}/nordvpn/openvpn.log
-            ${{ runner.temp }}/nordvpn/openvpn.pid
-            ${{ runner.temp }}/nordvpn/vpn-exit-ip.json
-            ${{ runner.temp }}/nordvpn/baseline-ip.json
-            ${{ runner.temp }}/nordvpn/*.ovpn
-          if-no-files-found: ignore
-          retention-days: 7
-          compression-level: 6
-
-      # ── Cleanup ──
-      - name: Disconnect VPN
-        if: ${{ always() && !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' }}
-        uses: ./.github/actions/nordvpn-disconnect
-        with:
-          pid: ${{ steps.vpn.outputs.pid }}
-          pid-file: ${{ steps.vpn.outputs.pid-file }}
-          work-dir: ${{ steps.vpn.outputs.work-dir }}
-
   # ─────────────────────────────────────────────────────────────
   #  Replay a prior terminal checkpoint without rebuilding it
   # ─────────────────────────────────────────────────────────────
   terminal_replay:
     needs: [plan, publication_preflight]
-    if: ${{ always() && inputs.resume_source_run_id != '' && needs.plan.result == 'success' && (!inputs.publish || needs.publication_preflight.result == 'success') && needs.plan.outputs.lane-count != '0' && needs.plan.outputs.active-lane-count == '0' && needs.plan.outputs.matrix-lane-count == '0' }}
+    if: ${{ always() && !cancelled() && inputs.resume_source_run_id != '' && needs.plan.result == 'success' && (!inputs.publish || needs.publication_preflight.result == 'success') && needs.plan.outputs.lane-count != '0' && needs.plan.outputs.active-lane-count == '0' && needs.plan.outputs.matrix-lane-count == '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -2684,7 +3222,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   targeted_smoke_assurance:
     needs: [plan, preflight, discovery_seed, extract, lane_control, checkpoint]
-    if: ${{ always() && inputs.targeted_smoke }}
+    if: ${{ always() && !cancelled() && inputs.targeted_smoke }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -3363,7 +3901,7 @@ jobs:
   #  Lane control: carry a manifest forward and classify unresolved lanes
   # ─────────────────────────────────────────────────────────────
   lane_control:
-    needs: [plan, preflight, discovery_seed, extract, terminal_replay]
+    needs: [plan, preflight, discovery_seed, vpn_quarantine, extract, terminal_replay]
     if: ${{ always() && !cancelled() && needs.plan.result == 'success' && ((needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.extract.result != 'skipped') || (inputs.resume_source_run_id != '' && needs.plan.outputs.active-lane-count == '0' && needs.plan.outputs.matrix-lane-count == '0' && needs.terminal_replay.result == 'success' && needs.terminal_replay.outputs.artifact-name == '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -3375,6 +3913,7 @@ jobs:
       resume-only-lane-count: ${{ steps.next_manifest.outputs.resume_only_lane_count }}
       contract-blocked-lane-count: ${{ steps.next_manifest.outputs.contract_blocked_lane_count }}
       split-lane-count: ${{ steps.next_manifest.outputs.split_lane_count }}
+      vpn-auth-circuit-open: ${{ steps.next_manifest.outputs.vpn_auth_circuit_open }}
       artifact-name: ${{ steps.next_manifest.outputs.artifact_name }}
       checkpoint-artifact-name: ${{ steps.next_manifest.outputs.checkpoint_artifact_name }}
       checkpoint-generation: ${{ steps.next_manifest.outputs.checkpoint_generation }}
@@ -3415,9 +3954,18 @@ jobs:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
           MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
-          PREFLIGHT_QUARANTINE_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
+          VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
+          PREFLIGHT_QUARANTINE_JSON: ${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
         run: |
           mkdir -p artifacts/full-extraction
+          effective_matrix_batch_size="$MATRIX_BATCH_SIZE"
+          if [ "$EFFECTIVE_NETWORK_MODE" != "direct" ]; then
+            vpn_matrix_cap=$((VPN_PARALLELISM * 32))
+            if [ "$effective_matrix_batch_size" -gt "$vpn_matrix_cap" ]; then
+              effective_matrix_batch_size="$vpn_matrix_cap"
+            fi
+          fi
           manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
           if [ -z "$manifest_path" ]; then
             echo "::error::Plan artifact did not contain manifest.json"
@@ -3531,7 +4079,7 @@ jobs:
             --metadata-dir lane-metadata
             --completed-artifact-run-id "${{ github.run_id }}"
             --iteration "$ITERATION"
-            --max-matrix-lanes "$MATRIX_BATCH_SIZE"
+            --max-matrix-lanes "$effective_matrix_batch_size"
             --allow-missing-attempted-metadata
           )
           if [ "$RETRY_PIPELINE_FAILURES" = "true" ]; then
@@ -3747,6 +4295,8 @@ jobs:
           redispatch_payload = redispatch_manifest_payload(
               list(manifest.lanes),
               chain_state=manifest.chain_state,
+              chain_id=os.environ["CHAIN_ID"],
+              workflow_source_sha=os.environ["WORKFLOW_SOURCE_SHA"],
           )
           redispatch_json = json.dumps(redispatch_payload, separators=(",", ":"))
           artifact_name = (
@@ -3762,6 +4312,19 @@ jobs:
               "resume_only_lane_count": int(summary.get("resume_only_lane_count", 0)),
               "contract_blocked_lane_count": int(summary.get("contract_blocked_lane_count", 0)),
               "split_lane_count": int(summary.get("split_lane_count", 0)),
+              "vpn_auth_circuit_deferred_lane_count": int(
+                  summary.get("vpn_auth_circuit_deferred_lane_count", 0)
+              ),
+              "vpn_auth_circuit_check_failed_lane_count": int(
+                  summary.get("vpn_auth_circuit_check_failed_lane_count", 0)
+              ),
+              "vpn_auth_circuit_rejection_lane_count": int(
+                  summary.get("vpn_auth_circuit_rejection_lane_count", 0)
+              ),
+              "vpn_auth_circuit_open": str(
+                  int(summary.get("vpn_auth_circuit_deferred_lane_count", 0)) > 0
+                  or int(summary.get("vpn_auth_circuit_rejection_lane_count", 0)) > 0
+              ).lower(),
               "outcome_counts": summary.get("outcome_counts", {}),
               "failure_reason_counts": summary.get("failure_reason_counts", {}),
               "failure_class_counts": summary.get("failure_class_counts", {}),
@@ -3784,6 +4347,13 @@ jobs:
                       f"resume_only_lane_count={report['resume_only_lane_count']}",
                       f"contract_blocked_lane_count={report['contract_blocked_lane_count']}",
                       f"split_lane_count={report['split_lane_count']}",
+                      "vpn_auth_circuit_deferred_lane_count="
+                      + str(report["vpn_auth_circuit_deferred_lane_count"]),
+                      "vpn_auth_circuit_check_failed_lane_count="
+                      + str(report["vpn_auth_circuit_check_failed_lane_count"]),
+                      "vpn_auth_circuit_rejection_lane_count="
+                      + str(report["vpn_auth_circuit_rejection_lane_count"]),
+                      f"vpn_auth_circuit_open={report['vpn_auth_circuit_open']}",
                       "outcome_counts="
                       + json.dumps(report["outcome_counts"], sort_keys=True),
                       "failure_reason_counts="
@@ -3829,6 +4399,30 @@ jobs:
           import json
           from pathlib import Path
           print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["split_lane_count"])
+          PY
+          )"
+          vpn_auth_circuit_deferred_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["vpn_auth_circuit_deferred_lane_count"])
+          PY
+          )"
+          vpn_auth_circuit_check_failed_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["vpn_auth_circuit_check_failed_lane_count"])
+          PY
+          )"
+          vpn_auth_circuit_rejection_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["vpn_auth_circuit_rejection_lane_count"])
+          PY
+          )"
+          vpn_auth_circuit_open="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["vpn_auth_circuit_open"])
           PY
           )"
           artifact_name="$(python - <<'PY'
@@ -3907,8 +4501,15 @@ jobs:
             echo "| Resume-only lanes | $resume_only_lane_count |"
             echo "| Contract-blocked lanes | $contract_blocked_lane_count |"
             echo "| Split child lanes | $split_lane_count |"
+            echo "| VPN auth-circuit deferred lanes | $vpn_auth_circuit_deferred_lane_count |"
+            echo "| VPN auth-circuit lookup failures | $vpn_auth_circuit_check_failed_lane_count |"
+            echo "| VPN auth-circuit rejecting lanes | $vpn_auth_circuit_rejection_lane_count |"
             if [ "$active_lane_count" -gt 0 ]; then
-              echo "| Next action | Redispatch iteration $((ITERATION + 1)) via \`$artifact_name\` |"
+              if [ "$vpn_auth_circuit_open" = "true" ]; then
+                echo "| Next action | Stop after checkpoint; repair VPN account capacity, then resume this chain |"
+              else
+                echo "| Next action | Redispatch iteration $((ITERATION + 1)) via \`$artifact_name\` |"
+              fi
             else
               echo "| Next action | Merge terminal checkpoint artifact |"
             fi
@@ -4898,7 +5499,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   dispatch_next:
     needs: [plan, preflight, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && !inputs.targeted_smoke && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' && needs.checkpoint.outputs.active-lane-count == needs.lane_control.outputs.active-lane-count && needs.checkpoint.outputs.terminal-ready == 'false' }}
+    if: ${{ always() && !cancelled() && !inputs.targeted_smoke && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' && needs.lane_control.outputs.vpn-auth-circuit-open != 'true' && needs.checkpoint.outputs.active-lane-count == needs.lane_control.outputs.active-lane-count && needs.checkpoint.outputs.terminal-ready == 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
@@ -5031,6 +5632,85 @@ jobs:
           next_run_name="Full Extraction chain=${CHAIN_ID} iteration=${next}"
           runs_path="$RUNNER_TEMP/full-extraction-run-pages.json"
           existing_child_run_ids_path="$RUNNER_TEMP/full-extraction-existing-child-run-ids.json"
+          child_dispatch_may_exist=false
+          child_acknowledged=false
+          child_run_id=""
+
+          cancel_dispatched_child() {
+            set +e
+            candidate_ids=""
+            if [[ "$child_run_id" =~ ^[1-9][0-9]*$ ]]; then
+              candidate_ids="$child_run_id"
+            elif [ "$child_dispatch_may_exist" = "true" ] && [ -f "$existing_child_run_ids_path" ]; then
+              cancel_runs_path="$RUNNER_TEMP/full-extraction-cancel-run-pages.json"
+              gh api \
+                --method GET \
+                --paginate \
+                --slurp \
+                -H "Accept: application/vnd.github+json" \
+                "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
+                -f "event=workflow_dispatch" \
+                -f "per_page=100" \
+                > "$cancel_runs_path"
+              candidate_ids="$(
+                RUNS_PATH="$cancel_runs_path" \
+                  EXISTING_CHILD_RUN_IDS_PATH="$existing_child_run_ids_path" \
+                  EXPECTED_RUN_NAME="$next_run_name" \
+                  python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
+          existing_ids = set(
+              json.loads(
+                  Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).read_text(encoding="utf-8")
+              )
+          )
+          expected = os.environ["EXPECTED_RUN_NAME"]
+          for page in pages:
+              for run in page.get("workflow_runs", []):
+                  run_id = str(run.get("id") or "")
+                  if (
+                      str(run.get("display_title") or "") == expected
+                      and run_id not in existing_ids
+                      and run_id.isdigit()
+                  ):
+                      print(run_id)
+          PY
+              )"
+            fi
+            while IFS= read -r candidate_id; do
+              if [[ "$candidate_id" =~ ^[1-9][0-9]*$ ]]; then
+                echo "::warning::Cancelling unacknowledged child run $candidate_id after parent interruption"
+                gh api \
+                  --method POST \
+                  -H "Accept: application/vnd.github+json" \
+                  "/repos/${{ github.repository }}/actions/runs/${candidate_id}/cancel" \
+                  >/dev/null 2>&1 || true
+              fi
+            done <<< "$candidate_ids"
+          }
+
+          on_dispatch_exit() {
+            rc=$?
+            trap - EXIT INT TERM
+            if [ "$rc" -ne 0 ] && [ "$child_dispatch_may_exist" = "true" ] && [ "$child_acknowledged" != "true" ]; then
+              cancel_dispatched_child
+            fi
+            exit "$rc"
+          }
+
+          on_dispatch_signal() {
+            trap - EXIT INT TERM
+            if [ "$child_dispatch_may_exist" = "true" ] && [ "$child_acknowledged" != "true" ]; then
+              cancel_dispatched_child
+            fi
+            exit 130
+          }
+
+          trap on_dispatch_exit EXIT
+          trap on_dispatch_signal INT TERM
           gh api \
             --method GET \
             --paginate \
@@ -5087,6 +5767,7 @@ jobs:
           fi
 
           echo "::notice::Some lanes incomplete — triggering iteration $next/$effective_max at $next_concurrency concurrency (chain $CHAIN_ID; max_iterations=$MAX_ITERATIONS)"
+          child_dispatch_may_exist=true
           gh workflow run full-extraction.yml \
             --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \
@@ -5231,6 +5912,7 @@ jobs:
           print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["id"])
           PY
           )"
+          child_run_id="$acknowledged_child_run_id"
           sleep "$CHILD_POLL_INTERVAL_SECONDS"
           gh api \
             --method GET \
@@ -5335,6 +6017,8 @@ jobs:
           print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["url"])
           PY
           )"
+          child_acknowledged=true
+          trap - EXIT INT TERM
           {
             echo "child_run_id=$child_run_id"
             echo "child_run_url=$child_run_url"

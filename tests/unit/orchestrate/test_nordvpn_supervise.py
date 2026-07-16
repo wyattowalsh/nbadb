@@ -63,7 +63,7 @@ def test_main_timeout_emits_complete_bounded_outputs(monkeypatch, tmp_path: Path
             return None
 
     monkeypatch.setattr(module.subprocess, "Popen", lambda *args, **kwargs: _FakeChild())
-    monotonic_values = iter((0.0, 12.0))
+    monotonic_values = iter((0.0, 132.0))
     monkeypatch.setattr(module.time, "monotonic", lambda: next(monotonic_values))
     monkeypatch.setattr(module, "terminate_tree", lambda pid: None)
     monkeypatch.setattr(module, "kill_matching_processes", lambda pattern: None)

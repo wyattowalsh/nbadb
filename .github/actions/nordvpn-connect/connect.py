@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -40,6 +41,30 @@ NBA_PROBE_EXPECTED_HEADERS: Final[frozenset[str]] = frozenset(
     {"LEAGUE_ID", "TEAM_ID", "MIN_YEAR", "MAX_YEAR", "ABBREVIATION"}
 )
 NBA_PROBE_TERMINATION_GRACE_SECONDS: Final[float] = 0.25
+COMMAND_TERMINATION_GRACE_SECONDS: Final[float] = 5.0
+OPENVPN_PROCESS_TERMINATION_GRACE_SECONDS: Final[float] = 5.0
+OPENVPN_PID_COMMAND_TIMEOUT_SECONDS: Final[float] = 10.0
+OPENVPN_PID_SETTLE_SECONDS: Final[float] = 2.0
+AUTH_RECOVERY_CONTROL_MARGIN_SECONDS: Final[float] = 3.0
+AUTH_RECOVERY_CLEANUP_RESERVE_SECONDS: Final[float] = (
+    2 * OPENVPN_PROCESS_TERMINATION_GRACE_SECONDS
+    + 2 * (OPENVPN_PID_COMMAND_TIMEOUT_SECONDS + 2 * COMMAND_TERMINATION_GRACE_SECONDS)
+    + OPENVPN_PID_SETTLE_SECONDS
+    + AUTH_RECOVERY_CONTROL_MARGIN_SECONDS
+)
+WORKDIR_PERMISSION_COMMAND_TIMEOUT_SECONDS: Final[float] = 10.0
+WORKDIR_PERMISSION_COMMAND_WORST_CASE_SECONDS: Final[float] = (
+    WORKDIR_PERMISSION_COMMAND_TIMEOUT_SECONDS + 2 * COMMAND_TERMINATION_GRACE_SECONDS
+)
+WORKDIR_READABILITY_RESERVE_SECONDS: Final[float] = (
+    3 * WORKDIR_PERMISSION_COMMAND_WORST_CASE_SECONDS
+)
+ACTION_OUTPUT_RESERVE_SECONDS: Final[float] = 5.0
+ATTEMPT_FINALIZATION_RESERVE_SECONDS: Final[float] = (
+    AUTH_RECOVERY_CLEANUP_RESERVE_SECONDS
+    + WORKDIR_READABILITY_RESERVE_SECONDS
+    + ACTION_OUTPUT_RESERVE_SECONDS
+)
 NBA_STACK_PROBE_DEFAULT_SEASON: Final[str] = "2024-25"
 NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS: Final[int] = 240
 NBA_STACK_PROBE_ENDPOINTS: Final[frozenset[str]] = frozenset(
@@ -140,7 +165,7 @@ def run_command(
     timeout: float | None = None,
     capture_output: bool = True,
     check: bool = False,
-    termination_grace: float = 5.0,
+    termination_grace: float = COMMAND_TERMINATION_GRACE_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
     stdout_target: int = subprocess.PIPE if capture_output else subprocess.DEVNULL
     stderr_target: int = subprocess.PIPE if capture_output else subprocess.DEVNULL
@@ -281,14 +306,37 @@ class NordVpnConnectAction:
         self.connect_timeout = env_int("CONNECT_TIMEOUT_SECONDS", 90, minimum=30)
         self.overall_timeout = env_int("OVERALL_TIMEOUT_SECONDS", 300, minimum=30)
         self.auth_rejection_limit = env_int("AUTH_REJECTION_LIMIT", 3, minimum=1)
+        self.auth_recovery_rejection_limit = env_int(
+            "AUTH_RECOVERY_REJECTION_LIMIT",
+            3,
+            minimum=1,
+        )
         self.auth_recovery_rounds = env_int("AUTH_RECOVERY_ROUNDS", 2, minimum=0)
         self.auth_recovery_base_delay = env_int("AUTH_RECOVERY_BASE_DELAY_SECONDS", 10, minimum=0)
+        self.require_auth_recovery_budget = (
+            os.environ.get("REQUIRE_AUTH_RECOVERY_BUDGET", "false").strip().lower() == "true"
+        )
         if self.overall_timeout < self.connect_timeout:
             raise ActionError(
                 "vpn_network_error",
                 "OVERALL_TIMEOUT_SECONDS must be >= CONNECT_TIMEOUT_SECONDS",
             )
-        self.deadline = time.monotonic() + self.overall_timeout
+        shared_deadline = os.environ.get("VPN_CONNECTION_DEADLINE_MONOTONIC", "").strip()
+        if shared_deadline:
+            try:
+                self.deadline = float(shared_deadline)
+            except ValueError as exc:
+                raise ActionError(
+                    "vpn_network_error",
+                    "VPN_CONNECTION_DEADLINE_MONOTONIC must be numeric",
+                ) from exc
+            if not math.isfinite(self.deadline) or self.deadline <= time.monotonic():
+                raise ActionError(
+                    "vpn_connect_timeout",
+                    "VPN_CONNECTION_DEADLINE_MONOTONIC is invalid or expired",
+                )
+        else:
+            self.deadline = time.monotonic() + self.overall_timeout
 
         self.country_id = os.environ.get("COUNTRY_ID", "228").strip() or "228"
         self.technology = os.environ.get("TECHNOLOGY", "openvpn_udp").strip() or "openvpn_udp"
@@ -368,6 +416,7 @@ class NordVpnConnectAction:
             "NBA probes have not run" if probes_enabled else "NBA probes disabled by configuration"
         )
         self.verification_failure = ""
+        self.workdir_permissions_current = False
 
     def remaining_budget(self) -> float:
         return self.deadline - time.monotonic()
@@ -401,6 +450,21 @@ class NordVpnConnectAction:
         print(f"::notice::{label}; waiting {self.format_seconds(seconds)}s")
         time.sleep(seconds)
         return True
+
+    def auth_recovery_delay(self, round_number: int) -> float:
+        return float(self.auth_recovery_base_delay * round_number + self.selector_index % 3)
+
+    def ensure_initial_auth_recovery_budget(self) -> None:
+        if not self.require_auth_recovery_budget or self.auth_recovery_rounds < 1:
+            return
+        first_delay = self.auth_recovery_delay(1)
+        minimum = (
+            float(self.connect_timeout) * 2 + 2 * ATTEMPT_FINALIZATION_RESERVE_SECONDS + first_delay
+        )
+        self.ensure_budget(
+            "initial authentication-capacity probe",
+            minimum=minimum,
+        )
 
     def append_unique(self, values: list[str], value: str) -> None:
         if value and value not in values:
@@ -442,15 +506,26 @@ class NordVpnConnectAction:
         return f"{value:.3f}".rstrip("0").rstrip(".")
 
     def make_workdir_readable(self) -> None:
-        if not self.work_dir.is_dir():
+        if self.workdir_permissions_current or not self.work_dir.is_dir():
             return
-        run_quiet(["sudo", "chmod", "a+rx", str(self.work_dir)], timeout=10)
+        run_quiet(
+            ["sudo", "chmod", "a+rx", str(self.work_dir)],
+            timeout=WORKDIR_PERMISSION_COMMAND_TIMEOUT_SECONDS,
+        )
         private_paths = {self.auth_file, self.creds_file, self.token_auth_file}
-        for path in self.work_dir.iterdir():
-            if path in private_paths:
-                run_quiet(["sudo", "chmod", "600", str(path)], timeout=10)
-            else:
-                run_quiet(["sudo", "chmod", "a+rX", str(path)], timeout=10)
+        public_paths = [path for path in self.work_dir.iterdir() if path not in private_paths]
+        existing_private_paths = [path for path in private_paths if path.exists()]
+        if public_paths:
+            run_quiet(
+                ["sudo", "chmod", "a+rX", *(str(path) for path in public_paths)],
+                timeout=WORKDIR_PERMISSION_COMMAND_TIMEOUT_SECONDS,
+            )
+        if existing_private_paths:
+            run_quiet(
+                ["sudo", "chmod", "600", *(str(path) for path in existing_private_paths)],
+                timeout=WORKDIR_PERMISSION_COMMAND_TIMEOUT_SECONDS,
+            )
+        self.workdir_permissions_current = True
 
     def cleanup_sensitive(self) -> None:
         for path in (
@@ -473,20 +548,26 @@ class NordVpnConnectAction:
             with suppress(ProcessLookupError):
                 os.killpg(self.openvpn_process.pid, signal.SIGTERM)
             try:
-                self.openvpn_process.wait(timeout=5)
+                self.openvpn_process.wait(timeout=OPENVPN_PROCESS_TERMINATION_GRACE_SECONDS)
             except subprocess.TimeoutExpired:
                 with suppress(ProcessLookupError):
                     os.killpg(self.openvpn_process.pid, signal.SIGKILL)
                 with suppress(subprocess.TimeoutExpired):
-                    self.openvpn_process.wait(timeout=5)
+                    self.openvpn_process.wait(timeout=OPENVPN_PROCESS_TERMINATION_GRACE_SECONDS)
             self.openvpn_process = None
         pid = ""
         if self.pid_file.exists():
             pid = self.pid_file.read_text(encoding="utf-8", errors="replace").strip()
         if pid:
-            run_quiet(["sudo", "kill", pid], timeout=10)
-            time.sleep(2)
-            run_quiet(["sudo", "kill", "-9", pid], timeout=10)
+            run_quiet(
+                ["sudo", "kill", pid],
+                timeout=OPENVPN_PID_COMMAND_TIMEOUT_SECONDS,
+            )
+            time.sleep(OPENVPN_PID_SETTLE_SECONDS)
+            run_quiet(
+                ["sudo", "kill", "-9", pid],
+                timeout=OPENVPN_PID_COMMAND_TIMEOUT_SECONDS,
+            )
         with suppress(FileNotFoundError):
             self.pid_file.unlink()
 
@@ -1465,7 +1546,15 @@ class NordVpnConnectAction:
         self.append_unique(self.attempted_servers, server)
         self.last_attempt_auth_failed = False
         self.verification_failure = ""
-        attempt_deadline = min(time.monotonic() + self.connect_timeout, self.deadline)
+        self.workdir_permissions_current = False
+        now = time.monotonic()
+        latest_attempt_deadline = self.deadline - ATTEMPT_FINALIZATION_RESERVE_SECONDS
+        if latest_attempt_deadline <= now + 1.0:
+            raise ActionError(
+                "vpn_connect_timeout",
+                "VPN server attempt skipped because finalization headroom is exhausted",
+            )
+        attempt_deadline = min(now + self.connect_timeout, latest_attempt_deadline)
         config_path = self.work_dir / f"{server}.ovpn"
         for path in (
             self.pid_file,
@@ -1528,9 +1617,9 @@ class NordVpnConnectAction:
         finally:
             log_handle.close()
 
-        self.make_workdir_readable()
         auth_failed = False
         nba_probe_failed = False
+        process_exit_code: int | None = None
 
         while time.monotonic() < attempt_deadline:
             if self.openvpn_process is None:
@@ -1553,12 +1642,8 @@ class NordVpnConnectAction:
                         f"for {server} over {technology}; checking another recommended server"
                     )
                     break
-                self.append_unique(self.failed_servers, server)
-                raise ActionError(
-                    "vpn_connect_timeout",
-                    f"OpenVPN exited early for {server} over {technology} "
-                    f"with exit code {process_rc}",
-                )
+                process_exit_code = process_rc
+                break
 
             pid = (
                 self.pid_file.read_text(encoding="utf-8", errors="replace").strip()
@@ -1580,6 +1665,7 @@ class NordVpnConnectAction:
                     self.interface = interface
                     self.pid = pid
                     self.status = "connected"
+                    self.make_workdir_readable()
                     return True
                 if self.verification_failure == "nba_probe":
                     nba_probe_failed = True
@@ -1587,9 +1673,26 @@ class NordVpnConnectAction:
 
             time.sleep(min(2.0, max(0.0, attempt_deadline - time.monotonic())))
 
+        if not auth_failed and self.auth_failed_in_log():
+            auth_failed = True
+            self.last_attempt_auth_failed = True
+            print(
+                "::warning::NordVPN rejected the OpenVPN credentials "
+                f"for {server} over {technology} at the attempt deadline"
+            )
+
+        self.make_workdir_readable()
         if auth_failed:
             self.cleanup_openvpn()
             return False
+
+        if process_exit_code is not None:
+            self.append_unique(self.failed_servers, server)
+            raise ActionError(
+                "vpn_connect_timeout",
+                f"OpenVPN exited early for {server} over {technology} "
+                f"with exit code {process_exit_code}",
+            )
 
         self.append_unique(self.failed_servers, server)
 
@@ -1628,6 +1731,11 @@ class NordVpnConnectAction:
 
             saw_auth_failure = False
             auth_rejection_count = 0
+            auth_rejection_limit = (
+                self.auth_recovery_rejection_limit
+                if auth_recovery_round > 0
+                else self.auth_rejection_limit
+            )
             attempted_network = False
             stop_auth_sweep = False
             for technology in technologies:
@@ -1637,6 +1745,8 @@ class NordVpnConnectAction:
                     attempted_network = True
                     continue
                 for server in servers:
+                    if auth_recovery_round == 0:
+                        self.ensure_initial_auth_recovery_budget()
                     self.attempt_count_by_technology[technology] = (
                         self.attempt_count_by_technology.get(technology, 0) + 1
                     )
@@ -1675,10 +1785,10 @@ class NordVpnConnectAction:
                         self.technology_selection_offsets[technology] = (
                             self.technology_selection_offsets.get(technology, 0) + 1
                         )
-                        if auth_rejection_count >= self.auth_rejection_limit:
+                        if auth_rejection_count >= auth_rejection_limit:
                             print(
                                 "::warning::Reached the bounded authentication-rejection "
-                                f"limit ({self.auth_rejection_limit}); pausing this server sweep"
+                                f"limit ({auth_rejection_limit}); pausing this server sweep"
                             )
                             stop_auth_sweep = True
                             break
@@ -1698,14 +1808,14 @@ class NordVpnConnectAction:
             if saw_auth_failure and auth_recovery_round < self.auth_recovery_rounds:
                 auth_recovery_round += 1
                 self.technology_cursor += 1
-                delay = (
-                    self.auth_recovery_base_delay * auth_recovery_round + self.selector_index % 3
-                )
+                delay = self.auth_recovery_delay(auth_recovery_round)
                 if self.sleep_with_budget(
                     f"Authentication recovery round {auth_recovery_round}/"
                     f"{self.auth_recovery_rounds}",
                     delay,
-                    minimum_after=float(self.connect_timeout),
+                    minimum_after=(
+                        float(self.connect_timeout) + ATTEMPT_FINALIZATION_RESERVE_SECONDS
+                    ),
                 ):
                     continue
 

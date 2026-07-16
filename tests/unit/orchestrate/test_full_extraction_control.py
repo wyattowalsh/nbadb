@@ -114,6 +114,7 @@ def _write_metadata(
     rows_persisted: int = 0,
     failed_calls: int = 0,
     running_calls: int = 0,
+    failure_class: str | None = None,
     endpoints: list[str] | None = None,
     patterns: list[str] | None = None,
     season_start: int | None = None,
@@ -141,6 +142,8 @@ def _write_metadata(
             "db_telemetry": {"running_calls": running_calls},
         },
     }
+    if failure_class is not None:
+        payload["failure_class"] = failure_class
     if status == "complete" or completed_calls > 0 or rows_persisted > 0:
         payload["state_artifact"] = {
             "run_id": TEST_RUN_ID,
@@ -153,6 +156,129 @@ def _write_metadata(
             "required": True,
         }
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+
+def _auth_coordination_metadata(
+    lane: FullExtractionLane,
+    *,
+    raw_status: str = "vpn_auth_circuit_open",
+    failure_class: str = "vpn_circuit_deferred",
+    iteration: int = 1,
+) -> dict[str, Any]:
+    zero_progress = {"completed_calls": 0, "rows_persisted": 0}
+    vpn_status = raw_status
+    return {
+        "metadata_schema_version": 3,
+        "chain_id": TEST_CHAIN_ID,
+        "iteration": str(iteration),
+        "source_sha": TEST_SOURCE_SHA,
+        "coverage_units_hash": _coverage_hash_for_lane(lane),
+        "lane_id": lane.lane_id,
+        "lane_index": str(lane.lane_index),
+        "lane_name": lane.lane_name,
+        "lane_kind": lane.lane_kind,
+        "database_sha256": "",
+        "status": "needs_resume",
+        "raw_status": raw_status,
+        "failure_class": failure_class,
+        "restore_source": "none",
+        "restore_usable": False,
+        "restart_mode": "clean-restart",
+        "patterns": list(lane.patterns),
+        "season_types": list(lane.season_types),
+        "context_measures": list(lane.context_measures),
+        "endpoints": list(lane.endpoints),
+        "season_start": "" if lane.season_start is None else str(lane.season_start),
+        "season_end": "" if lane.season_end is None else str(lane.season_end),
+        "parent_lane_id": lane.parent_lane_id,
+        "split_generation": lane.split_generation,
+        "extract_status": "not-run",
+        "vpn_status": vpn_status,
+        "progress": {**zero_progress, "fingerprint": _hash_payload(zero_progress)},
+        "prior_state": None,
+        "telemetry": {
+            "planned_calls": 0,
+            "journal_skips": 0,
+            "failed_calls": 0,
+            "completed_calls": 0,
+            "tables_persisted": 0,
+            "rows_persisted": 0,
+            "extract_summary_parse_error": "",
+            "db_telemetry": {
+                "planned_calls": 0,
+                "journal_skips": 0,
+                "failed_calls": 0,
+                "running_calls": 0,
+                "completed_calls": 0,
+                "tables_persisted": 0,
+                "rows_persisted": 0,
+            },
+        },
+        "state_artifact": {
+            "run_id": "",
+            "name": "",
+            "sha256": "",
+            "artifact_id": "",
+            "artifact_digest": "",
+            "required": False,
+            "attested": False,
+            "uploaded": False,
+        },
+        "extract_summary": {},
+        "vpn": {"status": vpn_status},
+    }
+
+
+def _restored_auth_rejection_metadata(lane: FullExtractionLane) -> dict[str, Any]:
+    progress = {
+        "completed_calls": lane.last_completed_calls,
+        "rows_persisted": lane.last_rows_persisted,
+    }
+    progress["fingerprint"] = _hash_payload(progress)
+    baseline = {
+        "planned_calls": lane.last_completed_calls,
+        "journal_skips": 0,
+        "failed_calls": 0,
+        "running_calls": 0,
+        "completed_calls": lane.last_completed_calls,
+        "tables_persisted": int(lane.last_rows_persisted > 0),
+        "rows_persisted": lane.last_rows_persisted,
+    }
+    payload = _auth_coordination_metadata(
+        lane,
+        raw_status="vpn_auth_failure",
+        failure_class="vpn_egress",
+    )
+    payload.update(
+        {
+            "database_sha256": lane.state_artifact_digest,
+            "restore_source": "artifact",
+            "restore_usable": True,
+            "restart_mode": "resume",
+            "progress": progress,
+            "prior_state": {
+                "run_id": lane.state_artifact_run_id,
+                "name": lane.state_artifact_name,
+                "sha256": lane.state_artifact_digest,
+                "progress": progress,
+                "telemetry": baseline,
+            },
+            "state_artifact": {
+                "run_id": lane.state_artifact_run_id,
+                "name": lane.state_artifact_name,
+                "sha256": lane.state_artifact_digest,
+                "artifact_id": "",
+                "artifact_digest": "",
+                "required": False,
+                "attested": False,
+                "uploaded": False,
+            },
+        }
+    )
+    telemetry = payload["telemetry"]
+    telemetry.update({field: baseline[field] for field in baseline if field != "running_calls"})
+    telemetry["db_telemetry"] = dict(baseline)
+    return payload
 
 
 def _contract_blocked_row(lane: FullExtractionLane) -> dict[str, Any]:
@@ -740,12 +866,15 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     ).read_text(encoding="utf-8")
 
     chunk_profile_block = _workflow_input_block(workflow, "chunk_profile")
+    vpn_parallelism_block = _workflow_input_block(workflow, "vpn_parallelism")
     direct_parallelism_block = _workflow_input_block(workflow, "direct_parallelism")
     max_iterations_block = _workflow_input_block(workflow, "max_iterations")
 
     assert "chunk_profile:" in workflow
     assert 'default: "standard"' in chunk_profile_block
     assert "network_mode:" in workflow
+    assert "vpn_parallelism:" in workflow
+    assert 'default: "2"' in vpn_parallelism_block
     assert "direct_parallelism:" in workflow
     assert 'default: "2"' in direct_parallelism_block
     assert '- "128"' in direct_parallelism_block
@@ -814,6 +943,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert (
         "needs.plan.result == 'success' && needs.preflight.result == 'success' "
         "&& needs.discovery_seed.result == 'success' && "
+        "(needs.vpn_capacity.result == 'success' || "
+        "needs.vpn_capacity.result == 'skipped') && "
         "needs.plan.outputs.matrix-lane-count != '0'"
     ) in workflow
     assert "Upload endpoint coverage diagnostics" in workflow
@@ -1923,6 +2054,9 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
         "active_lane_count": 1,
         "resume_only_lane_count": 1,
         "deferred_lane_count": 0,
+        "vpn_auth_circuit_deferred_lane_count": 0,
+        "vpn_auth_circuit_check_failed_lane_count": 0,
+        "vpn_auth_circuit_rejection_lane_count": 0,
         "blocked_lane_count": 0,
         "split_lane_count": 0,
         "contract_blocked_lane_count": 0,
@@ -2120,18 +2254,37 @@ def test_build_resume_manifest_retries_vpn_pipeline_failure(
 
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
-    _write_metadata(
-        metadata_dir / "historical.json",
-        lane_id=lane.lane_id,
-        status="pipeline_failure",
-        raw_status=vpn_failure_status,
-        endpoints=["video_status"],
-        patterns=["date"],
-        season_start=1972,
-        season_end=1972,
-    )
+    resume_kwargs: dict[str, object] = {}
+    if vpn_failure_status == "vpn_auth_failure":
+        payload = _auth_coordination_metadata(
+            lane,
+            raw_status=vpn_failure_status,
+            failure_class="vpn_egress",
+        )
+        (metadata_dir / "historical.json").write_text(
+            json.dumps(payload) + "\n",
+            encoding="utf-8",
+        )
+        resume_kwargs = {
+            "attempted_lane_ids": frozenset({lane.lane_id}),
+            "expected_chain_id": TEST_CHAIN_ID,
+            "expected_source_sha": TEST_SOURCE_SHA,
+        }
+    else:
+        _write_metadata(
+            metadata_dir / "historical.json",
+            lane_id=lane.lane_id,
+            status="pipeline_failure",
+            raw_status=vpn_failure_status,
+            endpoints=["video_status"],
+            patterns=["date"],
+            season_start=1972,
+            season_end=1972,
+        )
 
-    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane], metadata_dir, **resume_kwargs
+    )
 
     assert len(next_lanes) == 1
     assert next_lanes[0].resume_only is False
@@ -4305,6 +4458,585 @@ def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Pa
     assert summary["failure_reason_counts"] == {"extract-timeout": 1}
 
 
+def test_build_resume_manifest_defers_auth_circuit_without_spending_retry_budget(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=7,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        attempt_count=4,
+        failure_streak=2,
+        class_failure_streak=2,
+        zero_progress_streak=1,
+        last_failure_reason="needs_resume",
+        last_failure_class="transport_transient",
+        last_completed_calls=31,
+        last_rows_persisted=412,
+        next_eligible_iteration=3,
+        state_artifact_run_id="29460000000",
+        state_artifact_name=(
+            "extraction-lane-recovery-chain-"
+            "historical-game-box-score-summary-no-season-type-2024-2024-run-"
+            "29460000000-attempt-1"
+        ),
+        state_artifact_digest="a" * 64,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    metadata_path = metadata_dir / "circuit-deferred.json"
+    metadata_path.write_text(
+        json.dumps(_auth_coordination_metadata(lane, iteration=5)) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        current_iteration=5,
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert len(next_lanes) == 1
+    deferred = next_lanes[0]
+    for field_name in (
+        "attempt_count",
+        "failure_streak",
+        "class_failure_streak",
+        "zero_progress_streak",
+        "last_failure_reason",
+        "last_failure_class",
+        "last_completed_calls",
+        "last_rows_persisted",
+        "next_eligible_iteration",
+        "state_artifact_run_id",
+        "state_artifact_name",
+        "state_artifact_digest",
+    ):
+        assert getattr(deferred, field_name) == getattr(lane, field_name)
+    assert summary["active_lane_count"] == 1
+    assert summary["deferred_lane_count"] == 1
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 1
+    assert summary["vpn_auth_circuit_check_failed_lane_count"] == 0
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"vpn_auth_circuit_open": 1}
+    assert summary["failure_class_counts"] == {}
+    assert summary["pipeline_failure_retry_count"] == 0
+    assert summary["split_lane_count"] == 0
+    assert summary["blocked_lane_count"] == 0
+    assert summary["durable_state_lane_count"] == 1
+    validate_manifest(next_lanes)
+
+    next_payload = manifest_payload(next_lanes, chain_state=next_chain_state)
+    assert next_payload["active_lane_count"] == 1
+    assert next_payload["resume_only_lane_count"] == 0
+    assert [row["lane_id"] for row in next_payload["lanes"]] == [lane.lane_id]
+    round_trip = normalize_manifest(
+        redispatch_manifest_payload(next_lanes, chain_state=next_chain_state)
+    )
+    assert round_trip.lanes[0].state_artifact_run_id == lane.state_artifact_run_id
+    assert round_trip.lanes[0].last_completed_calls == lane.last_completed_calls
+
+
+def test_restored_auth_rejection_with_no_new_work_consumes_bounded_vpn_retry(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=7,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        attempt_count=4,
+        failure_streak=2,
+        class_failure_streak=2,
+        zero_progress_streak=1,
+        last_failure_reason="needs_resume",
+        last_failure_class="transport_transient",
+        last_completed_calls=31,
+        last_rows_persisted=412,
+        next_eligible_iteration=3,
+        state_artifact_run_id="29460000000",
+        state_artifact_name=(
+            "extraction-lane-recovery-chain-"
+            "historical-game-box-score-summary-no-season-type-2024-2024-run-"
+            "29460000000-attempt-1"
+        ),
+        state_artifact_digest="a" * 64,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "auth-rejection.json").write_text(
+        json.dumps(_restored_auth_rejection_metadata(lane)) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.attempt_count == lane.attempt_count + 1
+    assert retry_lane.failure_streak == lane.failure_streak + 1
+    assert retry_lane.class_failure_streak == 1
+    assert retry_lane.zero_progress_streak == lane.zero_progress_streak + 1
+    assert retry_lane.last_failure_reason == "needs_resume"
+    assert retry_lane.last_failure_class == "vpn_egress"
+    assert retry_lane.last_completed_calls == lane.last_completed_calls
+    assert retry_lane.last_rows_persisted == lane.last_rows_persisted
+    assert retry_lane.state_artifact_run_id == lane.state_artifact_run_id
+    assert retry_lane.state_artifact_name == lane.state_artifact_name
+    assert retry_lane.state_artifact_digest == lane.state_artifact_digest
+    assert summary["active_lane_count"] == 1
+    assert summary["deferred_lane_count"] == 1
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 1
+    assert summary["failure_reason_counts"] == {"vpn_auth_failure": 1}
+    assert summary["failure_class_counts"] == {"vpn_egress": 1}
+    assert summary["pipeline_failure_retry_count"] == 0
+
+
+@pytest.mark.parametrize("progress_field", ["completed_calls", "rows_persisted"])
+def test_restored_auth_rejection_with_new_progress_is_not_circuit_opening(
+    tmp_path: Path,
+    progress_field: str,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=0,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        attempt_count=3,
+        last_completed_calls=31,
+        last_rows_persisted=412,
+        state_artifact_run_id="29460000000",
+        state_artifact_name=(
+            "extraction-lane-recovery-chain-"
+            "historical-game-box-score-summary-no-season-type-2024-2024-run-"
+            "29460000000-attempt-1"
+        ),
+        state_artifact_digest="a" * 64,
+    )
+    payload = _restored_auth_rejection_metadata(lane)
+    payload["progress"][progress_field] += 1
+    payload["progress"]["fingerprint"] = _hash_payload(
+        {
+            "completed_calls": payload["progress"]["completed_calls"],
+            "rows_persisted": payload["progress"]["rows_persisted"],
+        }
+    )
+    payload["telemetry"][progress_field] += 1
+    payload["telemetry"]["db_telemetry"][progress_field] += 1
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "progressed-auth-rejection.json").write_text(
+        json.dumps(payload) + "\n",
+        encoding="utf-8",
+    )
+
+    resume_kwargs = {
+        "attempted_lane_ids": frozenset({lane.lane_id}),
+        "expected_chain_id": TEST_CHAIN_ID,
+        "expected_source_sha": TEST_SOURCE_SHA,
+    }
+    with pytest.raises(ValueError, match="invalid-vpn-auth-rejection-metadata"):
+        build_resume_manifest([lane], metadata_dir, **resume_kwargs)
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane], metadata_dir, allow_pipeline_failures=True, **resume_kwargs
+    )
+
+    assert next_lanes[0].attempt_count == lane.attempt_count + 1
+    assert next_lanes[0].state_artifact_run_id == lane.state_artifact_run_id
+    assert next_lanes[0].state_artifact_name == lane.state_artifact_name
+    assert next_lanes[0].state_artifact_digest == lane.state_artifact_digest
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-rejection-metadata": 1}
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
+
+
+def test_build_resume_manifest_rejects_unattested_auth_circuit_deferral(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2023-2023",
+        lane_index=0,
+        lane_name="Historical game 2023",
+        lane_kind="historical",
+        season_start=2023,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        attempt_count=1,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "unattested-circuit.json",
+        lane_id=lane.lane_id,
+        status="needs_resume",
+        raw_status="vpn_auth_circuit_open",
+        failure_class="vpn_egress",
+        endpoints=list(lane.endpoints),
+        patterns=list(lane.patterns),
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+    )
+
+    assert next_lanes[0].attempt_count == lane.attempt_count + 1
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 0
+    assert summary["vpn_auth_circuit_check_failed_lane_count"] == 0
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("metadata_schema_version", 2),
+        ("metadata_schema_version", 4),
+        ("chain_id", "other-chain"),
+        ("source_sha", "b" * 40),
+        ("coverage_units_hash", "c" * 64),
+        ("lane_index", "99"),
+        ("lane_index", []),
+        ("endpoints", ["other_endpoint"]),
+        ("season_start", []),
+        ("extract_status", "extract-error"),
+        ("progress", {"completed_calls": 1, "rows_persisted": 0}),
+        ("telemetry", {}),
+        ("state_artifact", {}),
+        ("vpn", {}),
+    ],
+)
+def test_build_resume_manifest_rejects_stale_or_malformed_auth_circuit_deferral(
+    tmp_path: Path,
+    field: str,
+    invalid_value: object,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2022-2022",
+        lane_index=3,
+        lane_name="Historical game 2022",
+        lane_kind="historical",
+        season_start=2022,
+        season_end=2022,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        attempt_count=2,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    payload = _auth_coordination_metadata(lane)
+    payload[field] = invalid_value
+    (metadata_dir / "circuit.json").write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert next_lanes[0].attempt_count == lane.attempt_count + 1
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 0
+    assert summary["vpn_auth_circuit_check_failed_lane_count"] == 0
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-circuit-metadata": 1}
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
+
+
+@pytest.mark.parametrize("missing_field", ["progress", "telemetry", "state_artifact", "vpn"])
+def test_build_resume_manifest_rejects_missing_auth_coordination_contract_fields(
+    tmp_path: Path,
+    missing_field: str,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2022-2022",
+        lane_index=0,
+        lane_name="Historical game 2022",
+        lane_kind="historical",
+        season_start=2022,
+        season_end=2022,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    payload = _auth_coordination_metadata(lane)
+    payload.pop(missing_field)
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "circuit.json").write_text(
+        json.dumps(payload) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert next_lanes[0].attempt_count == 1
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 0
+    assert summary["vpn_auth_circuit_check_failed_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-circuit-metadata": 1}
+
+
+def test_auth_circuit_lookup_failure_retries_without_opening_provider_circuit(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=0,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        attempt_count=3,
+    )
+    payload = _auth_coordination_metadata(
+        lane,
+        raw_status="vpn_auth_circuit_check_failed",
+        failure_class="runner_infrastructure",
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "check-failed.json").write_text(
+        json.dumps(payload) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert next_lanes[0].attempt_count == 4
+    assert next_lanes[0].last_failure_class == "runner_infrastructure"
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 0
+    assert summary["vpn_auth_circuit_check_failed_lane_count"] == 1
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"vpn_auth_circuit_check_failed": 1}
+
+
+@pytest.mark.parametrize(
+    ("raw_status", "failure_class"),
+    [
+        ("vpn_auth_circuit_open", "application"),
+        ("vpn_auth_circuit_check_failed", "application"),
+    ],
+)
+def test_malformed_reserved_circuit_status_uses_infrastructure_retry_budget(
+    tmp_path: Path,
+    raw_status: str,
+    failure_class: str,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=0,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    payload = _auth_coordination_metadata(
+        lane,
+        raw_status=raw_status,
+        failure_class=failure_class,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "malformed-circuit.json").write_text(
+        json.dumps(payload) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert next_lanes[0].attempt_count == 1
+    assert next_lanes[0].last_failure_class == "runner_infrastructure"
+    assert summary["blocked_lane_count"] == 0
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 0
+    assert summary["vpn_auth_circuit_check_failed_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-circuit-metadata": 1}
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
+
+
+def test_build_resume_manifest_counts_all_already_admitted_auth_rejections(
+    tmp_path: Path,
+) -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id=f"historical-game-box-score-summary-no-season-type-{year}-{year}",
+            lane_index=index,
+            lane_name=f"Historical game {year}",
+            lane_kind="historical",
+            season_start=year,
+            season_end=year,
+            patterns=("game",),
+            endpoints=("box_score_summary",),
+            timeout_seconds=7200,
+        )
+        for index, year in enumerate((2023, 2024))
+    ]
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    for lane in lanes:
+        payload = _auth_coordination_metadata(
+            lane,
+            raw_status="vpn_auth_failure",
+            failure_class="vpn_egress",
+        )
+        (metadata_dir / f"{lane.lane_id}.json").write_text(
+            json.dumps(payload) + "\n",
+            encoding="utf-8",
+        )
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        lanes,
+        metadata_dir,
+        attempted_lane_ids=frozenset(lane.lane_id for lane in lanes),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert len(next_lanes) == 2
+    assert summary["vpn_auth_circuit_deferred_lane_count"] == 0
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 2
+    assert summary["failure_reason_counts"] == {"vpn_auth_failure": 2}
+
+
+def test_build_resume_manifest_rejects_unproven_auth_rejection_for_circuit_open(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=0,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    payload = _auth_coordination_metadata(
+        lane,
+        raw_status="vpn_auth_failure",
+        failure_class="vpn_egress",
+    )
+    payload["chain_id"] = "other-chain"
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "invalid-rejection.json").write_text(
+        json.dumps(payload) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert next_lanes[0].last_failure_class == "runner_infrastructure"
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-rejection-metadata": 1}
+
+
+def test_build_resume_manifest_rejects_auth_rejection_with_nonzero_work(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2024-2024",
+        lane_index=0,
+        lane_name="Historical game 2024",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    payload = _auth_coordination_metadata(
+        lane,
+        raw_status="vpn_auth_failure",
+        failure_class="vpn_egress",
+    )
+    payload["telemetry"]["planned_calls"] = 17
+    payload["telemetry"]["failed_calls"] = 2
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "nonzero-auth-rejection.json").write_text(
+        json.dumps(payload) + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, _next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        expected_chain_id=TEST_CHAIN_ID,
+        expected_source_sha=TEST_SOURCE_SHA,
+    )
+
+    assert next_lanes[0].attempt_count == 1
+    assert next_lanes[0].last_failure_class == "runner_infrastructure"
+    assert summary["vpn_auth_circuit_rejection_lane_count"] == 0
+    assert summary["failure_reason_counts"] == {"invalid-vpn-auth-rejection-metadata": 1}
+    assert summary["failure_class_counts"] == {"runner_infrastructure": 1}
+
+
 def test_build_resume_manifest_applies_chunk_profile_to_deferred_lanes(
     tmp_path: Path,
 ) -> None:
@@ -4694,6 +5426,8 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
             pending_contract_blocked_evidence=(pending_row,),
             pending_contract_blocked_evidence_sha256=_hash_payload(pending_evidence),
         ),
+        chain_id=TEST_CHAIN_ID,
+        workflow_source_sha=TEST_SOURCE_SHA.upper(),
     )
 
     manifest = normalize_manifest(payload)
@@ -4711,6 +5445,18 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
     )
     assert manifest.lanes[0].lane_id == "reference-static"
     assert manifest.matrix_lane_ids == frozenset({"reference-static"})
+    assert manifest.chain_id == TEST_CHAIN_ID
+    assert manifest.workflow_source_sha == TEST_SOURCE_SHA
+
+    redispatch = redispatch_manifest_payload(
+        list(manifest.lanes),
+        chain_state=manifest.chain_state,
+        chain_id=manifest.chain_id,
+        workflow_source_sha=manifest.workflow_source_sha,
+    )
+    redispatch_manifest = normalize_manifest(redispatch)
+    assert redispatch_manifest.chain_id == TEST_CHAIN_ID
+    assert redispatch_manifest.workflow_source_sha == TEST_SOURCE_SHA
 
 
 def test_manifest_payload_caps_github_matrix_to_active_wave() -> None:
@@ -8551,6 +9297,8 @@ def test_full_extraction_terminal_control_plane_handoff_e2e(
                     vpn_quarantined_servers=("us111.nordvpn.com",),
                     artifact_run_ids=("26385964741",),
                 ),
+                chain_id=TEST_CHAIN_ID,
+                workflow_source_sha=TEST_SOURCE_SHA,
             )
         )
         + "\n",
@@ -8684,6 +9432,8 @@ def test_full_extraction_terminal_control_plane_handoff_e2e(
     next_manifest = normalize_manifest(next_payload)
     validate_manifest(list(next_manifest.lanes))
     assert next_payload["active_lane_count"] == 0
+    assert next_payload["chain_id"] == TEST_CHAIN_ID
+    assert next_payload["workflow_source_sha"] == TEST_SOURCE_SHA
     assert next_payload["matrix_lane_count"] == 0
     assert next_payload["resume_only_lane_count"] == 2
     assert next_payload["resume_summary"]["contract_blocked_lane_count"] == 1
@@ -8707,12 +9457,18 @@ def test_full_extraction_terminal_control_plane_handoff_e2e(
 
     redispatch_json = json.dumps(
         redispatch_manifest_payload(
-            list(next_manifest.lanes), chain_state=next_manifest.chain_state
+            list(next_manifest.lanes),
+            chain_state=next_manifest.chain_state,
+            chain_id=next_manifest.chain_id,
+            workflow_source_sha=next_manifest.workflow_source_sha,
         ),
         separators=(",", ":"),
     )
     validate_workflow_dispatch_manifest_json(redispatch_json)
-    assert normalize_manifest(json.loads(redispatch_json)).chain_state == next_manifest.chain_state
+    redispatch_manifest = normalize_manifest(json.loads(redispatch_json))
+    assert redispatch_manifest.chain_state == next_manifest.chain_state
+    assert redispatch_manifest.chain_id == TEST_CHAIN_ID
+    assert redispatch_manifest.workflow_source_sha == TEST_SOURCE_SHA
 
     audit_path = artifacts_dir / "extraction-audit.json"
     assert (

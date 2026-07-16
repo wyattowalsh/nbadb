@@ -97,7 +97,7 @@ def test_supervisor_timeout_writes_nba_probe_outputs(monkeypatch, tmp_path: Path
             return None
 
     monkeypatch.setattr(module.subprocess, "Popen", lambda *args, **kwargs: _Child())
-    monotonic_values = iter((100.0, 132.0))
+    monotonic_values = iter((100.0, 232.0))
     monkeypatch.setattr(module.time, "monotonic", lambda: next(monotonic_values))
     monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
     terminated: list[int] = []
