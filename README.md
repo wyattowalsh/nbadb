@@ -295,7 +295,14 @@ during both restore and checkpoint merge. Append-only growth outside that lane i
 checkpoints carry `included_lane_workload_contracts` and compare the generation-independent
 scope identity before rebinding the lane to the current cumulative generation. Only metadata
 with an explicitly attested, durably uploaded artifact pointer can carry state into a retry;
-partial lanes that add calls or rows retry in place so their journal progress remains reusable,
+active partial pointers use
+`extraction-lane-recovery-<chain>-<lane>-run-<run>-attempt-<attempt>` with matching positive
+run and attempt identities. Canonical complete-lane artifact names are not partial-resume
+pointers. An invalid or missing new receipt never replaces an older canonical recovery pointer
+or its counters. Without prior durable state, the pointer and progress baseline remain clear;
+in either case, unreceipted reported counter growth remains diagnostics-only and increments the
+cumulative no-progress streak.
+Partial lanes that add calls or rows retry in place so their journal progress remains reusable,
 including transport-class `needs_resume` outcomes. Timeout-class lanes split only when the
 latest attempt adds no durable progress. Complete and partial lane-state uploads each get one
 exact-name overwrite retry before metadata is downgraded to diagnostics-only. Split children

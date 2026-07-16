@@ -1373,13 +1373,21 @@ def _duplicate_lane_id_errors(lanes: list[FullExtractionLane]) -> list[str]:
 
 def _lane_has_state_artifact_pointer(lane: FullExtractionLane) -> bool:
     # Restore revalidates the receipt and full provenance before the VPN step.
-    expected_name_suffix = f"-{lane.lane_id}"
-    return bool(
-        _is_positive_run_id(lane.state_artifact_run_id)
-        and lane.state_artifact_name.startswith("extraction-lane-")
-        and lane.state_artifact_name.endswith(expected_name_suffix)
-        and _is_sha256(lane.state_artifact_digest)
-    )
+    run_id = lane.state_artifact_run_id
+    artifact_name = lane.state_artifact_name
+    if not _is_positive_run_id(run_id) or not _is_sha256(lane.state_artifact_digest):
+        return False
+
+    prefix = "extraction-lane-recovery-"
+    recovery_marker = f"-{lane.lane_id}-run-{run_id}-attempt-"
+    if not artifact_name.startswith(prefix):
+        return False
+    recovery_identity = artifact_name.removeprefix(prefix)
+    marker_index = recovery_identity.rfind(recovery_marker)
+    if marker_index <= 0:
+        return False
+    attempt = recovery_identity[marker_index + len(recovery_marker) :]
+    return _is_positive_run_id(attempt)
 
 
 def _raise_manifest_errors(errors: list[str]) -> None:
@@ -1449,6 +1457,24 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: zero_progress_streak must be >= 0")
         if lane.last_completed_calls < 0 or lane.last_rows_persisted < 0:
             errors.append(f"{lane.lane_id}: persisted progress counters must be >= 0")
+        state_pointer_present = any(
+            (
+                lane.state_artifact_run_id,
+                lane.state_artifact_name,
+                lane.state_artifact_digest,
+            )
+        )
+        if state_pointer_present and not _lane_has_state_artifact_pointer(lane):
+            errors.append(
+                f"{lane.lane_id}: state artifact pointer must identify a canonical "
+                "uploaded recovery artifact"
+            )
+        progress_baseline_present = bool(lane.last_completed_calls or lane.last_rows_persisted)
+        if progress_baseline_present and not _lane_has_state_artifact_pointer(lane):
+            errors.append(
+                f"{lane.lane_id}: persisted progress counters require a canonical "
+                "recovery artifact pointer"
+            )
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
         if (
@@ -2483,7 +2509,7 @@ def _metadata_added_durable_progress(
     return _metadata_progress_increased(
         lane,
         payload,
-    ) and _metadata_state_artifact_is_durable(payload)
+    ) and _metadata_state_artifact_is_durable_for_lane(lane, payload)
 
 
 def _support_rule_fingerprints(raw_rules: Any) -> tuple[str, ...] | None:
@@ -2571,6 +2597,23 @@ def _metadata_state_artifact_is_durable(payload: dict[str, Any]) -> bool:
     )
 
 
+def _metadata_state_artifact_is_durable_for_lane(
+    lane: FullExtractionLane,
+    payload: dict[str, Any],
+) -> bool:
+    if not _metadata_state_artifact_is_durable(payload):
+        return False
+    run_id, name, digest = _metadata_state_artifact(payload)
+    return _lane_has_state_artifact_pointer(
+        replace(
+            lane,
+            state_artifact_run_id=run_id,
+            state_artifact_name=name,
+            state_artifact_digest=digest,
+        )
+    )
+
+
 def _retry_budget_exhausted(failure_class: str, streak: int) -> bool:
     budget = FAILURE_RETRY_BUDGETS.get(failure_class, 1)
     return budget > 0 and streak >= budget
@@ -2594,14 +2637,14 @@ def _retry_lane_from_metadata(
     current_iteration: int,
 ) -> FullExtractionLane:
     completed_calls, rows_persisted = _metadata_progress(payload)
-    state_artifact_durable = _metadata_state_artifact_is_durable(payload)
+    state_artifact_durable = _metadata_state_artifact_is_durable_for_lane(lane, payload)
     if state_artifact_durable and _metadata_progress_regressed(lane, payload):
         raise ValueError(
             f"Durable lane state progress regressed for {lane.lane_id}: "
             f"calls {lane.last_completed_calls}->{completed_calls}, "
             f"rows {lane.last_rows_persisted}->{rows_persisted}"
         )
-    progress_increased = _metadata_progress_increased(lane, payload)
+    durable_progress_increased = _metadata_added_durable_progress(lane, payload)
     raw_status = str(payload.get("raw_status") or payload.get("status") or outcome).strip()
     failure_class = _metadata_failure_class(payload, raw_status=raw_status)
     previous_failure_class = lane.last_failure_class or _legacy_failure_class(
@@ -2609,10 +2652,21 @@ def _retry_lane_from_metadata(
     )
     previous_class_streak = lane.class_failure_streak or lane.failure_streak
     class_streak = previous_class_streak + 1 if previous_failure_class == failure_class else 1
-    zero_progress_streak = 0 if progress_increased else lane.zero_progress_streak + 1
+    zero_progress_streak = 0 if durable_progress_increased else lane.zero_progress_streak + 1
     state_run_id, state_name, state_digest = _metadata_state_artifact(payload)
-    if not state_artifact_durable:
+    if state_artifact_durable:
+        next_completed_calls = max(lane.last_completed_calls, completed_calls)
+        next_rows_persisted = max(lane.last_rows_persisted, rows_persisted)
+    elif _lane_has_state_artifact_pointer(lane):
+        state_run_id = lane.state_artifact_run_id
+        state_name = lane.state_artifact_name
+        state_digest = lane.state_artifact_digest
+        next_completed_calls = lane.last_completed_calls
+        next_rows_persisted = lane.last_rows_persisted
+    else:
         state_run_id = state_name = state_digest = ""
+        next_completed_calls = 0
+        next_rows_persisted = 0
     cooldown = 1 if failure_class in {"transport_transient", "response_contract"} else 0
     return replace(
         lane,
@@ -2621,8 +2675,8 @@ def _retry_lane_from_metadata(
         class_failure_streak=class_streak,
         zero_progress_streak=zero_progress_streak,
         last_failure_class=failure_class,
-        last_completed_calls=max(lane.last_completed_calls, completed_calls),
-        last_rows_persisted=max(lane.last_rows_persisted, rows_persisted),
+        last_completed_calls=next_completed_calls,
+        last_rows_persisted=next_rows_persisted,
         next_eligible_iteration=current_iteration + cooldown,
         state_artifact_run_id=state_run_id,
         state_artifact_name=state_name,
@@ -2939,6 +2993,8 @@ def build_resume_manifest(
                     state_artifact_run_id="",
                     state_artifact_name="",
                     state_artifact_digest="",
+                    last_completed_calls=0,
+                    last_rows_persisted=0,
                 )
             )
             resumed += 1

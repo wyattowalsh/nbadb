@@ -372,7 +372,13 @@ metadata schema v3 uploads even when snapshot attestation fails, preserving rest
 errors, progress, failure class, root error type, and failed VPN servers for lane
 control. Only a pointer with both `state_artifact.attested=true` and
 `state_artifact.uploaded=true` plus valid receipt fields is reusable. The database itself
-remains diagnostics-only when attestation or upload finalization fails.
+remains diagnostics-only when attestation or upload finalization fails. Active partial pointers
+must use
+`extraction-lane-recovery-<chain>-<lane>-run-<run>-attempt-<attempt>` with the embedded
+positive run ID matching `state_artifact_run_id`; a canonical complete-lane name is not a
+partial-resume pointer. An invalid or missing new receipt never replaces an older canonical
+recovery pointer or its completed-call/persisted-row baselines. Without prior durable state,
+the pointer and baselines remain clear before retry.
 
 `video_details` and `video_details_asset` classify 1946-47 through 2003-04 as
 `contract_blocked` and begin at 2004-05 in full extraction. Run 29195221754 discovery
@@ -428,10 +434,12 @@ With `max_iterations=auto`, the first manifest derives one numeric `iteration_bu
 from total remaining matrix dispatch credits, per-lane retry depth, and bounded split
 descendants. Child manifests preserve that value and never extend it. Redispatch still
 passes the literal `auto` input while the fixed manifest cap remains authoritative.
-Each lane also carries a cumulative `zero_progress_streak`: it increments whenever
-completed-call and persisted-row counters do not advance, even if the reported failure
-class alternates between attempts. This keeps mixed transport, response-contract, and
-infrastructure failures inside one bounded no-progress budget.
+Each lane also carries a cumulative `zero_progress_streak`. It resets only when completed-call
+or persisted-row counters advance and a valid, durably uploaded state-artifact receipt backs
+that progress. Unchanged counters increment the streak. Reported growth without a valid receipt
+is diagnostics-only and also increments the streak, even if the failure class alternates between
+attempts. This keeps mixed transport, response-contract, and infrastructure failures inside one
+bounded no-progress budget.
 Before `gh workflow run`, the dispatch job queries all paginated
 workflow-dispatch runs and refuses an active or successful display-title match for
 `Full Extraction chain=<chain_id> iteration=<next>`. The job-level concurrency key

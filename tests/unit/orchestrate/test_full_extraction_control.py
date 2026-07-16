@@ -119,6 +119,11 @@ def _write_metadata(
     season_start: int | None = None,
     season_end: int | None = None,
 ) -> None:
+    state_artifact_name = (
+        f"extraction-lane-{TEST_CHAIN_ID}-{lane_id}"
+        if status == "complete"
+        else (f"extraction-lane-recovery-{TEST_CHAIN_ID}-{lane_id}-run-{TEST_RUN_ID}-attempt-1")
+    )
     payload: dict[str, object] = {
         "lane_id": lane_id,
         "status": status,
@@ -138,8 +143,8 @@ def _write_metadata(
     }
     if status == "complete" or completed_calls > 0 or rows_persisted > 0:
         payload["state_artifact"] = {
-            "run_id": "12345",
-            "name": f"extraction-lane-chain-{lane_id}",
+            "run_id": TEST_RUN_ID,
+            "name": state_artifact_name,
             "sha256": "a" * 64,
             "attested": True,
             "uploaded": True,
@@ -1872,6 +1877,21 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
         _support_row("common_player_info", ["player"], None),
     ]
     lanes = build_default_manifest(support_matrix_rows=rows)
+    lanes = [
+        replace(
+            lane,
+            state_artifact_run_id="12345",
+            state_artifact_name=(
+                "extraction-lane-recovery-chain-reference-static-run-12345-attempt-1"
+            ),
+            state_artifact_digest="a" * 64,
+            last_completed_calls=7,
+            last_rows_persisted=11,
+        )
+        if lane.lane_id == "reference-static"
+        else lane
+        for lane in lanes
+    ]
 
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
@@ -1890,6 +1910,9 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
 
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id["reference-static"].resume_only is True
+    assert by_id["reference-static"].state_artifact_run_id == ""
+    assert by_id["reference-static"].last_completed_calls == 0
+    assert by_id["reference-static"].last_rows_persisted == 0
     active_lane = by_id["reference-player"]
     assert active_lane.resume_only is False
     assert active_lane.failure_streak == 1
@@ -2397,6 +2420,7 @@ def test_build_resume_manifest_carries_durable_state_and_progress(tmp_path: Path
         patterns=("season",),
         endpoints=("draft_history",),
         timeout_seconds=3600,
+        zero_progress_streak=2,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
@@ -2413,7 +2437,9 @@ def test_build_resume_manifest_carries_durable_state_and_progress(tmp_path: Path
                 "telemetry": {"rows_persisted": 55},
                 "state_artifact": {
                     "run_id": "12345",
-                    "name": "extraction-lane-chain-lane",
+                    "name": (
+                        "extraction-lane-recovery-chain-historical-season-2020-run-12345-attempt-1"
+                    ),
                     "sha256": "a" * 64,
                     "attested": True,
                     "uploaded": True,
@@ -2435,11 +2461,14 @@ def test_build_resume_manifest_carries_durable_state_and_progress(tmp_path: Path
     assert resumed.last_rows_persisted == 55
     assert resumed.zero_progress_streak == 0
     assert resumed.state_artifact_run_id == "12345"
-    assert resumed.state_artifact_name == "extraction-lane-chain-lane"
+    assert resumed.state_artifact_name == (
+        "extraction-lane-recovery-chain-historical-season-2020-run-12345-attempt-1"
+    )
     assert resumed.state_artifact_digest == "a" * 64
     assert summary["durable_state_lane_count"] == 1
     assert summary["outcome_counts"] == {"needs_resume": 1}
     assert summary["failure_reason_counts"] == {"extract-timeout": 1}
+    validate_manifest(next_lanes)
 
 
 @pytest.mark.parametrize(
@@ -2620,6 +2649,9 @@ def test_build_resume_manifest_preserves_progress_before_legacy_reshard(
     assert retry_lane.lane_id == lane.lane_id
     assert retry_lane.last_rows_persisted == 12
     assert retry_lane.state_artifact_run_id == "12345"
+    assert retry_lane.state_artifact_name == (
+        f"extraction-lane-recovery-chain-{lane.lane_id}-run-12345-attempt-1"
+    )
     assert summary["split_lane_count"] == 0
     validate_manifest(next_lanes)
 
@@ -2719,6 +2751,74 @@ def test_validate_manifest_rejects_oversized_lane_with_untrusted_state_pointer()
         validate_manifest([lane])
 
 
+def test_validate_manifest_accepts_oversized_lane_with_canonical_recovery_pointer() -> None:
+    lane_id = "historical-game-box-score-summary-no-season-type-1994-2005"
+    lane = FullExtractionLane(
+        lane_id=lane_id,
+        lane_index=0,
+        lane_name="Historical game 1994-2005",
+        lane_kind="historical",
+        season_start=1994,
+        season_end=2005,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        state_artifact_run_id="12345",
+        state_artifact_name=(f"extraction-lane-recovery-chain-{lane_id}-run-12345-attempt-2"),
+        state_artifact_digest="a" * 64,
+    )
+
+    validate_manifest([lane])
+
+
+def test_validate_manifest_rejects_progress_without_recovery_pointer() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-player-orphan-progress",
+        lane_index=0,
+        lane_name="Reference Player Orphan Progress",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("player",),
+        endpoints=("common_player_info",),
+        timeout_seconds=3600,
+        last_completed_calls=1,
+    )
+
+    with pytest.raises(ValueError, match="persisted progress counters require"):
+        validate_manifest([lane])
+
+
+@pytest.mark.parametrize(
+    "artifact_name",
+    [
+        "extraction-lane-chain-{lane_id}",
+        "extraction-lane-recovery-chain-{lane_id}-run-99999-attempt-1",
+        "extraction-lane-recovery-chain-{lane_id}-run-12345-attempt-0",
+        "extraction-lane-recovery-chain-other-lane-run-12345-attempt-1",
+    ],
+)
+def test_validate_manifest_rejects_noncanonical_recovery_pointer(artifact_name: str) -> None:
+    lane_id = "historical-game-box-score-summary-no-season-type-2020-2023"
+    lane = FullExtractionLane(
+        lane_id=lane_id,
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        state_artifact_run_id="12345",
+        state_artifact_name=artifact_name.format(lane_id=lane_id),
+        state_artifact_digest="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="canonical uploaded recovery artifact"):
+        validate_manifest([lane])
+
+
 @pytest.mark.parametrize(
     ("receipt_field", "receipt_value"),
     [
@@ -2743,6 +2843,7 @@ def test_timeout_progress_requires_durable_artifact_receipt(
         patterns=("game",),
         endpoints=("box_score_summary",),
         timeout_seconds=7200,
+        zero_progress_streak=2,
     )
     metadata_path = tmp_path / f"{receipt_field}.json"
     _write_metadata(
@@ -2762,7 +2863,97 @@ def test_timeout_progress_requires_durable_artifact_receipt(
     assert len(next_lanes) == 4
     assert all(not child.state_artifact_run_id for child in next_lanes)
     assert all(child.last_completed_calls == 0 for child in next_lanes)
+    assert all(child.zero_progress_streak == 3 for child in next_lanes)
     assert summary["split_lane_count"] == 4
+
+
+def test_missing_artifact_receipt_does_not_preserve_reported_progress(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-player-state-upload-failed",
+        lane_index=0,
+        lane_name="Reference Player State Upload Failed",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("player",),
+        endpoints=("common_player_info",),
+        timeout_seconds=3600,
+        zero_progress_streak=2,
+    )
+    metadata_path = tmp_path / "missing-receipt.json"
+    _write_metadata(
+        metadata_path,
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="state-artifact-upload-failed",
+        completed_calls=10,
+    )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    payload.pop("state_artifact")
+    metadata_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        tmp_path,
+        allow_pipeline_failures=True,
+    )
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.zero_progress_streak == 3
+    assert retry_lane.last_completed_calls == 0
+    assert retry_lane.last_rows_persisted == 0
+    assert retry_lane.state_artifact_run_id == ""
+    assert summary["pipeline_failure_retry_count"] == 1
+
+
+def test_failed_new_receipt_preserves_previous_durable_state(tmp_path: Path) -> None:
+    lane_id = "reference-player-state-upload-failed"
+    previous_artifact_name = f"extraction-lane-recovery-chain-{lane_id}-run-12345-attempt-1"
+    lane = FullExtractionLane(
+        lane_id=lane_id,
+        lane_index=0,
+        lane_name="Reference Player State Upload Failed",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("player",),
+        endpoints=("common_player_info",),
+        timeout_seconds=3600,
+        zero_progress_streak=2,
+        state_artifact_run_id="12345",
+        state_artifact_name=previous_artifact_name,
+        state_artifact_digest="a" * 64,
+        last_completed_calls=5,
+        last_rows_persisted=8,
+    )
+    metadata_path = tmp_path / "failed-new-receipt.json"
+    _write_metadata(
+        metadata_path,
+        lane_id=lane.lane_id,
+        status="needs_resume",
+        raw_status="extract-timeout",
+        completed_calls=10,
+        rows_persisted=12,
+    )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    state_artifact = payload["state_artifact"]
+    assert isinstance(state_artifact, dict)
+    state_artifact["uploaded"] = False
+    metadata_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], tmp_path)
+
+    assert len(next_lanes) == 1
+    retry_lane = next_lanes[0]
+    assert retry_lane.zero_progress_streak == 3
+    assert retry_lane.state_artifact_run_id == "12345"
+    assert retry_lane.state_artifact_name == previous_artifact_name
+    assert retry_lane.state_artifact_digest == "a" * 64
+    assert retry_lane.last_completed_calls == 5
+    assert retry_lane.last_rows_persisted == 8
+    assert summary["durable_state_lane_count"] == 1
+    validate_manifest(next_lanes)
 
 
 def test_timeout_progress_without_state_artifact_fails_closed(tmp_path: Path) -> None:
