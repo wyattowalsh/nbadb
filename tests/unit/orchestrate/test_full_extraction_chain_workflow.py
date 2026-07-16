@@ -316,7 +316,7 @@ def test_inline_project_imports_run_in_uv_environment() -> None:
     project_import_blocks: list[tuple[int, str]] = []
 
     for index, invocation in enumerate(workflow_lines):
-        if "python - <<'PY'" not in invocation:
+        if re.search(r"\bpython3?\s+-\s+<<'PY'", invocation) is None:
             continue
         end = next(
             (
@@ -332,9 +332,12 @@ def test_inline_project_imports_run_in_uv_environment() -> None:
             project_import_blocks.append((index + 1, invocation.strip()))
 
     assert project_import_blocks
-    assert all("uv run python - <<'PY'" in invocation for _, invocation in project_import_blocks), (
-        project_import_blocks
-    )
+    violations = [
+        (line_number, invocation)
+        for line_number, invocation in project_import_blocks
+        if re.search(r"\buv run python3?\s+-\s+<<'PY'", invocation) is None
+    ]
+    assert not violations, violations
 
 
 def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> None:
