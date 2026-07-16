@@ -4384,7 +4384,7 @@ jobs:
             VERIFIED_PREVIOUS_CHECKPOINT_PATH="$(find artifacts/full-extraction -name verified-previous-checkpoint.json -type f -print -quit || true)" \
             CHECKPOINT_REPORT_PATH=artifacts/full-extraction/checkpoint-report.json \
             LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="$LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT" \
-            python - <<'PY'
+            uv run python - <<'PY'
           # CHECKPOINT_CONTRACT_BLOCKED_EVIDENCE_BINDER
           import hashlib
           import json

@@ -311,6 +311,32 @@ def test_checkpoint_build_step_avoids_github_expressions_in_oversized_script() -
     )
 
 
+def test_inline_project_imports_run_in_uv_environment() -> None:
+    workflow_lines = _workflow_text().splitlines()
+    project_import_blocks: list[tuple[int, str]] = []
+
+    for index, invocation in enumerate(workflow_lines):
+        if "python - <<'PY'" not in invocation:
+            continue
+        end = next(
+            (
+                candidate
+                for candidate in range(index + 1, len(workflow_lines))
+                if workflow_lines[candidate].strip() == "PY"
+            ),
+            None,
+        )
+        assert end is not None, f"unterminated Python heredoc at line {index + 1}"
+        body = "\n".join(workflow_lines[index + 1 : end])
+        if re.search(r"(?m)^\s*(?:from|import)\s+nbadb(?:\.|\s|$)", body):
+            project_import_blocks.append((index + 1, invocation.strip()))
+
+    assert project_import_blocks
+    assert all("uv run python - <<'PY'" in invocation for _, invocation in project_import_blocks), (
+        project_import_blocks
+    )
+
+
 def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> None:
     workflow = _workflow_text()
     plan = _job_block(workflow, "plan")
