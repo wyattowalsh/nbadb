@@ -1173,8 +1173,21 @@ class NordVpnConnectAction:
                 ),
                 len(candidate_pool),
             )
-            primary_pool = self.diversified_server_candidates(candidate_pool[:base_count])
-            reserve_pool = self.diversified_server_candidates(candidate_pool[base_count:])
+            preferred_exclusions = set(self.preferred_servers)
+            primary_pool = self.diversified_server_candidates(
+                tuple(
+                    candidate
+                    for candidate in candidate_pool[:base_count]
+                    if candidate.hostname not in preferred_exclusions
+                )
+            )
+            reserve_pool = self.diversified_server_candidates(
+                tuple(
+                    candidate
+                    for candidate in candidate_pool[base_count:]
+                    if candidate.hostname not in preferred_exclusions
+                )
+            )
             return _eligible_assigned(primary_pool), _eligible_assigned(reserve_pool)
 
         eligible_primary, eligible_reserve = _partitioned_candidates(candidates)

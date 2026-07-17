@@ -1129,15 +1129,22 @@ def test_recommendations_do_not_wrap_preferred_host_for_out_of_order_lane_start(
     assert len(out_of_order_lane) <= action.server_limit
 
 
+@pytest.mark.parametrize(
+    "recommendation_run_id",
+    ["1", "29546730656", "29549560958", "999999999"],
+)
 def test_recommendations_use_deduplicated_preferred_pool_for_lane_assignments(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
+    recommendation_run_id: str,
 ) -> None:
     monkeypatch.setenv(
         "PREFERRED_SERVERS_JSON",
         '["us2001.nordvpn.com", "us2001.nordvpn.com", "us2002.nordvpn.com"]',
     )
     monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "3")
+    monkeypatch.setenv("GITHUB_RUN_ID", recommendation_run_id)
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
     module = _load_module()
     action = module.NordVpnConnectAction()
     action.work_dir.mkdir(parents=True, exist_ok=True)
