@@ -1201,7 +1201,8 @@ def aggregate_vpn_quarantine(
             normalized_run_attempt,
             lane_index,
         )
-        if expected_artifact_name not in path.parts:
+        expected_marker_path = marker_directory / expected_artifact_name / "capacity-marker.json"
+        if path != expected_marker_path:
             raise InputValidationError("capacity marker artifact name does not match its lane")
         exact_values = {
             "schema_version": 1,

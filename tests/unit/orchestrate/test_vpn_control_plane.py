@@ -1009,6 +1009,128 @@ def test_aggregate_quarantine_validates_capacity_markers_and_merges_failures(
     ]
 
 
+def test_aggregate_quarantine_rejects_singleton_flat_download_layout(
+    module,
+    tmp_path: Path,
+) -> None:
+    marker_root = tmp_path / "capacity-markers"
+    _write_capacity_marker(module, marker_root, lane_index=0, failed_servers=[])
+    nested_marker = next(marker_root.rglob("capacity-marker.json"))
+    nested_marker.replace(marker_root / "capacity-marker.json")
+    nested_marker.parent.rmdir()
+
+    with pytest.raises(module.InputValidationError, match="artifact name"):
+        module.aggregate_vpn_quarantine(
+            marker_directory=marker_root,
+            expected_capacity=1,
+            repository="owner/repo",
+            chain_id="chain-abc",
+            source_sha="a" * 40,
+            run_id=987654,
+            run_attempt=3,
+            baseline_servers=[],
+            discovery_failed_servers=[],
+        )
+
+
+def test_aggregate_quarantine_rejects_flat_marker_in_multi_lane_download(
+    module,
+    tmp_path: Path,
+) -> None:
+    marker_root = tmp_path / "capacity-markers"
+    _write_capacity_marker(module, marker_root, lane_index=0, failed_servers=[])
+    _write_capacity_marker(module, marker_root, lane_index=1, failed_servers=[])
+    nested_marker = marker_root / module.capacity_marker_artifact_name(987654, 3, 0)
+    marker_path = nested_marker / "capacity-marker.json"
+    marker_path.replace(marker_root / "capacity-marker.json")
+    nested_marker.rmdir()
+
+    with pytest.raises(module.InputValidationError, match="artifact name"):
+        module.aggregate_vpn_quarantine(
+            marker_directory=marker_root,
+            expected_capacity=2,
+            repository="owner/repo",
+            chain_id="chain-abc",
+            source_sha="a" * 40,
+            run_id=987654,
+            run_attempt=3,
+            baseline_servers=[],
+            discovery_failed_servers=[],
+        )
+
+
+def test_aggregate_quarantine_rejects_misnamed_singleton_artifact_directory(
+    module,
+    tmp_path: Path,
+) -> None:
+    marker_root = tmp_path / "capacity-markers"
+    _write_capacity_marker(module, marker_root, lane_index=0, failed_servers=[])
+    expected_directory = marker_root / module.capacity_marker_artifact_name(987654, 3, 0)
+    expected_directory.rename(marker_root / "vpn-capacity-connected-run-987654-attempt-3-lane-9")
+
+    with pytest.raises(module.InputValidationError, match="artifact name"):
+        module.aggregate_vpn_quarantine(
+            marker_directory=marker_root,
+            expected_capacity=1,
+            repository="owner/repo",
+            chain_id="chain-abc",
+            source_sha="a" * 40,
+            run_id=987654,
+            run_attempt=3,
+            baseline_servers=[],
+            discovery_failed_servers=[],
+        )
+
+
+def test_aggregate_quarantine_rejects_extra_artifact_directory_ancestor(
+    module,
+    tmp_path: Path,
+) -> None:
+    marker_root = tmp_path / "capacity-markers"
+    _write_capacity_marker(module, marker_root, lane_index=0, failed_servers=[])
+    expected_directory = marker_root / module.capacity_marker_artifact_name(987654, 3, 0)
+    unexpected_parent = marker_root / "unexpected"
+    unexpected_parent.mkdir()
+    expected_directory.rename(unexpected_parent / expected_directory.name)
+
+    with pytest.raises(module.InputValidationError, match="artifact name"):
+        module.aggregate_vpn_quarantine(
+            marker_directory=marker_root,
+            expected_capacity=1,
+            repository="owner/repo",
+            chain_id="chain-abc",
+            source_sha="a" * 40,
+            run_id=987654,
+            run_attempt=3,
+            baseline_servers=[],
+            discovery_failed_servers=[],
+        )
+
+
+def test_aggregate_quarantine_allows_zero_capacity_without_markers(
+    module,
+    tmp_path: Path,
+) -> None:
+    report = module.aggregate_vpn_quarantine(
+        marker_directory=tmp_path / "missing-capacity-markers",
+        expected_capacity=0,
+        repository="owner/repo",
+        chain_id="chain-abc",
+        source_sha="a" * 40,
+        run_id=987654,
+        run_attempt=3,
+        baseline_servers=["us120.nordvpn.com"],
+        discovery_failed_servers=["us121.nordvpn.com"],
+    )
+
+    assert report["capacity_marker_count"] == 0
+    assert report["expected_capacity"] == 0
+    assert report["vpn_quarantined_servers"] == [
+        "us120.nordvpn.com",
+        "us121.nordvpn.com",
+    ]
+
+
 def test_aggregate_quarantine_rejects_missing_or_mismatched_capacity_markers(
     module,
     tmp_path: Path,

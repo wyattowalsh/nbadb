@@ -3716,10 +3716,25 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
         "needs.vpn_capacity.result == 'success' || needs.vpn_capacity.result == 'skipped'"
     ) in extract
     assert "needs.vpn_quarantine.result == 'success'" in extract
+    singleton_download = _step_block(quarantine, "Download singleton VPN capacity marker")
+    parallel_download = _step_block(quarantine, "Download parallel VPN capacity markers")
+    assert "needs.preflight.outputs.vpn-capacity-required == 'true'" in singleton_download
+    assert "needs.preflight.outputs.vpn-capacity-count == '1'" in singleton_download
+    assert (
+        "name: vpn-capacity-connected-run-${{ github.run_id }}-attempt-"
+        "${{ github.run_attempt }}-lane-0"
+    ) in singleton_download
+    assert (
+        "path: capacity-markers/vpn-capacity-connected-run-${{ github.run_id }}-attempt-"
+        "${{ github.run_attempt }}-lane-0/"
+    ) in singleton_download
+    assert "needs.preflight.outputs.vpn-capacity-required == 'true'" in parallel_download
+    assert "needs.preflight.outputs.vpn-capacity-count != '1'" in parallel_download
     assert (
         "pattern: vpn-capacity-connected-run-${{ github.run_id }}-attempt-"
         "${{ github.run_attempt }}-lane-*"
-    ) in quarantine
+    ) in parallel_download
+    assert "merge-multiple: false" in parallel_download
     assert "EXPECTED_CAPACITY: ${{ needs.preflight.outputs.vpn-capacity-count }}" in quarantine
 
     artifacts = tmp_path / "artifacts" / "full-extraction"

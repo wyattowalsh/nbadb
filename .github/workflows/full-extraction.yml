@@ -1997,12 +1997,20 @@ jobs:
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - name: Download VPN capacity markers
-        if: ${{ needs.preflight.outputs.vpn-capacity-required == 'true' }}
+      - name: Download singleton VPN capacity marker
+        if: ${{ needs.preflight.outputs.vpn-capacity-required == 'true' && needs.preflight.outputs.vpn-capacity-count == '1' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: vpn-capacity-connected-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-lane-0
+          path: capacity-markers/vpn-capacity-connected-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-lane-0/
+
+      - name: Download parallel VPN capacity markers
+        if: ${{ needs.preflight.outputs.vpn-capacity-required == 'true' && needs.preflight.outputs.vpn-capacity-count != '1' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: vpn-capacity-connected-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-lane-*
           path: capacity-markers/
+          merge-multiple: false
 
       - name: Validate VPN capacity evidence and finalize quarantine
         id: aggregate
