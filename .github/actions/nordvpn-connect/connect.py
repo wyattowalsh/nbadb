@@ -402,6 +402,7 @@ class NordVpnConnectAction:
         self.openvpn_process: subprocess.Popen[str] | None = None
         self.auth_source = ""
         self.auth_validated = self.configured_auth_prevalidated
+        self.initial_auth_recovery_budget_checked = False
         self.last_attempt_auth_failed = False
         self.technology_selection_offsets: dict[str, int] = {}
         self.server_candidates_by_technology: dict[str, tuple[ServerCandidate, ...]] = {}
@@ -455,7 +456,11 @@ class NordVpnConnectAction:
         return float(self.auth_recovery_base_delay * round_number + self.selector_index % 3)
 
     def ensure_initial_auth_recovery_budget(self) -> None:
-        if not self.require_auth_recovery_budget or self.auth_recovery_rounds < 1:
+        if (
+            self.initial_auth_recovery_budget_checked
+            or not self.require_auth_recovery_budget
+            or self.auth_recovery_rounds < 1
+        ):
             return
         first_delay = self.auth_recovery_delay(1)
         minimum = (
@@ -465,6 +470,7 @@ class NordVpnConnectAction:
             "initial authentication-capacity probe",
             minimum=minimum,
         )
+        self.initial_auth_recovery_budget_checked = True
 
     def append_unique(self, values: list[str], value: str) -> None:
         if value and value not in values:
@@ -1020,7 +1026,7 @@ class NordVpnConnectAction:
                     pool,
                     key=lambda candidate: (
                         city_use_count.get(candidate.city_key, 0),
-                        candidate.recommendation_rank,
+                        candidate.hostname,
                     ),
                 )
             if phase == 2:
@@ -1029,14 +1035,14 @@ class NordVpnConnectAction:
                     key=lambda candidate: (
                         network_use_count.get(candidate.network_key or "", 0),
                         city_use_count.get(candidate.city_key, 0),
-                        candidate.recommendation_rank,
+                        candidate.hostname,
                     ),
                 )
             return min(
                 pool,
                 key=lambda candidate: (
                     city_use_count.get(candidate.city_key, 0),
-                    candidate.recommendation_rank,
+                    candidate.hostname,
                 ),
             )
 

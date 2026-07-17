@@ -1747,6 +1747,7 @@ jobs:
           DISCOVERY_FAILED_SERVERS_JSON: ${{ needs.discovery_seed.outputs.vpn-failed-servers-json || '[]' }}
         run: |
           python3 - <<'PY'
+          # CAPACITY_VPN_QUARANTINE
           import json
           import os
           from pathlib import Path
@@ -1771,7 +1772,7 @@ jobs:
 
       - name: Prove concurrent VPN capacity
         id: vpn
-        timeout-minutes: 15
+        timeout-minutes: 16
         continue-on-error: true
         uses: ./.github/actions/nordvpn-connect
         with:
@@ -1792,7 +1793,7 @@ jobs:
           preferred-server-slot-count: ${{ inputs.vpn_parallelism }}
           fallback-technology: openvpn_tcp
           connect-timeout-seconds: "60"
-          overall-timeout-seconds: "720"
+          overall-timeout-seconds: "780"
 
       - name: Write connected VPN capacity marker
         if: ${{ steps.vpn.outcome == 'success' && steps.vpn.outputs.status == 'connected' && steps.vpn.outputs.auth-source == 'configured' }}
@@ -2265,7 +2266,7 @@ jobs:
       - name: Connect NordVPN tunnel
         id: vpn
         if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status == 'closed' }}
-        timeout-minutes: 15
+        timeout-minutes: 16
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
@@ -2286,14 +2287,14 @@ jobs:
           AUTH_RECOVERY_ROUNDS: "1"
           AUTH_RECOVERY_BASE_DELAY_SECONDS: "300"
           REQUIRE_AUTH_RECOVERY_BUDGET: "true"
-          OVERALL_TIMEOUT_SECONDS: "720"
+          OVERALL_TIMEOUT_SECONDS: "780"
           QUARANTINED_SERVERS_JSON: ${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
           PREFERRED_SERVERS_JSON: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
           PREFERRED_SERVER_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            870 \
+            930 \
             5 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?

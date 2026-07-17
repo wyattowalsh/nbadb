@@ -66,7 +66,7 @@ def _configure_capacity_connector_budget(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.delenv("VPN_CONNECTION_DEADLINE_MONOTONIC", raising=False)
     monkeypatch.setenv("LANE_INDEX", "0")
     monkeypatch.setenv("CONNECT_TIMEOUT_SECONDS", "60")
-    monkeypatch.setenv("OVERALL_TIMEOUT_SECONDS", "720")
+    monkeypatch.setenv("OVERALL_TIMEOUT_SECONDS", "780")
     monkeypatch.setenv("AUTH_REJECTION_LIMIT", "1")
     monkeypatch.setenv("AUTH_RECOVERY_REJECTION_LIMIT", "3")
     monkeypatch.setenv("AUTH_RECOVERY_ROUNDS", "1")
@@ -316,6 +316,10 @@ def test_initial_auth_probe_reserves_attempt_cleanup_cooldown_and_follow_up(
 
     monkeypatch.setattr(action, "remaining_budget", lambda: required + 0.001)
     action.ensure_initial_auth_recovery_budget()
+    assert action.initial_auth_recovery_budget_checked is True
+
+    monkeypatch.setattr(action, "remaining_budget", lambda: 0.0)
+    action.ensure_initial_auth_recovery_budget()
 
     follow_up_reserve = 60 + module.ATTEMPT_FINALIZATION_RESERVE_SECONDS
     monkeypatch.setattr(action, "remaining_budget", lambda: 300 + follow_up_reserve)
@@ -326,7 +330,6 @@ def test_initial_auth_probe_reserves_attempt_cleanup_cooldown_and_follow_up(
     )
 
     action.auth_recovery_rounds = 0
-    monkeypatch.setattr(action, "remaining_budget", lambda: 0.0)
     action.ensure_initial_auth_recovery_budget()
 
 
@@ -348,9 +351,9 @@ def test_run_slow_setup_at_boundary_cannot_consume_capacity_recovery_reserve(
         + action.auth_recovery_delay(1)
     )
     setup_allowance = action.overall_timeout - protected_budget
-    assert action.overall_timeout == 720
+    assert action.overall_timeout == 780
     assert protected_budget == 660
-    assert setup_allowance == 60
+    assert setup_allowance == 120
 
     def _slow_setup(**_kwargs: object) -> None:
         clock.advance(setup_allowance / 4)
@@ -381,7 +384,7 @@ def test_run_slow_setup_at_boundary_cannot_consume_capacity_recovery_reserve(
     assert action.attempted_servers == []
 
 
-def test_run_slow_setup_preserves_full_recovery_sequence_within_720_seconds(
+def test_run_slow_setup_preserves_full_recovery_sequence_within_780_seconds(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
 ) -> None:
@@ -433,9 +436,128 @@ def test_run_slow_setup_preserves_full_recovery_sequence_within_720_seconds(
     assert excinfo.value.status == "vpn_auth_failure"
     assert attempt_budgets == [661, 181]
     assert clock.sleeps == [300]
-    assert clock.now == 719
-    assert clock.now < action.deadline == 720
+    assert clock.now == 779
+    assert clock.now < action.deadline == 780
     assert action.attempt_count_by_technology == {"openvpn_udp": 2}
+
+
+def test_run_uses_remaining_budget_after_one_initial_auth_reserve_check(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    _configure_capacity_connector_budget(monkeypatch)
+    module = _load_module()
+    clock = _FakeClock()
+    monkeypatch.setattr(module.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(module.time, "sleep", clock.sleep)
+    action = module.NordVpnConnectAction()
+    action.fallback_technology = ""
+
+    def _slow_setup(**_kwargs: object) -> None:
+        clock.advance(50 / 4)
+
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+    ):
+        monkeypatch.setattr(action, method_name, _slow_setup)
+
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: [f"us100{index}.nordvpn.com" for index in range(1, 7)],
+    )
+    attempts: list[str] = []
+
+    def _reject_five_nba_routes_then_connect(server: str, technology: str) -> bool:
+        attempts.append(server)
+        clock.advance(10)
+        if len(attempts) < 6:
+            action.last_attempt_auth_failed = False
+            return False
+        action.server = server
+        action.interface = "tun0"
+        action.exit_ip = "2.2.2.2"
+        action.pid = "12345"
+        action.status = "connected"
+        return True
+
+    monkeypatch.setattr(action, "attempt_server", _reject_five_nba_routes_then_connect)
+
+    assert action.run() == 0
+    assert attempts == [f"us100{index}.nordvpn.com" for index in range(1, 7)]
+    assert action.initial_auth_recovery_budget_checked is True
+    assert clock.now == 110
+
+
+def test_run_preserves_late_auth_recovery_after_nba_route_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    _configure_capacity_connector_budget(monkeypatch)
+    module = _load_module()
+    clock = _FakeClock()
+    monkeypatch.setattr(module.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(module.time, "sleep", clock.sleep)
+    action = module.NordVpnConnectAction()
+    action.fallback_technology = ""
+
+    def _slow_setup(**_kwargs: object) -> None:
+        clock.advance(50 / 4)
+
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+    ):
+        monkeypatch.setattr(action, method_name, _slow_setup)
+
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: [f"us100{index}.nordvpn.com" for index in range(1, 7)],
+    )
+    attempts: list[str] = []
+
+    def _fail_routes_then_recover_auth(server: str, technology: str) -> bool:
+        attempts.append(server)
+        if len(attempts) <= 5:
+            clock.advance(10)
+            action.last_attempt_auth_failed = False
+            return False
+        if len(attempts) == 6:
+            clock.advance(action.connect_timeout + module.ATTEMPT_FINALIZATION_RESERVE_SECONDS)
+            action.last_attempt_auth_failed = True
+            return False
+        clock.advance(action.connect_timeout + module.ATTEMPT_FINALIZATION_RESERVE_SECONDS)
+        action.last_attempt_auth_failed = False
+        action.server = server
+        action.interface = "tun0"
+        action.exit_ip = "2.2.2.2"
+        action.pid = "12345"
+        action.status = "connected"
+        return True
+
+    monkeypatch.setattr(action, "attempt_server", _fail_routes_then_recover_auth)
+
+    assert action.run() == 0
+    assert attempts == [
+        "us1001.nordvpn.com",
+        "us1002.nordvpn.com",
+        "us1003.nordvpn.com",
+        "us1004.nordvpn.com",
+        "us1005.nordvpn.com",
+        "us1006.nordvpn.com",
+        "us1001.nordvpn.com",
+    ]
+    assert clock.sleeps == [300]
+    assert clock.now == 760
+    assert clock.now < action.deadline == 780
 
 
 def test_verification_helpers_honor_attempt_and_overall_deadlines(
@@ -1161,9 +1283,9 @@ def test_recommendations_diversify_station_networks_and_bound_attempts(
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
     assert action.recommendation_servers("openvpn_udp") == [
-        "us1005.nordvpn.com",
+        "us1001.nordvpn.com",
+        "us1003.nordvpn.com",
         "us1004.nordvpn.com",
-        "us1002.nordvpn.com",
     ]
     assert "limit=8" in requested_urls[0]
     assert "/v1/servers/recommendations?" in requested_urls[0]
@@ -1223,6 +1345,51 @@ def test_recommendations_partition_adjacent_lane_starts(
     assert excluded_first_partition == ["us1002.nordvpn.com"]
     assert unaffected_second_partition == second_partition
     assert set(excluded_first_partition).isdisjoint(unaffected_second_partition)
+
+
+def test_independent_lane_partitions_ignore_recommendation_response_order(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    candidates = [
+        {
+            "hostname": f"us100{index}.nordvpn.com",
+            "status": "online",
+            "station": f"192.0.{index}.1",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index in range(1, 7)
+    ]
+
+    def _action_for_lane(lane_index: int, payload: list[dict[str, object]]):
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        action.server_limit = 2
+        action.server_pool_size = 6
+        action.selector_index = lane_index
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        return action
+
+    lane_zero = _action_for_lane(0, candidates)
+    lane_one = _action_for_lane(1, list(reversed(candidates)))
+
+    first_partition = lane_zero.recommendation_servers("openvpn_udp")
+    second_partition = lane_one.recommendation_servers("openvpn_udp")
+
+    assert first_partition == ["us1001.nordvpn.com", "us1002.nordvpn.com"]
+    assert second_partition == ["us1003.nordvpn.com", "us1004.nordvpn.com"]
+    assert set(first_partition).isdisjoint(second_partition)
 
 
 def test_recommendations_use_invalid_or_ipv6_stations_only_as_fallback(

@@ -944,10 +944,12 @@ def _write_capacity_marker(
     *,
     lane_index: int,
     failed_servers: list[str],
+    vpn_server: str | None = None,
 ) -> None:
     artifact_name = module.capacity_marker_artifact_name(987654, 3, lane_index)
     marker_path = root / artifact_name / "capacity-marker.json"
-    attempted_servers = [*failed_servers, f"us{200 + lane_index}.nordvpn.com"]
+    selected_server = vpn_server or f"us{200 + lane_index}.nordvpn.com"
+    attempted_servers = [*failed_servers, selected_server]
     payload = module.build_marker_payload(
         kind="capacity",
         repository="owner/repo",
@@ -1038,6 +1040,72 @@ def test_aggregate_quarantine_rejects_missing_or_mismatched_capacity_markers(
     arguments["expected_capacity"] = 1
     with pytest.raises(module.InputValidationError, match="chain_id"):
         module.aggregate_vpn_quarantine(**arguments)
+
+
+def test_aggregate_quarantine_requires_distinct_successful_capacity_servers(
+    module,
+    tmp_path: Path,
+) -> None:
+    marker_root = tmp_path / "capacity-markers"
+    shared_server = "us200.nordvpn.com"
+    _write_capacity_marker(
+        module,
+        marker_root,
+        lane_index=0,
+        failed_servers=[],
+        vpn_server=shared_server,
+    )
+    _write_capacity_marker(
+        module,
+        marker_root,
+        lane_index=1,
+        failed_servers=[],
+        vpn_server=shared_server,
+    )
+
+    with pytest.raises(module.InputValidationError, match="distinct successful VPN servers"):
+        module.aggregate_vpn_quarantine(
+            marker_directory=marker_root,
+            expected_capacity=2,
+            repository="owner/repo",
+            chain_id="chain-abc",
+            source_sha="a" * 40,
+            run_id=987654,
+            run_attempt=3,
+            baseline_servers=[],
+            discovery_failed_servers=[],
+        )
+
+
+def test_aggregate_quarantine_rejects_successful_server_marked_failed(
+    module,
+    tmp_path: Path,
+) -> None:
+    marker_root = tmp_path / "capacity-markers"
+    server = "us200.nordvpn.com"
+    _write_capacity_marker(
+        module,
+        marker_root,
+        lane_index=0,
+        failed_servers=[server],
+        vpn_server=server,
+    )
+
+    with pytest.raises(
+        module.InputValidationError,
+        match="successful server is also marked failed",
+    ):
+        module.aggregate_vpn_quarantine(
+            marker_directory=marker_root,
+            expected_capacity=1,
+            repository="owner/repo",
+            chain_id="chain-abc",
+            source_sha="a" * 40,
+            run_id=987654,
+            run_attempt=3,
+            baseline_servers=[],
+            discovery_failed_servers=[],
+        )
 
 
 @pytest.mark.parametrize(

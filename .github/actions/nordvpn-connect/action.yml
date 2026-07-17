@@ -55,7 +55,7 @@ inputs:
     required: false
     default: "10"
   require-auth-recovery-budget:
-    description: Require the initial authentication probe to reserve both attempts, diagnostics permissions, cleanup, outputs, and the first cooldown.
+    description: Before the first server attempt, require enough budget for both authentication probes, diagnostics permissions, cleanup, outputs, and the first cooldown.
     required: false
     default: "false"
   quarantined-servers-json:

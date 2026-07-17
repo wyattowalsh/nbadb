@@ -3640,7 +3640,7 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
     assert "fail-fast: false" in capacity
     assert "max-parallel: ${{ fromJSON(inputs.vpn_parallelism) }}" in capacity
     assert "matrix: ${{ fromJSON(needs.preflight.outputs.vpn-capacity-matrix) }}" in capacity
-    assert "timeout-minutes: 15" in connect_step
+    assert "timeout-minutes: 16" in connect_step
     assert "continue-on-error: true" in connect_step
     assert 'configured-auth-prevalidated: "true"' in connect_step
     assert 'auth-recovery-base-delay-seconds: "300"' in connect_step
@@ -3651,7 +3651,7 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
     ) in connect_step
     assert "DISCOVERY_FAILED_SERVERS_JSON" in quarantine_step
     assert "PREFLIGHT_QUARANTINE_JSON" in quarantine_step
-    assert 'overall-timeout-seconds: "720"' in connect_step
+    assert 'overall-timeout-seconds: "780"' in connect_step
     assert "vpn-capacity-connected-run-${{ github.run_id }}-attempt-" in capacity
     assert "python3 .github/scripts/vpn_control_plane.py capacity-wait" in barrier_step
     assert "github.run_attempt > 1" in rerun_guard
@@ -3715,6 +3715,95 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
         'matrix={"include":[{"lane_index":0,"expected_capacity":2},'
         '{"lane_index":1,"expected_capacity":2}]}\n'
     )
+
+
+@pytest.mark.parametrize(
+    ("requested_parallelism", "resume_only", "expected_capacity"),
+    [
+        ("1", ["false"], 1),
+        ("2", ["false", "false"], 2),
+        ("2", ["false"], 1),
+    ],
+)
+def test_configured_auth_capacity_gate_matches_executable_lane_count(
+    tmp_path: pathlib.Path,
+    requested_parallelism: str,
+    resume_only: list[str],
+    expected_capacity: int,
+) -> None:
+    preflight = _job_block(_workflow_text(), "preflight")
+    matrix_step = _step_block(preflight, "Build concurrent VPN capacity gate")
+    artifacts = tmp_path / "artifacts" / "full-extraction"
+    artifacts.mkdir(parents=True)
+    lanes = [
+        {"lane_id": f"lane-{index}", "resume_only": value}
+        for index, value in enumerate(resume_only)
+    ]
+    (artifacts / "preflight-manifest.json").write_text(
+        json.dumps({"github_matrix": {"include": lanes}}),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "github-output.txt"
+
+    result = _run_python(
+        _embedded_python(matrix_step, "VPN_CAPACITY_MATRIX"),
+        cwd=tmp_path,
+        env={
+            "ACTIVE_LANE_COUNT": str(sum(value == "false" for value in resume_only)),
+            "EFFECTIVE_NETWORK_MODE": "vpn",
+            "GITHUB_OUTPUT": str(output_path),
+            "MATRIX_LANE_COUNT": str(len(lanes)),
+            "REQUESTED_VPN_PARALLELISM": requested_parallelism,
+            "VPN_AUTH_SOURCE": "configured",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    expected_matrix = {
+        "include": [
+            {"lane_index": lane_index, "expected_capacity": expected_capacity}
+            for lane_index in range(expected_capacity)
+        ]
+    }
+    assert output_path.read_text(encoding="utf-8") == (
+        "required=true\n"
+        f"capacity-count={expected_capacity}\n"
+        f"matrix={json.dumps(expected_matrix, separators=(',', ':'))}\n"
+    )
+
+
+def test_capacity_quarantine_merge_executes_and_fails_closed(
+    tmp_path: pathlib.Path,
+) -> None:
+    capacity = _job_block(_workflow_text(), "vpn_capacity")
+    quarantine_step = _step_block(capacity, "Merge discovery failures into capacity quarantine")
+    script = _embedded_python(quarantine_step, "CAPACITY_VPN_QUARANTINE")
+    output_path = tmp_path / "github-output.txt"
+
+    result = _run_python(
+        script,
+        env={
+            "PREFLIGHT_QUARANTINE_JSON": '["US1.NORDVPN.COM","us2.nordvpn.com"]',
+            "DISCOVERY_FAILED_SERVERS_JSON": '["us2.nordvpn.com","US3.NORDVPN.COM"]',
+            "GITHUB_OUTPUT": str(output_path),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert output_path.read_text(encoding="utf-8") == (
+        'vpn-quarantined-servers-json=["us1.nordvpn.com","us2.nordvpn.com","us3.nordvpn.com"]\n'
+    )
+
+    invalid = _run_python(
+        script,
+        env={
+            "PREFLIGHT_QUARANTINE_JSON": "{}",
+            "DISCOVERY_FAILED_SERVERS_JSON": "[]",
+            "GITHUB_OUTPUT": str(tmp_path / "invalid-output.txt"),
+        },
+    )
+    assert invalid.returncode != 0
+    assert "must be a JSON array of server hostnames" in invalid.stderr
 
 
 def test_auth_rejection_itself_suppresses_small_wave_redispatch() -> None:
@@ -3854,14 +3943,14 @@ def test_extract_auth_throttle_recovery_holds_the_active_matrix_slot() -> None:
     assert extract.index("- name: Initialize lane job budget") < extract.index(
         "- uses: actions/checkout@"
     )
-    assert "timeout-minutes: 15" in vpn_step
+    assert "timeout-minutes: 16" in vpn_step
     assert 'AUTH_REJECTION_LIMIT: "1"' in vpn_step
     assert 'AUTH_RECOVERY_REJECTION_LIMIT: "3"' in vpn_step
     assert 'AUTH_RECOVERY_ROUNDS: "1"' in vpn_step
     assert 'AUTH_RECOVERY_BASE_DELAY_SECONDS: "300"' in vpn_step
     assert 'REQUIRE_AUTH_RECOVERY_BUDGET: "true"' in vpn_step
-    assert 'OVERALL_TIMEOUT_SECONDS: "720"' in vpn_step
-    assert "            870 \\" in vpn_step
+    assert 'OVERALL_TIMEOUT_SECONDS: "780"' in vpn_step
+    assert "            930 \\" in vpn_step
     assert "            5 \\" in vpn_step
 
     step_timeout = re.search(r"timeout-minutes: (?P<value>\d+)", vpn_step)

@@ -1145,6 +1145,7 @@ def aggregate_vpn_quarantine(
         "created_at",
     }
     markers: dict[int, dict[str, Any]] = {}
+    successful_servers: dict[str, int] = {}
     for path in marker_paths:
         payload = _load_marker(path)
         if type(payload.get("schema_version")) is not int or payload["schema_version"] != 1:
@@ -1188,6 +1189,13 @@ def aggregate_vpn_quarantine(
             raise InputValidationError("capacity VPN exit IP is invalid") from exc
         if server not in attempted or not set(failed).issubset(attempted):
             raise InputValidationError("capacity marker server inventory is inconsistent")
+        if server in failed:
+            raise InputValidationError("capacity marker successful server is also marked failed")
+        if server in successful_servers:
+            raise InputValidationError(
+                "capacity markers must attest distinct successful VPN servers: "
+                f"lanes {successful_servers[server]} and {lane_index} both selected {server}"
+            )
         expected_artifact_name = capacity_marker_artifact_name(
             normalized_run_id,
             normalized_run_attempt,
@@ -1210,6 +1218,7 @@ def aggregate_vpn_quarantine(
         for key, expected_value in exact_values.items():
             if canonical[key] != expected_value:
                 raise InputValidationError(f"capacity marker {key} does not match this attempt")
+        successful_servers[server] = lane_index
         markers[lane_index] = {"server": server, "failed_servers": failed}
 
     if set(markers) != set(range(expected)):
