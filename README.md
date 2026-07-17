@@ -264,7 +264,9 @@ preflight NBA probes are tried first by the serial discovery job; preflight and
 discovery successes are then handed to extraction as a verified pool. Logical lane
 indexes never wrap a verified preferred host onto a later lane. Matrix rows also carry
 one of the bounded `vpn_parallelism` slots; later logical lanes reuse a slot only after
-its `queue: max` job concurrency group releases it. Fresh recommendation hostnames are
+its `queue: max` job concurrency group releases it. Configured-credential runs admit
+the complete current matrix behind those queues, so a job waiting for one busy slot
+does not consume the admission credit needed to keep another slot active. Fresh recommendation hostnames are
 assigned by a run-attempt-seeded hash to exactly one live slot, and additive candidate
 expansion does not reassign hosts between slots. Each active lane still runs on a
 separate runner and tunnel, but neither server selection nor scheduling attests unique

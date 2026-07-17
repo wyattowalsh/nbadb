@@ -968,7 +968,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
         "&& inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source "
-        "== 'token' && '1' || inputs.vpn_parallelism)) }}"
+        "== 'token' && '1' || needs.plan.outputs.matrix-lane-count)) }}"
     )
     assert direct_parallel_expr in workflow
     assert '-f network_mode="$NETWORK_MODE"' in workflow

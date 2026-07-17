@@ -448,7 +448,10 @@ planned batch. `matrix_batch_size` remains independent from
 therefore API pressure. VPN mode defaults to two simultaneous lanes. Each active
 lane runs on a separate GitHub-hosted runner and tunnel. Matrix rows are assigned
 round-robin to the bounded VPN slots, and each slot's `queue: max` group serializes all
-later logical lanes that reuse it. Probe-verified preflight/discovery hosts are reused
+later logical lanes that reuse it. Configured-credential runs admit every row in the
+current matrix behind those queues; per-slot groups, rather than matrix admission
+credits, enforce `vpn_parallelism` and avoid head-of-line idling after asymmetric lane
+completion. Probe-verified preflight/discovery hosts are reused
 only by their assigned logical lane; fresh hostnames hash to exactly one live slot.
 Those assignments do not attest
 unique VPN exit IPs across runners. When alternatives exist, the scheduler prevents

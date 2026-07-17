@@ -4067,6 +4067,7 @@ def test_extract_vpn_slots_use_non_cancelling_serial_queues() -> None:
     workflow = _workflow_text()
     plan = _job_block(workflow, "plan")
     extract = _job_block(workflow, "extract")
+    extract_strategy = extract.split("    strategy:\n", 1)[1].split("    concurrency:\n", 1)[0]
     lane_control = _step_block(
         _job_block(workflow, "lane_control"),
         "Prepare next manifest",
@@ -4080,6 +4081,12 @@ def test_extract_vpn_slots_use_non_cancelling_serial_queues() -> None:
     assert "format('direct-lane-{0}', matrix.lane_index)" in extract
     assert "queue: max" in extract
     assert "cancel-in-progress: false" in extract
+    assert (
+        "max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == "
+        "'direct' && inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source "
+        "== 'token' && '1' || needs.plan.outputs.matrix-lane-count)) }}"
+    ) in extract
+    assert "'token' && '1' || inputs.vpn_parallelism" not in extract_strategy
     assert '--vpn-slot-count "$VPN_PARALLELISM"' in lane_control
 
 

@@ -24,7 +24,7 @@ on:
           - "5"
           - "6"
       matrix_batch_size:
-        description: "Lane jobs admitted per iteration; max-parallel controls simultaneous runners"
+        description: "Lane jobs planned per iteration; direct max-parallel or VPN slot queues control runners"
         type: choice
         default: "256"
         options:
@@ -2049,7 +2049,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism)) }}
+      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source == 'token' && '1' || needs.plan.outputs.matrix-lane-count)) }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
     concurrency:
       group: full-extraction-${{ inputs.chain_id || github.run_id }}-iteration-${{ inputs.iteration }}-${{ needs.preflight.outputs.effective-network-mode == 'vpn' && format('vpn-slot-{0}', matrix.vpn_slot) || format('direct-lane-{0}', matrix.lane_index) }}

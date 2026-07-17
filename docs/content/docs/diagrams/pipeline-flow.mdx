@@ -213,7 +213,9 @@ lookup. Token-derived and direct modes skip that gate. Both
 fewer configured tunnels, while token-derived auth later runs at most one simultaneous
 matrix job without shrinking the planned batch. Each planned row carries a round-robin
 VPN slot, and a non-cancelling `queue: max` concurrency group serializes every later
-logical lane that reuses that slot. Fresh recommendation hostnames are assigned by a
+logical lane that reuses that slot. Configured-credential runs admit the complete
+current matrix behind those slot queues, preventing a waiting job for one slow slot
+from consuming the admission credit needed by another slot. Fresh recommendation hostnames are assigned by a
 run-attempt-seeded hash to exactly one live slot, so candidate reordering, per-lane
 failures, or additive pool expansion cannot create concurrent host overlap.
 Before extraction, a fail-closed job validates every successful capacity marker and
