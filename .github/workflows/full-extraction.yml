@@ -1373,11 +1373,23 @@ jobs:
               )
           capacity = min(requested, active_matrix_lanes)
           required = effective_mode == "vpn" and auth_source == "configured" and capacity > 0
+          fresh_slot_count = max(capacity - 1, 0) if required else 0
           capacity_matrix = {
               "include": [
                   {
                       "lane_index": lane_index,
                       "expected_capacity": capacity if required else 0,
+                      "server_limit": 1 if lane_index == 0 else 6,
+                      "auth_recovery_rounds": 0 if lane_index == 0 else 1,
+                      "fallback_technology": "" if lane_index == 0 else "openvpn_tcp",
+                      "preferred_only": lane_index == 0,
+                      "preserve_recommendation_rank": (
+                          lane_index > 0 and fresh_slot_count == 1
+                      ),
+                      "recommendation_slot_count": (
+                          0 if lane_index == 0 else fresh_slot_count
+                      ),
+                      "recommendation_slot_index": max(lane_index - 1, 0),
                   }
                   for lane_index in range(capacity if required else 1)
               ]
@@ -1394,7 +1406,7 @@ jobs:
           print(
               "Concurrent VPN capacity gate: "
               f"required={str(required).lower()}, lanes={capacity if required else 0}, "
-              f"active_matrix_lanes={active_matrix_lanes}"
+              f"fresh_slots={fresh_slot_count}, active_matrix_lanes={active_matrix_lanes}"
           )
           PY
 
@@ -1848,18 +1860,21 @@ jobs:
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           configured-auth-prevalidated: "true"
           lane-index: ${{ matrix.lane_index }}
-          server-limit: "6"
+          server-limit: ${{ matrix.server_limit }}
           server-pool-size: "96"
           auth-rejection-limit: "1"
           auth-recovery-rejection-limit: "3"
-          auth-recovery-rounds: "1"
+          auth-recovery-rounds: ${{ matrix.auth_recovery_rounds }}
           auth-recovery-base-delay-seconds: "300"
           require-auth-recovery-budget: "true"
           quarantined-servers-json: ${{ steps.capacity_quarantine.outputs.vpn-quarantined-servers-json }}
           preferred-servers-json: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
-          preferred-server-slot-count: ${{ inputs.vpn_parallelism }}
-          recommendation-slot-count: ${{ needs.preflight.outputs.vpn-capacity-count }}
-          fallback-technology: openvpn_tcp
+          preferred-server-slot-count: ${{ matrix.expected_capacity }}
+          preferred-only: ${{ matrix.preferred_only }}
+          preserve-recommendation-rank: ${{ matrix.preserve_recommendation_rank }}
+          recommendation-slot-count: ${{ matrix.recommendation_slot_count }}
+          recommendation-slot-index: ${{ matrix.recommendation_slot_index }}
+          fallback-technology: ${{ matrix.fallback_technology }}
           connect-timeout-seconds: "60"
           overall-timeout-seconds: "780"
 

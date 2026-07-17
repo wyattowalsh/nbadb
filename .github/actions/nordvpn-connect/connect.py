@@ -391,6 +391,7 @@ class NordVpnConnectAction:
             minimum=1,
             maximum=MAX_RECOMMENDATION_POOL_SIZE,
         )
+        self.preferred_only = os.environ.get("PREFERRED_ONLY", "false").strip().lower() == "true"
         self.recommendation_slot_count = env_int(
             "RECOMMENDATION_SLOT_COUNT",
             0,
@@ -1147,6 +1148,19 @@ class NordVpnConnectAction:
             ):
                 preferred.append(preferred_server)
 
+        if self.preferred_only:
+            if not preferred:
+                raise ActionError(
+                    "vpn_network_error",
+                    "Preferred-only logical lane "
+                    f"{preferred_lane} has no available assigned preferred server",
+                )
+            print(
+                "::notice::Selected the required previously NBA-verified server for "
+                f"preferred-only logical lane {preferred_lane} over {technology}"
+            )
+            return preferred
+
         recommendation_count = remaining_attempts - len(preferred)
         if recommendation_count <= 0:
             print(
@@ -1164,17 +1178,15 @@ class NordVpnConnectAction:
             *self.quarantined_servers,
             *self.preferred_servers,
         }
-        parallel_partition_count = (
-            self.recommendation_slot_count if self.recommendation_slot_count > 1 else 0
-        )
+        explicit_partition_count = self.recommendation_slot_count
         fetch_exclusions = (
-            shared_partition_exclusions if parallel_partition_count else recommendation_exclusions
+            shared_partition_exclusions if explicit_partition_count else recommendation_exclusions
         )
         required_eligible_count = recommendation_count
-        if parallel_partition_count:
+        if explicit_partition_count:
             required_eligible_count = min(
                 MAX_RECOMMENDATION_POOL_SIZE,
-                self.server_limit * parallel_partition_count + len(fetch_exclusions),
+                self.server_limit * explicit_partition_count + len(fetch_exclusions),
             )
         candidates = self.fetch_server_candidates(
             technology,
@@ -1209,13 +1221,13 @@ class NordVpnConnectAction:
             if not pool:
                 return ()
             partition_count = (len(pool) + self.server_limit - 1) // self.server_limit
-            if parallel_partition_count:
+            if explicit_partition_count:
                 partition = tuple(
                     candidate
                     for candidate in pool
                     if self.recommendation_slot_for_hostname(
                         candidate.hostname,
-                        parallel_partition_count,
+                        explicit_partition_count,
                     )
                     == self.recommendation_slot_index
                 )
@@ -1265,7 +1277,7 @@ class NordVpnConnectAction:
             candidate_pool: tuple[ServerCandidate, ...],
         ) -> tuple[list[ServerCandidate], list[ServerCandidate]]:
             preferred_exclusions = set(self.preferred_servers)
-            if not parallel_partition_count and len(recommendation_lane_indices) <= 1:
+            if not explicit_partition_count and len(recommendation_lane_indices) <= 1:
                 base_count = min(
                     self.server_candidate_base_counts_by_technology.get(
                         technology,

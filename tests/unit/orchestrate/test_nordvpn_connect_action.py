@@ -1293,7 +1293,15 @@ def test_recommendations_diversify_station_networks_and_bound_attempts(
     assert len(selected) == 3
     assert set(selected) <= {hostname for hostname, _station, _city in candidates}
     selected_metadata = {hostname: (station, city) for hostname, station, city in candidates}
-    assert len({selected_metadata[hostname][0] for hostname in selected}) == 3
+    assert (
+        len(
+            {
+                action.recommendation_network_key(selected_metadata[hostname][0])
+                for hostname in selected
+            }
+        )
+        == 3
+    )
     assert len({selected_metadata[hostname][1] for hostname in selected}) == 3
     assert "limit=8" in requested_urls[0]
     assert "/v1/servers/recommendations?" in requested_urls[0]
@@ -1689,7 +1697,7 @@ def test_independent_slot_ownership_survives_partial_candidate_overlap(
     assert owners_one == [1, 1, 1, 1]
 
 
-@pytest.mark.parametrize("slot_count", (2, 3, 4, 6))
+@pytest.mark.parametrize("slot_count", (2, 3, 4, 5, 6))
 def test_parallel_slot_ownership_is_disjoint_under_order_and_local_failure_skew(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
@@ -1823,6 +1831,185 @@ def test_explicit_recommendation_slots_partition_rolling_logical_lanes(
     monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "2")
     with pytest.raises(module.ActionError, match="lower than RECOMMENDATION_SLOT_COUNT"):
         module.NordVpnConnectAction()
+
+
+def test_single_explicit_recommendation_slot_owns_full_fresh_pool(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("LANE_INDEX", "7")
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "8")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "1")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "0")
+    monkeypatch.setenv("SERVER_LIMIT", "3")
+    monkeypatch.setenv("SERVER_POOL_SIZE", "3")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    hostnames = [f"us{8100 + index}.nordvpn.com" for index in range(3)]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "hostname": hostname,
+                        "status": "online",
+                        "station": f"203.0.113.{index + 1}",
+                        "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+                    }
+                    for index, hostname in enumerate(hostnames)
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert set(action.recommendation_servers("openvpn_udp")) == set(hostnames)
+
+
+def test_capacity_p2_duplicate_anchor_is_reserved_once(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    anchor_hostname = "us8421.nordvpn.com"
+    fresh_hostnames = [f"us{9000 + index}.nordvpn.com" for index in range(1, 7)]
+    monkeypatch.setenv("GITHUB_RUN_ID", "29556739791")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        json.dumps([anchor_hostname, anchor_hostname]),
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("SERVER_POOL_SIZE", "96")
+    module = _load_module()
+
+    monkeypatch.setenv("LANE_INDEX", "0")
+    monkeypatch.setenv("SERVER_LIMIT", "1")
+    monkeypatch.setenv("PREFERRED_ONLY", "true")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "0")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "0")
+    anchor = module.NordVpnConnectAction()
+    anchor.work_dir.mkdir(parents=True, exist_ok=True)
+    lane_zero_recommendation_fetches: list[str] = []
+
+    def _unexpected_anchor_fetch(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        lane_zero_recommendation_fetches.append(url)
+        return False
+
+    monkeypatch.setattr(anchor, "retry_http_get", _unexpected_anchor_fetch)
+    lane_zero_servers = anchor.recommendation_servers("openvpn_udp")
+
+    monkeypatch.setenv("LANE_INDEX", "1")
+    monkeypatch.setenv("SERVER_LIMIT", "6")
+    monkeypatch.setenv("PREFERRED_ONLY", "false")
+    monkeypatch.setenv("PRESERVE_RECOMMENDATION_RANK", "true")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "1")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "0")
+    fresh = module.NordVpnConnectAction()
+    fresh.work_dir.mkdir(parents=True, exist_ok=True)
+
+    def _fake_fresh_fetch(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "hostname": anchor_hostname,
+                        "status": "online",
+                        "station": "192.0.2.10",
+                    },
+                    {
+                        "hostname": anchor_hostname,
+                        "status": "online",
+                        "station": "192.0.2.10",
+                    },
+                    *[
+                        {
+                            "hostname": hostname,
+                            "status": "online",
+                            "station": f"198.51.{index}.10",
+                            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+                        }
+                        for index, hostname in enumerate(fresh_hostnames, start=1)
+                    ],
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(fresh, "retry_http_get", _fake_fresh_fetch)
+    lane_one_servers = fresh.recommendation_servers("openvpn_udp")
+
+    assert anchor.preferred_servers == (anchor_hostname,)
+    assert lane_zero_servers == [anchor_hostname]
+    assert lane_zero_recommendation_fetches == []
+    assert lane_one_servers == fresh_hostnames
+    assert anchor_hostname not in lane_one_servers
+    assert set(lane_zero_servers).isdisjoint(lane_one_servers)
+
+
+@pytest.mark.parametrize(
+    ("preferred_servers", "quarantined_servers"),
+    [
+        ([], []),
+        (["us8421.nordvpn.com"], ["us8421.nordvpn.com"]),
+    ],
+    ids=["missing", "quarantined"],
+)
+def test_preferred_only_lane_fails_closed_without_available_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    preferred_servers: list[str],
+    quarantined_servers: list[str],
+) -> None:
+    monkeypatch.setenv("LANE_INDEX", "0")
+    monkeypatch.setenv("SERVER_LIMIT", "1")
+    monkeypatch.setenv("PREFERRED_ONLY", "true")
+    monkeypatch.setenv("PREFERRED_SERVERS_JSON", json.dumps(preferred_servers))
+    monkeypatch.setenv("QUARANTINED_SERVERS_JSON", json.dumps(quarantined_servers))
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "1")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "0")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    recommendation_fetches: list[str] = []
+
+    def _unexpected_fetch(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        recommendation_fetches.append(url)
+        return False
+
+    monkeypatch.setattr(action, "retry_http_get", _unexpected_fetch)
+
+    with pytest.raises(
+        module.ActionError,
+        match="Preferred-only logical lane 0 has no available assigned preferred server",
+    ) as excinfo:
+        action.recommendation_servers("openvpn_udp")
+
+    assert excinfo.value.status == "vpn_network_error"
+    assert recommendation_fetches == []
 
 
 def test_recommendation_slot_expands_until_its_hash_bucket_is_filled(
@@ -2104,6 +2291,8 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "server-pool-size:" in metadata
     assert "preferred-servers-json:" in metadata
     assert "preferred-server-slot-count:" in metadata
+    assert "preferred-only:" in metadata
+    assert "preserve-recommendation-rank:" in metadata
     assert "recommendation-slot-count:" in metadata
     assert "recommendation-slot-index:" in metadata
     assert "non-overlapping fresh-server partitions" in metadata
@@ -2131,6 +2320,8 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}" in metadata
     assert "PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}" in metadata
     assert "PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}" in metadata
+    assert "PREFERRED_ONLY: ${{ inputs.preferred-only }}" in metadata
+    assert "PRESERVE_RECOMMENDATION_RANK: ${{ inputs.preserve-recommendation-rank }}" in metadata
     assert "RECOMMENDATION_SLOT_COUNT: ${{ inputs.recommendation-slot-count }}" in metadata
     assert "RECOMMENDATION_SLOT_INDEX: ${{ inputs.recommendation-slot-index }}" in metadata
 
@@ -2528,6 +2719,279 @@ def test_attempt_server_refuses_to_consume_finalization_headroom(
 
     assert exc_info.value.status == "vpn_connect_timeout"
     assert action.attempted_servers == ["us1001.nordvpn.com"]
+
+
+def _configure_fake_openvpn_run(
+    monkeypatch: pytest.MonkeyPatch,
+    module,
+    action,
+) -> tuple[list[int], list[str], list[tuple[str, str]]]:
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_file.write_text("user\npassword\n", encoding="utf-8")
+    action.baseline_ip = "1.1.1.1"
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+        "make_workdir_readable",
+    ):
+        monkeypatch.setattr(action, method_name, lambda **kwargs: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
+    monkeypatch.setattr(action, "pid_alive", lambda pid, **kwargs: True)
+    monkeypatch.setattr(action, "initialization_complete", lambda: True)
+    monkeypatch.setattr(action, "get_interface", lambda **kwargs: "tun0")
+    monkeypatch.setattr(
+        action,
+        "route_uses_interface",
+        lambda route_expr, interface, **kwargs: True,
+    )
+    monkeypatch.setattr(action, "auth_failed_in_log", lambda: False)
+    monkeypatch.setattr(module, "run_quiet", lambda *args, **kwargs: None)
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
+        if label.startswith("NordVPN OpenVPN config download"):
+            output_path.write_text("client\n", encoding="utf-8")
+            return True
+        if label == "VPN verification probe":
+            output_path.write_text(json.dumps({"ip": "2.2.2.2"}), encoding="utf-8")
+            return True
+        if label == "GitHub control-plane probe":
+            output_path.write_text("User-agent: *\n", encoding="utf-8")
+            return True
+        raise AssertionError(f"unexpected retry label: {label}")
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+    config_requests: list[tuple[str, str]] = []
+
+    def _fake_config_url(server: str, technology: str) -> str:
+        config_requests.append((server, technology))
+        return "https://example.test/server.ovpn"
+
+    monkeypatch.setattr(action, "config_url", _fake_config_url)
+
+    class _FakeProcess:
+        def __init__(self, pid: int) -> None:
+            self.pid = pid
+
+        @staticmethod
+        def poll():
+            return None
+
+    launched_pids: list[int] = []
+
+    def _fake_popen(cmd: list[str], **kwargs) -> _FakeProcess:
+        pid = 91000 + len(launched_pids)
+        launched_pids.append(pid)
+        action.pid_file.write_text(str(pid), encoding="utf-8")
+        return _FakeProcess(pid)
+
+    monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
+    cleanup_calls: list[str] = []
+
+    def _fake_cleanup_openvpn() -> None:
+        cleanup_calls.append("cleanup")
+        action.openvpn_process = None
+        action.pid_file.unlink(missing_ok=True)
+
+    monkeypatch.setattr(action, "cleanup_openvpn", _fake_cleanup_openvpn)
+    return launched_pids, cleanup_calls, config_requests
+
+
+def test_run_quarantines_teamyears_timeout_and_tries_next_owned_server(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SERVER_LIMIT", "1")
+    monkeypatch.setenv("SERVER_POOL_SIZE", "2")
+    monkeypatch.setenv("AUTH_RECOVERY_ROUNDS", "0")
+    monkeypatch.setenv("FALLBACK_TECHNOLOGY", "openvpn_tcp")
+    monkeypatch.setenv("PRESERVE_RECOMMENDATION_RANK", "true")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    launched_pids, cleanup_calls, config_requests = _configure_fake_openvpn_run(
+        monkeypatch,
+        module,
+        action,
+    )
+    candidates = (
+        module.ServerCandidate("us1001.nordvpn.com", "192.0.2.0/24", "city:one", 0),
+        module.ServerCandidate("us1002.nordvpn.com", "198.51.100.0/24", "city:two", 1),
+    )
+    fetch_exclusions: dict[str, list[set[str]]] = {}
+
+    def _fake_fetch_server_candidates(
+        technology: str,
+        *,
+        excluded_servers: set[str] | None = None,
+        required_eligible_count: int = 0,
+        force_expand: bool = False,
+    ):
+        exclusions = set(excluded_servers or ())
+        fetch_exclusions.setdefault(technology, []).append(exclusions)
+        return tuple(candidate for candidate in candidates if candidate.hostname not in exclusions)
+
+    monkeypatch.setattr(action, "fetch_server_candidates", _fake_fetch_server_candidates)
+    direct_probe_servers: list[str] = []
+
+    def _fake_nba_probe(**kwargs) -> bool:
+        server = action.attempted_servers[-1]
+        direct_probe_servers.append(server)
+        if server == "us1001.nordvpn.com":
+            action.nba_probe_status = "timeout"
+            action.nba_probe_diagnostic = "NBA Stats probe timed out"
+            return False
+        action.nba_probe_status = "passed"
+        action.nba_probe_diagnostic = "NBA Stats response matched the expected JSON structure"
+        return True
+
+    stack_probe_servers: list[str] = []
+
+    def _fake_stack_probe(**kwargs) -> bool:
+        stack_probe_servers.append(action.attempted_servers[-1])
+        return True
+
+    monkeypatch.setattr(action, "probe_nba_stats", _fake_nba_probe)
+    monkeypatch.setattr(action, "probe_nba_discovery_stack", _fake_stack_probe)
+
+    assert action.run() == 0
+    assert action.attempted_servers == ["us1001.nordvpn.com", "us1002.nordvpn.com"]
+    assert direct_probe_servers == ["us1001.nordvpn.com", "us1002.nordvpn.com"]
+    assert stack_probe_servers == ["us1002.nordvpn.com"]
+    assert action.failed_servers == ["us1001.nordvpn.com"]
+    assert action.server == "us1002.nordvpn.com"
+    assert config_requests == [
+        ("us1001.nordvpn.com", "openvpn_udp"),
+        ("us1002.nordvpn.com", "openvpn_tcp"),
+    ]
+    assert launched_pids == [91000, 91001]
+    assert cleanup_calls == ["cleanup"]
+    assert "us1001.nordvpn.com" in fetch_exclusions["openvpn_tcp"][0]
+    assert "(timeout: NBA Stats probe timed out)" in capsys.readouterr().out
+
+
+def test_capacity_anchor_teamyears_timeout_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    anchor_hostname = "us8421.nordvpn.com"
+    monkeypatch.setenv("LANE_INDEX", "0")
+    monkeypatch.setenv("SERVER_LIMIT", "1")
+    monkeypatch.setenv("AUTH_RECOVERY_ROUNDS", "0")
+    monkeypatch.setenv("FALLBACK_TECHNOLOGY", "")
+    monkeypatch.setenv("PREFERRED_ONLY", "true")
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        json.dumps([anchor_hostname, anchor_hostname]),
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "0")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "0")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    launched_pids, cleanup_calls, config_requests = _configure_fake_openvpn_run(
+        monkeypatch,
+        module,
+        action,
+    )
+    recommendation_fetches: list[str] = []
+
+    def _unexpected_recommendations(*args, **kwargs):
+        recommendation_fetches.append("called")
+        raise AssertionError("preferred-only capacity anchor requested fresh recommendations")
+
+    monkeypatch.setattr(action, "fetch_server_candidates", _unexpected_recommendations)
+
+    def _timeout_nba_probe(**kwargs) -> bool:
+        action.nba_probe_status = "timeout"
+        action.nba_probe_diagnostic = "NBA Stats probe timed out"
+        return False
+
+    monkeypatch.setattr(action, "probe_nba_stats", _timeout_nba_probe)
+    monkeypatch.setattr(
+        action,
+        "probe_nba_discovery_stack",
+        lambda **kwargs: pytest.fail("stack probe ran after TeamYears timed out"),
+    )
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "vpn_network_error"
+    assert action.attempted_servers == [anchor_hostname]
+    assert action.failed_servers == [anchor_hostname]
+    assert config_requests == [(anchor_hostname, "openvpn_udp")]
+    assert launched_pids == [91000]
+    assert cleanup_calls == ["cleanup"]
+    assert recommendation_fetches == []
+
+
+@pytest.mark.parametrize("outcome", ["success", "auth_rejection"])
+def test_capacity_anchor_never_falls_through_to_fresh_recommendations(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    outcome: str,
+) -> None:
+    anchor_hostname = "us8421.nordvpn.com"
+    monkeypatch.setenv("LANE_INDEX", "0")
+    monkeypatch.setenv("SERVER_LIMIT", "1")
+    monkeypatch.setenv("AUTH_RECOVERY_ROUNDS", "0")
+    monkeypatch.setenv("FALLBACK_TECHNOLOGY", "")
+    monkeypatch.setenv("PREFERRED_ONLY", "true")
+    monkeypatch.setenv("PREFERRED_SERVERS_JSON", json.dumps([anchor_hostname]))
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+        "make_workdir_readable",
+    ):
+        monkeypatch.setattr(action, method_name, lambda **kwargs: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
+    recommendation_fetches: list[str] = []
+
+    def _unexpected_recommendations(*args, **kwargs):
+        recommendation_fetches.append("called")
+        raise AssertionError("preferred-only capacity anchor requested fresh recommendations")
+
+    monkeypatch.setattr(action, "fetch_server_candidates", _unexpected_recommendations)
+    attempts: list[tuple[str, str]] = []
+
+    def _attempt_anchor(server: str, technology: str) -> bool:
+        attempts.append((server, technology))
+        action.append_unique(action.attempted_servers, server)
+        if outcome == "success":
+            action.server = server
+            action.interface = "tun0"
+            action.exit_ip = "2.2.2.2"
+            action.pid = "12345"
+            action.status = "connected"
+            return True
+        action.last_attempt_auth_failed = True
+        return False
+
+    monkeypatch.setattr(action, "attempt_server", _attempt_anchor)
+
+    if outcome == "success":
+        assert action.run() == 0
+    else:
+        with pytest.raises(module.ActionError) as excinfo:
+            action.run()
+        assert excinfo.value.status == "vpn_auth_failure"
+
+    assert attempts == [(anchor_hostname, "openvpn_udp")]
+    assert recommendation_fetches == []
 
 
 def test_run_quarantines_nba_blocked_server_and_falls_back(

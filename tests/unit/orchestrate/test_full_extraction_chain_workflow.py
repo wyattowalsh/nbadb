@@ -3689,10 +3689,16 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
     assert 'configured-auth-prevalidated: "true"' in connect_step
     assert 'auth-recovery-base-delay-seconds: "300"' in connect_step
     assert 'require-auth-recovery-budget: "true"' in connect_step
+    assert "server-limit: ${{ matrix.server_limit }}" in connect_step
+    assert "auth-recovery-rounds: ${{ matrix.auth_recovery_rounds }}" in connect_step
+    assert "fallback-technology: ${{ matrix.fallback_technology }}" in connect_step
+    assert "preferred-only: ${{ matrix.preferred_only }}" in connect_step
     assert (
-        "recommendation-slot-count: ${{ needs.preflight.outputs.vpn-capacity-count }}"
-        in connect_step
+        "preserve-recommendation-rank: ${{ matrix.preserve_recommendation_rank }}" in connect_step
     )
+    assert "preferred-server-slot-count: ${{ matrix.expected_capacity }}" in connect_step
+    assert "recommendation-slot-count: ${{ matrix.recommendation_slot_count }}" in connect_step
+    assert "recommendation-slot-index: ${{ matrix.recommendation_slot_index }}" in connect_step
     assert (
         "quarantined-servers-json: "
         "${{ steps.capacity_quarantine.outputs.vpn-quarantined-servers-json }}"
@@ -3775,8 +3781,14 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
     assert output_path.read_text(encoding="utf-8") == (
         "required=true\n"
         "capacity-count=2\n"
-        'matrix={"include":[{"lane_index":0,"expected_capacity":2},'
-        '{"lane_index":1,"expected_capacity":2}]}\n'
+        'matrix={"include":[{"lane_index":0,"expected_capacity":2,"server_limit":1,'
+        '"auth_recovery_rounds":0,"fallback_technology":"",'
+        '"preferred_only":true,"preserve_recommendation_rank":false,'
+        '"recommendation_slot_count":0,"recommendation_slot_index":0},'
+        '{"lane_index":1,"expected_capacity":2,"server_limit":6,'
+        '"auth_recovery_rounds":1,"fallback_technology":"openvpn_tcp",'
+        '"preferred_only":false,"preserve_recommendation_rank":true,'
+        '"recommendation_slot_count":1,"recommendation_slot_index":0}]}\n'
     )
 
 
@@ -3786,6 +3798,10 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
         ("1", ["false"], 1),
         ("2", ["false", "false"], 2),
         ("2", ["false"], 1),
+        ("3", ["false"] * 3, 3),
+        ("4", ["false"] * 4, 4),
+        ("5", ["false"] * 5, 5),
+        ("6", ["false"] * 6, 6),
     ],
 )
 def test_configured_auth_capacity_gate_matches_executable_lane_count(
@@ -3822,9 +3838,20 @@ def test_configured_auth_capacity_gate_matches_executable_lane_count(
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
+    fresh_slot_count = max(expected_capacity - 1, 0)
     expected_matrix = {
         "include": [
-            {"lane_index": lane_index, "expected_capacity": expected_capacity}
+            {
+                "lane_index": lane_index,
+                "expected_capacity": expected_capacity,
+                "server_limit": 1 if lane_index == 0 else 6,
+                "auth_recovery_rounds": 0 if lane_index == 0 else 1,
+                "fallback_technology": "" if lane_index == 0 else "openvpn_tcp",
+                "preferred_only": lane_index == 0,
+                "preserve_recommendation_rank": (lane_index > 0 and fresh_slot_count == 1),
+                "recommendation_slot_count": 0 if lane_index == 0 else fresh_slot_count,
+                "recommendation_slot_index": max(lane_index - 1, 0),
+            }
             for lane_index in range(expected_capacity)
         ]
     }
@@ -3974,7 +4001,10 @@ def test_vpn_capacity_gate_skips_nonconfigured_or_nonexecutable_waves(
     assert result.returncode == 0, result.stderr or result.stdout
     assert output_path.read_text(encoding="utf-8") == (
         'required=false\ncapacity-count=0\nmatrix={"include":'
-        '[{"lane_index":0,"expected_capacity":0}]}\n'
+        '[{"lane_index":0,"expected_capacity":0,"server_limit":1,'
+        '"auth_recovery_rounds":0,"fallback_technology":"",'
+        '"preferred_only":true,"preserve_recommendation_rank":false,'
+        '"recommendation_slot_count":0,"recommendation_slot_index":0}]}\n'
     )
 
 
