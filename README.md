@@ -261,12 +261,16 @@ rejections remain separate from server-health quarantine: downstream jobs reuse 
 credential source proven by preflight, pause after bounded rejection sweeps, and
 rotate servers and protocols only after a budgeted cooldown. Servers that pass the
 preflight NBA probes are tried first by the serial discovery job; preflight and
-discovery successes are then handed to extraction as a verified pool. Lane indexes
-use preferred hosts and disjoint fresh recommendation partitions without wrapping a
-verified host onto later logical slots. Each active lane still runs on a separate
-runner and tunnel, but neither server selection nor scheduling attests unique exit
-IPs. VPN lane parallelism defaults to two. Token-derived extraction is serialized,
-and VPN/auto full-extraction workflows cannot overlap another VPN-backed full chain.
+discovery successes are then handed to extraction as a verified pool. Logical lane
+indexes never wrap a verified preferred host onto a later lane. Matrix rows also carry
+one of the bounded `vpn_parallelism` slots; later logical lanes reuse a slot only after
+its `queue: max` job concurrency group releases it. Fresh recommendation hostnames are
+assigned by a run-attempt-seeded hash to exactly one live slot, and additive candidate
+expansion does not reassign hosts between slots. Each active lane still runs on a
+separate runner and tunnel, but neither server selection nor scheduling attests unique
+exit IPs. VPN lane parallelism defaults to two. Token-derived extraction is serialized,
+disables parallel recommendation partitioning, and VPN/auto full-extraction workflows
+cannot overlap another VPN-backed full chain.
 Discovery uses hard request timeouts and spends its bounded retry budget on both
 transport-transient failures and response-contract/validation failures, including
 wrapped causes. True application errors remain permanent. It also uses a bounded
@@ -312,7 +316,9 @@ direct runs skip the configured-credential capacity gate.
 VPN-backed planning also caps each matrix wave at `vpn_parallelism * 32` jobs (64 at the
 default configured value of two); the later admission gate can prove fewer active
 tunnels, and token authentication serializes execution without changing that planned
-batch cap. If a later connector receives `vpn_auth_failure`, it publishes an immutable
+batch cap. The larger matrix is assigned round-robin to the admitted VPN slots, with a
+non-cancelling queue serializing every repeated slot. If a later connector receives
+`vpn_auth_failure`, it publishes an immutable
 run-attempt circuit marker. Queued lanes consult that marker before authentication and
 trust it only after the REST artifact identity, workflow run/source, archive SHA-256,
 single safe JSON member, and marker provenance all validate. A verified marker emits

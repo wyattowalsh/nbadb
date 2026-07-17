@@ -241,20 +241,24 @@ Preflight and discovery also expose the servers that pass every NBA probe. The s
 discovery job tries the disconnected preflight-proven host before fresh recommendations.
 Extract lanes receive both successful hosts as a verified pool before consulting fresh recommendations.
 Logical lane index `N` may use only preferred host `N`; preferred assignment never
-wraps modulo when the lane count exceeds the verified-host count. Later lanes use
-disjoint fresh recommendations instead of falling through to another active lane's host.
+wraps modulo when the lane count exceeds the verified-host count. Every matrix row also
+has a bounded VPN slot, and later logical lanes may reuse a slot only after that slot's
+non-cancelling `queue: max` concurrency group releases it.
 This avoids rediscovering known-good exits without collapsing parallel runners onto
 one NordVPN server. Quarantine and per-protocol attempt ceilings still take precedence.
 
 The connector fetches and caches a wider Nord-recommended country pool than it
-attempts for each protocol. It first builds one stable city/station-network-diverse
-ordering, then assigns adjacent lane or rerun indexes to disjoint pool segments while
-pool capacity permits. This keeps current Nord health recommendations while preventing one cluster of NBA-blocked
-exits from consuming every fallback slot. If exclusions underfill an assigned segment,
-the cached recommendation snapshot expands additively and fills only from that
-selector's reserve segment, without rebasing other selectors. `SERVER_LIMIT` is the
-hard per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE`
-improves candidate diversity without increasing attempts.
+attempts for each protocol. For parallel configured-credential work, a
+run-attempt-seeded hostname hash assigns every fresh recommendation to exactly one live
+slot. Shared preferred and quarantined hosts are removed before that partition; a
+lane's attempted or failed hosts are removed only from its assigned candidates. The
+cached recommendation snapshot expands additively without changing ownership of hosts
+already seen by another slot. This keeps current Nord health recommendations while
+preventing candidate ordering, asymmetric exclusions, or one cluster of NBA-blocked
+exits from collapsing concurrent runners onto the same host. Single-selector ad hoc
+runs retain the ranked contiguous selection path. `SERVER_LIMIT` is the hard
+per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE` improves
+candidate diversity without increasing attempts.
 
 An OpenVPN `AUTH_FAILED` response is not enough to classify a server as unhealthy:
 the connector does not add that host to the chain quarantine. After discovery,
@@ -442,9 +446,11 @@ authentication executes one simultaneous matrix job without shrinking the alread
 planned batch. `matrix_batch_size` remains independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
 therefore API pressure. VPN mode defaults to two simultaneous lanes. Each active
-lane runs on a separate GitHub-hosted runner and tunnel. Probe-verified
-preflight/discovery hosts are reused only by their assigned parallel slot; unfilled
-slots retain disjoint recommendation partitions. Those preferences do not attest
+lane runs on a separate GitHub-hosted runner and tunnel. Matrix rows are assigned
+round-robin to the bounded VPN slots, and each slot's `queue: max` group serializes all
+later logical lanes that reuse it. Probe-verified preflight/discovery hosts are reused
+only by their assigned logical lane; fresh hostnames hash to exactly one live slot.
+Those assignments do not attest
 unique VPN exit IPs across runners. When alternatives exist, the scheduler prevents
 an endpoint-homogeneous six-lane runner window, which distributes endpoint pressure
 without changing that VPN assurance boundary. All lanes still consume the same
