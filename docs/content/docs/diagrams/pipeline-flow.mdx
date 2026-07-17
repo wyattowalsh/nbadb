@@ -204,7 +204,13 @@ small concurrent gate before the extraction matrix is admitted. Every probe hold
 tunnel while all run-attempt markers reach a barrier, then rechecks its live process,
 route, and exit IP. Any failed gate probe or barrier blocks fan-out and retains
 lane-specific VPN diagnostics; its unvalidated failed-host list is not promoted because
-no child manifest is created. A lane's first capacity-marker upload is no-overwrite;
+no child manifest is created. Capacity slot zero is preferred-only on the freshly
+verified discovery/preflight anchor and has no fresh or protocol fallback. Every
+non-anchor probe owns one of the
+`capacity - 1` explicit fresh recommendation partitions; a single fresh partition owns
+the whole pool and uses Nord's current recommendation rank as the tie-breaker after
+network and city diversity rather than leaving candidates reserved for the connected anchor. A
+lane's first capacity-marker upload is no-overwrite;
 only a reported first-upload failure permits one exact lane-unique overwrite retry.
 Auth-circuit marker retries remain no-overwrite and resolve only by exact sibling
 lookup. Token-derived and direct modes skip that gate. Both

@@ -239,7 +239,14 @@ its unvalidated host inventory is not promoted into extraction or a child manife
 
 Preflight and discovery also expose the servers that pass every NBA probe. The serial
 discovery job tries the disconnected preflight-proven host before fresh recommendations.
-Extract lanes receive both successful hosts as a verified pool before consulting fresh recommendations.
+During concurrent admission, capacity slot zero is preferred-only on that just-proven
+anchor and has no fresh or protocol fallback; failure blocks the gate immediately. The
+remaining capacity probes partition the entire fresh recommendation pool
+across `capacity - 1` explicit slots. An explicit single fresh slot owns the full pool,
+uses Nord's current recommendation rank as the tie-breaker after network and city
+diversity, and prevents an already-connected anchor from reserving an unused half of the candidates.
+Extract lanes receive the exact successful capacity-marker hosts as a verified pool
+before consulting fresh recommendations.
 Logical lane index `N` may use only preferred host `N`; preferred assignment never
 wraps modulo when the lane count exceeds the verified-host count. Every matrix row also
 has a bounded VPN slot, and later logical lanes may reuse a slot only after that slot's
@@ -256,7 +263,9 @@ cached recommendation snapshot expands additively without changing ownership of 
 already seen by another slot. This keeps current Nord health recommendations while
 preventing candidate ordering, asymmetric exclusions, or one cluster of NBA-blocked
 exits from collapsing concurrent runners onto the same host. Single-selector ad hoc
-runs retain the ranked contiguous selection path. `SERVER_LIMIT` is the hard
+runs retain the ranked contiguous selection path. An explicit recommendation-slot
+cardinality of one still uses the ownership path and assigns its sole slot every fresh
+candidate. `SERVER_LIMIT` is the hard
 per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE` improves
 candidate diversity without increasing attempts.
 

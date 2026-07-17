@@ -303,7 +303,13 @@ actual active lane count and `vpn_parallelism`; any failed probe blocks the extr
 matrix. Every probe publishes a run-attempt marker while its tunnel remains connected,
 waits for all peer markers, and then rechecks its process, route, and exit IP before
 disconnecting, so the gate proves overlapping live tunnels rather than sequential
-logins. A separate fail-closed job downloads and validates every capacity marker,
+logins. Capacity slot zero is preferred-only on the just-proven discovery/preflight
+anchor and has no fresh or protocol fallback; failure blocks the gate immediately. The
+remaining probes partition the entire fresh recommendation pool across
+`capacity - 1` explicit slots; when only one fresh slot remains, it owns that full pool
+and uses Nord's current recommendation rank as the tie-breaker after network and city
+diversity instead of losing half of the candidates to the already-connected anchor. A separate
+fail-closed job downloads and validates every capacity marker,
 merges the successful probes' failed servers with preflight and discovery failures, and publishes the
 run-attempt-scoped effective-quarantine report before extraction is admitted.
 Extraction lanes then reserve a complete connection attempt and cleanup, one bounded
