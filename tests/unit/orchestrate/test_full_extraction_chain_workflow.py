@@ -3544,12 +3544,56 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
     )
 
     assert "timeout-minutes: 8" in vpn_step
+    assert "continue-on-error: true" in vpn_step
     assert 'SERVER_LIMIT: "4"' in vpn_step
     assert "RUN_ATTEMPT: ${{ github.run_attempt }}" in vpn_step
     assert "export LANE_INDEX=$((RUN_ATTEMPT - 1))" in vpn_step
     assert 'SERVER_POOL_SIZE: "96"' in vpn_step
+    assert 'PRESERVE_RECOMMENDATION_RANK: "true"' in vpn_step
     assert 'CONNECT_TIMEOUT_SECONDS: "60"' in vpn_step
     assert 'OVERALL_TIMEOUT_SECONDS: "300"' in vpn_step
+    diagnostics = _step_block(preflight, "Build redacted preflight VPN diagnostics")
+    upload = _step_block(preflight, "Upload redacted preflight VPN diagnostics")
+    assert "if: ${{ always() && inputs.network_mode != 'direct' }}" in diagnostics
+    assert '"attempted_servers": server_list("ATTEMPTED_SERVERS_JSON")' in diagnostics
+    assert '"failed_servers": server_list("FAILED_SERVERS_JSON")' in diagnostics
+    assert "OPENVPN_USER" not in diagnostics
+    assert "OPENVPN_PASSWORD" not in diagnostics
+    assert "NORDVPN_TOKEN" not in diagnostics
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in upload
+    assert "full-extraction-preflight-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}" in upload
+    assert "continue-on-error: true" in upload
+
+    diagnostics_dir = tmp_path / "artifacts" / "full-extraction" / "preflight-vpn-diagnostics"
+    diagnostics_dir.mkdir(parents=True)
+    diagnostics_result = _run_python(
+        _embedded_python(diagnostics, "PREFLIGHT_VPN_DIAGNOSTICS"),
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "VPN_STATUS": "vpn_network_error",
+            "VPN_AUTH_SOURCE": "",
+            "VPN_SERVER": "",
+            "VPN_EXIT_IP": "",
+            "NBA_PROBE_STATUS": "timeout",
+            "NBA_PROBE_DIAGNOSTIC": "NBA Stats probe timed out",
+            "ATTEMPTED_SERVERS_JSON": '["us1001.nordvpn.com","us1002.nordvpn.com"]',
+            "FAILED_SERVERS_JSON": '["us1001.nordvpn.com","us1002.nordvpn.com"]',
+        },
+    )
+    assert diagnostics_result.returncode == 0, diagnostics_result.stderr
+    diagnostics_payload = json.loads((diagnostics_dir / "summary.json").read_text(encoding="utf-8"))
+    assert diagnostics_payload == {
+        "schema_version": 1,
+        "status": "vpn_network_error",
+        "auth_source": "",
+        "server": "",
+        "exit_ip": "",
+        "nba_probe_status": "timeout",
+        "nba_probe_diagnostic": "NBA Stats probe timed out",
+        "attempted_servers": ["us1001.nordvpn.com", "us1002.nordvpn.com"],
+        "failed_servers": ["us1001.nordvpn.com", "us1002.nordvpn.com"],
+    }
     assert (
         "vpn-quarantined-servers-json: "
         "${{ steps.vpn_quarantine.outputs.vpn-quarantined-servers-json }}"
@@ -4003,15 +4047,84 @@ def test_network_mode_resolution_rejects_unattested_connected_tunnels(
     assert "VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}" in step
     script = textwrap.dedent(step.split("        run: |\n", 1)[1])
     cases = (
-        ("vpn", "connected", "configured", 0, "effective-network-mode=vpn\n"),
-        ("vpn", "connected", "token", 0, "effective-network-mode=vpn\n"),
-        ("vpn", "connected", "", 1, ""),
-        ("vpn", "connected", "unknown", 1, ""),
-        ("auto", "vpn_auth_failure", "", 0, "effective-network-mode=direct\n"),
-        ("direct", "unknown", "", 0, "effective-network-mode=direct\n"),
+        (
+            "vpn",
+            "connected",
+            "configured",
+            "us1001.nordvpn.com",
+            "192.0.2.1",
+            0,
+            "effective-network-mode=vpn\n",
+            "",
+        ),
+        (
+            "vpn",
+            "connected",
+            "token",
+            "us1001.nordvpn.com",
+            "192.0.2.1",
+            0,
+            "effective-network-mode=vpn\n",
+            "",
+        ),
+        (
+            "vpn",
+            "connected",
+            "",
+            "us1001.nordvpn.com",
+            "192.0.2.1",
+            1,
+            "",
+            "credential-source attestation",
+        ),
+        (
+            "vpn",
+            "connected",
+            "unknown",
+            "us1001.nordvpn.com",
+            "192.0.2.1",
+            1,
+            "",
+            "credential-source attestation",
+        ),
+        (
+            "vpn",
+            "connected",
+            "configured",
+            "",
+            "192.0.2.1",
+            1,
+            "",
+            "server and exit-IP attestations",
+        ),
+        (
+            "vpn",
+            "connected",
+            "configured",
+            "us1001.nordvpn.com",
+            "",
+            1,
+            "",
+            "server and exit-IP attestations",
+        ),
+        ("vpn", "vpn_network_error", "", "", "", 1, "", "refusing requested VPN extraction"),
+        ("vpn", "vpn_auth_failure", "", "", "", 1, "", "refusing requested VPN extraction"),
+        ("vpn", "", "", "", "", 1, "", "refusing requested VPN extraction"),
+        ("auto", "vpn_auth_failure", "", "", "", 0, "effective-network-mode=direct\n", ""),
+        ("direct", "unknown", "", "", "", 0, "effective-network-mode=direct\n", ""),
+        ("unsupported", "unknown", "", "", "", 1, "", "Unsupported network_mode"),
     )
 
-    for index, (requested, status, auth_source, expected_rc, expected_output) in enumerate(cases):
+    for index, (
+        requested,
+        status,
+        auth_source,
+        server,
+        exit_ip,
+        expected_rc,
+        expected_output,
+        expected_error,
+    ) in enumerate(cases):
         output_path = tmp_path / f"network-mode-{index}.txt"
         output_path.touch()
         result = subprocess.run(
@@ -4023,8 +4136,8 @@ def test_network_mode_resolution_rejects_unattested_connected_tunnels(
                 "REQUESTED_NETWORK_MODE": requested,
                 "VPN_STATUS": status,
                 "VPN_AUTH_SOURCE": auth_source,
-                "VPN_SERVER": "us1001.nordvpn.com",
-                "VPN_EXIT_IP": "192.0.2.1",
+                "VPN_SERVER": server,
+                "VPN_EXIT_IP": exit_ip,
                 "GITHUB_OUTPUT": str(output_path),
             },
             text=True,
@@ -4032,6 +4145,7 @@ def test_network_mode_resolution_rejects_unattested_connected_tunnels(
 
         assert result.returncode == expected_rc, result.stderr or result.stdout
         assert output_path.read_text(encoding="utf-8") == expected_output
+        assert expected_error in result.stdout
 
 
 def test_effective_attempt_quarantine_is_persisted_into_the_next_manifest(

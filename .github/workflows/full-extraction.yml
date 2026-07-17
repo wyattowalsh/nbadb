@@ -1153,6 +1153,9 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SERVER_LIMIT: "4"
           SERVER_POOL_SIZE: "96"
+          # Preflight is a single selector, so retain Nord's ranked recommendations.
+          # Parallel discovery/capacity/extract selectors use stable hash partitions.
+          PRESERVE_RECOMMENDATION_RANK: "true"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
           CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
@@ -1166,6 +1169,62 @@ jobs:
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
           exit "$rc"
+
+      - name: Build redacted preflight VPN diagnostics
+        if: ${{ always() && inputs.network_mode != 'direct' }}
+        env:
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}
+          VPN_SERVER: ${{ steps.vpn.outputs.server }}
+          VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+          NBA_PROBE_STATUS: ${{ steps.vpn.outputs.nba-probe-status }}
+          NBA_PROBE_DIAGNOSTIC: ${{ steps.vpn.outputs.nba-probe-diagnostic }}
+          ATTEMPTED_SERVERS_JSON: ${{ steps.vpn.outputs.attempted-servers-json }}
+          FAILED_SERVERS_JSON: ${{ steps.vpn.outputs.failed-servers-json }}
+        run: |
+          mkdir -p artifacts/full-extraction/preflight-vpn-diagnostics
+          python3 - <<'PY'
+          # PREFLIGHT_VPN_DIAGNOSTICS
+          import json
+          import os
+          from pathlib import Path
+
+          def server_list(name: str) -> list[str]:
+              raw = os.environ.get(name, "") or "[]"
+              try:
+                  values = json.loads(raw)
+              except json.JSONDecodeError as exc:
+                  raise SystemExit(f"{name} is not valid JSON: {exc}") from exc
+              if not isinstance(values, list):
+                  raise SystemExit(f"{name} must be a JSON array")
+              return [str(value).strip() for value in values if str(value).strip()]
+
+          payload = {
+              "schema_version": 1,
+              "status": os.environ.get("VPN_STATUS", "") or "unknown",
+              "auth_source": os.environ.get("VPN_AUTH_SOURCE", ""),
+              "server": os.environ.get("VPN_SERVER", ""),
+              "exit_ip": os.environ.get("VPN_EXIT_IP", ""),
+              "nba_probe_status": os.environ.get("NBA_PROBE_STATUS", "") or "unknown",
+              "nba_probe_diagnostic": os.environ.get("NBA_PROBE_DIAGNOSTIC", ""),
+              "attempted_servers": server_list("ATTEMPTED_SERVERS_JSON"),
+              "failed_servers": server_list("FAILED_SERVERS_JSON"),
+          }
+          Path(
+              "artifacts/full-extraction/preflight-vpn-diagnostics/summary.json"
+          ).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload redacted preflight VPN diagnostics
+        if: ${{ always() && inputs.network_mode != 'direct' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: full-extraction-preflight-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: artifacts/full-extraction/preflight-vpn-diagnostics/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
 
       - name: Resolve effective network mode
         id: network_mode
@@ -1190,6 +1249,10 @@ jobs:
                 exit 1
                 ;;
             esac
+            if [ -z "${VPN_SERVER:-}" ] || [ -z "${VPN_EXIT_IP:-}" ]; then
+              echo "::error::VPN connected without complete server and exit-IP attestations"
+              exit 1
+            fi
           fi
 
           if [ "$requested" = "direct" ]; then

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -316,6 +317,12 @@ class NordVpnConnectAction:
         self.require_auth_recovery_budget = (
             os.environ.get("REQUIRE_AUTH_RECOVERY_BUDGET", "false").strip().lower() == "true"
         )
+        self.preserve_recommendation_rank = (
+            os.environ.get("PRESERVE_RECOMMENDATION_RANK", "false").strip().lower() == "true"
+        )
+        run_id = os.environ.get("GITHUB_RUN_ID", "").strip() or "local"
+        run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "").strip() or "1"
+        self.recommendation_partition_seed = f"{run_id}:{run_attempt}"
         if self.overall_timeout < self.connect_timeout:
             raise ActionError(
                 "vpn_network_error",
@@ -1011,8 +1018,8 @@ class NordVpnConnectAction:
         self.server_candidate_limits_by_technology[technology] = inventory_limit
         return candidates
 
-    @staticmethod
     def diversified_server_candidates(
+        self,
         candidates: tuple[ServerCandidate, ...],
     ) -> tuple[ServerCandidate, ...]:
         ordered: list[ServerCandidate] = []
@@ -1020,13 +1027,24 @@ class NordVpnConnectAction:
         city_use_count: dict[str, int] = {}
         network_use_count: dict[str, int] = {}
 
+        def _candidate_order(candidate: ServerCandidate) -> tuple[int, str]:
+            if self.preserve_recommendation_rank:
+                return candidate.recommendation_rank, candidate.hostname
+            stable_rank = int.from_bytes(
+                hashlib.sha256(
+                    f"{self.recommendation_partition_seed}\0{candidate.hostname}".encode()
+                ).digest(),
+                "big",
+            )
+            return stable_rank, candidate.hostname
+
         def _select_candidate(pool: list[ServerCandidate], *, phase: int) -> ServerCandidate:
             if phase == 1:
                 return min(
                     pool,
                     key=lambda candidate: (
                         city_use_count.get(candidate.city_key, 0),
-                        candidate.hostname,
+                        _candidate_order(candidate),
                     ),
                 )
             if phase == 2:
@@ -1035,14 +1053,14 @@ class NordVpnConnectAction:
                     key=lambda candidate: (
                         network_use_count.get(candidate.network_key or "", 0),
                         city_use_count.get(candidate.city_key, 0),
-                        candidate.hostname,
+                        _candidate_order(candidate),
                     ),
                 )
             return min(
                 pool,
                 key=lambda candidate: (
                     city_use_count.get(candidate.city_key, 0),
-                    candidate.hostname,
+                    _candidate_order(candidate),
                 ),
             )
 

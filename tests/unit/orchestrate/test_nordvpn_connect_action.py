@@ -1018,10 +1018,10 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
 
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
-    assert action.recommendation_servers("openvpn_tcp") == [
-        "us1002.nordvpn.com",
-        "us1003.nordvpn.com",
-    ]
+    selected = action.recommendation_servers("openvpn_tcp")
+    assert selected[0] == "us1002.nordvpn.com"
+    assert len(selected) == 2
+    assert selected[1] in {"us1003.nordvpn.com", "us1004.nordvpn.com"}
     assert "limit=3" in requested_urls[0]
     assert "/v1/servers/recommendations?" in requested_urls[0]
     assert "openvpn_tcp" in requested_urls[0]
@@ -1223,10 +1223,10 @@ def test_recommendations_expand_cached_inventory_after_cross_protocol_failures(
     ]
     action.failed_servers = ["us1001.nordvpn.com"]
 
-    assert action.recommendation_servers("openvpn_tcp") == [
-        "us1002.nordvpn.com",
-        "us1003.nordvpn.com",
-    ]
+    selected = action.recommendation_servers("openvpn_tcp")
+    assert selected[0] == "us1002.nordvpn.com"
+    assert len(selected) == 2
+    assert selected[1] in {"us1003.nordvpn.com", "us1004.nordvpn.com"}
     assert [
         candidate.hostname for candidate in action.server_candidates_by_technology["openvpn_tcp"]
     ] == [
@@ -1282,11 +1282,12 @@ def test_recommendations_diversify_station_networks_and_bound_attempts(
 
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
-    assert action.recommendation_servers("openvpn_udp") == [
-        "us1001.nordvpn.com",
-        "us1003.nordvpn.com",
-        "us1004.nordvpn.com",
-    ]
+    selected = action.recommendation_servers("openvpn_udp")
+    assert len(selected) == 3
+    assert set(selected) <= {hostname for hostname, _station, _city in candidates}
+    selected_metadata = {hostname: (station, city) for hostname, station, city in candidates}
+    assert len({selected_metadata[hostname][0] for hostname in selected}) == 3
+    assert len({selected_metadata[hostname][1] for hostname in selected}) == 3
     assert "limit=8" in requested_urls[0]
     assert "/v1/servers/recommendations?" in requested_urls[0]
 
@@ -1326,23 +1327,18 @@ def test_recommendations_partition_adjacent_lane_starts(
     action.selector_index = 1
     second_partition = action.recommendation_servers("openvpn_udp")
 
-    assert first_partition == [
-        "us1001.nordvpn.com",
-        "us1002.nordvpn.com",
-    ]
-    assert second_partition == [
-        "us1003.nordvpn.com",
-        "us1004.nordvpn.com",
-    ]
+    assert len(first_partition) == 2
+    assert len(second_partition) == 2
     assert set(first_partition).isdisjoint(second_partition)
 
-    action.quarantined_servers = ("us1001.nordvpn.com",)
+    quarantined = first_partition[0]
+    action.quarantined_servers = (quarantined,)
     action.selector_index = 0
     excluded_first_partition = action.recommendation_servers("openvpn_udp")
     action.selector_index = 1
     unaffected_second_partition = action.recommendation_servers("openvpn_udp")
 
-    assert excluded_first_partition == ["us1002.nordvpn.com"]
+    assert excluded_first_partition == [first_partition[1]]
     assert unaffected_second_partition == second_partition
     assert set(excluded_first_partition).isdisjoint(unaffected_second_partition)
 
@@ -1387,9 +1383,107 @@ def test_independent_lane_partitions_ignore_recommendation_response_order(
     first_partition = lane_zero.recommendation_servers("openvpn_udp")
     second_partition = lane_one.recommendation_servers("openvpn_udp")
 
-    assert first_partition == ["us1001.nordvpn.com", "us1002.nordvpn.com"]
-    assert second_partition == ["us1003.nordvpn.com", "us1004.nordvpn.com"]
+    same_first_partition = _action_for_lane(0, list(reversed(candidates))).recommendation_servers(
+        "openvpn_udp"
+    )
+    same_second_partition = _action_for_lane(1, candidates).recommendation_servers("openvpn_udp")
+
+    assert first_partition == same_first_partition
+    assert second_partition == same_second_partition
     assert set(first_partition).isdisjoint(second_partition)
+
+
+def test_independent_lane_partitions_rotate_with_run_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    candidates = [
+        {
+            "hostname": f"us100{index}.nordvpn.com",
+            "status": "online",
+            "station": f"192.0.{index}.1",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index in range(1, 9)
+    ]
+
+    def _partition(run_attempt: str, payload: list[dict[str, object]]) -> list[str]:
+        monkeypatch.setenv("GITHUB_RUN_ID", "29546730656")
+        monkeypatch.setenv("GITHUB_RUN_ATTEMPT", run_attempt)
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        action.server_limit = 2
+        action.server_pool_size = 8
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        return action.recommendation_servers("openvpn_udp")
+
+    first_attempt = _partition("1", candidates)
+    first_attempt_reversed = _partition("1", list(reversed(candidates)))
+    second_attempt = _partition("2", candidates)
+
+    assert (
+        first_attempt
+        == first_attempt_reversed
+        == [
+            "us1004.nordvpn.com",
+            "us1008.nordvpn.com",
+        ]
+    )
+    assert second_attempt == ["us1008.nordvpn.com", "us1006.nordvpn.com"]
+
+
+def test_single_selector_can_preserve_nord_recommendation_rank(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("PRESERVE_RECOMMENDATION_RANK", "true")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 3
+    action.server_pool_size = 4
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": station,
+            "locations": [{"country": {"city": {"name": city}}}],
+        }
+        for hostname, station, city in (
+            ("us9003.nordvpn.com", "192.0.2.1", "New York"),
+            ("us1001.nordvpn.com", "198.51.100.1", "Dallas"),
+            ("us5000.nordvpn.com", "203.0.113.1", "Denver"),
+            ("us2000.nordvpn.com", "192.0.2.2", "Los Angeles"),
+        )
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(json.dumps(candidates), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.recommendation_servers("openvpn_udp") == [
+        "us9003.nordvpn.com",
+        "us1001.nordvpn.com",
+        "us5000.nordvpn.com",
+    ]
 
 
 def test_recommendations_use_invalid_or_ipv6_stations_only_as_fallback(
@@ -1419,11 +1513,9 @@ def test_recommendations_use_invalid_or_ipv6_stations_only_as_fallback(
 
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
-    assert action.recommendation_servers("openvpn_udp") == [
-        "us1003.nordvpn.com",
-        "us1004.nordvpn.com",
-        "us1001.nordvpn.com",
-    ]
+    selected = action.recommendation_servers("openvpn_udp")
+    assert set(selected[:2]) == {"us1003.nordvpn.com", "us1004.nordvpn.com"}
+    assert selected[2] in {"us1001.nordvpn.com", "us1002.nordvpn.com"}
 
 
 def test_verify_connection_keeps_full_tunnel_gate_before_network_probes(
@@ -2356,11 +2448,14 @@ def test_auth_recovery_covers_untried_servers_and_alternates_protocols(
         action.run()
 
     assert excinfo.value.status == "vpn_auth_failure"
-    assert attempts == [
-        *[("openvpn_udp", server) for server in servers[:3]],
-        *[("openvpn_tcp", server) for server in servers[:3]],
-        *[("openvpn_udp", server) for server in servers[3:]],
-    ]
+    assert len(attempts) == 9
+    first_udp = [server for technology, server in attempts[:3] if technology == "openvpn_udp"]
+    first_tcp = [server for technology, server in attempts[3:6] if technology == "openvpn_tcp"]
+    recovery_udp = [server for technology, server in attempts[6:] if technology == "openvpn_udp"]
+    assert len(first_udp) == len(first_tcp) == len(recovery_udp) == 3
+    assert first_tcp == first_udp
+    assert set(first_udp).isdisjoint(recovery_udp)
+    assert set(first_udp + recovery_udp) == set(servers)
     assert action.technology_selection_offsets == {
         "openvpn_udp": 6,
         "openvpn_tcp": 3,
