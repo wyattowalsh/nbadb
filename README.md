@@ -252,8 +252,11 @@ VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 bounded GitHub control-plane reachability probe, strict NBA result-set probe, and
 installed-stack player/game discovery canaries pass.
 The player canary also requires a positive player/team membership row.
-NBA-blocked servers are rejected across fallback technologies and carried from
-preflight into both the current lane quarantine and child manifests. Authentication
+NBA-blocked servers are rejected across fallback technologies. Preflight and discovery
+failures, plus failed hosts reported by successful concurrent capacity probes, are
+validated and merged into both the current lane quarantine and child manifests. A
+capacity probe that cannot complete leaves diagnostics and blocks the matrix before a
+child manifest exists; its unvalidated host inventory is not promoted. Authentication
 rejections remain separate from server-health quarantine: downstream jobs reuse the
 credential source proven by preflight, pause after bounded rejection sweeps, and
 rotate servers and protocols only after a budgeted cooldown. Servers that pass the
@@ -262,7 +265,7 @@ discovery successes are then handed to extraction as a verified pool. Lane index
 use preferred hosts and disjoint fresh recommendation partitions without wrapping a
 verified host onto later logical slots. Each active lane still runs on a separate
 runner and tunnel, but neither server selection nor scheduling attests unique exit
-IPs. VPN lane parallelism defaults to three. Token-derived extraction is serialized,
+IPs. VPN lane parallelism defaults to two. Token-derived extraction is serialized,
 and VPN/auto full-extraction workflows cannot overlap another VPN-backed full chain.
 Discovery uses hard request timeouts and spends its bounded retry budget on both
 transport-transient failures and response-contract/validation failures, including
@@ -289,6 +292,43 @@ even when no lane snapshot can be attested, so restore/VPN failures remain visib
 lane control and failed servers still enter the chain quarantine.
 `vpn_network_error`, authentication failure, and connect timeout are all bounded
 `vpn_egress` failures rather than one-shot application failures.
+Configured-credential waves first run a concurrent VPN capacity gate sized to the
+actual active lane count and `vpn_parallelism`; any failed probe blocks the extraction
+matrix. Every probe publishes a run-attempt marker while its tunnel remains connected,
+waits for all peer markers, and then rechecks its process, route, and exit IP before
+disconnecting, so the gate proves overlapping live tunnels rather than sequential
+logins. A separate fail-closed job downloads and validates every capacity marker,
+merges the successful probes' failed servers with preflight and discovery failures, and publishes the
+run-attempt-scoped effective-quarantine report before extraction is admitted.
+Extraction lanes then reserve a complete connection attempt and cleanup, one bounded
+five-minute cooldown, and a complete follow-up attempt and cleanup before starting an
+authentication-capacity probe. The recovery sweep tolerates up to three further
+rejections inside a 12-minute connector budget. Every server attempt stops before a
+120-second connector finalization reserve for process cleanup, work-directory
+readability, and action outputs; the outer supervisor retains a separate emergency
+margin.
+Preflight and discovery keep their shorter fail-closed deadlines. Token-derived and
+direct runs skip the configured-credential capacity gate.
+VPN-backed planning also caps each matrix wave at `vpn_parallelism * 32` jobs (64 at the
+default configured value of two); the later admission gate can prove fewer active
+tunnels, and token authentication serializes execution without changing that planned
+batch cap. If a later connector receives `vpn_auth_failure`, it publishes an immutable
+run-attempt circuit marker. Queued lanes consult that marker before authentication and
+trust it only after the REST artifact identity, workflow run/source, archive SHA-256,
+single safe JSON member, and marker provenance all validate. A verified marker emits
+retry-neutral deferred metadata and prevents another connector call. An unavailable or
+invalid artifact lookup also prevents authentication, but emits
+`vpn_auth_circuit_check_failed` as a bounded `runner_infrastructure` retry; it neither
+opens the provider circuit nor suppresses a healthy redispatch. Lanes already admitted
+before the first marker can each receive a rejection and consume one bounded VPN retry.
+Any authoritative rejection or valid circuit-open deferral opens the lane-control
+circuit. The current wave checkpoints completed work and suppresses automatic
+redispatch until the account-capacity issue is repaired and the chain is resumed.
+Each extract job records a 350-minute internal deadline before checkout, inside the
+360-minute Actions job cap, and caps the lane's effective extraction timeout against
+current elapsed time. This preserves at least 20 minutes for status finalization,
+state attestation, artifact upload and retry, diagnostics, and tunnel cleanup, plus a
+separate job-level margin.
 State-attestation schema v3 binds each player/team/season snapshot to the exact
 lane workload, including zero-pair sentinels, and rejects unexpected journal identities
 during both restore and checkpoint merge. Append-only growth outside that lane is safe:
@@ -314,6 +354,12 @@ in manifest chain state across generations. Cancellation/source resume carries n
 classified rows in a digest-bound pending commitment until the next checkpoint consumes
 and clears it; they do not inflate the effective
 checkpoint coverage used for terminal assured identity.
+Manual workflow cancellation prevents queued network jobs from being admitted and the
+lane wrapper makes a bounded attempt to terminate its child and emit `cancelled`
+outputs. GitHub can still tear down an ephemeral runner before later artifact steps run,
+so cancellation is not an artifact-durability guarantee; recovery starts from the last
+attested upload or checkpoint. A dispatch interrupted before child acknowledgement also
+makes a best-effort API cancellation of the newly created child.
 Chained runs preserve literal `max_iterations=auto`, set one fixed numeric cap from
 remaining matrix dispatch credits and retry depth, and never extend that cap in a
 child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
@@ -324,18 +370,18 @@ exact-title child.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
 read-only permissions; `publish=false` never receives Kaggle secrets, while
 `publish=true` consumes the exact assured artifact in a separate FIFO-serialized
-   writer job. Terminal assurance exports every format before running the hard scan with
-   required nonempty silver/gold domain anchors, declared silver-to-gold row-count parity,
-   and a checkpoint report canonically bound to its
-   manifest, database, chain, source commit, and every planned lane,
+writer job. Terminal assurance exports every format before running the hard scan with
+required nonempty silver/gold domain anchors, declared silver-to-gold row-count parity,
+and a checkpoint report canonically bound to its
+manifest, database, chain, source commit, and every planned lane,
 then builds the sorted SHA-256 manifest from the
 validated effective checkpoint coverage. The publisher downloads the exact GitHub
-   artifact ID, normalizes and verifies the archive SHA-256 against the upload result,
+artifact ID, normalizes and verifies the archive SHA-256 against the upload result,
 assured data identity, includes it in Kaggle metadata and marker v2, paginates the
 exact remote version inventory, and streams every remote file through SHA-256
-   readback before pushing checked-in metadata as its final step. Every marker-present
-   baseline is matched to the current metadata version and rechecked immediately before
-   upload, preventing a concurrent publisher from being silently superseded. A publication rerun
+readback before pushing checked-in metadata as its final step. Every marker-present
+baseline is matched to the current metadata version and rechecked immediately before
+upload, preventing a concurrent publisher from being silently superseded. A publication rerun
 accepts only the original source or its single byte-identical metadata-only child. A
 zero-active resume replays the exact `checkpoint-manifest.json` stored with its attested
 terminal checkpoint when present; after interruption before checkpointing,

@@ -161,14 +161,26 @@ flowchart TD
     Recovery --> Stop["Fail closed\nno matrix fan-out"]
     ScopeGate -->|yes| BundleGate{"Manifest requirements + every\ngeneration attestation valid?"}
     BundleGate -->|no| Recovery
-    BundleGate -->|yes| ExtractMatrix["Extract lane matrix"]
-    ExtractMatrix --> LaneMetadata["Lane metadata\noutcomes + failure class + progress"]
+    BundleGate -->|yes| CapacityGate{"Configured auth concurrent\ncapacity gate passes?"}
+    CapacityGate -->|no| Stop
+    CapacityGate -->|yes or skipped| QuarantineGate["Validate capacity markers + merge\npreflight/discovery/capacity failures"]
+    QuarantineGate --> ExtractMatrix["Admit extract lane matrix"]
+    ExtractMatrix --> CircuitGate{"Per-lane run-attempt auth\ncircuit lookup"}
+    CircuitGate -->|lookup unavailable or invalid| CircuitCheckFailed["Validated check-failed\ninfrastructure retry"]
+    CircuitGate -->|verified open| CircuitOpenDeferred["Validated circuit-open\nretry-neutral metadata"]
+    CircuitGate -->|closed| ConnectExtract["Connect + extract\nalready-admitted siblings may race"]
+    ConnectExtract --> LaneMetadata["Lane metadata\noutcomes + failure class + progress"]
     LaneMetadata --> LaneState["Attested lane artifact\ncheckpointed + WAL-free"]
     LaneState --> LaneControl["Lane control\nweighted next manifest"]
+    CircuitCheckFailed --> LaneControl
+    CircuitOpenDeferred --> LaneControl
     LaneControl --> Checkpoint["Immutable checkpoint generation\ncopy base + merge deltas"]
     Checkpoint --> IdentityGate{"Digest + hashes + every\njournal unit match?"}
     IdentityGate -->|no| Stop
-    IdentityGate -->|yes| Decision{"Active lanes remain?"}
+    IdentityGate -->|yes| CircuitState{"Validated auth circuit open?"}
+    CircuitState -->|yes| ManualHandoff["Manual handoff\ncheckpoint + next manifest"]
+    ManualHandoff --> ManualStop["Stop chain\nwait for operator resume"]
+    CircuitState -->|no| Decision{"Active lanes remain?"}
     Decision -->|yes| DispatchGuard["Dispatch guard\nauto budget + duplicate check"]
     DispatchGuard --> Dispatch["Dispatch + stabilization poll\nexactly one child"]
     Dispatch --> Plan
@@ -187,10 +199,42 @@ requires a full route, a changed exit IP, bounded GitHub control-plane reachabil
 a strict `TeamYears` result-set response, and bounded `common_all_players` plus
 `league_game_log` canaries through the installed `nbadb`/`nba_api` stack. The player
 canary requires positive player/team membership.
+A configured-credential wave then proves its exact active `vpn_parallelism` with a
+small concurrent gate before the extraction matrix is admitted. Every probe holds its
+tunnel while all run-attempt markers reach a barrier, then rechecks its live process,
+route, and exit IP. Any failed gate probe or barrier blocks fan-out and retains
+lane-specific VPN diagnostics; its unvalidated failed-host list is not promoted because
+no child manifest is created. A lane's first capacity-marker upload is no-overwrite;
+only a reported first-upload failure permits one exact lane-unique overwrite retry.
+Auth-circuit marker retries remain no-overwrite and resolve only by exact sibling
+lookup. Token-derived and direct modes skip that gate. Both
+`network_mode=vpn` and `network_mode=auto` planning cap the iteration at
+`vpn_parallelism * 32` jobs before credential mode is resolved; admission may prove
+fewer configured tunnels, while token-derived auth later runs at most one simultaneous
+matrix job without shrinking the planned batch.
+Before extraction, a fail-closed job validates every successful capacity marker and
+merges preflight and discovery failures with those probes' failed hosts into one
+run-attempt-scoped quarantine report. Extraction
+connectors reserve enough deadline for the initial
+attempt and cleanup, five-minute account cooldown, and one follow-up and cleanup before an
+authentication-capacity probe starts.
+An exact later `vpn_auth_failure` publishes an immutable run-attempt circuit marker.
+Each matrix job checks it before authenticating and verifies the artifact identity,
+workflow source, archive digest, safe single-file ZIP, and marker provenance. Siblings
+already admitted can race the first marker and receive their own rejection; later queued
+lanes become retry-neutral only for a verified open marker. Lookup or validation failure
+still blocks authentication, but consumes a bounded infrastructure retry and does not
+open the provider circuit or suppress redispatch. Lane control treats either rejection
+or valid circuit-open deferral as circuit-open, checkpoints completed work, and routes
+the next manifest to a manual handoff without automatic redispatch. Only a
+circuit-closed path with active lanes can dispatch a child. Each extraction job also records a 350-minute internal deadline before
+checkout inside the 360-minute Actions cap and caps the lane process against elapsed
+time so at least 20 minutes remain for checkpointing, attestation, metadata, artifact
+upload/retry, diagnostics, and tunnel cleanup.
 A generic-internet-only or endpoint-blocked tunnel is
 rejected, recorded, excluded from fallback technologies, disconnected, and replaced.
-Preflight failures join the effective chain quarantine before fan-out and are persisted
-into each child manifest. The seed requests
+The validated effective quarantine is applied before fan-out and persisted into each
+child manifest. The seed requests
 only the season/season-type combinations in the current matrix. It restores the
 prior chain's discovery artifact from the exact manifest source run, merges new
 scope evidence, refreshes every requested active-season player/game/workload scope

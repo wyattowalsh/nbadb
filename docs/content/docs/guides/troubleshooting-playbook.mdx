@@ -231,9 +231,11 @@ jobs reuse the source that actually passed instead of replacing proven configure
 credentials after a transient lane rejection. A server that passes a generic IP
 probe but times out or returns malformed NBA content is disconnected and added to
 the failed-server list before the next recommendation is tried. Runtime failures are
-excluded from every fallback technology, and preflight failures are carried into the
-effective chain quarantine before discovery/lane fan-out and persisted into child
-manifests.
+excluded from every fallback technology. Preflight failures feed discovery and the
+capacity gate. A later fail-closed aggregation job validates every successful capacity
+marker and merges preflight and discovery failures with those probes' failed hosts. A
+capacity probe that does not complete remains diagnostics-only and blocks the matrix;
+its unvalidated host inventory is not promoted into extraction or a child manifest.
 
 Preflight and discovery also expose the servers that pass every NBA probe. The serial
 discovery job tries the disconnected preflight-proven host before fresh recommendations.
@@ -255,12 +257,26 @@ hard per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE`
 improves candidate diversity without increasing attempts.
 
 An OpenVPN `AUTH_FAILED` response is not enough to classify a server as unhealthy:
-the connector limits each rejection sweep, rotates the lane-specific starting
-server and preferred protocol, and performs bounded cooldown rounds only when a full
-follow-up attempt still fits inside the action deadline. HTTP 401/403 responses fail
+the connector does not add that host to the chain quarantine. After discovery,
+configured credentials must first pass a concurrent capacity gate sized to the actual
+active lane count and `vpn_parallelism`. Each connected probe publishes a run-attempt
+marker, waits for every peer marker while keeping its tunnel open, and rechecks its
+process, route, and exit IP after the barrier. Any probe, marker, barrier, or recheck
+failure blocks the entire extraction matrix. Before fan-out, the workflow downloads
+every successful `vpn-capacity-connected-run-<run_id>-attempt-<attempt>-lane-<index>` artifact,
+validates its exact provenance and tunnel evidence, and publishes
+`vpn-quarantine-<chain_id>-run-<run_id>-attempt-<attempt>`. Each extraction connector also reserves one complete initial attempt and bounded
+cleanup, one five-minute cooldown, and a complete follow-up attempt and cleanup before it starts an
+authentication-capacity probe. It stops at the first rejection, waits, rotates the
+lane-specific starting server and preferred protocol, and permits up to three further
+authentication rejections in the recovery sweep inside a 12-minute connector budget.
+Each server attempt stops before a 120-second internal finalization reserve for OpenVPN
+cleanup, work-directory permissions, and action outputs; the supervisor retains a
+separate emergency margin.
+Preflight and discovery retain their shorter gates. HTTP 401/403 responses fail
 immediately instead of being retried as transport faults. If preflight succeeds only
-with token-derived credentials, the extract matrix is forced to one active lane so
-independent runners never race the credential endpoint.
+with token-derived credentials, matrix execution is limited to one simultaneous job
+without shrinking the planned batch and skips the configured-credential capacity gate.
 
 On chained runs, the seed job downloads
 `full-extraction-discovery-artifacts-<chain_id>` from the exact
@@ -379,6 +395,12 @@ positive run ID matching `state_artifact_run_id`; a canonical complete-lane name
 partial-resume pointer. An invalid or missing new receipt never replaces an older canonical
 recovery pointer or its completed-call/persisted-row baselines. Without prior durable state,
 the pointer and baselines remain clear before retry.
+The extract job records a 350-minute internal deadline before checkout inside the
+360-minute Actions cap and shortens the effective lane timeout as needed to preserve
+at least a 20-minute finalization reserve. That
+reserve covers status calculation, DuckDB checkpoint and attestation, canonical
+metadata, state/database upload and exact-name retry, diagnostics, and VPN disconnect;
+the nominal lane timeout is not permission to consume that headroom.
 
 `video_details` and `video_details_asset` classify 1946-47 through 2003-04 as
 `contract_blocked` and begin at 2004-05 in full extraction. Run 29195221754 discovery
@@ -411,24 +433,234 @@ uv run nbadb backfill run --extract-only --verbose \
   --summary-path artifacts/extraction/extract-summary.json
 ```
 
-`matrix_batch_size` controls how many lane jobs enter one workflow iteration and
-defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
+`matrix_batch_size` requests how many lane jobs enter one workflow iteration and
+defaults to GitHub's 256-job matrix ceiling. Direct mode may use that full value;
+both `network_mode=vpn` and `network_mode=auto` planning apply an additional cap of
+`vpn_parallelism * 32`, so the default configured value of two plans at most 64 jobs per
+iteration. The later gate can admit fewer configured tunnels, and token-derived
+authentication executes one simultaneous matrix job without shrinking the already
+planned batch. `matrix_batch_size` remains independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
-therefore API pressure. VPN mode defaults to three simultaneous lanes. Each active
+therefore API pressure. VPN mode defaults to two simultaneous lanes. Each active
 lane runs on a separate GitHub-hosted runner and tunnel. Probe-verified
 preflight/discovery hosts are reused only by their assigned parallel slot; unfilled
 slots retain disjoint recommendation partitions. Those preferences do not attest
 unique VPN exit IPs across runners. When alternatives exist, the scheduler prevents
 an endpoint-homogeneous six-lane runner window, which distributes endpoint pressure
 without changing that VPN assurance boundary. All lanes still consume the same
-account's connection allowance. Only
+account's connection allowance. Configured credentials must prove the requested
+simultaneous tunnel count in a small concurrent admission gate before the matrix
+starts; a failed gate skips fan-out and uploads per-probe diagnostics.
+The subsequent quarantine job must also pass before `extract`; inspect its
+run-attempt-scoped report when marker provenance or failure aggregation is rejected.
+
+If a later extraction connector returns exact `vpn_auth_failure`, that lane publishes
+`full-extraction-vpn-auth-circuit-run-<run_id>-attempt-<attempt>`. Every queued lane
+checks for that immutable marker before authenticating. Because the check runs inside
+each admitted matrix job, siblings already past it can each receive one rejection before
+the marker is visible. The check validates the exact artifact identity, workflow
+run/source, archive SHA-256, safe single-file ZIP, and canonical marker payload. Only a
+verified marker produces retry-neutral `vpn_auth_circuit_open` metadata. Lookup or
+validation failure still prevents a connector call, but produces
+`vpn_auth_circuit_check_failed`, consumes one bounded `runner_infrastructure` retry, and
+does not open the provider circuit or suppress a healthy redispatch. Any rejecting lane
+or valid circuit-open sibling opens the lane-control circuit, so the workflow checkpoints
+completed lanes and does not self-dispatch the next iteration.
+`vpn_connect_timeout` and `vpn_network_error` do not open this circuit. A failed marker
+lookup is also fail-closed: the lane does not authenticate while GitHub coordination is
+unavailable. Only
 one VPN/auto full-extraction workflow can run at a time; direct-mode chains retain
-chain/iteration-scoped concurrency. Token-derived mode further caps the matrix at one
-active lane.
+chain/iteration-scoped concurrency. Token-derived mode limits execution to one
+simultaneous matrix job; it does not reduce the planned batch to one lane.
 [NordVPN documents ten simultaneous devices and requires different protocols when
 multiple devices use the same server](https://support.nordvpn.com/hc/en-us/articles/19476515228305-How-many-devices-can-I-use-with-NordVPN),
 so raise `vpn_parallelism` only when the account has enough unused slots and the
-selected server/protocol combinations remain distinct.
+selected server/protocol combinations remain distinct. If the capacity gate fails,
+inspect `vpn-capacity-diagnostics-<chain_id>-<lane_index>` and rerun the complete workflow
+attempt after repairing the account or network issue:
+
+```bash
+set -euo pipefail
+
+: "${REPOSITORY:?export REPOSITORY=owner/repository}"
+: "${RUN_ID:?export RUN_ID to the positive GitHub Actions run ID}"
+
+[[ "$REPOSITORY" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]
+[[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
+
+gh run rerun "$RUN_ID" --repo "$REPOSITORY"
+```
+
+Do not use `gh run rerun --failed`: successful peers would not republish markers for the
+new run attempt, so the current-attempt barrier could never become complete. No
+checkpoint or next-manifest
+handoff exists because extraction was never admitted. If the later auth circuit opens,
+retain the checkpoint and next-manifest artifacts, wait for the provider cooldown, and
+resume the stopped chain with the exact handoff below. Increase parallelism again only
+after a sustained clean wave, not from the nominal device allowance alone.
+
+```bash
+set -euo pipefail
+
+: "${REPOSITORY:?export REPOSITORY=owner/repository}"
+: "${SOURCE_RUN_ID:?export SOURCE_RUN_ID to the stopped run ID}"
+: "${CHAIN_ID:?export CHAIN_ID to the exact extraction chain ID}"
+: "${WORKFLOW_REF:?export WORKFLOW_REF to the trusted branch}"
+: "${WORKFLOW_SHA:?export WORKFLOW_SHA to the pinned 40-character commit SHA}"
+
+command -v gh >/dev/null
+command -v jq >/dev/null
+[[ "$REPOSITORY" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]
+[[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+[[ "$WORKFLOW_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+
+workflow_sha="$(printf '%s' "$WORKFLOW_SHA" | tr '[:upper:]' '[:lower:]')"
+work_dir="$(mktemp -d)"
+trap 'rm -rf -- "$work_dir"' EXIT
+inventory="$work_dir/artifacts.json"
+match="$work_dir/next-manifest-artifact.json"
+resume_dir="$work_dir/resume"
+
+gh api --method GET \
+  -H "Accept: application/vnd.github+json" \
+  "/repos/${REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+  -f per_page=100 \
+  --paginate --slurp > "$inventory"
+jq -e --arg prefix "full-extraction-next-manifest-${CHAIN_ID}-iter-" '
+  [.[].artifacts[]
+    | select(.expired == false)
+    | select((.name // "") | startswith($prefix))] as $matches
+  | if ($matches | length) != 1 then
+      error("expected exactly one unexpired next-manifest artifact")
+    elif (($matches[0].name | ltrimstr($prefix)) | test("^[1-9][0-9]*$"))
+      | not then
+      error("next-manifest artifact has an invalid iteration suffix")
+    else
+      $matches[0]
+    end
+' "$inventory" > "$match"
+
+manifest_artifact="$(jq -er '.name' "$match")"
+next_iteration="$(
+  jq -er --arg prefix "full-extraction-next-manifest-${CHAIN_ID}-iter-" \
+    '.name | ltrimstr($prefix) | tonumber' "$match"
+)"
+
+mkdir -p "$resume_dir"
+gh run download "$SOURCE_RUN_ID" \
+  --repo "$REPOSITORY" \
+  --name "$manifest_artifact" \
+  --dir "$resume_dir"
+
+next_manifest="$resume_dir/next-manifest.json"
+dispatch_report="$resume_dir/chain-dispatch.json"
+test -f "$next_manifest"
+test -f "$dispatch_report"
+
+jq -e \
+  --arg chain "$CHAIN_ID" \
+  --arg sha "$workflow_sha" \
+  --arg run_id "$SOURCE_RUN_ID" \
+  --arg artifact "$manifest_artifact" \
+  --argjson iteration "$next_iteration" \
+  --slurpfile dispatch "$dispatch_report" '
+  def positive_integer:
+    type == "number" and . > 0 and . == floor;
+  def nonnegative_integer:
+    type == "number" and . >= 0 and . == floor;
+  def sha256:
+    type == "string" and test("^[0-9a-f]{64}$");
+  def count_map:
+    type == "object"
+    and all(to_entries[];
+      ((.key | type) == "string")
+      and ((.key | length) > 0)
+      and (.value | positive_integer));
+
+  . as $manifest
+  | (if ($dispatch | length) == 1 then
+      $dispatch[0]
+    else
+      error("expected exactly one chain-dispatch report")
+    end) as $report
+  | ($manifest.chain_state // null) as $state
+  | ($report.vpn_auth_circuit_deferred_lane_count // -1) as $deferred
+  | ($report.vpn_auth_circuit_check_failed_lane_count // -1) as $check_failed
+  | ($report.vpn_auth_circuit_rejection_lane_count // -1) as $rejections
+  | ($report.failure_class_counts.runner_infrastructure // 0) as $infrastructure
+  | type == "object"
+  and ($state | type) == "object"
+  and ($report | type) == "object"
+  and $manifest.chain_id == $chain
+  and $manifest.workflow_source_sha == $sha
+  and ($manifest.coverage_fingerprint | sha256)
+  and ($manifest.active_lane_count | positive_integer)
+  and ($manifest.iteration_budget | positive_integer)
+  and $state.latest_checkpoint_run_id == $run_id
+  and ($state.latest_checkpoint_generation | positive_integer)
+  and ($state.latest_checkpoint_coverage_hash | sha256)
+  and ($state.latest_checkpoint_artifact_name
+    == ("full-extraction-checkpoint-" + $chain + "-iter-"
+      + ($state.latest_checkpoint_generation | tostring)))
+  and $report.artifact_name == $artifact
+  and $report.next_iteration == $iteration
+  and $report.active_lane_count == $manifest.active_lane_count
+  and $report.iteration_budget == $manifest.iteration_budget
+  and $report.iteration_budget >= $report.next_iteration
+  and $report.checkpoint_artifact_name == $state.latest_checkpoint_artifact_name
+  and $report.checkpoint_generation == $state.latest_checkpoint_generation
+  and $report.checkpoint_coverage_hash == $state.latest_checkpoint_coverage_hash
+  and ($report.redispatch_payload_bytes | positive_integer)
+  and $report.redispatch_payload_bytes <= 60000
+  and ($report.resume_only_lane_count | nonnegative_integer)
+  and ($report.contract_blocked_lane_count | nonnegative_integer)
+  and ($report.split_lane_count | nonnegative_integer)
+  and ($deferred | nonnegative_integer)
+  and ($check_failed | nonnegative_integer)
+  and ($rejections | nonnegative_integer)
+  and ($report.outcome_counts | count_map)
+  and ($report.failure_reason_counts | count_map)
+  and ($report.failure_class_counts | count_map)
+  and (($report.failure_reason_counts.vpn_auth_circuit_check_failed // 0)
+    == $check_failed)
+  and $infrastructure >= $check_failed
+  and $report.vpn_auth_circuit_open == "true"
+  and (($deferred + $rejections) > 0)
+  and (($report.failure_reason_counts.vpn_auth_circuit_open // 0) == $deferred)
+  and (($report.failure_reason_counts.vpn_auth_failure // 0) == $rejections)
+' "$next_manifest" >/dev/null
+
+gh workflow run full-extraction.yml \
+  --repo "$REPOSITORY" \
+  --ref "$WORKFLOW_REF" \
+  -f concurrency=aggressive \
+  -f vpn_parallelism=2 \
+  -f matrix_batch_size=256 \
+  -f direct_parallelism=2 \
+  -f direct_request_profile=direct \
+  -f direct_timeout_cap_minutes=30 \
+  -f retry_pipeline_failures=true \
+  -f network_mode=vpn \
+  -f chunk_profile=standard \
+  -f iteration="$next_iteration" \
+  -f max_iterations=auto \
+  -f force_reextract=false \
+  -f publish=true \
+  -f chain_id="$CHAIN_ID" \
+  -f workflow_ref="$WORKFLOW_REF" \
+  -f workflow_sha="$workflow_sha" \
+  -f lane_manifest_run_id="$SOURCE_RUN_ID" \
+  -f lane_manifest_artifact_name="$manifest_artifact"
+```
+
+Derive the candidate `next_iteration` from the one exact artifact name; do not guess
+it. Validate chain, source, full-manifest coverage, and current checkpoint ancestry in
+`next-manifest.json`, then cross-bind the report's artifact, next iteration, active
+count, budget, checkpoint generation/name, and checkpoint coverage hash to that
+manifest. The auth-circuit counts and reasons must agree, and the serialized redispatch
+payload must remain inside the source-enforced 60,000-byte bound. Artifact discovery
+happens first because both authoritative files are inside that artifact, and requiring
+one unexpired prefix match avoids a circular handoff.
 
 With `max_iterations=auto`, the first manifest derives one numeric `iteration_budget`
 from total remaining matrix dispatch credits, per-lane retry depth, and bounded split
@@ -448,11 +680,23 @@ VPN/auto workflow concurrency is a repository-wide FIFO queue so separate chains
 cannot consume the same account slots concurrently or displace an already-pending
 child; direct workflows remain scoped to chain plus iteration. Active or successful
 exact-title children block redispatch, but
-failed/cancelled historical runs are recorded and excluded when acknowledging the
+failed, cancelled, or timed-out historical runs are recorded and excluded when acknowledging the
 one newly created child run ID and URL. The first exact-title match is provisional:
 the dispatcher performs a stabilization poll and acknowledges the child only when the
-new child set remains exactly one. Upload-artifact steps use
-overwrite semantics so rerun jobs can replace their prior logical artifacts.
+new child set remains exactly one. Normal data, metadata, diagnostics, and checkpoint
+upload-artifact steps use overwrite semantics so rerun jobs can replace their prior
+logical artifacts. Each lane's initial capacity-marker upload is immutable and uses
+`overwrite: false`; only after that lane-unique first upload reports failure may the
+same lane make one exact-name retry with `overwrite: true`. Auth-circuit markers remain
+shared first-writer artifacts: their retry also uses `overwrite: false` and can succeed
+only by resolving the exact sibling marker.
+If a parent is interrupted after dispatch but before child acknowledgement, its exit
+trap attempts to cancel every newly created exact-title child. Once the child is
+acknowledged it is independently durable and must be monitored by run ID. Manual
+cancellation also prevents queued network jobs from starting and lets the lane wrapper
+make a bounded signal-driven cleanup attempt, but GitHub may remove an ephemeral runner
+before subsequent metadata or artifact steps execute. Recover only from the latest
+attested upload or checkpoint; cancellation itself is not durability evidence.
 
 The pinned `workflow_sha` must be a full commit on the trusted `workflow_ref` branch;
 publish runs also prove default-branch ancestry. Every uploaded lane manifest carries
@@ -616,6 +860,599 @@ For any publish retry, confirm that the job restored the shared
 `logs/kaggle/kaggle-publication-state.json`; do not retry publication if that
 durable evidence is unexpectedly absent after an ambiguous upload. Publishing
 workflows reject non-default refs because Actions cache visibility is ref-scoped.
+
+For end-to-end acceptance, enumerate every exact-title chain run across all API pages
+instead of monitoring only the first run. Recovery can leave several run IDs for one
+iteration, so group that history by iteration and choose the highest run ID as the
+authoritative attempt. Every superseded attempt must be completed with exactly
+`failure`, `cancelled`, or `timed_out`; an older success, active attempt, empty
+conclusion, or any other conclusion invalidates the chain. Authoritative iterations
+must remain unique and contiguous from the expected first iteration.
+
+Require the common guard, planning, and publication-preflight jobs in every
+authoritative attempt. A normal nonterminal run has overall `success`, all extract jobs
+successful, and successful lane control, checkpoint, and dispatch. A bounded
+infrastructure redispatch has overall `failure`, only completed success/failure extract
+jobs with at least one failure, successful lane control, checkpoint, and dispatch, a
+closed auth circuit, and positive `runner_infrastructure` evidence in the exact bounded
+chain-dispatch report. A validated auth-circuit handoff has the same constrained extract
+failure and successful lane control/checkpoint, but its circuit is open and dispatch
+skips for manual recovery. Both nonterminal failure branches skip merge and publish.
+The terminal authoritative attempt must have overall `success`, skip dispatch, and pass
+merge terminal assurance plus publish. Every nonterminal branch cross-validates the
+exact next-manifest artifact against its dispatch report for next iteration, active
+count, iteration budget, source/chain, checkpoint generation/artifact, and checkpoint
+coverage identity. Download
+`full-extraction-kaggle-publication-receipt-<chain_id>` and accept deployment only when
+`logs/kaggle/kaggle-upload-manifest.json` records a successful or reconciled exact
+publication, a positive resolved Kaggle version, and completed exact remote inventory
+and SHA-256 readback. Its preflight provenance, normalized terminal assurance, and
+remote publication marker must each independently match the expected chain, source,
+and terminal coverage fingerprint. A green upload submission without that receipt is
+not full publication assurance.
+
+Use these executable checks for the chain and terminal receipt:
+
+```bash
+set -euo pipefail
+
+: "${REPOSITORY:?export REPOSITORY=owner/repository}"
+: "${CHAIN_ID:?export CHAIN_ID to the exact extraction chain ID}"
+: "${WORKFLOW_SHA:?export WORKFLOW_SHA to the pinned 40-character commit SHA}"
+: "${COVERAGE_FINGERPRINT:?export COVERAGE_FINGERPRINT to the terminal coverage SHA-256}"
+: "${FIRST_ITERATION:?export FIRST_ITERATION to the first expected iteration}"
+
+command -v gh >/dev/null
+command -v jq >/dev/null
+[[ "$REPOSITORY" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]
+[[ "$WORKFLOW_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+[[ "$COVERAGE_FINGERPRINT" =~ ^[0-9a-fA-F]{64}$ ]]
+[[ "$FIRST_ITERATION" =~ ^[1-9][0-9]*$ ]]
+
+workflow_sha="$(printf '%s' "$WORKFLOW_SHA" | tr '[:upper:]' '[:lower:]')"
+coverage_fingerprint="$(
+  printf '%s' "$COVERAGE_FINGERPRINT" | tr '[:upper:]' '[:lower:]'
+)"
+work_dir="$(mktemp -d)"
+trap 'rm -rf -- "$work_dir"' EXIT
+runs_pages="$work_dir/runs-pages.json"
+chain_runs="$work_dir/chain-runs.json"
+
+gh api --method GET \
+  -H "Accept: application/vnd.github+json" \
+  "/repos/${REPOSITORY}/actions/workflows/full-extraction.yml/runs" \
+  -f event=workflow_dispatch \
+  -f per_page=100 \
+  --paginate --slurp > "$runs_pages"
+
+jq -e \
+  --arg chain "$CHAIN_ID" \
+  --arg sha "$workflow_sha" \
+  --argjson first "$FIRST_ITERATION" '
+  def positive_integer:
+    type == "number" and . > 0 and . == floor;
+
+  ("Full Extraction chain=" + $chain + " iteration=") as $prefix
+  | [.[].workflow_runs[]
+      | select((.display_title // "") | startswith($prefix))] as $candidates
+  | [$candidates[]
+      | ((.display_title // "") | ltrimstr($prefix)) as $raw_iteration
+      | select($raw_iteration | test("^[1-9][0-9]*$"))
+      | . + {iteration: ($raw_iteration | tonumber)}] as $runs
+  | if ($candidates | length) != ($runs | length) then
+      error("chain contains a malformed exact-prefix display title")
+    elif ($runs | length) == 0 then
+      error("no exact-title runs found for the chain")
+    else
+      .
+    end
+  | ($runs | group_by(.id) | map(select(length != 1))) as $duplicate_ids
+  | if ($duplicate_ids | length) > 0 then
+      error("chain API inventory contains a duplicate run ID")
+    else
+      .
+    end
+  | [$runs[]
+      | select(((.id | positive_integer) | not)
+        or ((.html_url | type) != "string")
+        or (.html_url == ""))] as $invalid_identity
+  | if ($invalid_identity | length) > 0 then
+      error("chain contains a run without a positive ID and URL")
+    else
+      .
+    end
+  | [$runs[]
+      | select(((.head_sha // "") | ascii_downcase) != $sha)] as $wrong_source
+  | if ($wrong_source | length) > 0 then
+      error("chain contains a run at an unexpected head SHA")
+    else
+      .
+    end
+  | ($runs | group_by(.iteration)) as $histories
+  | [$histories[]
+      | sort_by(.id) as $attempts
+      | $attempts[-1] as $authoritative
+      | $attempts[0:-1] as $superseded
+      | if any($superseded[];
+          .status != "completed"
+          or ((.conclusion == "failure"
+            or .conclusion == "cancelled"
+            or .conclusion == "timed_out") | not)) then
+          error("iteration " + ($authoritative.iteration | tostring)
+            + " has an invalid superseded attempt")
+        elif $authoritative.status != "completed" then
+          error("iteration " + ($authoritative.iteration | tostring)
+            + " authoritative attempt is not completed")
+        elif (($authoritative.conclusion == "success"
+          or $authoritative.conclusion == "failure") | not) then
+          error("iteration " + ($authoritative.iteration | tostring)
+            + " authoritative attempt has an unsupported conclusion")
+        else
+          $authoritative + {
+            superseded_attempts: ($superseded
+              | map({id, status, conclusion, head_sha, html_url}))
+          }
+        end] as $authoritative_runs
+  | ($authoritative_runs | sort_by(.iteration)) as $sorted
+  | ($sorted | map(.iteration)) as $iterations
+  | ($iterations[-1]) as $last
+  | if $iterations != [range($first; $last + 1)] then
+      error("chain iterations are not contiguous from the expected first iteration")
+    else
+      $sorted
+      | map({
+          iteration,
+          id,
+          status,
+          conclusion,
+          head_sha,
+          html_url,
+          display_title,
+          superseded_attempts
+        })
+    end
+' "$runs_pages" > "$chain_runs"
+
+terminal_run_id="$(jq -er '.[-1].id' "$chain_runs")"
+
+validate_nonterminal_dispatch() {
+  local run_id="$1"
+  local iteration="$2"
+  local mode="$3"
+  local next_iteration=$((iteration + 1))
+  local artifact_name="full-extraction-next-manifest-${CHAIN_ID}-iter-${next_iteration}"
+  local artifact_pages="$work_dir/dispatch-artifacts-${run_id}.json"
+  local artifact_match="$work_dir/dispatch-artifact-${run_id}.json"
+  local artifact_dir="$work_dir/dispatch-handoff-${run_id}"
+
+  gh api --method GET \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/${REPOSITORY}/actions/runs/${run_id}/artifacts" \
+    -f per_page=100 \
+    --paginate --slurp > "$artifact_pages"
+
+  jq -e --arg name "$artifact_name" '
+    def positive_integer:
+      type == "number" and . > 0 and . == floor;
+
+    [.[].artifacts[]
+      | select(.expired == false and (.name // "") == $name)]
+    | if length != 1 then
+        error("expected one exact nonterminal next-manifest artifact")
+      elif ((.[0].id | positive_integer) | not)
+        or ((.[0].size_in_bytes | positive_integer) | not)
+        or ((.[0].archive_download_url // "") == "") then
+        error("next-manifest artifact identity is incomplete")
+      else
+        .[0]
+      end
+  ' "$artifact_pages" > "$artifact_match"
+
+  mkdir -p "$artifact_dir"
+  gh run download "$run_id" \
+    --repo "$REPOSITORY" \
+    --name "$artifact_name" \
+    --dir "$artifact_dir"
+
+  local manifest_count
+  local report_count
+  local next_manifest
+  local dispatch_report
+  manifest_count="$(
+    find "$artifact_dir" -type f -name next-manifest.json -print \
+      | wc -l \
+      | tr -d '[:space:]'
+  )"
+  report_count="$(
+    find "$artifact_dir" -type f -name chain-dispatch.json -print \
+      | wc -l \
+      | tr -d '[:space:]'
+  )"
+  [ "$manifest_count" -eq 1 ]
+  [ "$report_count" -eq 1 ]
+  next_manifest="$(find "$artifact_dir" -type f -name next-manifest.json -print)"
+  dispatch_report="$(find "$artifact_dir" -type f -name chain-dispatch.json -print)"
+
+  jq -e \
+    --arg mode "$mode" \
+    --arg chain "$CHAIN_ID" \
+    --arg sha "$workflow_sha" \
+    --arg run_id "$run_id" \
+    --arg artifact "$artifact_name" \
+    --argjson iteration "$next_iteration" \
+    --slurpfile dispatch "$dispatch_report" '
+    def positive_integer:
+      type == "number" and . > 0 and . == floor;
+    def nonnegative_integer:
+      type == "number" and . >= 0 and . == floor;
+    def sha256:
+      type == "string" and test("^[0-9a-f]{64}$");
+    def count_map:
+      type == "object"
+      and all(to_entries[];
+        ((.key | type) == "string")
+        and ((.key | length) > 0)
+        and (.value | positive_integer));
+
+    . as $manifest
+    | (if ($dispatch | length) == 1 then
+        $dispatch[0]
+      else
+        error("expected exactly one chain-dispatch report")
+      end) as $report
+    | ($manifest.chain_state // null) as $state
+    | ($report.vpn_auth_circuit_deferred_lane_count // -1) as $deferred
+    | ($report.vpn_auth_circuit_check_failed_lane_count // -1) as $check_failed
+    | ($report.vpn_auth_circuit_rejection_lane_count // -1) as $rejections
+    | ($report.failure_class_counts.runner_infrastructure // 0) as $infrastructure
+    | type == "object"
+    and ($state | type) == "object"
+    and ($report | type) == "object"
+    and $manifest.chain_id == $chain
+    and $manifest.workflow_source_sha == $sha
+    and ($manifest.coverage_fingerprint | sha256)
+    and ($manifest.active_lane_count | positive_integer)
+    and ($manifest.iteration_budget | positive_integer)
+    and $state.latest_checkpoint_run_id == $run_id
+    and ($state.latest_checkpoint_generation | positive_integer)
+    and ($state.latest_checkpoint_coverage_hash | sha256)
+    and ($state.latest_checkpoint_artifact_name
+      == ("full-extraction-checkpoint-" + $chain + "-iter-"
+        + ($state.latest_checkpoint_generation | tostring)))
+    and $report.artifact_name == $artifact
+    and $report.next_iteration == $iteration
+    and $report.active_lane_count == $manifest.active_lane_count
+    and $report.iteration_budget == $manifest.iteration_budget
+    and $report.iteration_budget >= $report.next_iteration
+    and $report.checkpoint_artifact_name == $state.latest_checkpoint_artifact_name
+    and $report.checkpoint_generation == $state.latest_checkpoint_generation
+    and $report.checkpoint_coverage_hash == $state.latest_checkpoint_coverage_hash
+    and ($report.redispatch_payload_bytes | positive_integer)
+    and $report.redispatch_payload_bytes <= 60000
+    and ($report.resume_only_lane_count | nonnegative_integer)
+    and ($report.contract_blocked_lane_count | nonnegative_integer)
+    and ($report.split_lane_count | nonnegative_integer)
+    and ($deferred | nonnegative_integer)
+    and ($check_failed | nonnegative_integer)
+    and ($rejections | nonnegative_integer)
+    and ($report.outcome_counts | count_map)
+    and ($report.failure_reason_counts | count_map)
+    and ($report.failure_class_counts | count_map)
+    and (($report.failure_reason_counts.vpn_auth_circuit_check_failed // 0)
+      == $check_failed)
+    and $infrastructure >= $check_failed
+    and (if $mode == "normal" then
+      $report.vpn_auth_circuit_open == "false"
+      and $deferred == 0
+      and $rejections == 0
+    elif $mode == "infrastructure" then
+      $report.vpn_auth_circuit_open == "false"
+      and $deferred == 0
+      and $rejections == 0
+      and ($infrastructure | positive_integer)
+      and (([$report.failure_class_counts[]] | add // 0)
+        == ([$report.failure_reason_counts[]] | add // 0))
+    elif $mode == "auth_handoff" then
+      $report.vpn_auth_circuit_open == "true"
+      and (($deferred + $rejections) > 0)
+      and (($report.failure_reason_counts.vpn_auth_circuit_open // 0)
+        == $deferred)
+      and (($report.failure_reason_counts.vpn_auth_failure // 0) == $rejections)
+    else
+      error("unsupported nonterminal validation mode")
+    end)
+  ' "$next_manifest" >/dev/null
+}
+
+while IFS=$'\t' read -r run_id iteration head_sha conclusion run_url superseded_count; do
+  jobs_pages="$work_dir/jobs-${run_id}.json"
+  gh api --method GET \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/${REPOSITORY}/actions/runs/${run_id}/jobs" \
+    -f filter=latest \
+    -f per_page=100 \
+    --paginate --slurp > "$jobs_pages"
+
+  terminal=false
+  if [ "$run_id" = "$terminal_run_id" ]; then
+    terminal=true
+  fi
+
+  dispatch_conclusion="$(
+    jq -er '
+      [.[].jobs[] | select((.name // "") == "dispatch_next")]
+      | if length == 1 then
+          .[0].conclusion
+        else
+          error("expected exactly one dispatch_next job")
+        end
+    ' "$jobs_pages"
+  )"
+
+  branch=invalid
+  if [ "$terminal" = true ]; then
+    branch=terminal
+  elif [ "$conclusion" = success ] && [ "$dispatch_conclusion" = success ]; then
+    branch=normal
+  elif [ "$conclusion" = failure ] && [ "$dispatch_conclusion" = success ]; then
+    branch=infrastructure
+  elif [ "$conclusion" = failure ] && [ "$dispatch_conclusion" = skipped ]; then
+    branch=auth_handoff
+  fi
+
+  if [ "$terminal" = false ] && [ "$branch" != invalid ]; then
+    validate_nonterminal_dispatch "$run_id" "$iteration" "$branch"
+  fi
+
+  jq -e \
+    --arg run_id "$run_id" \
+    --arg run_conclusion "$conclusion" \
+    --arg branch "$branch" \
+    --argjson terminal "$terminal" \
+    '
+    [.[].jobs[]] as $jobs
+    | def matches($base):
+        [$jobs[]
+          | select((.name // "") == $base
+            or ((.name // "") | startswith($base + " (")))];
+      def require_success($base):
+        matches($base) as $matches
+        | if ($matches | length) == 0 then
+            error("run " + $run_id + " is missing required job " + $base)
+          elif all($matches[];
+            .status == "completed" and .conclusion == "success") then
+            true
+          else
+            error("run " + $run_id + " has an unsuccessful required job " + $base)
+          end;
+      def require_skipped($base):
+        matches($base) as $matches
+        | if ($matches | length) == 0 then
+            error("run " + $run_id + " is missing expected skipped job " + $base)
+          elif all($matches[];
+            .status == "completed" and .conclusion == "skipped") then
+            true
+          else
+            error("run " + $run_id + " did not skip job " + $base)
+          end;
+      def require_capacity_result:
+        matches("vpn_capacity") as $matches
+        | if ($matches | length) == 0 then
+            error("run " + $run_id + " is missing vpn_capacity")
+          elif all($matches[];
+            .status == "completed" and .conclusion == "success") then
+            true
+          elif all($matches[];
+            .status == "completed" and .conclusion == "skipped") then
+            true
+          else
+            error("run " + $run_id + " has an invalid vpn_capacity result")
+          end;
+      def require_run_conclusion($expected):
+        if $run_conclusion == $expected then
+          true
+        else
+          error("run " + $run_id + " must conclude " + $expected)
+        end;
+      def require_branch($expected):
+        if $branch == $expected then
+          true
+        else
+          error("run " + $run_id + " did not match branch " + $expected)
+        end;
+      def require_active_dependencies:
+        [
+          require_success("preflight"),
+          require_success("discovery_seed"),
+          require_capacity_result,
+          require_success("vpn_quarantine")
+        ] | all;
+      def require_normal_active_iteration:
+        [
+          require_active_dependencies,
+          require_success("extract"),
+          require_success("lane_control"),
+          require_success("checkpoint")
+        ] | all;
+      def require_failed_extracts($label):
+        matches("extract") as $matches
+        | if ($matches | length) == 0 then
+            error("run " + $run_id + " is missing extract jobs")
+          elif (all($matches[];
+            .status == "completed"
+            and (.conclusion == "success" or .conclusion == "failure"))
+            and any($matches[]; .conclusion == "failure")) then
+            true
+          else
+            error("run " + $run_id
+              + " " + $label
+              + " requires completed success/failure extract jobs"
+              + " with at least one failure")
+          end;
+      def require_failed_active_iteration($label):
+        [
+          require_active_dependencies,
+          require_failed_extracts($label),
+          require_success("lane_control"),
+          require_success("checkpoint")
+        ] | all;
+      def require_terminal_source:
+        matches("terminal_replay") as $matches
+        | if ($matches | length) == 0 then
+            error("run " + $run_id + " is missing terminal_replay")
+          elif all($matches[];
+            .status == "completed" and .conclusion == "success") then
+            true
+          elif all($matches[];
+            .status == "completed" and .conclusion == "skipped") then
+            require_normal_active_iteration
+          else
+            error("run " + $run_id + " has an invalid terminal_replay result")
+          end;
+
+      [
+        require_success("workflow_guard"),
+        require_success("plan"),
+        require_success("publication_preflight"),
+        if $terminal then
+          require_branch("terminal"),
+          require_run_conclusion("success"),
+          require_success("merge"),
+          require_success("publish"),
+          require_skipped("dispatch_next"),
+          require_terminal_source
+        else
+          if $branch == "auth_handoff" then
+            require_branch("auth_handoff"),
+            require_run_conclusion("failure"),
+            require_failed_active_iteration("auth handoff"),
+            require_skipped("dispatch_next")
+          elif $branch == "infrastructure" then
+            require_branch("infrastructure"),
+            require_run_conclusion("failure"),
+            require_failed_active_iteration("infrastructure redispatch"),
+            require_success("dispatch_next")
+          elif $branch == "normal" then
+            require_branch("normal"),
+            require_run_conclusion("success"),
+            require_normal_active_iteration,
+            require_success("dispatch_next")
+          else
+            error("run " + $run_id + " has no accepted nonterminal branch")
+          end,
+          require_skipped("merge"),
+          require_skipped("publish")
+        end
+      ] | all
+  ' "$jobs_pages" >/dev/null
+
+  printf 'validated iteration=%s run_id=%s branch=%s superseded=%s sha=%s conclusion=%s url=%s\n' \
+    "$iteration" "$run_id" "$branch" "$superseded_count" \
+    "$head_sha" "$conclusion" "$run_url"
+done < <(
+  jq -r '.[]
+    | [.id, .iteration, .head_sha, .conclusion, .html_url,
+      (.superseded_attempts | length)]
+    | @tsv' \
+    "$chain_runs"
+)
+
+receipt="$work_dir/receipt"
+mkdir -p "$receipt"
+gh run download "$terminal_run_id" \
+  --repo "$REPOSITORY" \
+  --name "full-extraction-kaggle-publication-receipt-${CHAIN_ID}" \
+  --dir "$receipt"
+
+manifest_count="$(
+  find "$receipt" -type f -name kaggle-upload-manifest.json -print \
+    | wc -l \
+    | tr -d '[:space:]'
+)"
+[ "$manifest_count" -eq 1 ]
+manifest="$(find "$receipt" -type f -name kaggle-upload-manifest.json -print)"
+
+jq -e \
+  --arg chain "$CHAIN_ID" \
+  --arg sha "$workflow_sha" \
+  --arg coverage "$coverage_fingerprint" '
+  def positive_integer:
+    type == "number" and . > 0 and . == floor;
+  def nonnegative_integer:
+    type == "number" and . >= 0 and . == floor;
+  def sha256:
+    type == "string" and test("^[0-9a-f]{64}$");
+
+  .preflight.provenance as $preflight_provenance
+  | .preflight.terminal_assurance as $terminal_assurance
+  | .remote_readback.provenance as $remote_provenance
+  | .publication.resolved_version as $publication_version
+  | .remote_readback.resolved_version as $readback_version
+  | .remote_readback.resource_verification.version as $resource_version
+  | .remote_readback.resource_verification as $verified
+  | .preflight.expected_staged as $expected_tree
+  | .post_upload as $post_upload
+  |
+  ((.status == "uploaded_remote_verified")
+    or (.status == "reconciled_existing_remote"))
+  and ($preflight_provenance | type) == "object"
+  and ($terminal_assurance | type) == "object"
+  and ($remote_provenance | type) == "object"
+  and .remote_readback.schema_version == 2
+  and $terminal_assurance.schema_version == 2
+  and $preflight_provenance.chain_id == $chain
+  and $terminal_assurance.chain_id == $chain
+  and $remote_provenance.chain_id == $chain
+  and $preflight_provenance.source_sha == $sha
+  and $terminal_assurance.source_sha == $sha
+  and $remote_provenance.source_sha == $sha
+  and $preflight_provenance.coverage_fingerprint == $coverage
+  and $terminal_assurance.coverage_fingerprint == $coverage
+  and $remote_provenance.coverage_fingerprint == $coverage
+  and ($preflight_provenance.data_tree_fingerprint | sha256)
+  and ($remote_provenance.data_tree_fingerprint
+    == $preflight_provenance.data_tree_fingerprint)
+  and ($publication_version | positive_integer)
+  and ($readback_version | positive_integer)
+  and ($resource_version | positive_integer)
+  and ($publication_version == $readback_version)
+  and ($readback_version == $resource_version)
+  and (.remote_readback.verification_mode == "publication_marker")
+  and (.publication.resource_verification_mode
+    == "exact_api_inventory_and_sha256_full_readback")
+  and ($verified.content_identity == "sha256_full_readback")
+  and (.remote_readback.bundle_fingerprint | sha256)
+  and (.remote_readback.bundle_fingerprint == .preflight.fingerprint)
+  and (.remote_readback.bundle_fingerprint
+    == .publication.expected_bundle_fingerprint)
+  and (.remote_readback.resource_count | positive_integer)
+  and (.preflight.resource_count | positive_integer)
+  and (.remote_readback.resource_count == .preflight.resource_count)
+  and (.remote_readback.resource_count
+    == (.remote_readback.resources | length))
+  and (.remote_readback.resource_bytes | nonnegative_integer)
+  and (.preflight.resource_bytes | nonnegative_integer)
+  and (.remote_readback.resource_bytes == .preflight.resource_bytes)
+  and (.remote_readback.resource_bytes
+    == ([.remote_readback.resources[].bytes] | add))
+  and ($verified.file_count | positive_integer)
+  and ($verified.api_file_count | positive_integer)
+  and ($expected_tree.file_count | positive_integer)
+  and ($post_upload.file_count | positive_integer)
+  and ($verified.file_count == $verified.api_file_count)
+  and ($verified.file_count == $expected_tree.file_count)
+  and ($verified.file_count == $post_upload.file_count)
+  and ($verified.bytes | positive_integer)
+  and ($expected_tree.bytes | positive_integer)
+  and ($post_upload.bytes | positive_integer)
+  and ($verified.bytes == $expected_tree.bytes)
+  and ($verified.bytes == $post_upload.bytes)
+  and ($verified.fingerprint | sha256)
+  and ($verified.fingerprint == $expected_tree.fingerprint)
+  and ($verified.fingerprint == $post_upload.fingerprint)
+  and ($verified.fingerprint == .publication.expected_fingerprint)
+' "$manifest"
+```
 
 ## Best next move after a fix
 
