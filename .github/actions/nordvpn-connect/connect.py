@@ -1139,14 +1139,50 @@ class NordVpnConnectAction:
             return preferred
 
         selection_offset = self.technology_selection_offsets.get(technology, 0)
+        recommendation_lane_indices = tuple(
+            lane_index
+            for lane_index in range(self.preferred_server_slot_count)
+            if self.server_limit
+            > int(
+                lane_index < len(self.preferred_servers)
+                and self.preferred_servers[lane_index] not in excluded_servers
+                and self.preferred_servers[lane_index] not in attempted_servers
+            )
+        )
+        admitted_partition_index = (
+            recommendation_lane_indices.index(self.selector_index)
+            if self.selector_index in recommendation_lane_indices
+            else None
+        )
 
         def _assigned_candidates(
             pool: tuple[ServerCandidate, ...],
+            *,
+            assignment_offset: int = 0,
         ) -> tuple[ServerCandidate, ...]:
             if not pool:
                 return ()
             partition_count = (len(pool) + self.server_limit - 1) // self.server_limit
-            partition_index = self.selector_index % partition_count
+            if admitted_partition_index is not None and partition_count < len(
+                recommendation_lane_indices
+            ):
+                # Keep short primary/reserve pools disjoint across admitted slots.
+                first_index = (admitted_partition_index - assignment_offset) % len(
+                    recommendation_lane_indices
+                )
+                partition = pool[first_index :: len(recommendation_lane_indices)][
+                    : self.server_limit
+                ]
+                if not partition:
+                    return ()
+                offset = selection_offset % len(partition)
+                return partition[offset:] + partition[:offset]
+            partition_selector = (
+                admitted_partition_index
+                if admitted_partition_index is not None
+                else self.selector_index
+            )
+            partition_index = partition_selector % partition_count
             start_index = partition_index * self.server_limit
             partition = pool[start_index : start_index + self.server_limit]
             if not partition:
@@ -1156,10 +1192,15 @@ class NordVpnConnectAction:
 
         def _eligible_assigned(
             pool: tuple[ServerCandidate, ...],
+            *,
+            assignment_offset: int = 0,
         ) -> list[ServerCandidate]:
             return [
                 candidate
-                for candidate in _assigned_candidates(pool)
+                for candidate in _assigned_candidates(
+                    pool,
+                    assignment_offset=assignment_offset,
+                )
                 if candidate.hostname not in recommendation_exclusions
             ]
 
@@ -1188,7 +1229,10 @@ class NordVpnConnectAction:
                     if candidate.hostname not in preferred_exclusions
                 )
             )
-            return _eligible_assigned(primary_pool), _eligible_assigned(reserve_pool)
+            return _eligible_assigned(primary_pool), _eligible_assigned(
+                reserve_pool,
+                assignment_offset=len(primary_pool),
+            )
 
         eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
         if (

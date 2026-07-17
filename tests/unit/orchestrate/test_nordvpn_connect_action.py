@@ -1350,6 +1350,70 @@ def test_recommendations_partition_adjacent_lane_starts(
     assert set(excluded_first_partition).isdisjoint(unaffected_second_partition)
 
 
+def test_recommendations_partition_short_reserve_pool_across_admitted_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        '["us2001.nordvpn.com", "us2002.nordvpn.com"]',
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": f"198.51.{index // 250}.{(index % 250) + 1}",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index, hostname in enumerate(
+            (
+                "us2001.nordvpn.com",
+                "us2002.nordvpn.com",
+                *(f"us{3000 + index}.nordvpn.com" for index in range(1, 101)),
+            )
+        )
+    ]
+
+    def _recommendations(
+        lane_index: int,
+        quarantined_servers: tuple[str, ...] = (),
+    ) -> list[str]:
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        action.server_limit = 6
+        action.server_pool_size = 96
+        action.selector_index = lane_index
+        action.quarantined_servers = quarantined_servers
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            output_path.write_text(json.dumps(candidates), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        return action.recommendation_servers("openvpn_udp")
+
+    baseline_lane_zero = _recommendations(0)
+    baseline_lane_one = _recommendations(1)
+    shared_quarantine = tuple(baseline_lane_zero[1:3] + baseline_lane_one[1:3])
+
+    lane_zero = _recommendations(0, shared_quarantine)
+    lane_one = _recommendations(1, shared_quarantine)
+
+    assert len(lane_zero) == len(lane_one) == 6
+    assert lane_zero[0] == "us2001.nordvpn.com"
+    assert lane_one[0] == "us2002.nordvpn.com"
+    assert set(lane_zero).isdisjoint(lane_one)
+
+
 def test_independent_lane_partitions_ignore_recommendation_response_order(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
