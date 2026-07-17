@@ -143,6 +143,23 @@ def _step_run_script(job: str, step_name: str) -> str:
     return textwrap.dedent(step.split("        run: |\n", 1)[1])
 
 
+def _workflow_run_blocks(workflow: str) -> list[tuple[int, str]]:
+    lines = workflow.splitlines()
+    blocks: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        if line.strip() != "run: |":
+            continue
+        indent = len(line) - len(line.lstrip())
+        body: list[str] = []
+        for candidate in lines[index + 1 :]:
+            candidate_indent = len(candidate) - len(candidate.lstrip())
+            if candidate.strip() and candidate_indent <= indent:
+                break
+            body.append(candidate[indent + 2 :] if candidate.strip() else "")
+        blocks.append((index + 1, "\n".join(body) + "\n"))
+    return blocks
+
+
 def _load_discovery_seed_module() -> types.ModuleType:
     module = types.ModuleType("full_extraction_chain_discovery_seed")
     module.__file__ = str(_DISCOVERY_SEED_PATH)
@@ -185,6 +202,27 @@ def test_workflow_definition_guards_use_the_pinned_source_checkout() -> None:
     assert dispatch.index("Verify redispatch workflow definition") < dispatch.index(
         "gh workflow run full-extraction.yml"
     )
+
+
+def test_workflow_run_blocks_fit_github_expression_limit() -> None:
+    blocks = _workflow_run_blocks(_workflow_text())
+    assert blocks
+    oversized = [(line, len(body)) for line, body in blocks if len(body) > 20_000]
+    assert oversized == []
+
+
+def test_next_manifest_steps_persist_checkpoint_contract_between_shells() -> None:
+    lane_control = _job_block(_workflow_text(), "lane_control")
+    prepare = _step_block(lane_control, "Prepare next manifest")
+    build = _step_block(lane_control, "Build next manifest")
+
+    assert 'echo "CHECKPOINT_ARTIFACT_NAME=$CHECKPOINT_ARTIFACT_NAME"' in prepare
+    assert 'echo "CHECKPOINT_GENERATION=$CHECKPOINT_GENERATION"' in prepare
+    assert 'echo "CHECKPOINT_COVERAGE_HASH=$CHECKPOINT_COVERAGE_HASH"' in prepare
+    assert '} >> "$GITHUB_ENV"' in prepare
+    assert "CHECKPOINT_ARTIFACT_NAME" in build
+    assert "CHECKPOINT_GENERATION" in build
+    assert "CHECKPOINT_COVERAGE_HASH" in build
 
 
 def test_required_extraction_runtime_scripts_exist_and_are_not_ignored() -> None:
@@ -297,18 +335,21 @@ def test_previous_checkpoint_is_verified_before_lane_inventory_selection() -> No
     assert "PREVIOUS_REPORT_PATH" not in inventory
 
 
-def test_checkpoint_build_step_avoids_github_expressions_in_oversized_script() -> None:
+def test_checkpoint_phases_keep_validation_outputs_on_the_final_step() -> None:
     checkpoint = _job_block(_workflow_text(), "checkpoint")
     build = _step_block(checkpoint, "Build checkpoint database")
+    bind = _step_block(checkpoint, "Bind checkpoint blocked evidence")
+    validate = _step_block(checkpoint, "Validate checkpoint database")
 
-    assert len(build) > 21_000
-    run_script = build.split("        run: |\n", 1)[1]
-    assert "${{" not in run_script
-    assert '--run-id "$CURRENT_RUN_ID"' in run_script
+    assert "id: checkpoint" not in build
+    assert "id: checkpoint" not in bind
+    assert "id: checkpoint" in validate
+    assert '--run-id "$CURRENT_RUN_ID"' in build
     assert (
         'LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="$LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT"'
-        in run_script
+        in bind
     )
+    assert 'with Path(os.environ["GITHUB_OUTPUT"]).open' in validate
 
 
 def test_inline_project_imports_run_in_uv_environment() -> None:
@@ -1003,7 +1044,7 @@ def test_resume_source_manifest_requires_matching_chain_and_source_sha(
 def test_checkpoint_generation_derives_from_trusted_manifest_pointer(
     tmp_path: pathlib.Path,
 ) -> None:
-    build_step = _step_block(_job_block(_workflow_text(), "lane_control"), "Build next manifest")
+    build_step = _step_block(_job_block(_workflow_text(), "lane_control"), "Prepare next manifest")
     resolver = _embedded_python(build_step, "CHECKPOINT_GENERATION_RESOLVER")
     manifest_path = tmp_path / "manifest.json"
     chain_id = "fixture-chain"
@@ -3790,7 +3831,7 @@ def test_vpn_matrix_batch_exposure_is_capped_per_parallel_tunnel() -> None:
     plan = _job_block(workflow, "plan")
     lane_control = _job_block(workflow, "lane_control")
     build_manifest = _step_block(plan, "Build lane manifest")
-    next_manifest = _step_block(lane_control, "Build next manifest")
+    next_manifest = _step_block(lane_control, "Prepare next manifest")
 
     for step in (build_manifest, next_manifest):
         assert "vpn_matrix_cap=$((VPN_PARALLELISM * 32))" in step
@@ -3908,7 +3949,7 @@ def test_effective_attempt_quarantine_is_persisted_into_the_next_manifest(
     tmp_path: pathlib.Path,
 ) -> None:
     lane_control = _job_block(_workflow_text(), "lane_control")
-    build_step = _step_block(lane_control, "Build next manifest")
+    build_step = _step_block(lane_control, "Prepare next manifest")
     assert (
         "PREFLIGHT_QUARANTINE_JSON: "
         "${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}" in build_step

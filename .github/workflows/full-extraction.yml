@@ -3946,8 +3946,7 @@ jobs:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
 
-      - name: Build next manifest
-        id: next_manifest
+      - name: Prepare next manifest
         env:
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
@@ -4133,6 +4132,18 @@ jobs:
             --output-path artifacts/full-extraction/extraction-audit.json \
             > artifacts/full-extraction/extraction-audit.stdout.json
 
+          {
+            echo "CHECKPOINT_ARTIFACT_NAME=$CHECKPOINT_ARTIFACT_NAME"
+            echo "CHECKPOINT_GENERATION=$CHECKPOINT_GENERATION"
+            echo "CHECKPOINT_COVERAGE_HASH=$CHECKPOINT_COVERAGE_HASH"
+          } >> "$GITHUB_ENV"
+
+      - name: Build next manifest
+        id: next_manifest
+        env:
+          ITERATION: ${{ inputs.iteration }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+        run: |
           uv run python - <<'PY'
           # LANE_CONTROL_CONTRACT_BLOCKED_POSTPROCESSOR
           import json
@@ -4901,7 +4912,6 @@ jobs:
           done < "$download_plan"
 
       - name: Build checkpoint database
-        id: checkpoint
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
@@ -4973,6 +4983,17 @@ jobs:
             --source-sha "$WORKFLOW_SOURCE_SHA" \
             > artifacts/full-extraction/checkpoint.stdout.json
 
+      - name: Bind checkpoint blocked evidence
+        env:
+          LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT: ${{ needs.lane_control.outputs.contract-blocked-lane-count }}
+        run: |
+          checkpoint_manifest=artifacts/full-extraction/checkpoint-manifest.json
+          current_manifest="$(find lane-control-artifact -name current-manifest.json -type f -print -quit)"
+          if [ -z "$current_manifest" ]; then
+            echo "::error::Lane-control artifact did not contain current-manifest.json"
+            exit 1
+          fi
+          previous_report="$(find previous-checkpoint -name checkpoint-report.json -type f -print -quit || true)"
           extraction_audit="$(find lane-control-artifact -name extraction-audit.json -type f -print -quit)"
           if [ -z "$extraction_audit" ]; then
             echo "::error::Lane-control artifact did not contain extraction-audit.json"
@@ -5268,6 +5289,15 @@ jobs:
           )
           PY
 
+      - name: Validate checkpoint database
+        id: checkpoint
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          EXPECTED_CHECKPOINT_GENERATION: ${{ needs.lane_control.outputs.checkpoint-generation }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          LANE_CONTROL_ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
+        run: |
           CHECKPOINT_MANIFEST_PATH=artifacts/full-extraction/checkpoint-manifest.json \
             CHECKPOINT_REPORT_PATH=artifacts/full-extraction/checkpoint-report.json \
             python - <<'PY'
