@@ -477,7 +477,12 @@ If a later extraction connector returns exact `vpn_auth_failure`, that lane publ
 checks for that immutable marker before authenticating. Because the check runs inside
 each admitted matrix job, siblings already past it can each receive one rejection before
 the marker is visible. The check validates the exact artifact identity, workflow
-run/source, archive SHA-256, safe single-file ZIP, and canonical marker payload. Only a
+run/source, archive SHA-256, safe single-file ZIP, and canonical marker payload. GitHub
+can finalize concurrent uploads under the shared exact name; the resolver validates all
+observed candidates across a bounded three-snapshot window and requires the final two
+exact-name snapshots to agree. It chooses the lowest artifact ID in that stable inventory.
+Any malformed or unstable inventory remains a fail-closed lookup failure. The lane repeats
+this guard immediately before connector authentication. Only a
 verified marker produces retry-neutral `vpn_auth_circuit_open` metadata. Lookup or
 validation failure still prevents a connector call, but produces
 `vpn_auth_circuit_check_failed`, consumes one bounded `runner_infrastructure` retry, and
@@ -706,8 +711,12 @@ upload-artifact steps use overwrite semantics so rerun jobs can replace their pr
 logical artifacts. Each lane's initial capacity-marker upload is immutable and uses
 `overwrite: false`; only after that lane-unique first upload reports failure may the
 same lane make one exact-name retry with `overwrite: true`. Auth-circuit markers remain
-shared first-writer artifacts: their retry also uses `overwrite: false` and can succeed
-only by resolving the exact sibling marker.
+shared first-writer artifacts. Collision recovery never overwrites an existing marker: it
+either validates an exact sibling or makes one additional no-overwrite publish attempt only
+after bounded polling reports `absent_timeout`. Invalid, unstable, or API-failure evidence
+cannot trigger that retry. Concurrent exact-name winners are accepted only after the final
+two snapshots in a bounded three-snapshot window agree and every observed candidate passes
+full validation, then converge deterministically on the lowest positive artifact ID.
 If a parent is interrupted after dispatch but before child acknowledgement, its exit
 trap attempts to cancel every newly created exact-title child. Once the child is
 acknowledged it is independently durable and must be monitored by run ID. Manual

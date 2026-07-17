@@ -329,7 +329,12 @@ non-cancelling queue serializing every repeated slot. If a later connector recei
 `vpn_auth_failure`, it publishes an immutable
 run-attempt circuit marker. Queued lanes consult that marker before authentication and
 trust it only after the REST artifact identity, workflow run/source, archive SHA-256,
-single safe JSON member, and marker provenance all validate. A verified marker emits
+single safe JSON member, and marker provenance all validate. If concurrent rejecting
+lanes race and GitHub finalizes more than one artifact under that exact shared name, the
+guard observes a bounded three-snapshot window, validates each changed inventory, and
+requires the final two exact-name snapshots to agree. It then selects the lowest artifact
+ID in that stable inventory; any malformed or unstable inventory still fails closed. Each
+lane repeats the guard immediately before connector authentication. A verified marker emits
 retry-neutral deferred metadata and prevents another connector call. An unavailable or
 invalid artifact lookup also prevents authentication, but emits
 `vpn_auth_circuit_check_failed` as a bounded `runner_infrastructure` retry; it neither

@@ -212,8 +212,15 @@ the whole pool and uses Nord's current recommendation rank as the tie-breaker af
 network and city diversity rather than leaving candidates reserved for the connected anchor. A
 lane's first capacity-marker upload is no-overwrite;
 only a reported first-upload failure permits one exact lane-unique overwrite retry.
-Auth-circuit marker retries remain no-overwrite and resolve only by exact sibling
-lookup. Token-derived and direct modes skip that gate. Both
+Auth-circuit collision recovery never overwrites an existing marker: it either validates
+an exact sibling or makes one additional no-overwrite publish attempt only when bounded
+polling reports `absent_timeout`. Invalid, unstable, or API-failure evidence cannot trigger
+that retry. If GitHub finalizes concurrent first-writer uploads under that exact name, the
+resolver observes three snapshots and requires the final two to agree. Every candidate in
+each changed inventory must pass the complete archive and provenance validation contract
+before the lowest artifact ID in the stable inventory is selected; any invalid or unstable
+inventory fails closed. Token-derived and
+direct modes skip that gate. Both
 `network_mode=vpn` and `network_mode=auto` planning cap the iteration at
 `vpn_parallelism * 32` jobs before credential mode is resolved; admission may prove
 fewer configured tunnels, while token-derived auth later runs at most one simultaneous
@@ -234,7 +241,10 @@ An exact later `vpn_auth_failure` publishes an immutable run-attempt circuit mar
 Each matrix job checks it before authenticating and verifies the artifact identity,
 workflow source, archive digest, safe single-file ZIP, and marker provenance. Siblings
 already admitted can race the first marker and receive their own rejection; later queued
-lanes become retry-neutral only for a verified open marker. Lookup or validation failure
+lanes become retry-neutral only for a verified open marker. Concurrent marker uploads
+converge only after the final two snapshots in a bounded three-snapshot window agree and
+every observed duplicate validates. The same guard runs again immediately before connector
+authentication. Lookup or validation failure
 still blocks authentication, but consumes a bounded infrastructure retry and does not
 open the provider circuit or suppress redispatch. Lane control treats either rejection
 or valid circuit-open deferral as circuit-open, checkpoints completed work, and routes
