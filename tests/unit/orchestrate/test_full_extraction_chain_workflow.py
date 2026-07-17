@@ -623,6 +623,8 @@ def test_vpn_control_artifacts_retry_without_consuming_lane_retries() -> None:
     auth_lookup = _step_block(extract, "Check for a sibling VPN auth circuit marker")
     auth_retry = _step_block(extract, "Retry VPN auth circuit marker publication")
     auth_verify = _step_block(extract, "Verify VPN auth circuit marker")
+    auth_final = _step_block(extract, "Recheck VPN auth circuit before connector")
+    vpn_connect = _step_block(extract, "Connect NordVPN tunnel")
     deferred_upload = _step_block(extract, "Upload circuit-deferred lane metadata")
     deferred_retry = _step_block(extract, "Retry circuit-deferred lane metadata upload")
     diagnostic_upload = _step_block(extract, "Upload diagnostics-only lane snapshot")
@@ -637,10 +639,18 @@ def test_vpn_control_artifacts_retry_without_consuming_lane_retries() -> None:
     assert "steps.vpn_auth_circuit_marker.outcome == 'failure'" in auth_lookup
     assert "--timeout-seconds 30" in auth_lookup
     assert "continue-on-error: true" in auth_lookup
-    assert "steps.vpn_auth_circuit_lookup.outcome != 'success'" in auth_retry
+    assert "steps.vpn_auth_circuit_lookup.outputs.status == 'absent_timeout'" in auth_retry
     assert "continue-on-error: true" in auth_retry
     assert "overwrite: false" in auth_retry
     assert "--timeout-seconds 120" in auth_verify
+    assert "steps.vpn_auth_circuit.outputs.status == 'closed'" in auth_final
+    assert "steps.vpn_auth_circuit_final.outputs.status == 'closed'" in vpn_connect
+    assert extract.index("Recheck VPN auth circuit before connector") < extract.index(
+        "Connect NordVPN tunnel"
+    )
+    assert (
+        "steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status"
+    ) in extract
 
     assert "continue-on-error: true" in deferred_upload
     assert "steps.circuit_lane_metadata_artifact.outcome == 'failure'" in deferred_retry

@@ -28,12 +28,19 @@ CAPACITY_MARKER_KIND = "vpn_capacity"
 AUTH_CIRCUIT_OPEN_STATUS = "vpn_auth_circuit_open"
 AUTH_CIRCUIT_CHECK_FAILED_STATUS = "vpn_auth_circuit_check_failed"
 AUTH_CIRCUIT_CLOSED_STATUS = "closed"
+AUTH_MARKER_FOUND_STATUS = "found"
+AUTH_MARKER_ABSENT_TIMEOUT_STATUS = "absent_timeout"
+AUTH_MARKER_INVALID_STATUS = "invalid"
+AUTH_MARKER_UNSTABLE_STATUS = "unstable"
+AUTH_MARKER_API_FAILURE_STATUS = "api_failure"
 DEFERRED_FAILURE_CLASS = "vpn_circuit_deferred"
 DEFAULT_API_ATTEMPTS = 3
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 15.0
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
 DEFAULT_WAIT_TIMEOUT_SECONDS = 120.0
 DEFAULT_POLL_INTERVAL_SECONDS = 5.0
+AUTH_MARKER_STABILIZATION_SNAPSHOTS = 3
+AUTH_MARKER_STABILIZATION_SECONDS = 1.0
 MAX_ARTIFACT_PAGES = 100
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 MAX_MARKER_ARCHIVE_BYTES = 4 * 1024 * 1024
@@ -508,6 +515,108 @@ def find_exact_workflow_run_artifact(
         **list_options,
     )
     return exact_unexpired_artifact(artifacts, exact_name)
+
+
+def _auth_marker_candidates(
+    artifacts: Sequence[Mapping[str, Any]],
+    exact_name: object,
+) -> list[dict[str, Any]]:
+    name = _required_text(exact_name, "artifact name")
+    matches: list[dict[str, Any]] = []
+    artifact_ids: set[int] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, Mapping):
+            raise GitHubApiError("artifact inventory entries must be objects")
+        artifact_name = artifact.get("name")
+        expired = artifact.get("expired")
+        if not isinstance(artifact_name, str) or not isinstance(expired, bool):
+            raise GitHubApiError("artifact inventory entries are invalid")
+        if artifact_name != name:
+            raise GitHubApiError("GitHub exact-name artifact filter returned another name")
+        artifact_id = artifact.get("id")
+        if type(artifact_id) is not int or artifact_id < 1:
+            raise GitHubApiError("VPN authentication marker artifact ID is invalid")
+        if artifact_id in artifact_ids:
+            raise ArtifactAmbiguityError(
+                "GitHub artifact inventory repeated an authentication marker artifact ID"
+            )
+        artifact_ids.add(artifact_id)
+        if not expired:
+            matches.append(dict(artifact))
+
+    matches.sort(key=lambda artifact: artifact["id"])
+    return matches
+
+
+def resolve_auth_marker_artifact(
+    artifacts: Sequence[Mapping[str, Any]],
+    exact_name: object,
+    *,
+    artifact_validator: Callable[[dict[str, Any]], Any],
+) -> dict[str, Any] | None:
+    """Validate one exact-name auth-marker inventory and elect its lowest ID."""
+    matches = _auth_marker_candidates(artifacts, exact_name)
+
+    if not matches:
+        return None
+
+    for artifact in matches:
+        artifact_validator(artifact)
+    return matches[0]
+
+
+def resolve_stable_auth_marker_artifact(
+    *,
+    artifact_lister: Callable[[str], Sequence[Mapping[str, Any]]],
+    exact_name: object,
+    artifact_validator: Callable[[dict[str, Any]], Any],
+    snapshots: object = AUTH_MARKER_STABILIZATION_SNAPSHOTS,
+    stabilization_seconds: object = AUTH_MARKER_STABILIZATION_SECONDS,
+    sleep: Callable[[float], None] | None = None,
+) -> dict[str, Any] | None:
+    """Observe a bounded window and require its final two inventories to agree."""
+    name = _required_text(exact_name, "artifact name")
+    snapshot_limit = _integer(snapshots, "auth marker snapshots", minimum=2, maximum=10)
+    delay = _number(
+        stabilization_seconds,
+        "auth marker stabilization seconds",
+        minimum=0.0,
+        maximum=30.0,
+    )
+    previous_signature: str | None = None
+    resolved: dict[str, Any] | None = None
+    sleeper = time.sleep if sleep is None else sleep
+
+    for snapshot_index in range(snapshot_limit):
+        inventory = artifact_lister(name)
+        candidates = _auth_marker_candidates(inventory, name)
+        if not candidates and resolved is not None:
+            raise ArtifactAmbiguityError(
+                "VPN authentication marker inventory changed during stabilization"
+            )
+        signature = hashlib.sha256(
+            json.dumps(
+                candidates,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        if signature != previous_signature:
+            resolved = resolve_auth_marker_artifact(
+                candidates,
+                name,
+                artifact_validator=artifact_validator,
+            )
+        if snapshot_index + 1 == snapshot_limit:
+            if signature != previous_signature:
+                raise ArtifactAmbiguityError(
+                    "VPN authentication marker inventory did not stabilize within the "
+                    "bounded snapshots"
+                )
+            return resolved
+        previous_signature = signature
+        sleeper(delay)
 
 
 def _response_location(response: Any) -> str:
@@ -1576,6 +1685,41 @@ def _auth_marker_validator(
     return validate
 
 
+def _auth_marker_lookup(
+    args: argparse.Namespace,
+    env: Mapping[str, str],
+    *,
+    repository: str,
+    run_id: int,
+    run_attempt: int,
+) -> Callable[[str], dict[str, Any] | None]:
+    validator = _auth_marker_validator(
+        args,
+        env,
+        repository=repository,
+        run_id=run_id,
+        run_attempt=run_attempt,
+    )
+    api_options = _api_options(args, env)
+
+    def list_artifacts(exact_name: str) -> list[dict[str, Any]]:
+        return list_workflow_run_artifacts(
+            repository=repository,
+            run_id=run_id,
+            exact_name=exact_name,
+            **api_options,
+        )
+
+    def lookup(exact_name: str) -> dict[str, Any] | None:
+        return resolve_stable_auth_marker_artifact(
+            artifact_lister=list_artifacts,
+            exact_name=exact_name,
+            artifact_validator=validator,
+        )
+
+    return lookup
+
+
 def _command_auth_guard(args: argparse.Namespace, env: Mapping[str, str]) -> int:
     repository, run_id, run_attempt = _common_coordination_values(args, env)
     name = auth_circuit_artifact_name(run_id, run_attempt)
@@ -1587,18 +1731,9 @@ def _command_auth_guard(args: argparse.Namespace, env: Mapping[str, str]) -> int
         )
     )
 
-    def lookup(exact_name: str) -> dict[str, Any] | None:
-        return find_exact_workflow_run_artifact(
-            exact_name=exact_name,
-            repository=repository,
-            run_id=run_id,
-            **_api_options(args, env),
-        )
-
     return auth_guard(
         artifact_name=name,
-        artifact_lookup=lookup,
-        artifact_validator=_auth_marker_validator(
+        artifact_lookup=_auth_marker_lookup(
             args,
             env,
             repository=repository,
@@ -1611,14 +1746,21 @@ def _command_auth_guard(args: argparse.Namespace, env: Mapping[str, str]) -> int
 
 def _command_verify_auth(args: argparse.Namespace, env: Mapping[str, str]) -> int:
     repository, run_id, run_attempt = _common_coordination_values(args, env)
+    output_value = _argument_or_env(
+        getattr(args, "output", None),
+        env,
+        "GITHUB_OUTPUT",
+        default="",
+    )
+    output_path = (
+        Path(_required_text(output_value, "GITHUB_OUTPUT", maximum=4_096))
+        if str(output_value).strip()
+        else None
+    )
 
-    def lookup(exact_name: str) -> dict[str, Any] | None:
-        return find_exact_workflow_run_artifact(
-            exact_name=exact_name,
-            repository=repository,
-            run_id=run_id,
-            **_api_options(args, env),
-        )
+    def report(status: str) -> None:
+        if output_path is not None:
+            append_github_output(output_path, "status", status)
 
     wait_options = _wait_options(
         args,
@@ -1629,20 +1771,33 @@ def _command_verify_auth(args: argparse.Namespace, env: Mapping[str, str]) -> in
             "MARKER_TIMEOUT_SECONDS",
         ),
     )
-    wait_for_auth_marker(
-        run_id=run_id,
-        run_attempt=run_attempt,
-        artifact_lookup=lookup,
-        artifact_validator=_auth_marker_validator(
-            args,
-            env,
-            repository=repository,
+    try:
+        wait_for_auth_marker(
             run_id=run_id,
             run_attempt=run_attempt,
-        ),
-        timeout_seconds=wait_options["timeout_seconds"],
-        poll_interval_seconds=wait_options["poll_interval_seconds"],
-    )
+            artifact_lookup=_auth_marker_lookup(
+                args,
+                env,
+                repository=repository,
+                run_id=run_id,
+                run_attempt=run_attempt,
+            ),
+            timeout_seconds=wait_options["timeout_seconds"],
+            poll_interval_seconds=wait_options["poll_interval_seconds"],
+        )
+    except MarkerWaitTimeoutError:
+        report(AUTH_MARKER_ABSENT_TIMEOUT_STATUS)
+        raise
+    except ArtifactAmbiguityError:
+        report(AUTH_MARKER_UNSTABLE_STATUS)
+        raise
+    except InputValidationError:
+        report(AUTH_MARKER_INVALID_STATUS)
+        raise
+    except GitHubApiError:
+        report(AUTH_MARKER_API_FAILURE_STATUS)
+        raise
+    report(AUTH_MARKER_FOUND_STATUS)
     return 0
 
 
@@ -1859,6 +2014,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_api_arguments(verify_auth_parser)
     _add_wait_arguments(verify_auth_parser)
     _add_auth_marker_arguments(verify_auth_parser)
+    verify_auth_parser.add_argument("--output")
     verify_auth_parser.set_defaults(handler=_command_verify_auth)
 
     capacity_wait_parser = subparsers.add_parser("capacity-wait")

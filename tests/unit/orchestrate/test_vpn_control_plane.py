@@ -117,6 +117,35 @@ def _marker_artifact(
     }
 
 
+def _auth_command_env() -> dict[str, str]:
+    return {
+        "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_RUN_ID": "15",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "CHAIN_ID": "chain-abc",
+        "WORKFLOW_SOURCE_SHA": TEST_SOURCE_SHA,
+        "GITHUB_SHA": TEST_WORKFLOW_HEAD_SHA,
+        "VPN_AUTH_SOURCE": "configured",
+    }
+
+
+def _auth_marker_payload(module) -> dict[str, object]:
+    return module.build_marker_payload(
+        kind="auth-circuit",
+        repository="owner/repo",
+        chain_id="chain-abc",
+        source_sha=TEST_SOURCE_SHA,
+        run_id=15,
+        run_attempt=2,
+        lane_id="historical-14",
+        lane_index=14,
+        auth_source="configured",
+        vpn_status="vpn_auth_failure",
+        vpn_server="",
+        timestamp="2026-07-16T14:15:16Z",
+    )
+
+
 def test_artifact_names_are_run_attempt_scoped_and_capacity_is_per_lane(module) -> None:
     assert (
         module.auth_circuit_artifact_name("987654", "3")
@@ -326,6 +355,157 @@ def test_find_exact_artifact_uses_the_api_name_filter(module) -> None:
     assert f"name={name}" in opener.requests[0][0].full_url
 
 
+def test_auth_marker_resolution_accepts_concurrent_valid_publishers(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    artifacts = [
+        _artifact(name, artifact_id=82),
+        _artifact(name, artifact_id=77),
+        _artifact(name, artifact_id=90, expired=True),
+    ]
+    validated: list[int] = []
+
+    resolved = module.resolve_auth_marker_artifact(
+        artifacts,
+        name,
+        artifact_validator=lambda artifact: validated.append(artifact["id"]),
+    )
+
+    assert resolved is not None
+    assert resolved["id"] == 77
+    assert validated == [77, 82]
+
+
+def test_auth_marker_resolution_rejects_exact_name_filter_violation(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+
+    with pytest.raises(module.GitHubApiError, match="exact-name"):
+        module.resolve_auth_marker_artifact(
+            [_artifact("unrelated", artifact_id=91)],
+            name,
+            artifact_validator=lambda _artifact: None,
+        )
+
+
+def test_auth_marker_resolution_fails_closed_on_any_invalid_concurrent_marker(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+
+    def validate(artifact: dict[str, object]) -> None:
+        if artifact["id"] == 82:
+            raise module.InputValidationError("wrong chain")
+
+    with pytest.raises(module.InputValidationError, match="wrong chain"):
+        module.resolve_auth_marker_artifact(
+            [_artifact(name, artifact_id=77), _artifact(name, artifact_id=82)],
+            name,
+            artifact_validator=validate,
+        )
+
+
+def test_auth_marker_resolution_rejects_repeated_artifact_ids(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+
+    with pytest.raises(module.ArtifactAmbiguityError, match="repeated"):
+        module.resolve_auth_marker_artifact(
+            [_artifact(name, artifact_id=77), _artifact(name, artifact_id=77)],
+            name,
+            artifact_validator=lambda _artifact: None,
+        )
+
+
+def test_auth_marker_resolution_waits_for_a_stable_candidate_set(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    inventories = [
+        [_artifact(name, artifact_id=82)],
+        [_artifact(name, artifact_id=82), _artifact(name, artifact_id=77)],
+        [_artifact(name, artifact_id=82), _artifact(name, artifact_id=77)],
+    ]
+    validated: list[int] = []
+    sleeps: list[float] = []
+
+    resolved = module.resolve_stable_auth_marker_artifact(
+        artifact_lister=lambda exact_name: (
+            inventories.pop(0)
+            if exact_name == name
+            else pytest.fail("lookup did not preserve the exact-name filter")
+        ),
+        exact_name=name,
+        artifact_validator=lambda artifact: validated.append(artifact["id"]),
+        stabilization_seconds=0.25,
+        sleep=sleeps.append,
+    )
+
+    assert resolved is not None
+    assert resolved["id"] == 77
+    assert validated == [82, 77, 82]
+    assert sleeps == [0.25, 0.25]
+    assert inventories == []
+
+
+def test_auth_marker_resolution_catches_a_candidate_after_two_matching_snapshots(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    inventories = [
+        [_artifact(name, artifact_id=82)],
+        [_artifact(name, artifact_id=82)],
+        [_artifact(name, artifact_id=82), _artifact(name, artifact_id=77)],
+    ]
+
+    with pytest.raises(module.ArtifactAmbiguityError, match="did not stabilize"):
+        module.resolve_stable_auth_marker_artifact(
+            artifact_lister=lambda _name: inventories.pop(0),
+            exact_name=name,
+            artifact_validator=lambda _artifact: None,
+            stabilization_seconds=0,
+            sleep=lambda _seconds: None,
+        )
+
+
+def test_auth_marker_resolution_stabilizes_absence_before_accepting_a_late_marker(
+    module,
+) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    inventories = [
+        [],
+        [_artifact(name, artifact_id=82)],
+        [_artifact(name, artifact_id=82)],
+    ]
+    validated: list[int] = []
+
+    resolved = module.resolve_stable_auth_marker_artifact(
+        artifact_lister=lambda _name: inventories.pop(0),
+        exact_name=name,
+        artifact_validator=lambda artifact: validated.append(artifact["id"]),
+        stabilization_seconds=0,
+        sleep=lambda _seconds: None,
+    )
+
+    assert resolved is not None
+    assert resolved["id"] == 82
+    assert validated == [82]
+    assert inventories == []
+
+
+def test_auth_marker_resolution_rejects_an_unstable_candidate_set(module) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    inventories = [
+        [_artifact(name, artifact_id=82)],
+        [_artifact(name, artifact_id=82), _artifact(name, artifact_id=77)],
+        [
+            _artifact(name, artifact_id=82),
+            _artifact(name, artifact_id=77),
+            _artifact(name, artifact_id=76),
+        ],
+    ]
+
+    with pytest.raises(module.ArtifactAmbiguityError, match="did not stabilize"):
+        module.resolve_stable_auth_marker_artifact(
+            artifact_lister=lambda _name: inventories.pop(0),
+            exact_name=name,
+            artifact_validator=lambda _artifact: None,
+            stabilization_seconds=0,
+            sleep=lambda _seconds: None,
+        )
+
+
 def test_load_auth_marker_artifact_downloads_one_safe_json_file(module) -> None:
     payload = {"schema_version": 1, "source_sha": TEST_SOURCE_SHA}
     archive = _marker_archive(payload)
@@ -392,40 +572,39 @@ def test_auth_guard_cli_binds_rest_and_marker_provenance_to_different_shas(
 ) -> None:
     output = tmp_path / "github-output.txt"
     name = module.auth_circuit_artifact_name(15, 2)
-    artifact = {"name": name}
-    payload = module.build_marker_payload(
-        kind="auth-circuit",
-        repository="owner/repo",
-        chain_id="chain-abc",
-        source_sha=TEST_SOURCE_SHA,
-        run_id=15,
-        run_attempt=2,
-        lane_id="historical-14",
-        lane_index=14,
-        auth_source="configured",
-        vpn_status="vpn_auth_failure",
-        vpn_server="",
-        timestamp="2026-07-16T14:15:16Z",
-    )
-    observed: dict[str, object] = {}
+    artifacts = [
+        {"id": 82, "name": name, "expired": False},
+        {"id": 77, "name": name, "expired": False},
+    ]
+    payload = _auth_marker_payload(module)
+    observed: dict[str, object] = {
+        "artifacts": [],
+        "workflow_head_shas": [],
+        "list_calls": 0,
+    }
 
-    def fake_find_exact_workflow_run_artifact(**_kwargs: object) -> dict[str, object]:
-        return artifact
+    def fake_list_workflow_run_artifacts(**kwargs: object) -> list[dict[str, object]]:
+        assert kwargs["exact_name"] == name
+        observed["list_calls"] = int(observed["list_calls"]) + 1
+        return artifacts
 
     def fake_load_auth_marker_artifact(
         candidate: object,
         **kwargs: object,
     ) -> dict[str, object]:
-        observed["artifact"] = candidate
-        observed["workflow_head_sha"] = kwargs["workflow_head_sha"]
+        assert isinstance(observed["artifacts"], list)
+        assert isinstance(observed["workflow_head_shas"], list)
+        observed["artifacts"].append(candidate)
+        observed["workflow_head_shas"].append(kwargs["workflow_head_sha"])
         return payload
 
     monkeypatch.setattr(
         module,
-        "find_exact_workflow_run_artifact",
-        fake_find_exact_workflow_run_artifact,
+        "list_workflow_run_artifacts",
+        fake_list_workflow_run_artifacts,
     )
     monkeypatch.setattr(module, "load_auth_marker_artifact", fake_load_auth_marker_artifact)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
 
     assert (
         module.main(
@@ -444,10 +623,150 @@ def test_auth_guard_cli_binds_rest_and_marker_provenance_to_different_shas(
         == 1
     )
     assert observed == {
-        "artifact": artifact,
-        "workflow_head_sha": TEST_WORKFLOW_HEAD_SHA,
+        "artifacts": [artifacts[1], artifacts[0]],
+        "workflow_head_shas": [TEST_WORKFLOW_HEAD_SHA, TEST_WORKFLOW_HEAD_SHA],
+        "list_calls": 3,
     }
     assert output.read_text(encoding="utf-8") == "status=vpn_auth_circuit_open\n"
+
+
+def test_auth_guard_cli_fails_closed_on_a_late_malformed_sibling(
+    module,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    name = module.auth_circuit_artifact_name(15, 2)
+    payload = _auth_marker_payload(module)
+    inventories = [
+        [{"id": 82, "name": name, "expired": False}],
+        [
+            {"id": 82, "name": name, "expired": False},
+            {"id": 77, "name": name, "expired": False},
+        ],
+    ]
+
+    def fake_list_workflow_run_artifacts(**kwargs: object) -> list[dict[str, object]]:
+        assert kwargs["exact_name"] == name
+        return inventories.pop(0)
+
+    def fake_load_auth_marker_artifact(
+        candidate: dict[str, object],
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        if candidate["id"] == 77:
+            raise module.InputValidationError("late marker is invalid")
+        return payload
+
+    monkeypatch.setattr(module, "list_workflow_run_artifacts", fake_list_workflow_run_artifacts)
+    monkeypatch.setattr(module, "load_auth_marker_artifact", fake_load_auth_marker_artifact)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    env = _auth_command_env()
+    env["GITHUB_OUTPUT"] = str(output)
+
+    assert module.main(["auth-guard"], env=env) == 1
+    assert output.read_text(encoding="utf-8") == "status=vpn_auth_circuit_check_failed\n"
+    assert inventories == []
+
+
+def test_verify_auth_cli_stabilizes_and_validates_concurrent_markers(
+    module,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    artifacts = [
+        {"id": 82, "name": name, "expired": False},
+        {"id": 77, "name": name, "expired": False},
+    ]
+    payload = _auth_marker_payload(module)
+    calls = {"list": 0, "validated": []}
+
+    def fake_list_workflow_run_artifacts(**kwargs: object) -> list[dict[str, object]]:
+        assert kwargs["exact_name"] == name
+        calls["list"] = int(calls["list"]) + 1
+        return artifacts
+
+    def fake_load_auth_marker_artifact(
+        candidate: dict[str, object],
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        assert isinstance(calls["validated"], list)
+        calls["validated"].append(candidate["id"])
+        return payload
+
+    monkeypatch.setattr(module, "list_workflow_run_artifacts", fake_list_workflow_run_artifacts)
+    monkeypatch.setattr(module, "load_auth_marker_artifact", fake_load_auth_marker_artifact)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    output = tmp_path / "github-output.txt"
+    env = _auth_command_env()
+    env["GITHUB_OUTPUT"] = str(output)
+
+    assert module.main(["verify-auth"], env=env) == 0
+    assert output.read_text(encoding="utf-8") == "status=found\n"
+    assert calls == {"list": 3, "validated": [77, 82]}
+
+
+def test_verify_auth_cli_fails_closed_on_a_late_malformed_sibling(
+    module,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    name = module.auth_circuit_artifact_name(15, 2)
+    payload = _auth_marker_payload(module)
+    inventories = [
+        [{"id": 82, "name": name, "expired": False}],
+        [
+            {"id": 82, "name": name, "expired": False},
+            {"id": 77, "name": name, "expired": False},
+        ],
+    ]
+
+    def fake_list_workflow_run_artifacts(**kwargs: object) -> list[dict[str, object]]:
+        assert kwargs["exact_name"] == name
+        return inventories.pop(0)
+
+    def fake_load_auth_marker_artifact(
+        candidate: dict[str, object],
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        if candidate["id"] == 77:
+            raise module.InputValidationError("late marker is invalid")
+        return payload
+
+    monkeypatch.setattr(module, "list_workflow_run_artifacts", fake_list_workflow_run_artifacts)
+    monkeypatch.setattr(module, "load_auth_marker_artifact", fake_load_auth_marker_artifact)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    output = tmp_path / "github-output.txt"
+    env = _auth_command_env()
+    env["GITHUB_OUTPUT"] = str(output)
+
+    assert module.main(["verify-auth"], env=env) == 1
+    assert output.read_text(encoding="utf-8") == "status=invalid\n"
+    assert inventories == []
+
+
+def test_verify_auth_cli_reports_an_absent_timeout(
+    module,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    calls = 0
+
+    def fake_list_workflow_run_artifacts(**_kwargs: object) -> list[dict[str, object]]:
+        nonlocal calls
+        calls += 1
+        return []
+
+    monkeypatch.setattr(module, "list_workflow_run_artifacts", fake_list_workflow_run_artifacts)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    env = _auth_command_env()
+    env["GITHUB_OUTPUT"] = str(output)
+
+    assert module.main(["verify-auth", "--timeout-seconds", "0"], env=env) == 1
+    assert output.read_text(encoding="utf-8") == "status=absent_timeout\n"
+    assert calls == 3
 
 
 @pytest.mark.parametrize(

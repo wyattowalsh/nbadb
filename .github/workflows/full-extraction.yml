@@ -2357,10 +2357,20 @@ jobs:
             echo "::notice::Fresh start"
           fi
 
+      - name: Recheck VPN auth circuit before connector
+        id: vpn_auth_circuit_final
+        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status == 'closed' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
+        run: python3 .github/scripts/vpn_control_plane.py auth-guard
+
       # ── Connect NordVPN tunnel for active extraction lanes ──
       - name: Connect NordVPN tunnel
         id: vpn
-        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status == 'closed' }}
+        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status == 'closed' && steps.vpn_auth_circuit_final.outputs.status == 'closed' }}
         timeout-minutes: 16
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
@@ -2442,7 +2452,7 @@ jobs:
 
       - name: Retry VPN auth circuit marker publication
         id: vpn_auth_circuit_marker_retry
-        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' && steps.vpn_auth_circuit_marker.outcome == 'failure' && steps.vpn_auth_circuit_lookup.outcome != 'success' }}
+        if: ${{ always() && steps.vpn.outputs.status == 'vpn_auth_failure' && steps.vpn_auth_circuit_marker.outcome == 'failure' && steps.vpn_auth_circuit_lookup.outputs.status == 'absent_timeout' }}
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -2613,7 +2623,7 @@ jobs:
           python .github/scripts/run_extract_lane.py
 
       - name: Upload VPN diagnostics
-        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_open' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_check_failed' }}
+        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' && (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) != 'vpn_auth_circuit_open' && (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) != 'vpn_auth_circuit_check_failed' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -2629,7 +2639,7 @@ jobs:
           compression-level: 6
 
       - name: Disconnect VPN
-        if: ${{ always() && !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_open' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_check_failed' }}
+        if: ${{ always() && !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' && (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) != 'vpn_auth_circuit_open' && (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) != 'vpn_auth_circuit_check_failed' }}
         uses: ./.github/actions/nordvpn-disconnect
         with:
           pid: ${{ steps.vpn.outputs.pid }}
@@ -2645,7 +2655,7 @@ jobs:
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
-          VPN_AUTH_CIRCUIT_STATUS: ${{ steps.vpn_auth_circuit.outputs.status }}
+          VPN_AUTH_CIRCUIT_STATUS: ${{ steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status }}
           EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
         run: |
           if [ "$JOB_STATUS" = "cancelled" ]; then
@@ -2722,7 +2732,7 @@ jobs:
 
       - name: Write lane metadata
         id: lane_metadata
-        if: ${{ always() && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_open' && steps.vpn_auth_circuit.outputs.status != 'vpn_auth_circuit_check_failed' }}
+        if: ${{ always() && (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) != 'vpn_auth_circuit_open' && (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) != 'vpn_auth_circuit_check_failed' }}
         env:
           LANE_ID: ${{ matrix.lane_id }}
           LANE_INDEX: ${{ matrix.lane_index }}
@@ -2778,7 +2788,7 @@ jobs:
 
       - name: Write circuit-deferred lane metadata
         id: circuit_lane_metadata
-        if: ${{ always() && (steps.vpn_auth_circuit.outputs.status == 'vpn_auth_circuit_open' || steps.vpn_auth_circuit.outputs.status == 'vpn_auth_circuit_check_failed') }}
+        if: ${{ always() && ((steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) == 'vpn_auth_circuit_open' || (steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status) == 'vpn_auth_circuit_check_failed') }}
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           ITERATION: ${{ inputs.iteration }}
@@ -2803,7 +2813,7 @@ jobs:
           NETWORK_MODE: ${{ inputs.network_mode }}
           EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
           VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
-          VPN_AUTH_CIRCUIT_STATUS: ${{ steps.vpn_auth_circuit.outputs.status }}
+          VPN_AUTH_CIRCUIT_STATUS: ${{ steps.vpn_auth_circuit_final.outputs.status || steps.vpn_auth_circuit.outputs.status }}
         run: python3 .github/scripts/vpn_control_plane.py write-deferred-metadata
 
       - name: Upload circuit-deferred lane metadata
