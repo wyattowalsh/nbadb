@@ -23,7 +23,7 @@ inputs:
     required: false
     default: "false"
   lane-index:
-    description: Zero-based lane index used to deterministically choose the first recommended server.
+    description: Zero-based logical lane index used for non-wrapping preferred-host assignment and ad hoc selector behavior.
     required: false
     default: ""
   shard-index:
@@ -70,6 +70,14 @@ inputs:
     description: Maximum number of initial logical lane indexes eligible for one-to-one preferred-host assignment; assignments never wrap and later lanes use fresh recommendations.
     required: false
     default: "1"
+  recommendation-slot-count:
+    description: Exact simultaneous slot cardinality for deterministic non-overlapping fresh-server partitions; zero preserves single-run ad hoc selection.
+    required: false
+    default: "0"
+  recommendation-slot-index:
+    description: Zero-based recommendation slot owned by this runner; defaults to lane-index and must be serialized when reused by later logical lanes.
+    required: false
+    default: ""
   country-id:
     description: NordVPN country identifier.
     required: false
@@ -202,6 +210,8 @@ runs:
         QUARANTINED_SERVERS_JSON: ${{ inputs.quarantined-servers-json }}
         PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}
         PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}
+        RECOMMENDATION_SLOT_COUNT: ${{ inputs.recommendation-slot-count }}
+        RECOMMENDATION_SLOT_INDEX: ${{ inputs.recommendation-slot-index }}
         COUNTRY_ID: ${{ inputs.country-id }}
         TECHNOLOGY: ${{ inputs.technology }}
         FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}

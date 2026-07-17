@@ -5748,6 +5748,33 @@ def test_manifest_v3_computes_capacity_iteration_budget() -> None:
     }
 
 
+def test_manifest_assigns_bounded_reusable_vpn_slots_to_matrix_lanes() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id=f"lane-{index}",
+            lane_index=index,
+            lane_name=f"Lane {index}",
+            lane_kind="historical",
+            season_start=2020,
+            season_end=2020,
+            patterns=("season",),
+            timeout_seconds=3600,
+        )
+        for index in range(7)
+    ]
+
+    payload = manifest_payload(lanes, max_matrix_lanes=7, vpn_slot_count=3)
+    matrix = payload["github_matrix"]["include"]
+
+    assert payload["vpn_slot_count"] == 3
+    assert [row["lane_index"] for row in matrix] == list(range(7))
+    assert [row["vpn_slot"] for row in matrix] == [0, 1, 2, 0, 1, 2, 0]
+    assert manifest_payload(lanes[:2], vpn_slot_count=6)["vpn_slot_count"] == 2
+
+    with pytest.raises(ValueError, match="vpn_slot_count must be between"):
+        manifest_payload(lanes, vpn_slot_count=-1)
+
+
 def test_manifest_v3_never_extends_an_existing_auto_iteration_budget() -> None:
     lane = FullExtractionLane(
         lane_id="lane-001",

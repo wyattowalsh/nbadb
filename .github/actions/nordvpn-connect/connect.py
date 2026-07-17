@@ -391,6 +391,29 @@ class NordVpnConnectAction:
             minimum=1,
             maximum=MAX_RECOMMENDATION_POOL_SIZE,
         )
+        self.recommendation_slot_count = env_int(
+            "RECOMMENDATION_SLOT_COUNT",
+            0,
+            minimum=0,
+            maximum=MAX_RECOMMENDATION_POOL_SIZE,
+        )
+        self.recommendation_slot_index = env_int(
+            "RECOMMENDATION_SLOT_INDEX",
+            self.selector_index,
+            minimum=0,
+        )
+        if self.recommendation_slot_count:
+            if self.recommendation_slot_index >= self.recommendation_slot_count:
+                raise ActionError(
+                    "vpn_network_error",
+                    "RECOMMENDATION_SLOT_INDEX must be lower than RECOMMENDATION_SLOT_COUNT",
+                )
+            if self.recommendation_slot_count * self.server_limit > MAX_RECOMMENDATION_POOL_SIZE:
+                raise ActionError(
+                    "vpn_network_error",
+                    "RECOMMENDATION_SLOT_COUNT times SERVER_LIMIT exceeds the bounded "
+                    "recommendation inventory",
+                )
         self.require_token_auth = (
             os.environ.get("REQUIRE_TOKEN_AUTH", "false").strip().lower() == "true"
         )
@@ -415,6 +438,7 @@ class NordVpnConnectAction:
         self.server_candidates_by_technology: dict[str, tuple[ServerCandidate, ...]] = {}
         self.server_candidate_limits_by_technology: dict[str, int] = {}
         self.server_candidate_base_counts_by_technology: dict[str, int] = {}
+        self.server_candidate_partition_orders_by_technology: dict[str, tuple[str, ...]] = {}
         self.attempt_count_by_technology: dict[str, int] = {}
         self.attempted_servers_by_technology: dict[str, set[str]] = {}
         self.technology_cursor = 0
@@ -1095,6 +1119,12 @@ class NordVpnConnectAction:
                 )
         return tuple(ordered)
 
+    def recommendation_slot_for_hostname(self, hostname: str, slot_count: int) -> int:
+        digest = hashlib.sha256(
+            f"{self.recommendation_partition_seed}\0slot-owner\0{hostname}".encode()
+        ).digest()
+        return int.from_bytes(digest, "big") % slot_count
+
     def recommendation_servers(self, technology: str) -> list[str]:
         remaining_attempts = self.server_limit - self.attempt_count_by_technology.get(
             technology,
@@ -1130,10 +1160,26 @@ class NordVpnConnectAction:
             *attempted_servers,
             *self.preferred_servers,
         }
+        shared_partition_exclusions = {
+            *self.quarantined_servers,
+            *self.preferred_servers,
+        }
+        parallel_partition_count = (
+            self.recommendation_slot_count if self.recommendation_slot_count > 1 else 0
+        )
+        fetch_exclusions = (
+            shared_partition_exclusions if parallel_partition_count else recommendation_exclusions
+        )
+        required_eligible_count = recommendation_count
+        if parallel_partition_count:
+            required_eligible_count = min(
+                MAX_RECOMMENDATION_POOL_SIZE,
+                self.server_limit * parallel_partition_count + len(fetch_exclusions),
+            )
         candidates = self.fetch_server_candidates(
             technology,
-            excluded_servers=recommendation_exclusions,
-            required_eligible_count=recommendation_count,
+            excluded_servers=fetch_exclusions,
+            required_eligible_count=required_eligible_count,
         )
         if not candidates:
             return preferred
@@ -1163,16 +1209,27 @@ class NordVpnConnectAction:
             if not pool:
                 return ()
             partition_count = (len(pool) + self.server_limit - 1) // self.server_limit
-            if admitted_partition_index is not None and partition_count < len(
-                recommendation_lane_indices
-            ):
-                # Keep short primary/reserve pools disjoint across admitted slots.
+            if parallel_partition_count:
+                partition = tuple(
+                    candidate
+                    for candidate in pool
+                    if self.recommendation_slot_for_hostname(
+                        candidate.hostname,
+                        parallel_partition_count,
+                    )
+                    == self.recommendation_slot_index
+                )
+                if not partition:
+                    return ()
+                offset = selection_offset % len(partition)
+                return partition[offset:] + partition[:offset]
+            if admitted_partition_index is not None and len(recommendation_lane_indices) > 1:
+                # Give every admitted slot a deep, disjoint queue. The primary
+                # offset makes reserve ownership continue the same global stride.
                 first_index = (admitted_partition_index - assignment_offset) % len(
                     recommendation_lane_indices
                 )
-                partition = pool[first_index :: len(recommendation_lane_indices)][
-                    : self.server_limit
-                ]
+                partition = pool[first_index :: len(recommendation_lane_indices)]
                 if not partition:
                     return ()
                 offset = selection_offset % len(partition)
@@ -1207,46 +1264,92 @@ class NordVpnConnectAction:
         def _partitioned_candidates(
             candidate_pool: tuple[ServerCandidate, ...],
         ) -> tuple[list[ServerCandidate], list[ServerCandidate]]:
+            preferred_exclusions = set(self.preferred_servers)
+            if not parallel_partition_count and len(recommendation_lane_indices) <= 1:
+                base_count = min(
+                    self.server_candidate_base_counts_by_technology.get(
+                        technology,
+                        len(candidate_pool),
+                    ),
+                    len(candidate_pool),
+                )
+                primary_pool = self.diversified_server_candidates(
+                    tuple(
+                        candidate
+                        for candidate in candidate_pool[:base_count]
+                        if candidate.hostname not in preferred_exclusions
+                    )
+                )
+                reserve_pool = self.diversified_server_candidates(
+                    tuple(
+                        candidate
+                        for candidate in candidate_pool[base_count:]
+                        if candidate.hostname not in preferred_exclusions
+                    )
+                )
+                return _eligible_assigned(primary_pool), _eligible_assigned(reserve_pool)
+
+            candidates_by_hostname = {
+                candidate.hostname: candidate
+                for candidate in candidate_pool
+                if candidate.hostname not in shared_partition_exclusions
+            }
+            prior_order = self.server_candidate_partition_orders_by_technology.get(technology)
+            ordered_pool = [
+                candidates_by_hostname.pop(hostname)
+                for hostname in prior_order or ()
+                if hostname in candidates_by_hostname
+            ]
+            ordered_pool.extend(
+                self.diversified_server_candidates(tuple(candidates_by_hostname.values()))
+            )
+            self.server_candidate_partition_orders_by_technology[technology] = tuple(
+                candidate.hostname for candidate in ordered_pool
+            )
+            if prior_order is None:
+                self.server_candidate_base_counts_by_technology[technology] = min(
+                    self.server_candidate_base_counts_by_technology.get(
+                        technology,
+                        len(candidate_pool),
+                    ),
+                    len(ordered_pool),
+                )
             base_count = min(
                 self.server_candidate_base_counts_by_technology.get(
                     technology,
-                    len(candidate_pool),
+                    len(ordered_pool),
                 ),
-                len(candidate_pool),
+                len(ordered_pool),
             )
-            preferred_exclusions = set(self.preferred_servers)
-            primary_pool = self.diversified_server_candidates(
-                tuple(
-                    candidate
-                    for candidate in candidate_pool[:base_count]
-                    if candidate.hostname not in preferred_exclusions
-                )
-            )
-            reserve_pool = self.diversified_server_candidates(
-                tuple(
-                    candidate
-                    for candidate in candidate_pool[base_count:]
-                    if candidate.hostname not in preferred_exclusions
-                )
-            )
+            primary_pool = tuple(ordered_pool[:base_count])
+            reserve_pool = tuple(ordered_pool[base_count:])
             return _eligible_assigned(primary_pool), _eligible_assigned(
                 reserve_pool,
                 assignment_offset=len(primary_pool),
             )
 
         eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
-        if (
+        while (
             len(eligible_primary) + len(eligible_reserve) < recommendation_count
             and self.server_candidate_limits_by_technology.get(technology, 0)
             < MAX_RECOMMENDATION_POOL_SIZE
         ):
+            previous_inventory_limit = self.server_candidate_limits_by_technology.get(
+                technology,
+                0,
+            )
             candidates = self.fetch_server_candidates(
                 technology,
-                excluded_servers=recommendation_exclusions,
-                required_eligible_count=recommendation_count,
+                excluded_servers=fetch_exclusions,
+                required_eligible_count=required_eligible_count,
                 force_expand=True,
             )
             eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
+            if (
+                self.server_candidate_limits_by_technology.get(technology, 0)
+                <= previous_inventory_limit
+            ):
+                break
 
         recommended = (eligible_primary + eligible_reserve)[:recommendation_count]
         selected_servers = preferred + [candidate.hostname for candidate in recommended]

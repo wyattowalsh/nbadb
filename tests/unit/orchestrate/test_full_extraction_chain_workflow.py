@@ -3690,6 +3690,10 @@ def test_configured_auth_capacity_gate_bounds_matrix_admission(
     assert 'auth-recovery-base-delay-seconds: "300"' in connect_step
     assert 'require-auth-recovery-budget: "true"' in connect_step
     assert (
+        "recommendation-slot-count: ${{ needs.preflight.outputs.vpn-capacity-count }}"
+        in connect_step
+    )
+    assert (
         "quarantined-servers-json: "
         "${{ steps.capacity_quarantine.outputs.vpn-quarantined-servers-json }}"
     ) in connect_step
@@ -4052,6 +4056,31 @@ def test_verified_vpn_servers_are_assigned_to_distinct_extract_slots() -> None:
         "PREFERRED_SERVER_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == "
         "'token' && '1' || inputs.vpn_parallelism }}"
     ) in vpn_step
+    assert (
+        "RECOMMENDATION_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == 'token' "
+        "&& '0' || needs.plan.outputs.vpn-slot-count }}"
+    ) in vpn_step
+    assert "RECOMMENDATION_SLOT_INDEX: ${{ matrix.vpn_slot }}" in vpn_step
+
+
+def test_extract_vpn_slots_use_non_cancelling_serial_queues() -> None:
+    workflow = _workflow_text()
+    plan = _job_block(workflow, "plan")
+    extract = _job_block(workflow, "extract")
+    lane_control = _step_block(
+        _job_block(workflow, "lane_control"),
+        "Prepare next manifest",
+    )
+
+    assert "vpn-slot-count: ${{ steps.manifest.outputs.vpn-slot-count }}" in plan
+    assert '--vpn-slot-count "$VPN_PARALLELISM"' in plan
+    assert "vpn-slot-count={manifest.get('vpn_slot_count', 0)}" in plan
+    assert "matrix.vpn_slot" in extract
+    assert "format('vpn-slot-{0}', matrix.vpn_slot)" in extract
+    assert "format('direct-lane-{0}', matrix.lane_index)" in extract
+    assert "queue: max" in extract
+    assert "cancel-in-progress: false" in extract
+    assert '--vpn-slot-count "$VPN_PARALLELISM"' in lane_control
 
 
 def test_network_mode_resolution_rejects_unattested_connected_tunnels(

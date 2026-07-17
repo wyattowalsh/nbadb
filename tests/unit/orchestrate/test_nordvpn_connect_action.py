@@ -1359,6 +1359,7 @@ def test_recommendations_partition_short_reserve_pool_across_admitted_lanes(
         '["us2001.nordvpn.com", "us2002.nordvpn.com"]',
     )
     monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "2")
     monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
     module = _load_module()
@@ -1387,6 +1388,7 @@ def test_recommendations_partition_short_reserve_pool_across_admitted_lanes(
         action.server_limit = 6
         action.server_pool_size = 96
         action.selector_index = lane_index
+        action.recommendation_slot_index = lane_index
         action.quarantined_servers = quarantined_servers
 
         def _fake_retry_http_get(
@@ -1395,15 +1397,15 @@ def test_recommendations_partition_short_reserve_pool_across_admitted_lanes(
             url: str,
             *extra_args: str,
         ) -> bool:
-            output_path.write_text(json.dumps(candidates), encoding="utf-8")
+            payload = candidates if lane_index == 0 else list(reversed(candidates))
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
             return True
 
         monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
         return action.recommendation_servers("openvpn_udp")
 
     baseline_lane_zero = _recommendations(0)
-    baseline_lane_one = _recommendations(1)
-    shared_quarantine = tuple(baseline_lane_zero[1:3] + baseline_lane_one[1:3])
+    shared_quarantine = tuple(baseline_lane_zero[1:])
 
     lane_zero = _recommendations(0, shared_quarantine)
     lane_one = _recommendations(1, shared_quarantine)
@@ -1414,10 +1416,173 @@ def test_recommendations_partition_short_reserve_pool_across_admitted_lanes(
     assert set(lane_zero).isdisjoint(lane_one)
 
 
+def test_recommendations_keep_lane_ownership_stable_when_one_lane_expands(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        '["us2001.nordvpn.com", "us2002.nordvpn.com"]',
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "2")
+    monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    preferred = ["us2001.nordvpn.com", "us2002.nordvpn.com"]
+    initial_fresh = [f"us{5000 + index}.nordvpn.com" for index in range(1, 13)]
+    expanded_fresh = initial_fresh + [f"us{6000 + index}.nordvpn.com" for index in range(1, 13)]
+
+    def _payload(hostnames: list[str]) -> list[dict[str, object]]:
+        return [
+            {
+                "hostname": hostname,
+                "status": "online",
+                "station": f"198.51.{index // 250}.{(index % 250) + 1}",
+                "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+            }
+            for index, hostname in enumerate(hostnames)
+        ]
+
+    def _recommendations(
+        lane_index: int,
+        failed_servers: tuple[str, ...] = (),
+    ) -> tuple[list[str], int]:
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        action.server_limit = 6
+        action.server_pool_size = 12
+        action.selector_index = lane_index
+        action.recommendation_slot_index = lane_index
+        action.failed_servers = list(failed_servers)
+        request_count = 0
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            nonlocal request_count
+            request_count += 1
+            hostnames = preferred + (initial_fresh if request_count == 1 else expanded_fresh)
+            if lane_index == 1:
+                hostnames = list(reversed(hostnames))
+            output_path.write_text(json.dumps(_payload(hostnames)), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        return action.recommendation_servers("openvpn_udp"), request_count
+
+    baseline_lane_zero, _ = _recommendations(0)
+    lane_zero_failures = tuple(baseline_lane_zero[1:])
+
+    lane_zero, lane_zero_requests = _recommendations(0, lane_zero_failures)
+    lane_one, lane_one_requests = _recommendations(1)
+
+    assert len(lane_zero) == len(lane_one) == 6
+    assert lane_zero_requests == 2
+    assert lane_one_requests == 1
+    assert set(lane_zero).isdisjoint(lane_one)
+
+
+def test_recommendations_continue_three_admitted_lanes_across_reserve_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        '["us2001.nordvpn.com", "us2002.nordvpn.com", "us2003.nordvpn.com"]',
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "3")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "3")
+    monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": f"203.0.113.{index}",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index, hostname in enumerate(
+            (
+                "us2001.nordvpn.com",
+                "us2002.nordvpn.com",
+                "us2003.nordvpn.com",
+                *(f"us{4000 + index}.nordvpn.com" for index in range(1, 31)),
+            ),
+            start=1,
+        )
+    ]
+
+    def _recommendations(lane_index: int) -> tuple[list[str], list[str], list[int]]:
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        action.server_limit = 3
+        action.server_pool_size = 5
+        action.selector_index = lane_index
+        action.recommendation_slot_index = lane_index
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            payload = candidates if lane_index % 2 == 0 else list(reversed(candidates))
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        recommendations = action.recommendation_servers("openvpn_udp")
+        fresh_order = [
+            candidate.hostname
+            for candidate in action.diversified_server_candidates(
+                tuple(
+                    candidate
+                    for candidate in action.server_candidates_by_technology["openvpn_udp"]
+                    if candidate.hostname not in action.preferred_servers
+                )
+            )
+        ]
+        selected_owners = [
+            action.recommendation_slot_for_hostname(hostname, 3) for hostname in recommendations[1:]
+        ]
+        return recommendations, fresh_order, selected_owners
+
+    lane_results = [_recommendations(lane_index) for lane_index in range(3)]
+    recommendations = [result for result, _fresh_order, _owners in lane_results]
+    fresh_order = lane_results[0][1]
+
+    assert [result[0] for result in recommendations] == [
+        "us2001.nordvpn.com",
+        "us2002.nordvpn.com",
+        "us2003.nordvpn.com",
+    ]
+    assert all(len(result) == 3 for result in recommendations)
+    assert [owners for _result, _fresh_order, owners in lane_results] == [
+        [0, 0],
+        [1, 1],
+        [2, 2],
+    ]
+    assert any(
+        hostname in set(fresh_order[5:]) for result in recommendations for hostname in result[1:]
+    )
+    assert all(
+        set(recommendations[left]).isdisjoint(recommendations[right])
+        for left in range(3)
+        for right in range(left + 1, 3)
+    )
+
+
 def test_independent_lane_partitions_ignore_recommendation_response_order(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
 ) -> None:
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "2")
     module = _load_module()
     candidates = [
         {
@@ -1433,8 +1598,9 @@ def test_independent_lane_partitions_ignore_recommendation_response_order(
         action = module.NordVpnConnectAction()
         action.work_dir.mkdir(parents=True, exist_ok=True)
         action.server_limit = 2
-        action.server_pool_size = 6
+        action.server_pool_size = 4
         action.selector_index = lane_index
+        action.recommendation_slot_index = lane_index
 
         def _fake_retry_http_get(
             label: str,
@@ -1462,6 +1628,266 @@ def test_independent_lane_partitions_ignore_recommendation_response_order(
     assert first_partition == same_first_partition
     assert second_partition == same_second_partition
     assert set(first_partition).isdisjoint(second_partition)
+
+
+def test_independent_slot_ownership_survives_partial_candidate_overlap(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "2")
+    monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    common = [f"us{8000 + index}.nordvpn.com" for index in range(1, 31)]
+    lane_only = {
+        0: [f"us{8100 + index}.nordvpn.com" for index in range(1, 9)],
+        1: [f"us{8200 + index}.nordvpn.com" for index in range(1, 9)],
+    }
+
+    def _recommendations(lane_index: int) -> tuple[list[str], list[int]]:
+        monkeypatch.setenv("LANE_INDEX", str(lane_index))
+        monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", str(lane_index))
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        action.server_limit = 4
+        action.server_pool_size = 12
+        hostnames = common + lane_only[lane_index]
+        if lane_index == 1:
+            hostnames = list(reversed(hostnames))
+        payload = [
+            {
+                "hostname": hostname,
+                "status": "online",
+                "station": f"203.0.113.{index + 1}",
+                "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+            }
+            for index, hostname in enumerate(hostnames)
+        ]
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        recommendations = action.recommendation_servers("openvpn_udp")
+        owners = [
+            action.recommendation_slot_for_hostname(hostname, 2) for hostname in recommendations
+        ]
+        return recommendations, owners
+
+    lane_zero, owners_zero = _recommendations(0)
+    lane_one, owners_one = _recommendations(1)
+
+    assert len(lane_zero) == len(lane_one) == 4
+    assert set(lane_zero).isdisjoint(lane_one)
+    assert owners_zero == [0, 0, 0, 0]
+    assert owners_one == [1, 1, 1, 1]
+
+
+@pytest.mark.parametrize("slot_count", (2, 3, 4, 6))
+def test_parallel_slot_ownership_is_disjoint_under_order_and_local_failure_skew(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    slot_count: int,
+) -> None:
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", str(slot_count))
+    monkeypatch.setenv("SERVER_LIMIT", "4")
+    monkeypatch.setenv("SERVER_POOL_SIZE", "48")
+    monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    hostnames = [f"us{10000 + index}.nordvpn.com" for index in range(1, 201)]
+    selected_by_slot: list[list[str]] = []
+
+    for slot_index in range(slot_count):
+        monkeypatch.setenv("LANE_INDEX", str(slot_index + slot_count * 5))
+        monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", str(slot_index))
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        owned = [
+            hostname
+            for hostname in hostnames
+            if action.recommendation_slot_for_hostname(hostname, slot_count) == slot_index
+        ]
+        action.failed_servers = owned[:2]
+        rotated = hostnames[slot_index:] + hostnames[:slot_index]
+        if slot_index % 2:
+            rotated.reverse()
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+            _rotated: list[str] = rotated,
+        ) -> bool:
+            limit = int(url.split("?limit=", 1)[1].split("&", 1)[0])
+            payload = [
+                {
+                    "hostname": hostname,
+                    "status": "online",
+                    "station": f"198.51.100.{(index % 250) + 1}",
+                    "locations": [{"country": {"city": {"name": f"City {index % 31}"}}}],
+                }
+                for index, hostname in enumerate(_rotated[:limit])
+            ]
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        selected = action.recommendation_servers("openvpn_udp")
+        assert len(selected) == 4
+        assert set(selected).isdisjoint(action.failed_servers)
+        assert all(
+            action.recommendation_slot_for_hostname(hostname, slot_count) == slot_index
+            for hostname in selected
+        )
+        selected_by_slot.append(selected)
+
+    assert all(
+        set(selected_by_slot[left]).isdisjoint(selected_by_slot[right])
+        for left in range(slot_count)
+        for right in range(left + 1, slot_count)
+    )
+
+
+def test_explicit_recommendation_slots_partition_rolling_logical_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "2")
+    monkeypatch.setenv("SERVER_LIMIT", "6")
+    monkeypatch.setenv("SERVER_POOL_SIZE", "96")
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        '["us2001.nordvpn.com", "us2002.nordvpn.com"]',
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "2")
+    monkeypatch.setenv("GITHUB_RUN_ID", "29551126558")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    preferred = ["us2001.nordvpn.com", "us2002.nordvpn.com"]
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": f"198.51.{index // 250}.{(index % 250) + 1}",
+            "locations": [{"country": {"city": {"name": f"City {index % 31}"}}}],
+        }
+        for index, hostname in enumerate(
+            (*preferred, *(f"us{7000 + fresh}.nordvpn.com" for fresh in range(1, 101)))
+        )
+    ]
+
+    def _recommendations(
+        lane_index: int,
+        slot_index: int,
+    ) -> tuple[list[str], list[str]]:
+        monkeypatch.setenv("LANE_INDEX", str(lane_index))
+        monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", str(slot_index))
+        action = module.NordVpnConnectAction()
+        action.work_dir.mkdir(parents=True, exist_ok=True)
+        requested_urls: list[str] = []
+
+        def _fake_retry_http_get(
+            label: str,
+            output_path: Path,
+            url: str,
+            *extra_args: str,
+        ) -> bool:
+            requested_urls.append(url)
+            payload = candidates if slot_index == 0 else list(reversed(candidates))
+            output_path.write_text(json.dumps(payload), encoding="utf-8")
+            return True
+
+        monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+        return action.recommendation_servers("openvpn_udp"), requested_urls
+
+    lane_zero, lane_zero_urls = _recommendations(0, 0)
+    lane_sixteen, lane_sixteen_urls = _recommendations(16, 1)
+    reused_slot, _ = _recommendations(2, 0)
+
+    assert len(lane_zero) == len(lane_sixteen) == 6
+    assert lane_zero[0] == preferred[0]
+    assert set(lane_sixteen).isdisjoint(preferred)
+    assert set(lane_zero).isdisjoint(lane_sixteen)
+    assert set(lane_zero[1:]).issubset(reused_slot)
+    assert "limit=98" in lane_zero_urls[0]
+    assert "limit=98" in lane_sixteen_urls[0]
+
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "2")
+    with pytest.raises(module.ActionError, match="lower than RECOMMENDATION_SLOT_COUNT"):
+        module.NordVpnConnectAction()
+
+
+def test_recommendation_slot_expands_until_its_hash_bucket_is_filled(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("LANE_INDEX", "1")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_COUNT", "2")
+    monkeypatch.setenv("RECOMMENDATION_SLOT_INDEX", "1")
+    monkeypatch.setenv("SERVER_LIMIT", "1")
+    monkeypatch.setenv("SERVER_POOL_SIZE", "1")
+    monkeypatch.setenv("GITHUB_RUN_ID", "2")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+
+    slot_zero: list[str] = []
+    slot_one: list[str] = []
+    for sequence in range(1, 100):
+        hostname = f"us{9000 + sequence}.nordvpn.com"
+        owner = action.recommendation_slot_for_hostname(hostname, 2)
+        (slot_zero if owner == 0 else slot_one).append(hostname)
+        if len(slot_zero) >= 4 and slot_one:
+            break
+    candidates = [*slot_zero[:4], slot_one[0]]
+    requested_limits: list[int] = []
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        limit = int(url.split("?limit=", 1)[1].split("&", 1)[0])
+        requested_limits.append(limit)
+        payload = [
+            {
+                "hostname": hostname,
+                "status": "online",
+                "station": f"203.0.113.{index + 1}",
+                "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+            }
+            for index, hostname in enumerate(candidates[:limit])
+        ]
+        output_path.write_text(json.dumps(payload), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.recommendation_servers("openvpn_udp") == [slot_one[0]]
+    assert requested_limits == [2, 4, 8]
+
+
+def test_disabled_recommendation_slots_allow_large_logical_lane_indexes(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("LANE_INDEX", "201")
+    module = _load_module()
+
+    action = module.NordVpnConnectAction()
+
+    assert action.recommendation_slot_count == 0
+    assert action.recommendation_slot_index == 201
 
 
 def test_independent_lane_partitions_rotate_with_run_attempt(
@@ -1678,6 +2104,9 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "server-pool-size:" in metadata
     assert "preferred-servers-json:" in metadata
     assert "preferred-server-slot-count:" in metadata
+    assert "recommendation-slot-count:" in metadata
+    assert "recommendation-slot-index:" in metadata
+    assert "non-overlapping fresh-server partitions" in metadata
     assert "assignments never wrap" in metadata
     assert "auth-source:" in metadata
     assert "NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}" in metadata
@@ -1702,6 +2131,8 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}" in metadata
     assert "PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}" in metadata
     assert "PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}" in metadata
+    assert "RECOMMENDATION_SLOT_COUNT: ${{ inputs.recommendation-slot-count }}" in metadata
+    assert "RECOMMENDATION_SLOT_INDEX: ${{ inputs.recommendation-slot-index }}" in metadata
 
 
 def test_pid_alive_returns_false_when_probe_times_out(

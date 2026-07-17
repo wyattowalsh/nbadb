@@ -290,6 +290,7 @@ jobs:
       lane-count: ${{ steps.manifest.outputs.lane-count }}
       active-lane-count: ${{ steps.manifest.outputs.active-lane-count }}
       matrix-lane-count: ${{ steps.manifest.outputs.matrix-lane-count }}
+      vpn-slot-count: ${{ steps.manifest.outputs.vpn-slot-count }}
       deferred-lane-count: ${{ steps.manifest.outputs.deferred-lane-count }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
       chunk-profile: ${{ steps.manifest.outputs.chunk-profile }}
@@ -481,6 +482,7 @@ jobs:
             plan
             --iteration "$ITERATION"
             --max-matrix-lanes "$effective_matrix_batch_size"
+            --vpn-slot-count "$VPN_PARALLELISM"
             --output-path artifacts/full-extraction/manifest.json
           )
           if [ -n "$INPUT_LANE_MANIFEST_JSON" ]; then
@@ -679,6 +681,7 @@ jobs:
               --chunk-profile "$CHUNK_PROFILE"
               --iteration "$ITERATION"
               --max-matrix-lanes "$effective_matrix_batch_size"
+              --vpn-slot-count "$VPN_PARALLELISM"
               --allow-missing-attempted-metadata
               --output-path artifacts/full-extraction/resume-source-manifest.json
             )
@@ -930,6 +933,7 @@ jobs:
               handle.write(f"lane-count={manifest['lane_count']}\n")
               handle.write(f"active-lane-count={manifest.get('active_lane_count', 0)}\n")
               handle.write(f"matrix-lane-count={manifest.get('matrix_lane_count', 0)}\n")
+              handle.write(f"vpn-slot-count={manifest.get('vpn_slot_count', 0)}\n")
               handle.write(f"deferred-lane-count={manifest.get('deferred_lane_count', 0)}\n")
               handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
               handle.write(f"chunk-profile={manifest.get('chunk_profile', '')}\n")
@@ -1854,6 +1858,7 @@ jobs:
           quarantined-servers-json: ${{ steps.capacity_quarantine.outputs.vpn-quarantined-servers-json }}
           preferred-servers-json: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
           preferred-server-slot-count: ${{ inputs.vpn_parallelism }}
+          recommendation-slot-count: ${{ needs.preflight.outputs.vpn-capacity-count }}
           fallback-technology: openvpn_tcp
           connect-timeout-seconds: "60"
           overall-timeout-seconds: "780"
@@ -2046,6 +2051,10 @@ jobs:
       fail-fast: false
       max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism)) }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
+    concurrency:
+      group: full-extraction-${{ inputs.chain_id || github.run_id }}-iteration-${{ inputs.iteration }}-${{ needs.preflight.outputs.effective-network-mode == 'vpn' && format('vpn-slot-{0}', matrix.vpn_slot) || format('direct-lane-{0}', matrix.lane_index) }}
+      queue: max
+      cancel-in-progress: false
 
     steps:
       - name: Initialize lane job budget
@@ -2362,6 +2371,8 @@ jobs:
           QUARANTINED_SERVERS_JSON: ${{ needs.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
           PREFERRED_SERVERS_JSON: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
           PREFERRED_SERVER_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism }}
+          RECOMMENDATION_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && '0' || needs.plan.outputs.vpn-slot-count }}
+          RECOMMENDATION_SLOT_INDEX: ${{ matrix.vpn_slot }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \
@@ -4151,6 +4162,7 @@ jobs:
             --completed-artifact-run-id "${{ github.run_id }}"
             --iteration "$ITERATION"
             --max-matrix-lanes "$effective_matrix_batch_size"
+            --vpn-slot-count "$VPN_PARALLELISM"
             --allow-missing-attempted-metadata
           )
           if [ "$RETRY_PIPELINE_FAILURES" = "true" ]; then

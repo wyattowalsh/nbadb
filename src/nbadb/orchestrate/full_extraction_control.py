@@ -2059,6 +2059,7 @@ def manifest_payload(
     *,
     chain_state: FullExtractionChainState | None = None,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
+    vpn_slot_count: int = 0,
     current_iteration: int = 1,
     chain_id: str | None = None,
     workflow_source_sha: str | None = None,
@@ -2069,9 +2070,21 @@ def manifest_payload(
             f"got {max_matrix_lanes}"
         )
         raise ValueError(msg)
+    if vpn_slot_count < 0 or vpn_slot_count > MAX_GITHUB_MATRIX_LANES:
+        msg = (
+            f"vpn_slot_count must be between 0 and {MAX_GITHUB_MATRIX_LANES}, got {vpn_slot_count}"
+        )
+        raise ValueError(msg)
     lane_dicts = [_lane_payload(lane) for lane in lanes]
     active_lanes = [lane for lane in lanes if not lane.resume_only]
     matrix_lanes = active_lanes[:max_matrix_lanes]
+    resolved_vpn_slot_count = min(vpn_slot_count, len(matrix_lanes))
+    matrix_include: list[dict[str, Any]] = []
+    for matrix_index, lane in enumerate(matrix_lanes):
+        row = lane.to_workflow_dict()
+        if resolved_vpn_slot_count:
+            row["vpn_slot"] = matrix_index % resolved_vpn_slot_count
+        matrix_include.append(row)
     deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
     minimum_remaining_waves = math.ceil(len(active_lanes) / max_matrix_lanes)
     remaining_dispatch_credits = sum(
@@ -2105,6 +2118,7 @@ def manifest_payload(
         "active_lane_count": len(active_lanes),
         "resume_only_lane_count": len(lanes) - len(active_lanes),
         "matrix_lane_count": len(matrix_lanes),
+        "vpn_slot_count": resolved_vpn_slot_count,
         "deferred_lane_count": deferred_lane_count,
         "planned_wave_count": max((lane.planned_wave for lane in lanes), default=0) + 1,
         "minimum_remaining_wave_count": minimum_remaining_waves,
@@ -2139,7 +2153,7 @@ def manifest_payload(
         ],
         "lanes": lane_dicts,
         "chain_state": resolved_chain_state.to_payload(),
-        "github_matrix": {"include": [lane.to_workflow_dict() for lane in matrix_lanes]},
+        "github_matrix": {"include": matrix_include},
     }
     payload.update(_manifest_provenance_payload(chain_id, workflow_source_sha))
     return payload
@@ -6365,6 +6379,7 @@ def _command_plan(args: argparse.Namespace) -> int:
         lanes,
         chain_state=chain_state,
         max_matrix_lanes=args.max_matrix_lanes,
+        vpn_slot_count=args.vpn_slot_count,
         current_iteration=args.iteration,
         chain_id=chain_id,
         workflow_source_sha=workflow_source_sha,
@@ -6404,6 +6419,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         next_lanes,
         chain_state=next_chain_state,
         max_matrix_lanes=args.max_matrix_lanes,
+        vpn_slot_count=args.vpn_slot_count,
         current_iteration=args.iteration,
         chain_id=manifest.chain_id,
         workflow_source_sha=manifest.workflow_source_sha,
@@ -6480,6 +6496,7 @@ def _build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--duckdb-path", type=Path, default=None)
     plan.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     plan.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
+    plan.add_argument("--vpn-slot-count", type=int, default=0)
     plan.add_argument("--iteration", type=int, default=1)
     plan.add_argument("--output-path", type=Path, required=True)
     plan.set_defaults(func=_command_plan)
@@ -6497,6 +6514,7 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--allow-pipeline-failures", action="store_true")
     resume.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
+    resume.add_argument("--vpn-slot-count", type=int, default=0)
     resume.add_argument("--iteration", type=int, default=1)
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
