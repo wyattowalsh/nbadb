@@ -194,6 +194,11 @@ waves may exceed exactly 25% and diversity can override the preferred queue. Ins
 `scheduler_diagnostics.queue_counts`, the cost summaries, and `top_cost_lanes` in
 the manifest when the first wave is surprising.
 
+`lane_index` is required nonnegative attempt-local routing metadata, not durable
+identity. A later schedule may reorder and renumber completed lanes. Restore,
+checkpoint, and coverage validation instead bind the semantic `lane_id`,
+pattern/endpoints, parameter scope, and coverage hash.
+
 Manifest generation also enforces parameter-level executability. The schema-backed
 `player_vs_player`, `team_vs_player`, `team_and_players_vs`, and the extractor-only
 `team_and_players_vs_players` alias are currently `contract_not_modeled_yet` for
@@ -341,10 +346,13 @@ seed proves complete coverage and the bundle verifier passes. If the seed fails,
 advance, and no child iteration is dispatched.
 
 Each iteration builds a cumulative checkpoint artifact named
-`full-extraction-checkpoint-<chain_id>-iter-<iteration>`. The next manifest carries
-that checkpoint pointer forward, so redispatched runs can merge the previous
-checkpoint with only the newly completed lane databases. Terminal merge consumes
-the checkpoint first. If a manual/source-run resume has complete lane uploads but no
+`full-extraction-checkpoint-<chain_id>-iter-<iteration>`. It first creates a
+`candidate` transaction for the generation/name and semantic lane coverage. A
+validated database and report advance it to `built`; upload plus REST identity
+verification advances it to `uploaded_verified`; only `committed` writes the next
+manifest's latest-checkpoint pointer. Redispatched runs therefore merge the previous
+committed checkpoint with only newly completed lane databases, and terminal merge
+consumes that checkpoint first. If a manual/source-run resume has complete lane uploads but no
 checkpoint, recovery reads the manifest's exact `chain_state.artifact_run_ids` plus
 the current run, inventories every artifact, and downloads only exact lane/database
 and metadata names. Duplicate names, ambiguous databases, invalid run IDs, and a
@@ -379,9 +387,12 @@ previous manifest chain-state commitment. Cancellation/source resume carries new
 digest-bound pending commitment until the next checkpoint merges and clears them. A prior
 checkpoint must match its pointer's chain, source, run,
 artifact name, generation, and coverage fingerprint, and its inventory may not contain
-any lane outside the current manifest. A failed build remains an attempt-scoped
-diagnostic artifact; only a successfully validated database and report are promoted
-under the canonical checkpoint name. Valid contract-blocked lanes are recorded in a
+any lane outside the current manifest. A failed build or upload remains attempt-scoped
+diagnostics and cannot advance the pointer. A committed receipt binds the exact
+artifact ID, run, name, digest, size, source, database hash, report hash, generation,
+and coverage fingerprint. Restore downloads that artifact ID with digest mismatch
+treated as an error; the bounded name-based restore path exists only for legacy
+persisted manifests without a transaction receipt. Valid contract-blocked lanes are recorded in a
 separate artifact-bound evidence inventory rather than included in the effective
 checkpoint coverage used for terminal assured identity. Staging merge
 uses `EXCEPT ALL` overlap subtraction, preserving legitimate duplicate multiplicity
@@ -434,6 +445,13 @@ additionally limits the failure blast radius: ten calls per durable chunk, two
 concurrent requests, a 15-second request timeout, no per-call retry loop, abort after
 a fully failed newly attempted chunk, and a 600-second no-completed-chunk watchdog. A
 successful empty chunk is persisted and then journaled before the next chunk starts.
+
+`win_probability` also uses a ten-call persistence and zero-progress boundary. Its
+pattern-local response-contract circuit opens after three consecutive identical
+upstream contract failures. Remaining calls in the current chunk are suppressed,
+recorded as failed, and left resumable; later chunks are explicitly unattempted.
+Neither category is journaled as success or counted toward coverage, and any valid
+response resets the consecutive signature.
 
 Revalidate either cutoff boundary with the support rule's exact one-season probe,
 changing only the endpoint name:
@@ -522,6 +540,13 @@ retain the checkpoint and next-manifest artifacts, wait for the provider cooldow
 resume the stopped chain with the exact handoff below. Increase parallelism again only
 after a sustained clean wave, not from the nominal device allowance alone.
 
+For the fast configured-credential production path, explicitly dispatch
+`vpn_parallelism=6`; the six-tunnel admission gate must pass before extraction begins.
+Keep the workflow's global default at two because planning happens before the
+credential source is known. Raising the default to six would plan 192 jobs for a
+token-derived run that later executes one at a time. Six GitHub runners and six
+tunnels still do not prove six distinct exit IPs.
+
 ```bash
 set -euo pipefail
 
@@ -533,6 +558,7 @@ set -euo pipefail
 
 command -v gh >/dev/null
 command -v jq >/dev/null
+command -v uv >/dev/null
 [[ "$REPOSITORY" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]
 [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
 [[ "$WORKFLOW_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
@@ -540,40 +566,146 @@ command -v jq >/dev/null
 workflow_sha="$(printf '%s' "$WORKFLOW_SHA" | tr '[:upper:]' '[:lower:]')"
 work_dir="$(mktemp -d)"
 trap 'rm -rf -- "$work_dir"' EXIT
+source_run="$work_dir/source-run.json"
+source_run_attempt="$(
+  gh api \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/${REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" \
+    > "$source_run"
+  jq -er '.run_attempt' "$source_run"
+)"
+owner_head_sha="$(jq -er '.head_sha | ascii_downcase' "$source_run")"
+[[ "$source_run_attempt" =~ ^[1-9][0-9]*$ ]]
+[[ "$owner_head_sha" =~ ^[0-9a-f]{40}$ ]]
 inventory="$work_dir/artifacts.json"
 match="$work_dir/next-manifest-artifact.json"
 resume_dir="$work_dir/resume"
+archive="$work_dir/next-manifest.zip"
 
 gh api --method GET \
   -H "Accept: application/vnd.github+json" \
   "/repos/${REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
   -f per_page=100 \
   --paginate --slurp > "$inventory"
-jq -e --arg prefix "full-extraction-next-manifest-${CHAIN_ID}-iter-" '
-  [.[].artifacts[]
-    | select(.expired == false)
-    | select((.name // "") | startswith($prefix))] as $matches
-  | if ($matches | length) != 1 then
-      error("expected exactly one unexpired next-manifest artifact")
-    elif (($matches[0].name | ltrimstr($prefix)) | test("^[1-9][0-9]*$"))
-      | not then
-      error("next-manifest artifact has an invalid iteration suffix")
-    else
-      $matches[0]
-    end
-' "$inventory" > "$match"
+CHAIN_ID="$CHAIN_ID" \
+INVENTORY="$inventory" \
+MATCH="$match" \
+OWNER_HEAD_SHA="$owner_head_sha" \
+SOURCE_RUN_ATTEMPT="$source_run_attempt" \
+SOURCE_RUN_ID="$SOURCE_RUN_ID" \
+uv run python - <<'PY'
+import json
+import os
+import re
+from pathlib import Path
+
+chain_id = os.environ["CHAIN_ID"]
+source_run_id = os.environ["SOURCE_RUN_ID"]
+source_run_attempt = int(os.environ["SOURCE_RUN_ATTEMPT"])
+owner_head_sha = os.environ["OWNER_HEAD_SHA"]
+pages = json.loads(Path(os.environ["INVENTORY"]).read_text(encoding="utf-8"))
+prefix = f"full-extraction-next-manifest-{chain_id}-"
+run_marker = f"-run-{source_run_id}-attempt-"
+pattern = re.compile(
+    rf"^{re.escape(prefix)}iter-(?P<iteration>[1-9][0-9]*)-"
+    rf"run-{re.escape(source_run_id)}-attempt-(?P<attempt>[1-9][0-9]*)$"
+)
+matches_by_attempt: dict[int, list[tuple[dict[str, object], int]]] = {}
+for page in pages:
+    if not isinstance(page, dict) or not isinstance(page.get("artifacts"), list):
+        raise SystemExit("resume source artifact inventory is malformed")
+    for artifact in page["artifacts"]:
+        if not isinstance(artifact, dict):
+            raise SystemExit("resume source artifact entry is malformed")
+        name = str(artifact.get("name") or "")
+        identity = pattern.fullmatch(name)
+        if identity is None:
+            if name.startswith(prefix) and run_marker in name:
+                raise SystemExit(f"malformed committed next-manifest name: {name!r}")
+            continue
+        attempt = int(identity.group("attempt"))
+        if attempt > source_run_attempt:
+            raise SystemExit("committed next-manifest attempt exceeds source run attempt")
+        matches_by_attempt.setdefault(attempt, []).append(
+            (artifact, int(identity.group("iteration")))
+        )
+
+if not matches_by_attempt:
+    raise SystemExit("source run has no immutable committed next-manifest artifact")
+selected_attempt = max(matches_by_attempt)
+matches = matches_by_attempt[selected_attempt]
+if len(matches) != 1:
+    raise SystemExit(
+        f"ambiguous committed next-manifest artifacts for attempt {selected_attempt}"
+    )
+artifact, next_iteration = matches[0]
+artifact_id = artifact.get("id")
+size = artifact.get("size_in_bytes")
+digest = str(artifact.get("digest") or "").lower()
+workflow_run = artifact.get("workflow_run")
+if (
+    isinstance(artifact_id, bool)
+    or not isinstance(artifact_id, int)
+    or artifact_id < 1
+    or isinstance(size, bool)
+    or not isinstance(size, int)
+    or size < 1
+    or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+    or artifact.get("expired") is not False
+    or not isinstance(workflow_run, dict)
+    or str(workflow_run.get("id") or "") != source_run_id
+    or str(workflow_run.get("head_sha") or "").lower() != owner_head_sha
+):
+    raise SystemExit("committed next-manifest artifact receipt is invalid")
+artifact["next_iteration"] = next_iteration
+artifact["run_attempt"] = selected_attempt
+Path(os.environ["MATCH"]).write_text(
+    json.dumps(artifact, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
 
 manifest_artifact="$(jq -er '.name' "$match")"
-next_iteration="$(
-  jq -er --arg prefix "full-extraction-next-manifest-${CHAIN_ID}-iter-" \
-    '.name | ltrimstr($prefix) | tonumber' "$match"
-)"
+manifest_artifact_id="$(jq -er '.id' "$match")"
+manifest_artifact_digest="$(jq -er '.digest' "$match")"
+next_iteration="$(jq -er '.next_iteration' "$match")"
 
 mkdir -p "$resume_dir"
-gh run download "$SOURCE_RUN_ID" \
-  --repo "$REPOSITORY" \
-  --name "$manifest_artifact" \
-  --dir "$resume_dir"
+gh api --method GET \
+  -H "Accept: application/vnd.github+json" \
+  "/repos/${REPOSITORY}/actions/artifacts/${manifest_artifact_id}/zip" \
+  > "$archive"
+ARCHIVE="$archive" \
+  EXPECTED_DIGEST="$manifest_artifact_digest" \
+  OUTPUT_DIR="$resume_dir" \
+  uv run python - <<'PY'
+import hashlib
+import os
+import stat
+import zipfile
+from pathlib import Path, PurePosixPath
+
+archive_bytes = Path(os.environ["ARCHIVE"]).read_bytes()
+actual = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
+if actual != os.environ["EXPECTED_DIGEST"]:
+    raise SystemExit(
+        f"artifact digest mismatch: expected {os.environ['EXPECTED_DIGEST']}, got {actual}"
+    )
+with zipfile.ZipFile(os.environ["ARCHIVE"]) as archive:
+    names = [member.filename for member in archive.infolist()]
+    if len(names) != len(set(names)):
+        raise SystemExit("artifact archive contains duplicate members")
+    for member in archive.infolist():
+        path = PurePosixPath(member.filename)
+        unsafe = (
+            path.is_absolute()
+            or ".." in path.parts
+            or stat.S_ISLNK(member.external_attr >> 16)
+        )
+        if unsafe:
+            raise SystemExit(f"unsafe artifact archive member: {member.filename!r}")
+    archive.extractall(os.environ["OUTPUT_DIR"])
+PY
 
 next_manifest="$resume_dir/next-manifest.json"
 dispatch_report="$resume_dir/chain-dispatch.json"
@@ -593,6 +725,8 @@ jq -e \
     type == "number" and . >= 0 and . == floor;
   def sha256:
     type == "string" and test("^[0-9a-f]{64}$");
+  def artifact_digest:
+    type == "string" and test("^sha256:[0-9a-f]{64}$");
   def count_map:
     type == "object"
     and all(to_entries[];
@@ -607,6 +741,7 @@ jq -e \
       error("expected exactly one chain-dispatch report")
     end) as $report
   | ($manifest.chain_state // null) as $state
+  | ($state.latest_checkpoint_transaction // null) as $transaction
   | ($report.vpn_auth_circuit_deferred_lane_count // -1) as $deferred
   | ($report.vpn_auth_circuit_check_failed_lane_count // -1) as $check_failed
   | ($report.vpn_auth_circuit_rejection_lane_count // -1) as $rejections
@@ -625,6 +760,29 @@ jq -e \
   and ($state.latest_checkpoint_artifact_name
     == ("full-extraction-checkpoint-" + $chain + "-iter-"
       + ($state.latest_checkpoint_generation | tostring)))
+  and ($transaction | type) == "object"
+  and $transaction.state == "committed"
+  and $transaction.artifact_name == $state.latest_checkpoint_artifact_name
+  and $transaction.identity.chain_id == $chain
+  and $transaction.identity.source_sha == $sha
+  and $transaction.identity.generation == $state.latest_checkpoint_generation
+  and $transaction.identity.coverage.coverage_fingerprint
+    == $state.latest_checkpoint_coverage_hash
+  and ($transaction.identity.coverage.lane_inventory_sha256 | sha256)
+  and ($transaction.receipt.artifact_id | positive_integer)
+  and (($transaction.receipt.artifact_run_id | tostring) == $run_id)
+  and $transaction.receipt.artifact_name == $state.latest_checkpoint_artifact_name
+  and ($transaction.receipt.artifact_digest | artifact_digest)
+  and ($transaction.receipt.artifact_size_bytes | positive_integer)
+  and ($transaction.build.database_sha256 | sha256)
+  and ($transaction.build.report_sha256 | sha256)
+  and $transaction.receipt.database_sha256 == $transaction.build.database_sha256
+  and $transaction.receipt.report_sha256 == $transaction.build.report_sha256
+  and $transaction.receipt.chain_id == $chain
+  and $transaction.receipt.source_sha == $sha
+  and $transaction.receipt.generation == $state.latest_checkpoint_generation
+  and $transaction.receipt.coverage_fingerprint
+    == $state.latest_checkpoint_coverage_hash
   and $report.artifact_name == $artifact
   and $report.next_iteration == $iteration
   and $report.active_lane_count == $manifest.active_lane_count
@@ -657,7 +815,7 @@ gh workflow run full-extraction.yml \
   --repo "$REPOSITORY" \
   --ref "$WORKFLOW_REF" \
   -f concurrency=aggressive \
-  -f vpn_parallelism=2 \
+  -f vpn_parallelism=6 \
   -f matrix_batch_size=256 \
   -f direct_parallelism=2 \
   -f direct_request_profile=direct \
@@ -668,22 +826,29 @@ gh workflow run full-extraction.yml \
   -f iteration="$next_iteration" \
   -f max_iterations=auto \
   -f force_reextract=false \
-  -f publish=true \
+  -f publish=false \
   -f chain_id="$CHAIN_ID" \
   -f workflow_ref="$WORKFLOW_REF" \
   -f workflow_sha="$workflow_sha" \
   -f lane_manifest_run_id="$SOURCE_RUN_ID" \
-  -f lane_manifest_artifact_name="$manifest_artifact"
+  -f lane_manifest_artifact_name="$manifest_artifact" \
+  -f lane_manifest_artifact_id="$manifest_artifact_id" \
+  -f lane_manifest_artifact_digest="$manifest_artifact_digest"
 ```
 
-Derive the candidate `next_iteration` from the one exact artifact name; do not guess
-it. Validate chain, source, full-manifest coverage, and current checkpoint ancestry in
-`next-manifest.json`, then cross-bind the report's artifact, next iteration, active
-count, budget, checkpoint generation/name, and checkpoint coverage hash to that
-manifest. The auth-circuit counts and reasons must agree, and the serialized redispatch
-payload must remain inside the source-enforced 60,000-byte bound. Artifact discovery
-happens first because both authoritative files are inside that artifact, and requiring
-one unexpired prefix match avoids a circular handoff.
+Derive the candidate `next_iteration` from the exact artifact name; do not guess it.
+Current committed manifest names include the source run and attempt. Select the highest
+source-run attempt that contains exactly one committed artifact, so a later rerun that
+stopped before commit can reuse the prior attempt. Validate its
+ID/name/digest/size/run/source receipt, download that exact ID, verify the archive
+digest, and forward the ID plus digest to the child.
+The run/name-only handoff is a bounded legacy path and is accepted only when both
+receipt fields are absent. Validate chain, source, full-manifest coverage, and the
+committed checkpoint transaction in `next-manifest.json`, then cross-bind the report's
+artifact, next iteration, active count, budget, checkpoint generation/name, and
+checkpoint coverage hash to that manifest. The auth-circuit counts and reasons must
+agree, and the serialized redispatch payload must remain inside the source-enforced
+60,000-byte bound.
 
 With `max_iterations=auto`, the first manifest derives one numeric `iteration_budget`
 from total remaining matrix dispatch credits, per-lane retry depth, and bounded split
@@ -695,20 +860,22 @@ that progress. Unchanged counters increment the streak. Reported growth without 
 is diagnostics-only and also increments the streak, even if the failure class alternates between
 attempts. This keeps mixed transport, response-contract, and infrastructure failures inside one
 bounded no-progress budget.
-Before `gh workflow run`, the dispatch job queries all paginated
-workflow-dispatch runs and refuses an active or successful display-title match for
+Before dispatch, the job queries all paginated workflow-dispatch runs and refuses an
+active or successful display-title match for
 `Full Extraction chain=<chain_id> iteration=<next>`. The job-level concurrency key
 serializes dispatch attempts for the current chain iteration as an additional guard.
 VPN/auto workflow concurrency is a repository-wide FIFO queue so separate chains
 cannot consume the same account slots concurrently or displace an already-pending
 child; direct workflows remain scoped to chain plus iteration. Active or successful
-exact-title children block redispatch, but
-failed, cancelled, or timed-out historical runs are recorded and excluded when acknowledging the
-one newly created child run ID and URL. The first exact-title match is provisional:
-the dispatcher performs a stabilization poll and acknowledges the child only when the
-new child set remains exactly one. Normal data, metadata, diagnostics, and checkpoint
-upload-artifact steps use overwrite semantics so rerun jobs can replace their prior
-logical artifacts. Each lane's initial capacity-marker upload is immutable and uses
+exact-title children block redispatch, while failed, cancelled, or timed-out history
+remains retryable. The dispatcher posts `workflow_dispatch` with
+`return_run_details=true`, validates the returned run ID and URLs, and reads that
+exact run to prove its title, event, head SHA, and source before acknowledgement. The
+committed next-manifest name is run/attempt-unique and uploads without overwrite; its
+exact artifact ID and digest are forwarded to the child, which REST-verifies
+ID/name/digest/size/run/source and downloads by ID with digest mismatch set to error.
+Ordinary data, metadata, diagnostics, and checkpoint uploads retain their declared
+rerun semantics. Each lane's initial capacity-marker upload is immutable and uses
 `overwrite: false`; only after that lane-unique first upload reports failure may the
 same lane make one exact-name retry with `overwrite: true`. Auth-circuit markers remain
 shared first-writer artifacts. Collision recovery never overwrites an existing marker: it
@@ -718,7 +885,8 @@ cannot trigger that retry. Concurrent exact-name winners are accepted only after
 two snapshots in a bounded three-snapshot window agree and every observed candidate passes
 full validation, then converge deterministically on the lowest positive artifact ID.
 If a parent is interrupted after dispatch but before child acknowledgement, its exit
-trap attempts to cancel every newly created exact-title child. Once the child is
+trap attempts to cancel the exact returned child ID; title-difference lookup is only
+a bounded fallback when the dispatch response cannot be persisted. Once the child is
 acknowledged it is independently durable and must be monitored by run ID. Manual
 cancellation also prevents queued network jobs from starting and lets the lane wrapper
 make a bounded signal-driven cleanup attempt, but GitHub may remove an ephemeral runner
@@ -821,8 +989,8 @@ PY
 - If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct; resume it only through `lane_manifest_run_id`, which reruns integrity, exact-coverage, and canonical bundle gates. Both transport and response-contract/validation failures should consume the bounded recovery attempts; a first response-shape failure must not terminate the remaining budget. Do not treat a broader aggregate cache as proof of an exact missing scope.
 - If `nba-probe-status` is `timeout`, `http_error`, `request_failed`, `invalid_content`, `stack_timeout`, `stack_transport_failed`, or `stack_budget_exhausted`, treat that server as NBA-blocked even when its exit-IP probe passed. Confirm the server appears in `failed-servers-json`; do not start discovery on that tunnel.
 - If `nba-probe-status` is `stack_unavailable`, `stack_runtime_error`, `stack_contract_error`, or `stack_invalid_attestation`, stop and fix the checked-out runtime or contract. These are host-independent fatal failures and must not rotate through or quarantine healthy VPN servers.
-- If checkpoint promotion fails, fix or regenerate the checkpoint before terminal merge. Do not rename attempt-scoped diagnostics to the canonical checkpoint. Use lane-artifact fallback only as an explicit recovery decision after confirming exact chain/source/run/artifact/generation/coverage provenance and proving that neither the prior checkpoint nor its blocked-evidence inventory names a lane outside the current manifest. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
-- If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. Do not treat the first visible child as acknowledged until the stabilization poll confirms exactly one new exact-title run. If the numeric iteration budget is exhausted while work remains, resume manually from the uploaded next-manifest and checkpoint artifacts after deciding whether to raise the cap.
+- If checkpoint commit fails, fix or regenerate the checkpoint before terminal merge. Do not copy a `candidate`, `built`, or unverified upload into `chain_state.latest_checkpoint_*`; only the exact `committed` receipt is recoverable. Use lane-artifact fallback only as an explicit recovery decision after confirming exact chain/source/run/artifact/generation/coverage provenance and proving that neither the prior checkpoint nor its blocked-evidence inventory names a lane outside the current manifest. If both checkpoint and lane artifacts are missing, relaunch from the latest run/attempt-unique `full-extraction-next-manifest-*` artifact by exact ID and digest rather than starting from scratch.
+- If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. A child is acknowledged only after the dispatch response returns its positive run ID and URLs and the exact-run provenance read passes. If the numeric iteration budget is exhausted while work remains, resume manually from the committed next-manifest receipt and checkpoint artifacts after deciding whether to raise the cap.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 
@@ -954,7 +1122,6 @@ gh api --method GET \
 
 jq -e \
   --arg chain "$CHAIN_ID" \
-  --arg sha "$workflow_sha" \
   --argjson first "$FIRST_ITERATION" '
   def positive_integer:
     type == "number" and . > 0 and . == floor;
@@ -981,6 +1148,7 @@ jq -e \
     end
   | [$runs[]
       | select(((.id | positive_integer) | not)
+        or ((.run_attempt | positive_integer) | not)
         or ((.html_url | type) != "string")
         or (.html_url == ""))] as $invalid_identity
   | if ($invalid_identity | length) > 0 then
@@ -989,9 +1157,10 @@ jq -e \
       .
     end
   | [$runs[]
-      | select(((.head_sha // "") | ascii_downcase) != $sha)] as $wrong_source
-  | if ($wrong_source | length) > 0 then
-      error("chain contains a run at an unexpected head SHA")
+      | select(((.head_sha // "") | ascii_downcase)
+        | test("^[0-9a-f]{40}$") | not)] as $invalid_heads
+  | if ($invalid_heads | length) > 0 then
+      error("chain contains a run without a full head SHA")
     else
       .
     end
@@ -1032,6 +1201,7 @@ jq -e \
           id,
           status,
           conclusion,
+          run_attempt,
           head_sha,
           html_url,
           display_title,
@@ -1046,11 +1216,16 @@ validate_nonterminal_dispatch() {
   local run_id="$1"
   local iteration="$2"
   local mode="$3"
+  local run_attempt="$4"
+  local owner_head_sha="$5"
   local next_iteration=$((iteration + 1))
-  local artifact_name="full-extraction-next-manifest-${CHAIN_ID}-iter-${next_iteration}"
+  local artifact_name="full-extraction-next-manifest-${CHAIN_ID}-iter-${next_iteration}-run-${run_id}-attempt-${run_attempt}"
+  local artifact_id
+  local artifact_digest
   local artifact_pages="$work_dir/dispatch-artifacts-${run_id}.json"
   local artifact_match="$work_dir/dispatch-artifact-${run_id}.json"
   local artifact_dir="$work_dir/dispatch-handoff-${run_id}"
+  local artifact_archive="$work_dir/dispatch-handoff-${run_id}.zip"
 
   gh api --method GET \
     -H "Accept: application/vnd.github+json" \
@@ -1058,9 +1233,14 @@ validate_nonterminal_dispatch() {
     -f per_page=100 \
     --paginate --slurp > "$artifact_pages"
 
-  jq -e --arg name "$artifact_name" '
+  jq -e \
+    --arg name "$artifact_name" \
+    --arg owner_head_sha "$owner_head_sha" \
+    --arg run_id "$run_id" '
     def positive_integer:
       type == "number" and . > 0 and . == floor;
+    def artifact_digest:
+      type == "string" and test("^sha256:[0-9a-f]{64}$");
 
     [.[].artifacts[]
       | select(.expired == false and (.name // "") == $name)]
@@ -1068,18 +1248,54 @@ validate_nonterminal_dispatch() {
         error("expected one exact nonterminal next-manifest artifact")
       elif ((.[0].id | positive_integer) | not)
         or ((.[0].size_in_bytes | positive_integer) | not)
-        or ((.[0].archive_download_url // "") == "") then
+        or ((.[0].digest | artifact_digest) | not)
+        or ((.[0].workflow_run.id | tostring) != $run_id)
+        or ((.[0].workflow_run.head_sha // "" | ascii_downcase)
+          != $owner_head_sha) then
         error("next-manifest artifact identity is incomplete")
       else
         .[0]
       end
   ' "$artifact_pages" > "$artifact_match"
 
+  artifact_id="$(jq -er '.id' "$artifact_match")"
+  artifact_digest="$(jq -er '.digest' "$artifact_match")"
   mkdir -p "$artifact_dir"
-  gh run download "$run_id" \
-    --repo "$REPOSITORY" \
-    --name "$artifact_name" \
-    --dir "$artifact_dir"
+  gh api --method GET \
+    -H "Accept: application/vnd.github+json" \
+    "/repos/${REPOSITORY}/actions/artifacts/${artifact_id}/zip" \
+    > "$artifact_archive"
+  ARCHIVE="$artifact_archive" \
+    EXPECTED_DIGEST="$artifact_digest" \
+    OUTPUT_DIR="$artifact_dir" \
+    python - <<'PY'
+import hashlib
+import os
+import stat
+import zipfile
+from pathlib import Path, PurePosixPath
+
+archive_bytes = Path(os.environ["ARCHIVE"]).read_bytes()
+actual = f"sha256:{hashlib.sha256(archive_bytes).hexdigest()}"
+if actual != os.environ["EXPECTED_DIGEST"]:
+    raise SystemExit(
+        f"artifact digest mismatch: expected {os.environ['EXPECTED_DIGEST']}, got {actual}"
+    )
+with zipfile.ZipFile(os.environ["ARCHIVE"]) as archive:
+    names = [member.filename for member in archive.infolist()]
+    if len(names) != len(set(names)):
+        raise SystemExit("artifact archive contains duplicate members")
+    for member in archive.infolist():
+        path = PurePosixPath(member.filename)
+        unsafe = (
+            path.is_absolute()
+            or ".." in path.parts
+            or stat.S_ISLNK(member.external_attr >> 16)
+        )
+        if unsafe:
+            raise SystemExit(f"unsafe artifact archive member: {member.filename!r}")
+    archive.extractall(os.environ["OUTPUT_DIR"])
+PY
 
   local manifest_count
   local report_count
@@ -1114,6 +1330,8 @@ validate_nonterminal_dispatch() {
       type == "number" and . >= 0 and . == floor;
     def sha256:
       type == "string" and test("^[0-9a-f]{64}$");
+    def artifact_digest:
+      type == "string" and test("^sha256:[0-9a-f]{64}$");
     def count_map:
       type == "object"
       and all(to_entries[];
@@ -1128,6 +1346,7 @@ validate_nonterminal_dispatch() {
         error("expected exactly one chain-dispatch report")
       end) as $report
     | ($manifest.chain_state // null) as $state
+    | ($state.latest_checkpoint_transaction // null) as $transaction
     | ($report.vpn_auth_circuit_deferred_lane_count // -1) as $deferred
     | ($report.vpn_auth_circuit_check_failed_lane_count // -1) as $check_failed
     | ($report.vpn_auth_circuit_rejection_lane_count // -1) as $rejections
@@ -1146,6 +1365,29 @@ validate_nonterminal_dispatch() {
     and ($state.latest_checkpoint_artifact_name
       == ("full-extraction-checkpoint-" + $chain + "-iter-"
         + ($state.latest_checkpoint_generation | tostring)))
+    and ($transaction | type) == "object"
+    and $transaction.state == "committed"
+    and $transaction.artifact_name == $state.latest_checkpoint_artifact_name
+    and $transaction.identity.chain_id == $chain
+    and $transaction.identity.source_sha == $sha
+    and $transaction.identity.generation == $state.latest_checkpoint_generation
+    and $transaction.identity.coverage.coverage_fingerprint
+      == $state.latest_checkpoint_coverage_hash
+    and ($transaction.identity.coverage.lane_inventory_sha256 | sha256)
+    and ($transaction.receipt.artifact_id | positive_integer)
+    and (($transaction.receipt.artifact_run_id | tostring) == $run_id)
+    and $transaction.receipt.artifact_name == $state.latest_checkpoint_artifact_name
+    and ($transaction.receipt.artifact_digest | artifact_digest)
+    and ($transaction.receipt.artifact_size_bytes | positive_integer)
+    and ($transaction.build.database_sha256 | sha256)
+    and ($transaction.build.report_sha256 | sha256)
+    and $transaction.receipt.database_sha256 == $transaction.build.database_sha256
+    and $transaction.receipt.report_sha256 == $transaction.build.report_sha256
+    and $transaction.receipt.chain_id == $chain
+    and $transaction.receipt.source_sha == $sha
+    and $transaction.receipt.generation == $state.latest_checkpoint_generation
+    and $transaction.receipt.coverage_fingerprint
+      == $state.latest_checkpoint_coverage_hash
     and $report.artifact_name == $artifact
     and $report.next_iteration == $iteration
     and $report.active_lane_count == $manifest.active_lane_count
@@ -1191,7 +1433,7 @@ validate_nonterminal_dispatch() {
   ' "$next_manifest" >/dev/null
 }
 
-while IFS=$'\t' read -r run_id iteration head_sha conclusion run_url superseded_count; do
+while IFS=$'\t' read -r run_id iteration run_attempt head_sha conclusion run_url superseded_count; do
   jobs_pages="$work_dir/jobs-${run_id}.json"
   gh api --method GET \
     -H "Accept: application/vnd.github+json" \
@@ -1228,7 +1470,8 @@ while IFS=$'\t' read -r run_id iteration head_sha conclusion run_url superseded_
   fi
 
   if [ "$terminal" = false ] && [ "$branch" != invalid ]; then
-    validate_nonterminal_dispatch "$run_id" "$iteration" "$branch"
+    validate_nonterminal_dispatch \
+      "$run_id" "$iteration" "$branch" "$run_attempt" "$head_sha"
   fi
 
   jq -e \
@@ -1378,7 +1621,7 @@ while IFS=$'\t' read -r run_id iteration head_sha conclusion run_url superseded_
     "$head_sha" "$conclusion" "$run_url"
 done < <(
   jq -r '.[]
-    | [.id, .iteration, .head_sha, .conclusion, .html_url,
+    | [.id, .iteration, .run_attempt, .head_sha, .conclusion, .html_url,
       (.superseded_attempts | length)]
     | @tsv' \
     "$chain_runs"

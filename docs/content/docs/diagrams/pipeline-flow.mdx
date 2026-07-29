@@ -138,7 +138,12 @@ unique VPN exit IPs.
 
 The checkpoint is the recovery boundary: each redispatch copies the previous
 checkpoint into a new generation and merges only newly completed lane databases.
-Terminal merge consumes that checkpoint before export. Incomplete lanes can also
+Durable lane identity comes from the semantic lane contract and coverage hash, not
+the scheduler's attempt-local `lane_index`; a later wave may reorder completed lanes
+without invalidating their state. A checkpoint becomes a recovery boundary only after
+its transaction advances through `candidate`, `built`, `uploaded_verified`, and
+`committed`. Terminal merge consumes that committed checkpoint before export.
+Incomplete lanes can also
 carry exact, attested DuckDB state artifacts into the next iteration after the upload
 action returns a positive artifact ID and SHA-256 receipt. Workload-bound
 state is revalidated against the active discovery generation during restore. Canonical
@@ -147,8 +152,9 @@ only an explicitly attested and durably uploaded pointer is carried forward. Spl
 state, and lane-state cache-prefix and parent-lane fallback are not recovery boundaries.
 Prior/current lane artifacts and prior checkpoints must match exact
 chain/source/run/artifact/generation/coverage provenance. A prior inventory containing
-any lane outside the current manifest is rejected, and only a successfully validated
-checkpoint is promoted under the canonical artifact name.
+any lane outside the current manifest is rejected. Validation alone does not advance
+the recovery pointer; only a committed transaction with a REST-verified immutable
+upload receipt does.
 
 ```mermaid
 flowchart TD
@@ -174,15 +180,18 @@ flowchart TD
     LaneState --> LaneControl["Lane control\nweighted next manifest"]
     CircuitCheckFailed --> LaneControl
     CircuitOpenDeferred --> LaneControl
-    LaneControl --> Checkpoint["Immutable checkpoint generation\ncopy base + merge deltas"]
+    LaneControl --> Candidate["Candidate transaction\nsemantic coverage + generation"]
+    Candidate --> Checkpoint["Build immutable generation\ncopy base + merge deltas"]
     Checkpoint --> IdentityGate{"Digest + hashes + every\njournal unit match?"}
     IdentityGate -->|no| Stop
-    IdentityGate -->|yes| CircuitState{"Validated auth circuit open?"}
+    IdentityGate -->|yes| UploadReceipt["Upload + REST verify\nexact ID/digest/size/source"]
+    UploadReceipt --> Commit["Commit transaction\nwrite next-manifest pointer"]
+    Commit --> CircuitState{"Validated auth circuit open?"}
     CircuitState -->|yes| ManualHandoff["Manual handoff\ncheckpoint + next manifest"]
     ManualHandoff --> ManualStop["Stop chain\nwait for operator resume"]
     CircuitState -->|no| Decision{"Active lanes remain?"}
     Decision -->|yes| DispatchGuard["Dispatch guard\nauto budget + duplicate check"]
-    DispatchGuard --> Dispatch["Dispatch + stabilization poll\nexactly one child"]
+    DispatchGuard --> Dispatch["REST dispatch returns run details\nverify exact child identity"]
     Dispatch --> Plan
     Decision -->|no| Merge["Read-only terminal merge\ncheckpoint first"]
     Merge --> TransformOnly["Transform + live snapshot"]
@@ -231,6 +240,12 @@ current matrix behind those slot queues, preventing a waiting job for one slow s
 from consuming the admission credit needed by another slot. Fresh recommendation hostnames are assigned by a
 run-attempt-seeded hash to exactly one live slot, so candidate reordering, per-lane
 failures, or additive pool expansion cannot create concurrent host overlap.
+The workflow default remains `vpn_parallelism=2` because this planning precedes
+credential-source resolution; a default of six would plan 192 jobs even when
+token-derived authentication later serializes them. Fast configured-credential
+production launches explicitly pass `vpn_parallelism=6`, subject to the fail-closed
+six-tunnel admission gate. Six runners and tunnels still do not attest six distinct
+exit IPs.
 Before extraction, a fail-closed job validates every successful capacity marker and
 merges preflight and discovery failures with those probes' failed hosts into one
 run-attempt-scoped quarantine report. Extraction
@@ -300,15 +315,35 @@ not count toward the effective checkpoint coverage used by terminal assured iden
 Staging merges use bag-aware overlap subtraction so duplicate
 rows legitimately present within a source retain their maximum multiplicity. A stale
 report, changed/swapped database, or reused lane ID with a different contract fails
-before readiness. For chaining, literal `max_iterations=auto` propagates to the
+before readiness. The builder records a `built` transaction only after all of those
+checks pass. The uploader then binds the immutable artifact receipt, REST-verifies the
+exact ID, run, name, digest, size, and source, and advances through
+`uploaded_verified` to `committed`. Only that committed receipt can update
+`chain_state.latest_checkpoint_*`; restore downloads the exact artifact ID with
+digest-mismatch failure enabled. A bounded name-based fallback remains only for
+persisted legacy manifests without a transaction receipt.
+
+`win_probability` limits durable work to ten calls per chunk. Three consecutive
+identical upstream response-contract failures open a circuit scoped to that pattern
+run. Every later call that reaches the open circuit remains failed and resumable without
+an upstream request. Execution stops after the first fully failed newly attempted chunk,
+leaving the remaining calls explicitly unattempted. Neither category is journaled as
+success or removed from the required coverage inventory.
+
+For chaining, literal `max_iterations=auto` propagates to the
 next run while the first manifest fixes a numeric safety cap from remaining
 matrix-wide dispatch credits, retry depth, and possible split descendants. Child
 manifests never extend it. Cumulative zero-progress accounting remains bounded across
-alternating failure classes. The dispatcher searches paginated
-workflow runs for the exact next `chain=<id> iteration=<n>` title, blocks active or
-successful matches, records failed/cancelled history as retryable, and then requires
-exactly one newly visible child run to remain exactly one through a stabilization poll
-before acknowledgement. Direct-mode workflow concurrency uses chain and iteration,
+alternating failure classes. The dispatcher searches paginated workflow runs only as
+a preflight duplicate guard for the exact next `chain=<id> iteration=<n>` title,
+blocking active or successful matches while allowing failed/cancelled history. It then
+posts `workflow_dispatch` with `return_run_details=true`, validates the returned child
+run ID and URLs, and re-reads that exact run to verify title, event, head SHA, and
+source before acknowledgement. The committed next-manifest uses a run/attempt-unique
+non-overwriting artifact; its ID and digest are forwarded to the child for REST
+ID/name/digest/size/run/source verification and exact-ID download. Run/name-only
+handoff is a bounded legacy path when both receipt fields are absent. If the parent
+exits first, its trap attempts to cancel that exact returned child ID. Direct-mode workflow concurrency uses chain and iteration,
 so the parent cannot hold the child's slot. VPN/auto chains instead share
 a repository-wide FIFO concurrency queue, preventing account-slot overlap without
 allowing a newer pending chain to displace an already-queued child.

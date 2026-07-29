@@ -215,7 +215,10 @@ profile and targets a `5:3:1:1` rotation across fresh, partial-progress, retry,
 and infrastructure lanes when every queue has work. When an alternative endpoint is
 available, the scheduler also prevents a six-lane runner window from containing only
 one endpoint identity. This spreads endpoint pressure across the six-runner window;
-it does not prove that the runners have six unique VPN exit IPs. A centralized
+it does not prove that the runners have six unique VPN exit IPs. Lane order is also
+attempt-local: durable restore and coverage identity use the semantic `lane_id`,
+pattern/endpoints, parameter scope, and coverage hash, while `lane_index` may change
+when the scheduler reorders a later attempt. A centralized
 discovery job seeds only the current wave's exact
 season/season-type scopes, carries those artifacts forward by chain and source
 run, refreshes active-season player/game/workload evidence, and blocks matrix
@@ -247,7 +250,13 @@ malformed success payloads fail closed as response-contract errors. The asset ro
 also uses a ten-call persistence boundary, isolated two-call concurrency, a 15-second
 request timeout, no in-call retries, a fully-failed-chunk stop, and a 600-second
 no-completed-chunk watchdog. Empty successful responses are journaled only after their
-zero-row staging chunk is durable.
+zero-row staging chunk is durable. `win_probability` similarly uses a ten-call
+persistence and zero-progress boundary. Three consecutive identical upstream
+response-contract failures open a pattern-local circuit. Every later call that reaches
+the open circuit is recorded as failed without an upstream request. Execution stops
+after the first fully failed newly attempted chunk, leaving all remaining calls
+explicitly unattempted. Neither category can satisfy coverage, so a later resume must
+still complete them.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 bounded GitHub control-plane reachability probe, strict NBA result-set probe, and
 installed-stack player/game discovery canaries pass.
@@ -270,9 +279,13 @@ does not consume the admission credit needed to keep another slot active. Fresh 
 assigned by a run-attempt-seeded hash to exactly one live slot, and additive candidate
 expansion does not reassign hosts between slots. Each active lane still runs on a
 separate runner and tunnel, but neither server selection nor scheduling attests unique
-exit IPs. VPN lane parallelism defaults to two. Token-derived extraction is serialized,
-disables parallel recommendation partitioning, and VPN/auto full-extraction workflows
-cannot overlap another VPN-backed full chain.
+exit IPs. VPN lane parallelism defaults to two. Fast configured-credential production
+launches explicitly pass `vpn_parallelism=6` and proceed only after the six-tunnel
+admission gate succeeds. The global default remains two because planning occurs before
+the credential source is known; a default of six would make token-derived runs plan
+192 jobs that later execute serially. Token-derived extraction is serialized, disables
+parallel recommendation partitioning, and VPN/auto full-extraction workflows cannot
+overlap another VPN-backed full chain.
 Discovery uses hard request timeouts and spends its bounded retry budget on both
 transport-transient failures and response-contract/validation failures, including
 wrapped causes. True application errors remain permanent. It also uses a bounded
@@ -286,16 +299,22 @@ recovery name; it can seed a retry, but it cannot spend lane retries, trigger ch
 dispatch, or become canonical without passing the full seed and verifier gates.
 Each checkpoint generation copies the previous database into a new output before
 applying attested current lane deltas, preserving legitimate duplicate multiplicity
-while removing checkpoint overlap. Prior checkpoints and historical/current lane
-artifacts are accepted only when chain, source, run, artifact name, generation, and
+while removing checkpoint overlap. Publication advances through `candidate`, `built`,
+`uploaded_verified`, and `committed`; only the committed transaction may populate the
+next manifest's latest-checkpoint pointer. The immutable upload receipt binds the exact
+artifact ID, run, name, digest, size, source, generation, coverage fingerprint,
+database hash, and report hash. Restore downloads that ID with digest mismatch treated
+as an error; name-based restore is a bounded legacy path for older manifests without a
+transaction receipt. Prior checkpoints and historical/current lane artifacts are
+otherwise accepted only when chain, source, run, artifact name, generation, and
 coverage provenance match exactly; a prior checkpoint containing any lane outside the
 current manifest is rejected. Lane snapshots are resumable only after a DuckDB
 checkpoint, WAL removal, structural validation, exact database digest, and a successful
-artifact upload whose positive ID and SHA-256 receipt are finalized into metadata. A failed
-checkpoint build remains attempt-scoped diagnostics; the canonical checkpoint name is
-uploaded only after successful validation. Canonical metadata schema v3 is uploaded
-even when no lane snapshot can be attested, so restore/VPN failures remain visible to
-lane control and failed servers still enter the chain quarantine.
+artifact upload whose positive ID and SHA-256 receipt are finalized into metadata. A
+failed checkpoint build remains attempt-scoped diagnostics and never advances the
+latest-checkpoint pointer. Canonical metadata schema v3 is uploaded even when no lane
+snapshot can be attested, so restore/VPN failures remain visible to lane control and
+failed servers still enter the chain quarantine.
 `vpn_network_error`, authentication failure, and connect timeout are all bounded
 `vpn_egress` failures rather than one-shot application failures.
 Configured-credential waves first run a concurrent VPN capacity gate sized to the
@@ -383,9 +402,15 @@ Chained runs preserve literal `max_iterations=auto`, set one fixed numeric cap f
 remaining matrix dispatch credits and retry depth, and never extend that cap in a
 child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
 while allowing recovery from failed/cancelled history. Cumulative no-progress retries
-remain bounded even when failure classes alternate, and a self-dispatch is
-acknowledged only after a stabilization poll still finds exactly one newly created
-exact-title child.
+remain bounded even when failure classes alternate. Self-dispatch posts
+`workflow_dispatch` with `return_run_details=true`, validates the returned run ID and
+URLs, and re-reads that exact child to verify its title, event, head SHA, and source
+before acknowledgement. Committed next-manifest artifacts use run/attempt-unique
+names without overwrite; the parent forwards the exact artifact ID and digest, and
+the child REST-verifies ID/name/digest/size/run/source before downloading by ID with
+digest mismatch set to error. Run/name-only handoff is a bounded legacy path when both
+receipt fields are absent. If the parent exits earlier, its trap attempts to cancel
+that exact returned child instead of inferring a child from title polling.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
 read-only permissions; `publish=false` never receives Kaggle secrets, while
 `publish=true` consumes the exact assured artifact in a separate FIFO-serialized
