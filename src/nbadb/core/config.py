@@ -148,12 +148,17 @@ class NbaDbSettings(BaseSettings):
     }
     endpoint_chunk_size_limits: dict[str, int] = {
         "video_details_asset": 10,
+        "win_probability": 10,
     }
     endpoint_retry_budgets: dict[str, int] = {
         "video_details_asset": 0,
     }
     zero_progress_abort_endpoints: set[str] = {
         "video_details_asset",
+        "win_probability",
+    }
+    response_contract_circuit_thresholds: dict[str, int] = {
+        "win_probability": 3,
     }
     endpoint_request_timeouts: dict[str, int] = {
         "box_score_summary": 60,

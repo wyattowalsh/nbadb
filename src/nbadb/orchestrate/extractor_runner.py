@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 import inspect
 import json
 import os
@@ -22,7 +23,12 @@ from nbadb.core.extraction_failures import (
 )
 from nbadb.extract.base import BaseExtractor, is_retryable_error
 from nbadb.orchestrate.execution_policy import endpoint_family
-from nbadb.orchestrate.resilience import _AdaptiveThrottle, _CircuitBreaker, _LatencyTracker
+from nbadb.orchestrate.resilience import (
+    _AdaptiveThrottle,
+    _CircuitBreaker,
+    _LatencyTracker,
+    _ResponseContractCircuit,
+)
 from nbadb.orchestrate.staging_map import StagingEntry, get_multi_entries
 
 if TYPE_CHECKING:
@@ -188,6 +194,7 @@ class _ChunkTaskBatch:
         ]
     ]
     eligible_calls: int = 0
+    eligible_calls_by_endpoint: dict[str, int] = field(default_factory=dict)
     support_skip_count: int = 0
 
 
@@ -202,7 +209,10 @@ class PatternExtractionResult:
     failure_count: int = 0
     deferred_failure_count: int = 0
     row_count: int = 0
+    scheduled_calls: int = 0
+    unattempted_eligible_calls: int = 0
     errors: list[str] = field(default_factory=list)
+    response_contract_circuit: dict[str, dict[str, int | str | bool]] = field(default_factory=dict)
 
     @property
     def is_complete(self) -> bool:
@@ -348,6 +358,24 @@ class ExtractorRunner:
             (entry.endpoint_name, entry.staging_key): entry for entry in single_entries
         }
         pattern_result = PatternExtractionResult(frames={})
+        configured_thresholds = getattr(
+            self._settings,
+            "response_contract_circuit_thresholds",
+            {},
+        )
+        response_contract_circuit = _ResponseContractCircuit(
+            configured_thresholds if isinstance(configured_thresholds, dict) else {}
+        )
+        (
+            pattern_result.eligible_calls,
+            pattern_result.support_skip_count,
+            eligible_calls_by_endpoint,
+        ) = self._support_eligible_call_counts(
+            single_entries,
+            multi_by_ep,
+            param_sets,
+        )
+        scheduled_calls_by_endpoint: collections.Counter[str] = collections.Counter()
 
         chunk_size = self._chunk_size_for_entries(pattern, entries)
         for chunk_index, chunk_start in enumerate(range(0, max(len(param_sets), 1), chunk_size)):
@@ -373,9 +401,10 @@ class ExtractorRunner:
                 on_progress=on_progress,
                 skip_items=skip_items,
                 defer_journal_success=defer_journal_success,
+                response_contract_circuit=response_contract_circuit,
             )
-            pattern_result.eligible_calls += chunk_batch.eligible_calls
-            pattern_result.support_skip_count += chunk_batch.support_skip_count
+            pattern_result.scheduled_calls += chunk_batch.eligible_calls
+            scheduled_calls_by_endpoint.update(chunk_batch.eligible_calls_by_endpoint)
 
             results = (
                 await asyncio.gather(*chunk_batch.tasks, return_exceptions=True)
@@ -397,6 +426,7 @@ class ExtractorRunner:
                     multi_by_ep=multi_by_ep,
                     on_progress=on_progress,
                     defer_journal_success=defer_journal_success,
+                    response_contract_circuit=response_contract_circuit,
                 )
                 replay_deferred = [r for r in replay_results if isinstance(r, _DeferredExtraction)]
                 if replay_deferred:
@@ -487,6 +517,33 @@ class ExtractorRunner:
                 break
 
         pattern_result.frames = self._concat_accum(accum)
+        pattern_result.unattempted_eligible_calls = max(
+            0,
+            pattern_result.eligible_calls - pattern_result.scheduled_calls,
+        )
+        pattern_result.response_contract_circuit = response_contract_circuit.summary()
+        for endpoint, summary in pattern_result.response_contract_circuit.items():
+            unattempted_calls = max(
+                0,
+                eligible_calls_by_endpoint.get(endpoint, 0) - scheduled_calls_by_endpoint[endpoint],
+            )
+            summary["unattempted_calls"] = unattempted_calls
+            summary["preserved_outstanding_calls"] = (
+                int(summary["suppressions"]) + unattempted_calls
+            )
+        if any(
+            int(summary["suppressions"]) > 0
+            for summary in pattern_result.response_contract_circuit.values()
+        ):
+            logger.warning(
+                "response-contract circuit summary [{}]: {}",
+                pattern,
+                json.dumps(
+                    pattern_result.response_contract_circuit,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
         return pattern_result
 
     # ── run_pattern decomposition ──────────────────────────────
@@ -527,6 +584,38 @@ class ExtractorRunner:
                 batch_items.append((ep_name, json.dumps(params, sort_keys=True)))
         return self._journal.was_extracted_batch(batch_items) if batch_items else set()
 
+    @classmethod
+    def _support_eligible_call_counts(
+        cls,
+        single_entries: list[StagingEntry],
+        multi_by_ep: dict[str, list[StagingEntry]],
+        param_sets: list[dict],
+    ) -> tuple[int, int, dict[str, int]]:
+        """Count the full support-eligible denominator without scheduling calls."""
+        today = date.today()
+        eligible_calls_by_endpoint: collections.Counter[str] = collections.Counter()
+        support_skip_count = 0
+        for entry in single_entries:
+            for params in param_sets:
+                if cls._entry_is_supported(entry, params, today=today):
+                    eligible_calls_by_endpoint[entry.endpoint_name] += 1
+                else:
+                    support_skip_count += 1
+        for endpoint_name, endpoint_entries in multi_by_ep.items():
+            for params in param_sets:
+                if any(
+                    cls._entry_is_supported(entry, params, today=today)
+                    for entry in endpoint_entries
+                ):
+                    eligible_calls_by_endpoint[endpoint_name] += 1
+                else:
+                    support_skip_count += 1
+        return (
+            sum(eligible_calls_by_endpoint.values()),
+            support_skip_count,
+            dict(eligible_calls_by_endpoint),
+        )
+
     @staticmethod
     def _season_year(params: dict) -> int | None:
         """Extract the integer season year from param sets.
@@ -554,6 +643,21 @@ class ExtractorRunner:
             return 2000 + season_suffix
         return 1900 + season_suffix
 
+    @classmethod
+    def _entry_is_supported(
+        cls,
+        entry: StagingEntry,
+        params: dict,
+        *,
+        today: date,
+    ) -> bool:
+        if entry.deprecated_after is not None and today > date.fromisoformat(
+            entry.deprecated_after
+        ):
+            return False
+        season_year = cls._season_year(params)
+        return entry.min_season is None or season_year is None or season_year >= entry.min_season
+
     def _build_chunk_tasks(
         self,
         single_entries: list[StagingEntry],
@@ -563,6 +667,7 @@ class ExtractorRunner:
         on_progress: _ProgressReporter | None = None,
         skip_items: set[tuple[str, str]] | None = None,
         defer_journal_success: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> _ChunkTaskBatch:
         """Create asyncio tasks for all entries in a chunk."""
         tasks: list[
@@ -577,23 +682,12 @@ class ExtractorRunner:
         ] = []
         support_skip_count = 0
         eligible_calls = 0
+        eligible_calls_by_endpoint: collections.Counter[str] = collections.Counter()
         today = date.today()
 
         for entry in single_entries:
             for params in chunk:
-                # Skip entries deprecated before today
-                if entry.deprecated_after is not None and today > date.fromisoformat(
-                    entry.deprecated_after
-                ):
-                    self.skipped += 1
-                    support_skip_count += 1
-                    if on_progress is not None:
-                        on_progress.advance_pattern(success=True)
-                    continue
-                # Honor only explicit upstream support floors. Production
-                # entries default to no floor so historical runs begin at 1946.
-                sy = self._season_year(params)
-                if entry.min_season is not None and sy is not None and sy < entry.min_season:
+                if not self._entry_is_supported(entry, params, today=today):
                     self.skipped += 1
                     support_skip_count += 1
                     if on_progress is not None:
@@ -601,6 +695,7 @@ class ExtractorRunner:
                     continue
                 self.planned_calls += 1
                 eligible_calls += 1
+                eligible_calls_by_endpoint[entry.endpoint_name] += 1
                 tasks.append(
                     asyncio.create_task(
                         self._extract_single_result(
@@ -611,6 +706,7 @@ class ExtractorRunner:
                             on_progress=on_progress,
                             allow_late_recovery=True,
                             defer_journal_success=defer_journal_success,
+                            response_contract_circuit=response_contract_circuit,
                         )
                     )
                 )
@@ -619,16 +715,8 @@ class ExtractorRunner:
             for params in chunk:
                 # For multi-endpoint groups, keep only entries still eligible
                 # under documented upstream support/deprecation windows.
-                today = date.today()
-                sy = self._season_year(params)
                 eligible = [
-                    e
-                    for e in ep_entries
-                    if (e.min_season is None or sy is None or sy >= e.min_season)
-                    and (
-                        e.deprecated_after is None
-                        or today <= date.fromisoformat(e.deprecated_after)
-                    )
+                    e for e in ep_entries if self._entry_is_supported(e, params, today=today)
                 ]
                 if not eligible:
                     self.skipped += len(ep_entries)
@@ -639,6 +727,7 @@ class ExtractorRunner:
                     continue
                 self.planned_calls += 1
                 eligible_calls += 1
+                eligible_calls_by_endpoint[ep_name] += 1
                 tasks.append(
                     asyncio.create_task(
                         self._extract_multi_result(
@@ -650,6 +739,7 @@ class ExtractorRunner:
                             on_progress=on_progress,
                             allow_late_recovery=True,
                             defer_journal_success=defer_journal_success,
+                            response_contract_circuit=response_contract_circuit,
                         )
                     )
                 )
@@ -657,6 +747,7 @@ class ExtractorRunner:
         return _ChunkTaskBatch(
             tasks=tasks,
             eligible_calls=eligible_calls,
+            eligible_calls_by_endpoint=dict(eligible_calls_by_endpoint),
             support_skip_count=support_skip_count,
         )
 
@@ -668,6 +759,7 @@ class ExtractorRunner:
         multi_by_ep: dict[str, list[StagingEntry]],
         on_progress: _ProgressReporter | None,
         defer_journal_success: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> list[
         dict[str, pl.DataFrame]
         | _ExtractionTaskResult
@@ -726,6 +818,7 @@ class ExtractorRunner:
                             allow_late_recovery=False,
                             late_recovery_replay=True,
                             defer_journal_success=defer_journal_success,
+                            response_contract_circuit=response_contract_circuit,
                         )
                     )
                 )
@@ -748,6 +841,7 @@ class ExtractorRunner:
                         allow_late_recovery=False,
                         late_recovery_replay=True,
                         defer_journal_success=defer_journal_success,
+                        response_contract_circuit=response_contract_circuit,
                     )
                 )
             )
@@ -1184,6 +1278,7 @@ class ExtractorRunner:
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
         return_failures: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> (
         pl.DataFrame
         | list[pl.DataFrame]
@@ -1225,6 +1320,7 @@ class ExtractorRunner:
         self._journal.record_start(endpoint_name, params_json)
         t0 = time.perf_counter()
         isolated_scope = "global"
+        suppressed_error: str | None = None
 
         for attempt in range(max_retries + 1):
             extractor = extractor_cls()
@@ -1245,8 +1341,21 @@ class ExtractorRunner:
 
             try:
                 await self._wait_for_circuit_breaker(endpoint_name, params_json)
-                async with sem, rate_limiter:
-                    result = await fn(extractor)
+                async with sem:
+                    blocked_signature = (
+                        response_contract_circuit.blocked_signature(endpoint_name)
+                        if response_contract_circuit is not None
+                        else None
+                    )
+                    if blocked_signature is not None:
+                        assert response_contract_circuit is not None
+                        response_contract_circuit.record_suppression(endpoint_name)
+                        suppressed_error = f"ResponseContractCircuitOpen:{blocked_signature}"
+                        break
+                    async with rate_limiter:
+                        if response_contract_circuit is not None:
+                            response_contract_circuit.record_upstream_attempt(endpoint_name)
+                        result = await fn(extractor)
             except Exception as exc:
                 last_exc = exc
                 if attempt < max_retries and self._is_retryable(exc):
@@ -1276,6 +1385,8 @@ class ExtractorRunner:
                     self._journal.record_success(endpoint_name, params_json, rows)
                 self._journal.record_metric(endpoint_name, duration, rows)
                 self._circuit_breaker.record_success(endpoint_name)
+                if response_contract_circuit is not None:
+                    response_contract_circuit.record_success(endpoint_name)
                 self._latency.record(endpoint_name, duration)
                 if isolated_scope == "global":
                     new_rate = self._adaptive.record_success()
@@ -1312,6 +1423,24 @@ class ExtractorRunner:
                     return _JournaledExtraction(data=result, success=pending_success)
                 return result
 
+        if suppressed_error is not None:
+            self.failed_current_run += 1
+            self._journal.record_failure(endpoint_name, params_json, suppressed_error)
+            logger.debug(
+                "response-contract circuit suppressed queued call: {} [{}] -> {}",
+                endpoint_name,
+                params_json,
+                suppressed_error,
+            )
+            if return_failures:
+                return _FailedExtraction(
+                    endpoint_name,
+                    params_json,
+                    suppressed_error,
+                    failure_class="response_contract",
+                )
+            return None
+
         # All retries exhausted
         duration = time.perf_counter() - t0
         exc_name = root_error_type(last_exc) if last_exc else "Unknown"
@@ -1341,6 +1470,9 @@ class ExtractorRunner:
                 wait_seconds=wait_seconds,
             )
 
+        failure_class = classify_exception(last_exc) if last_exc is not None else "application"
+        if response_contract_circuit is not None and failure_class == "response_contract":
+            response_contract_circuit.record_failure(endpoint_name, exc_name)
         self.failed_current_run += 1
         self._journal.record_failure(endpoint_name, params_json, exc_name)
         if not late_recovery_replay:
@@ -1363,9 +1495,7 @@ class ExtractorRunner:
                 params_json,
                 exc_name,
                 status="deferred_failure" if late_recovery_replay else "failure",
-                failure_class=(
-                    classify_exception(last_exc) if last_exc is not None else "application"
-                ),
+                failure_class=failure_class,
             )
         return None
 
@@ -1380,6 +1510,7 @@ class ExtractorRunner:
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None:
         result = await self._extract_single_result(
             entry,
@@ -1390,6 +1521,7 @@ class ExtractorRunner:
             allow_late_recovery=allow_late_recovery,
             late_recovery_replay=late_recovery_replay,
             defer_journal_success=defer_journal_success,
+            response_contract_circuit=response_contract_circuit,
         )
         if isinstance(result, (_ExtractionTaskResult, _DeferredExtraction)):
             return result
@@ -1408,6 +1540,7 @@ class ExtractorRunner:
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> (
         dict[str, pl.DataFrame]
         | _ExtractionTaskResult
@@ -1461,6 +1594,7 @@ class ExtractorRunner:
             late_recovery_replay=late_recovery_replay,
             defer_journal_success=defer_journal_success,
             return_failures=True,
+            response_contract_circuit=response_contract_circuit,
         )
         if df is None:
             return _FailedExtraction(entry.endpoint_name, params_json, "UnknownFailure")
@@ -1509,6 +1643,7 @@ class ExtractorRunner:
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None:
         result = await self._extract_multi_result(
             endpoint_name,
@@ -1520,6 +1655,7 @@ class ExtractorRunner:
             allow_late_recovery=allow_late_recovery,
             late_recovery_replay=late_recovery_replay,
             defer_journal_success=defer_journal_success,
+            response_contract_circuit=response_contract_circuit,
         )
         if isinstance(result, (_ExtractionTaskResult, _DeferredExtraction)):
             return result
@@ -1539,6 +1675,7 @@ class ExtractorRunner:
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
+        response_contract_circuit: _ResponseContractCircuit | None = None,
     ) -> (
         dict[str, pl.DataFrame]
         | _ExtractionTaskResult
@@ -1601,6 +1738,7 @@ class ExtractorRunner:
                 late_recovery_replay=late_recovery_replay,
                 defer_journal_success=defer_journal_success,
                 return_failures=True,
+                response_contract_circuit=response_contract_circuit,
             )
             if all_dfs is None:
                 return _FailedExtraction(endpoint_name, params_json, "UnknownFailure")

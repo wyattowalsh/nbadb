@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import collections
 import time
+from typing import TYPE_CHECKING
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 class _AdaptiveThrottle:
@@ -143,6 +147,94 @@ class _CircuitBreaker:
             for ep, (_, tripped_at) in self._state.items()
             if tripped_at is not None and time.monotonic() - tripped_at < self._recovery_seconds
         ]
+
+
+class _ResponseContractCircuit:
+    """Fail fast after repeated identical permanent response failures.
+
+    The circuit is intentionally scoped to one ``run_pattern_result`` call.
+    Suppressed calls remain failed and unjournaled as successes, so a later
+    resume retries them instead of converting a bounded sample into coverage.
+    """
+
+    __slots__ = (
+        "_state",
+        "_suppressions",
+        "_thresholds",
+        "_upstream_attempts",
+    )
+
+    def __init__(self, thresholds: Mapping[str, int] | None = None) -> None:
+        self._thresholds = {
+            str(endpoint): int(threshold)
+            for endpoint, threshold in (thresholds or {}).items()
+            if int(threshold) > 0
+        }
+        self._state: dict[str, tuple[str, int]] = {}
+        self._upstream_attempts: collections.Counter[str] = collections.Counter()
+        self._suppressions: collections.Counter[str] = collections.Counter()
+
+    def blocked_signature(self, endpoint: str) -> str | None:
+        """Return the tripping signature when *endpoint* is fail-fast blocked."""
+        threshold = self._thresholds.get(endpoint)
+        signature, count = self._state.get(endpoint, ("", 0))
+        if threshold is None or count < threshold:
+            return None
+        return signature
+
+    def record_failure(self, endpoint: str, signature: str) -> bool:
+        """Record one permanent failure and return whether the circuit is open."""
+        threshold = self._thresholds.get(endpoint)
+        if threshold is None:
+            return False
+
+        prior_signature, prior_count = self._state.get(endpoint, ("", 0))
+        count = prior_count + 1 if prior_signature == signature else 1
+        self._state[endpoint] = (signature, count)
+        if count == threshold:
+            logger.warning(
+                "response-contract circuit OPEN for '{}' after {} consecutive {} failures",
+                endpoint,
+                count,
+                signature,
+            )
+        return count >= threshold
+
+    def record_success(self, endpoint: str) -> None:
+        """Reset consecutive permanent failures after any valid response."""
+        self._state.pop(endpoint, None)
+
+    def record_upstream_attempt(self, endpoint: str) -> None:
+        """Record a call that is about to enter the endpoint implementation."""
+        if endpoint in self._thresholds:
+            self._upstream_attempts[endpoint] += 1
+
+    def record_suppression(self, endpoint: str) -> None:
+        """Record one preserved failure that the open circuit kept upstream."""
+        if endpoint in self._thresholds:
+            self._suppressions[endpoint] += 1
+
+    def summary(self) -> dict[str, dict[str, int | str | bool]]:
+        """Return deterministic structured accounting for configured endpoints."""
+        endpoints = sorted(
+            set(self._state) | set(self._upstream_attempts) | set(self._suppressions)
+        )
+        summary: dict[str, dict[str, int | str | bool]] = {}
+        for endpoint in endpoints:
+            signature, consecutive_failures = self._state.get(endpoint, ("", 0))
+            threshold = self._thresholds[endpoint]
+            suppressions = self._suppressions[endpoint]
+            summary[endpoint] = {
+                "threshold": threshold,
+                "failure_signature": signature,
+                "consecutive_failures": consecutive_failures,
+                "open": consecutive_failures >= threshold,
+                "upstream_attempts": self._upstream_attempts[endpoint],
+                "suppressions": suppressions,
+                "unattempted_calls": 0,
+                "preserved_outstanding_calls": suppressions,
+            }
+        return summary
 
 
 class _LatencyTracker:

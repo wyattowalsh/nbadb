@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -27,7 +28,11 @@ from nbadb.orchestrate.extractor_runner import (
     _record_chunk_completion_heartbeat,
     _sync_extract,
 )
-from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
+from nbadb.orchestrate.resilience import (
+    _CircuitBreaker,
+    _LatencyTracker,
+    _ResponseContractCircuit,
+)
 from nbadb.orchestrate.staging_map import StagingEntry
 
 # ---------------------------------------------------------------------------
@@ -80,6 +85,7 @@ def _make_settings(**overrides):
     s.endpoint_chunk_size_limits = {}
     s.endpoint_retry_budgets = {}
     s.zero_progress_abort_endpoints = set()
+    s.response_contract_circuit_thresholds = {}
     s.extract_max_retries = 0  # disable retries in unit tests by default
     s.extract_retry_base_delay = 0.0
     s.circuit_breaker_threshold = 5
@@ -1081,9 +1087,145 @@ class TestAdaptiveThrottleIntegration:
         assert settings.endpoint_rate_limits["video_details_asset"] == 2.0
         assert settings.endpoint_request_timeouts["video_details_asset"] == 15
         assert settings.endpoint_chunk_size_limits["video_details_asset"] == 10
+        assert settings.endpoint_chunk_size_limits["win_probability"] == 10
         assert settings.endpoint_retry_budgets["video_details_asset"] == 0
-        assert settings.zero_progress_abort_endpoints == {"video_details_asset"}
+        assert settings.zero_progress_abort_endpoints == {
+            "video_details_asset",
+            "win_probability",
+        }
+        assert settings.response_contract_circuit_thresholds == {
+            "win_probability": 3,
+        }
         assert build_execution_policy("video_details_asset", settings=settings).retry_budget == 0
+
+    @pytest.mark.asyncio
+    async def test_response_contract_circuit_suppresses_queued_calls_without_completion(
+        self,
+    ):
+        class _MalformedWinProbability:
+            category = "play_by_play"
+            endpoint_name = "win_probability"
+            calls = 0
+
+            async def extract_all(self, **_kwargs):
+                type(self).calls += 1
+                raise json.JSONDecodeError("invalid payload", "", 0)
+
+        class _CountingLimiter:
+            entries = 0
+
+            async def __aenter__(self):
+                type(self).entries += 1
+
+            async def __aexit__(self, *_args):
+                return None
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            default_chunk_size=10,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=10,
+            endpoint_semaphore_limits={"win_probability": 1},
+            endpoint_rate_limits={"win_probability": 100.0},
+            endpoint_chunk_size_limits={"win_probability": 10},
+            response_contract_circuit_thresholds={"win_probability": 3},
+            zero_progress_abort_endpoints={"win_probability"},
+        )
+        runner = ExtractorRunner(
+            _make_registry(_MalformedWinProbability),
+            settings,
+            journal,
+        )
+        runner._endpoint_rate_limiters["win_probability"] = _CountingLimiter()  # type: ignore[assignment]
+        entry = StagingEntry(
+            "win_probability",
+            "stg_win_probability",
+            "game",
+            result_set_index=0,
+            use_multi=True,
+        )
+
+        result = await runner.run_pattern_result(
+            "game",
+            [{"game_id": f"00224{index:05d}"} for index in range(1_241)],
+            [entry],
+        )
+
+        assert _MalformedWinProbability.calls == 3
+        assert _CountingLimiter.entries == 3
+        assert result.eligible_calls == 1_241
+        assert result.scheduled_calls == 10
+        assert result.unattempted_eligible_calls == 1_231
+        assert result.success_count == 0
+        assert result.failure_count == 10
+        assert not result.is_complete
+        assert (
+            sum("ResponseContractCircuitOpen:JSONDecodeError" in error for error in result.errors)
+            == 7
+        )
+        assert any(error.startswith("zero_progress_chunk_abort:") for error in result.errors)
+        assert result.response_contract_circuit == {
+            "win_probability": {
+                "threshold": 3,
+                "failure_signature": "JSONDecodeError",
+                "consecutive_failures": 3,
+                "open": True,
+                "upstream_attempts": 3,
+                "suppressions": 7,
+                "unattempted_calls": 1_231,
+                "preserved_outstanding_calls": 1_238,
+            }
+        }
+        assert journal.record_start.call_count == 10
+        assert journal.record_failure.call_count == 10
+        journal.record_success.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_response_contract_circuit_does_not_suppress_transport_failures(
+        self,
+    ):
+        class _TransientWinProbability:
+            category = "play_by_play"
+            endpoint_name = "win_probability"
+            calls = 0
+
+            async def extract_all(self, **_kwargs):
+                type(self).calls += 1
+                raise ConnectionError("temporary outage")
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            default_chunk_size=4,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=4,
+            endpoint_semaphore_limits={"win_probability": 1},
+            endpoint_chunk_size_limits={"win_probability": 4},
+            response_contract_circuit_thresholds={"win_probability": 1},
+        )
+        runner = ExtractorRunner(
+            _make_registry(_TransientWinProbability),
+            settings,
+            journal,
+        )
+        entry = StagingEntry(
+            "win_probability",
+            "stg_win_probability",
+            "game",
+            result_set_index=0,
+            use_multi=True,
+        )
+
+        result = await runner.run_pattern_result(
+            "game",
+            [{"game_id": f"002240000{index}"} for index in range(4)],
+            [entry],
+        )
+
+        assert _TransientWinProbability.calls == 4
+        assert result.failure_count == 4
+        assert not any("ResponseContractCircuitOpen" in error for error in result.errors)
+        assert result.response_contract_circuit["win_probability"]["upstream_attempts"] == 4
+        assert result.response_contract_circuit["win_probability"]["suppressions"] == 0
 
     @pytest.mark.asyncio
     async def test_endpoint_retry_budget_overrides_global_budget(self):
@@ -1139,7 +1281,9 @@ class TestAdaptiveThrottleIntegration:
             [entry],
         )
 
-        assert result.eligible_calls == 2
+        assert result.eligible_calls == 5
+        assert result.scheduled_calls == 2
+        assert result.unattempted_eligible_calls == 3
         assert result.success_count == 0
         assert result.failure_count == 2
         assert any(error.startswith("zero_progress_chunk_abort:") for error in result.errors)
@@ -1265,7 +1409,9 @@ class TestAdaptiveThrottleIntegration:
             persist_chunk_results=persist_chunk,
         )
 
-        assert result.eligible_calls == 4
+        assert result.eligible_calls == 5
+        assert result.scheduled_calls == 4
+        assert result.unattempted_eligible_calls == 1
         assert result.success_count == 2
         assert result.failure_count == 2
         assert events == ["persist-empty-chunk", "journal-success", "journal-success"]
@@ -1581,6 +1727,51 @@ class TestCircuitBreaker:
             cb.record_failure("ep1")
         with patch("nbadb.orchestrate.resilience.time.monotonic", return_value=104.0):
             assert cb.retry_after("ep1") == pytest.approx(6.0)
+
+
+class TestResponseContractCircuit:
+    def test_opens_only_after_repeated_identical_signature(self):
+        circuit = _ResponseContractCircuit({"win_probability": 2})
+
+        assert not circuit.record_failure("win_probability", "JSONDecodeError")
+        assert circuit.blocked_signature("win_probability") is None
+        assert circuit.record_failure("win_probability", "JSONDecodeError")
+        assert circuit.blocked_signature("win_probability") == "JSONDecodeError"
+
+    def test_signature_change_and_success_reset_consecutive_failures(self):
+        circuit = _ResponseContractCircuit({"win_probability": 2})
+
+        assert not circuit.record_failure("win_probability", "JSONDecodeError")
+        assert not circuit.record_failure("win_probability", "UnexpectedResultShape")
+        assert circuit.blocked_signature("win_probability") is None
+        circuit.record_success("win_probability")
+        assert not circuit.record_failure("win_probability", "UnexpectedResultShape")
+        assert circuit.blocked_signature("win_probability") is None
+
+    def test_unconfigured_endpoint_never_opens(self):
+        circuit = _ResponseContractCircuit({"win_probability": 1})
+
+        assert not circuit.record_failure("play_by_play", "JSONDecodeError")
+        assert circuit.blocked_signature("play_by_play") is None
+
+    def test_summary_tracks_upstream_attempts_and_preserved_suppressions(self):
+        circuit = _ResponseContractCircuit({"win_probability": 1})
+        circuit.record_upstream_attempt("win_probability")
+        assert circuit.record_failure("win_probability", "JSONDecodeError")
+        circuit.record_suppression("win_probability")
+
+        assert circuit.summary() == {
+            "win_probability": {
+                "threshold": 1,
+                "failure_signature": "JSONDecodeError",
+                "consecutive_failures": 1,
+                "open": True,
+                "upstream_attempts": 1,
+                "suppressions": 1,
+                "unattempted_calls": 0,
+                "preserved_outstanding_calls": 1,
+            }
+        }
 
 
 # ---------------------------------------------------------------------------
