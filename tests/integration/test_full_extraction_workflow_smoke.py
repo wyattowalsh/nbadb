@@ -15,7 +15,6 @@ import duckdb
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
-    _coverage_fingerprint,
     _coverage_hash_for_lane,
     build_checkpoint_database,
     manifest_payload,
@@ -209,15 +208,10 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
         )
 
     manifest_path = tmp_path / "manifest.json"
-    coverage_fingerprint = _coverage_fingerprint(lanes)
     manifest = manifest_payload(
         lanes,
         chain_state=FullExtractionChainState(
             artifact_run_ids=(run_id,),
-            latest_checkpoint_run_id=run_id,
-            latest_checkpoint_artifact_name=(f"full-extraction-checkpoint-{chain_id}-iter-1"),
-            latest_checkpoint_generation=1,
-            latest_checkpoint_coverage_hash=coverage_fingerprint,
         ),
         max_matrix_lanes=lane_count,
     )
@@ -236,6 +230,8 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
         chain_id=chain_id,
         run_id=run_id,
         source_sha=source_sha,
+        checkpoint_generation=1,
+        checkpoint_artifact_name=f"full-extraction-checkpoint-{chain_id}-iter-1",
     )
 
     checkpoint_path = checkpoint_dir / "nba.duckdb"
@@ -392,14 +388,6 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         "1",
         "--max-matrix-lanes",
         "1",
-        "--latest-checkpoint-run-id",
-        source_run_id,
-        "--latest-checkpoint-artifact-name",
-        str(terminal_replay["checkpoint_artifact_name"]),
-        "--latest-checkpoint-generation",
-        str(terminal_replay["checkpoint_generation"]),
-        "--latest-checkpoint-coverage-hash",
-        str(planned["coverage_fingerprint"]),
         "--output-path",
         str(terminal_manifest),
     ]
@@ -436,6 +424,10 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         source_run_id,
         "--source-sha",
         source_sha,
+        "--checkpoint-generation",
+        str(terminal_replay["checkpoint_generation"]),
+        "--checkpoint-artifact-name",
+        str(terminal_replay["checkpoint_artifact_name"]),
     ]
     commands.append(checkpoint_command)
     _run(checkpoint_command, cwd=workspace)

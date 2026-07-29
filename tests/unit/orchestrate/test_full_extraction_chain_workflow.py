@@ -13,6 +13,10 @@ import zipfile
 
 import pytest
 
+from nbadb.orchestrate.checkpoint_contract import (
+    CheckpointArtifactReceipt,
+    CheckpointTransaction,
+)
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionLane,
     _canonical_contract_blocked_audit_row,
@@ -70,6 +74,16 @@ def _embedded_python(workflow_block: str, marker: str) -> str:
     return textwrap.dedent(match.group("body"))
 
 
+def _embedded_python_after(workflow_block: str, anchor: str) -> str:
+    remainder = workflow_block[workflow_block.index(anchor) + len(anchor) :]
+    match = re.search(
+        r"(?ms)python - <<'PY'\n(?P<body>.*?)(?=^[ \t]*PY[ \t]*$)",
+        remainder,
+    )
+    assert match is not None
+    return textwrap.dedent(match.group("body"))
+
+
 def _run_python(
     script: str,
     *,
@@ -84,6 +98,87 @@ def _run_python(
         env={**os.environ, **env},
         text=True,
     )
+
+
+def _gh_fixture_env(
+    tmp_path: pathlib.Path,
+    responses: list[object],
+) -> dict[str, str]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    responses_path = tmp_path / "gh-responses.json"
+    counter_path = tmp_path / "gh-counter.txt"
+    responses_path.write_text(json.dumps(responses), encoding="utf-8")
+    gh_path = bin_dir / "gh"
+    gh_path.write_text(
+        f"""#!{sys.executable}
+import json
+import os
+from pathlib import Path
+
+responses = json.loads(Path(os.environ["GH_FIXTURE_RESPONSES"]).read_text())
+counter_path = Path(os.environ["GH_FIXTURE_COUNTER"])
+counter = int(counter_path.read_text()) if counter_path.exists() else 0
+counter_path.write_text(str(counter + 1))
+print(json.dumps(responses[min(counter, len(responses) - 1)]))
+""",
+        encoding="utf-8",
+    )
+    gh_path.chmod(0o755)
+    return {
+        "GH_FIXTURE_RESPONSES": str(responses_path),
+        "GH_FIXTURE_COUNTER": str(counter_path),
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+    }
+
+
+def _committed_checkpoint_transaction(
+    *,
+    chain_id: str,
+    source_sha: str,
+    generation: int,
+    artifact_id: int,
+    artifact_run_id: int,
+    artifact_digest: str,
+    artifact_size_bytes: int,
+    database_sha256: str,
+    report_sha256: str,
+    coverage_fingerprint: str,
+    lane_id: str,
+    lane_coverage_hash: str,
+) -> CheckpointTransaction:
+    built = CheckpointTransaction.candidate(
+        chain_id=chain_id,
+        source_sha=source_sha,
+        generation=generation,
+        artifact_name=(f"full-extraction-checkpoint-{chain_id}-iter-{generation}"),
+        lane_contracts=[
+            {
+                "lane_id": lane_id,
+                "coverage_units_hash": lane_coverage_hash,
+            }
+        ],
+        coverage_fingerprint=coverage_fingerprint,
+    ).mark_built(
+        database_sha256=database_sha256,
+        report_sha256=report_sha256,
+    )
+    assert built.build is not None
+    receipt = CheckpointArtifactReceipt(
+        artifact_id=artifact_id,
+        artifact_run_id=artifact_run_id,
+        artifact_name=built.artifact_name,
+        artifact_digest=artifact_digest,
+        artifact_size_bytes=artifact_size_bytes,
+        database_sha256=database_sha256,
+        report_sha256=report_sha256,
+        chain_id=chain_id,
+        source_sha=source_sha,
+        generation=generation,
+        coverage_fingerprint=coverage_fingerprint,
+        lane_inventory_sha256=built.identity.coverage.lane_inventory_sha256,
+    )
+    return built.mark_uploaded_verified(receipt).commit()
 
 
 def _contract_blocked_fixture(
@@ -200,7 +295,7 @@ def test_workflow_definition_guards_use_the_pinned_source_checkout() -> None:
     assert '-f "ref=${WORKFLOW_REF}"' in dispatch
     assert "does not match workflow_source_sha" in dispatch
     assert dispatch.index("Verify redispatch workflow definition") < dispatch.index(
-        "gh workflow run full-extraction.yml"
+        "/actions/workflows/full-extraction.yml/dispatches"
     )
 
 
@@ -211,18 +306,26 @@ def test_workflow_run_blocks_fit_github_expression_limit() -> None:
     assert oversized == []
 
 
-def test_next_manifest_steps_persist_checkpoint_contract_between_shells() -> None:
+def test_next_manifest_steps_persist_uncommitted_checkpoint_candidate_identity() -> None:
     lane_control = _job_block(_workflow_text(), "lane_control")
     prepare = _step_block(lane_control, "Prepare next manifest")
     build = _step_block(lane_control, "Build next manifest")
+    candidate_upload = _step_block(lane_control, "Upload checkpoint candidate manifest")
 
     assert 'echo "CHECKPOINT_ARTIFACT_NAME=$CHECKPOINT_ARTIFACT_NAME"' in prepare
     assert 'echo "CHECKPOINT_GENERATION=$CHECKPOINT_GENERATION"' in prepare
-    assert 'echo "CHECKPOINT_COVERAGE_HASH=$CHECKPOINT_COVERAGE_HASH"' in prepare
+    assert "CHECKPOINT_COVERAGE_HASH" not in prepare
     assert '} >> "$GITHUB_ENV"' in prepare
     assert "CHECKPOINT_ARTIFACT_NAME" in build
     assert "CHECKPOINT_GENERATION" in build
-    assert "CHECKPOINT_COVERAGE_HASH" in build
+    assert "CHECKPOINT_COVERAGE_HASH" not in build
+    assert "candidate_artifact_name" in build
+    assert "GITHUB_RUN_ID" in build
+    assert "GITHUB_RUN_ATTEMPT" in build
+    assert "latest_checkpoint_coverage_hash" not in build
+    assert "overwrite: false" in candidate_upload
+    assert "current-manifest.json" in candidate_upload
+    assert "next-manifest.json" in candidate_upload
 
 
 def test_required_extraction_runtime_scripts_exist_and_are_not_ignored() -> None:
@@ -268,10 +371,10 @@ def test_user_supplied_source_sha_must_descend_from_trusted_branches() -> None:
     assert "+refs/heads/${DEFAULT_BRANCH}:${default_branch_ref}" in dispatch
     assert 'git merge-base --is-ancestor "$source_commit" "$default_branch_commit"' in dispatch
     assert dispatch.index("git merge-base --is-ancestor") < dispatch.index(
-        "gh workflow run full-extraction.yml"
+        "/actions/workflows/full-extraction.yml/dispatches"
     )
-    assert '-f workflow_ref="$WORKFLOW_REF"' in dispatch
-    assert '-f workflow_sha="$WORKFLOW_SHA"' in dispatch
+    assert '"workflow_ref": os.environ["WORKFLOW_REF"]' in dispatch
+    assert '"workflow_sha": os.environ["WORKFLOW_SHA"]' in dispatch
 
 
 def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
@@ -306,7 +409,10 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     assert "steps.checkpoint.outcome == 'success'" in canonical_upload
     assert "if-no-files-found: error" in canonical_upload
     assert "steps.checkpoint.outcome != 'success'" in diagnostic_upload
-    assert "steps.canonical_checkpoint.outcome != 'success'" in diagnostic_upload
+    assert "steps.canonical_checkpoint.outcome != 'success'" not in diagnostic_upload
+    assert "steps.checkpoint_receipt.outcome != 'success'" in diagnostic_upload
+    assert "steps.commit_manifest.outcome != 'success'" in diagnostic_upload
+    assert "steps.committed_manifest.outcome != 'success'" in diagnostic_upload
     assert (
         "full-extraction-checkpoint-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-"
         "${{ github.run_id }}-${{ github.run_attempt }}" in diagnostic_upload
@@ -322,6 +428,8 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
 
 def test_previous_checkpoint_is_verified_before_lane_inventory_selection() -> None:
     checkpoint = _job_block(_workflow_text(), "checkpoint")
+    resolve = _step_block(checkpoint, "Resolve previous checkpoint receipt")
+    download = _step_block(checkpoint, "Download previous checkpoint by immutable ID")
     verify = _step_block(checkpoint, "Verify previous checkpoint before inventory use")
     inventory = _step_block(checkpoint, "Download checkpoint lane inputs")
 
@@ -333,6 +441,95 @@ def test_previous_checkpoint_is_verified_before_lane_inventory_selection() -> No
     assert "verified-previous-checkpoint.json" in verify
     assert "VERIFIED_PREVIOUS_CHECKPOINT_PATH" in inventory
     assert "PREVIOUS_REPORT_PATH" not in inventory
+    assert (
+        "f\"/repos/{os.environ['GITHUB_REPOSITORY']}/actions/artifacts/{artifact_id}\"" in resolve
+    )
+    assert "isinstance(rest_artifact_id, bool)" in resolve
+    assert "not isinstance(rest_artifact_id, int)" in resolve
+    assert "rest_artifact_id != artifact_id" in resolve
+    assert 'artifact.get("name") != artifact_name' in resolve
+    assert 'artifact.get("digest") != expected_digest' in resolve
+    assert "isinstance(rest_artifact_size, bool)" in resolve
+    assert "not isinstance(rest_artifact_size, int)" in resolve
+    assert "rest_artifact_size != expected_size" in resolve
+    assert 'artifact.get("expired") is not False' in resolve
+    assert 'str(workflow_run.get("id") or "") != run_id' in resolve
+    assert 'workflow_run.get("head_sha")' in resolve
+    assert "artifact-ids: ${{ steps.previous_checkpoint.outputs.artifact_id }}" in download
+    assert "digest-mismatch: error" in download
+
+
+def test_previous_checkpoint_resolver_allows_legacy_only_when_transaction_key_is_absent(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    resolve = _step_block(checkpoint, "Resolve previous checkpoint receipt")
+    resolver = _embedded_python_after(resolve, "run: |")
+    manifest_path = tmp_path / "current-manifest.json"
+    output_path = tmp_path / "github-output.txt"
+    run_id = "12345"
+    artifact_name = "full-extraction-checkpoint-fixture-chain-iter-2"
+    env = {
+        "CURRENT_MANIFEST": str(manifest_path),
+        "GITHUB_OUTPUT": str(output_path),
+        "GITHUB_REPOSITORY": "fixture/nbadb",
+    }
+
+    for label, malformed_transaction in (
+        ("null", None),
+        ("empty-string", ""),
+        ("empty-list", []),
+        ("empty-object", {}),
+    ):
+        output_path.unlink(missing_ok=True)
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "chain_state": {
+                        "latest_checkpoint_run_id": run_id,
+                        "latest_checkpoint_artifact_name": artifact_name,
+                        "latest_checkpoint_transaction": malformed_transaction,
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        malformed = _run_python(resolver, env=env)
+        assert malformed.returncode == 1, label
+        assert "previous checkpoint transaction must be committed" in malformed.stderr
+        assert not output_path.exists()
+
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "chain_state": {
+                    "latest_checkpoint_run_id": run_id,
+                    "latest_checkpoint_artifact_name": artifact_name,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    legacy = _run_python(resolver, env=env)
+    assert legacy.returncode == 0, legacy.stderr or legacy.stdout
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        f"run_id={run_id}",
+        f"artifact_name={artifact_name}",
+        "artifact_id=",
+    ]
+
+    output_path.unlink()
+    manifest_path.write_text(
+        json.dumps({"chain_state": {}}),
+        encoding="utf-8",
+    )
+    fresh = _run_python(resolver, env=env)
+    assert fresh.returncode == 0, fresh.stderr or fresh.stdout
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "run_id=",
+        "artifact_name=",
+        "artifact_id=",
+    ]
 
 
 def test_checkpoint_phases_keep_validation_outputs_on_the_final_step() -> None:
@@ -340,16 +537,432 @@ def test_checkpoint_phases_keep_validation_outputs_on_the_final_step() -> None:
     build = _step_block(checkpoint, "Build checkpoint database")
     bind = _step_block(checkpoint, "Bind checkpoint blocked evidence")
     validate = _step_block(checkpoint, "Validate checkpoint database")
+    transaction = _step_block(checkpoint, "Build checkpoint transaction")
+    upload = _step_block(checkpoint, "Upload checkpoint artifact")
+    collision = _step_block(checkpoint, "Resolve colliding checkpoint sibling")
+    sibling_download = _step_block(checkpoint, "Download colliding checkpoint sibling")
+    sibling_validate = _step_block(checkpoint, "Validate colliding checkpoint sibling")
+    retry = _step_block(checkpoint, "Retry checkpoint artifact upload after stable absence")
+    receipt = _step_block(checkpoint, "Verify immutable checkpoint receipt")
+    commit = _step_block(checkpoint, "Commit checkpoint manifest")
+    committed_upload = _step_block(checkpoint, "Upload committed next manifest")
 
     assert "id: checkpoint" not in build
     assert "id: checkpoint" not in bind
     assert "id: checkpoint" in validate
     assert '--run-id "$CURRENT_RUN_ID"' in build
+    assert checkpoint.index("Build checkpoint database") < checkpoint.index(
+        "Bind checkpoint blocked evidence"
+    )
+    assert checkpoint.index("Bind checkpoint blocked evidence") < checkpoint.index(
+        "Validate checkpoint database"
+    )
+    assert checkpoint.index("Validate checkpoint database") < checkpoint.index(
+        "Build checkpoint transaction"
+    )
+    assert checkpoint.index("Build checkpoint transaction") < checkpoint.index(
+        "Upload checkpoint artifact"
+    )
+    assert checkpoint.index("Upload checkpoint artifact") < checkpoint.index(
+        "Resolve colliding checkpoint sibling"
+    )
+    assert checkpoint.index("Resolve colliding checkpoint sibling") < checkpoint.index(
+        "Download colliding checkpoint sibling"
+    )
+    assert checkpoint.index("Download colliding checkpoint sibling") < checkpoint.index(
+        "Validate colliding checkpoint sibling"
+    )
+    assert checkpoint.index("Validate colliding checkpoint sibling") < checkpoint.index(
+        "Retry checkpoint artifact upload after stable absence"
+    )
+    assert checkpoint.index(
+        "Retry checkpoint artifact upload after stable absence"
+    ) < checkpoint.index("Verify immutable checkpoint receipt")
+    assert checkpoint.index("Verify immutable checkpoint receipt") < checkpoint.index(
+        "Commit checkpoint manifest"
+    )
+    assert checkpoint.index("Commit checkpoint manifest") < checkpoint.index(
+        "Upload committed next manifest"
+    )
+    assert "checkpoint-transaction.json" in transaction
+    assert "continue-on-error: true" in upload
+    assert "overwrite: false" in upload
+    assert "overwrite: true" not in upload
+    assert "steps.canonical_checkpoint.outcome == 'failure'" in collision
+    assert "steps.checkpoint_collision.outputs.resolution == 'reuse'" in sibling_download
+    assert "digest-mismatch: error" in sibling_download
+    assert "steps.checkpoint_collision.outputs.resolution == 'reuse'" in sibling_validate
+    assert "steps.checkpoint_collision.outputs.resolution == 'absent_timeout'" in retry
+    assert "overwrite: false" in retry
+    assert "overwrite: true" not in retry
+    assert "steps.canonical_checkpoint.outputs.artifact-id" in receipt
+    assert "steps.canonical_checkpoint.outputs.artifact-digest" in receipt
+    assert "steps.checkpoint_sibling.outputs.artifact_id" in receipt
+    assert "steps.checkpoint_sibling.outputs.artifact_digest" in receipt
+    assert "steps.canonical_checkpoint_retry.outputs.artifact-id" in receipt
+    assert "steps.canonical_checkpoint_retry.outputs.artifact-digest" in receipt
+    assert "isinstance(rest_artifact_id, bool)" in receipt
+    assert "not isinstance(rest_artifact_id, int)" in receipt
+    assert "rest_artifact_id != int(artifact_id)" in receipt
+    assert 'artifact.get("name") != os.environ["CHECKPOINT_ARTIFACT_NAME"]' in receipt
+    assert 'artifact.get("digest") != expected_digest' in receipt
+    assert 'artifact.get("size_in_bytes")' in receipt
+    assert 'str(workflow_run.get("id") or "") != os.environ["CURRENT_RUN_ID"]' in receipt
+    assert 'workflow_run.get("head_sha")' in receipt
+    assert "artifact_size_bytes" in receipt
+    assert "receipt_source" in receipt
+    assert "artifact-receipt-source: ${{ steps.checkpoint_receipt.outputs.receipt_source }}" in (
+        checkpoint
+    )
+    assert "steps.checkpoint_receipt.outputs.artifact_id" in commit
+    assert "steps.checkpoint_receipt.outputs.artifact_digest" in commit
+    assert "steps.checkpoint_receipt.outputs.artifact_size_bytes" in commit
+    assert "overwrite: false" in committed_upload
+    assert "overwrite: true" not in committed_upload
     assert (
         'LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT="$LANE_CONTROL_CONTRACT_BLOCKED_LANE_COUNT"'
         in bind
     )
     assert 'with Path(os.environ["GITHUB_OUTPUT"]).open' in validate
+
+
+def test_checkpoint_collision_inventory_resolution_is_fail_closed(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    resolver = _embedded_python_after(
+        _step_block(checkpoint, "Resolve colliding checkpoint sibling"),
+        "run: |",
+    ).replace("time.sleep(3)", "time.sleep(0)")
+    artifact_name = "full-extraction-checkpoint-fixture-chain-iter-3"
+    source_sha = "a" * 40
+    owner_head_sha = "b" * 40
+    run_id = "12345"
+    owner_run = {
+        "id": int(run_id),
+        "head_sha": owner_head_sha,
+    }
+
+    def artifact(
+        artifact_id: int,
+        *,
+        expired: bool = False,
+    ) -> dict[str, object]:
+        return {
+            "id": artifact_id,
+            "name": artifact_name,
+            "digest": f"sha256:{artifact_id:064x}",
+            "size_in_bytes": 4096,
+            "expired": expired,
+            "workflow_run": {
+                "id": int(run_id),
+                "head_sha": owner_head_sha,
+            },
+        }
+
+    def snapshot(*artifacts: dict[str, object]) -> list[dict[str, object]]:
+        return [
+            {
+                "total_count": len(artifacts),
+                "artifacts": list(artifacts),
+            }
+        ]
+
+    def run_case(
+        name: str,
+        responses: list[object],
+    ) -> tuple[subprocess.CompletedProcess[str], pathlib.Path]:
+        case_dir = tmp_path / name
+        fixture_env = _gh_fixture_env(case_dir, responses)
+        output_path = case_dir / "github-output.txt"
+        result = _run_python(
+            resolver,
+            env={
+                **fixture_env,
+                "CHECKPOINT_ARTIFACT_NAME": artifact_name,
+                "CURRENT_RUN_ID": run_id,
+                "GITHUB_OUTPUT": str(output_path),
+                "GITHUB_REPOSITORY": "acme/nbadb",
+                "WORKFLOW_SOURCE_SHA": source_sha,
+            },
+            cwd=case_dir,
+        )
+        return result, output_path
+
+    stable_artifact = artifact(701)
+    stable, stable_output = run_case(
+        "stable",
+        [owner_run, *([snapshot(stable_artifact)] * 4)],
+    )
+    assert stable.returncode == 0, stable.stderr or stable.stdout
+    assert stable_output.read_text(encoding="utf-8").splitlines() == [
+        "resolution=reuse",
+        "artifact_id=701",
+        f"artifact_digest={stable_artifact['digest']}",
+        "artifact_size_bytes=4096",
+    ]
+
+    absent, absent_output = run_case("absent", [owner_run, *([snapshot()] * 4)])
+    assert absent.returncode == 0, absent.stderr or absent.stdout
+    assert absent_output.read_text(encoding="utf-8").splitlines() == ["resolution=absent_timeout"]
+
+    ambiguous, ambiguous_output = run_case(
+        "ambiguous",
+        [owner_run, snapshot(artifact(701), artifact(702))],
+    )
+    assert ambiguous.returncode == 1
+    assert "checkpoint sibling inventory is ambiguous" in ambiguous.stderr
+    assert not ambiguous_output.exists()
+
+    expired, expired_output = run_case(
+        "expired",
+        [owner_run, snapshot(artifact(701, expired=True))],
+    )
+    assert expired.returncode == 1
+    assert "checkpoint sibling inventory contains invalid provenance" in expired.stderr
+    assert not expired_output.exists()
+
+    unstable, unstable_output = run_case(
+        "unstable",
+        [
+            owner_run,
+            snapshot(),
+            snapshot(artifact(701)),
+            snapshot(),
+            snapshot(artifact(701)),
+        ],
+    )
+    assert unstable.returncode == 1
+    assert "checkpoint sibling inventory did not stabilize" in unstable.stderr
+    assert not unstable_output.exists()
+
+    malformed, malformed_output = run_case(
+        "malformed",
+        [owner_run, [{"total_count": 1, "artifacts": "not-a-list"}]],
+    )
+    assert malformed.returncode == 1
+    assert "checkpoint sibling inventory page is malformed" in malformed.stderr
+    assert not malformed_output.exists()
+
+
+def test_checkpoint_collision_sibling_requires_identical_transaction_and_content(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    validator = _embedded_python_after(
+        _step_block(checkpoint, "Validate colliding checkpoint sibling"),
+        "run: |",
+    )
+    artifact_name = "full-extraction-checkpoint-fixture-chain-iter-3"
+    source_sha = "a" * 40
+    database_bytes = b"checkpoint-database"
+    report_bytes = b'{"checkpoint":"report"}\n'
+    database_hash = hashlib.sha256(database_bytes).hexdigest()
+    report_hash = hashlib.sha256(report_bytes).hexdigest()
+    transaction = CheckpointTransaction.candidate(
+        chain_id="fixture-chain",
+        source_sha=source_sha,
+        generation=3,
+        artifact_name=artifact_name,
+        lane_contracts=[],
+        coverage_fingerprint="b" * 64,
+    ).mark_built(
+        database_sha256=database_hash,
+        report_sha256=report_hash,
+    )
+    relative_paths = {
+        "database": pathlib.Path("data/nbadb-checkpoint/nba.duckdb"),
+        "report": pathlib.Path("artifacts/full-extraction/checkpoint-report.json"),
+        "transaction": pathlib.Path("artifacts/full-extraction/checkpoint-transaction.json"),
+    }
+
+    def write_file(root: pathlib.Path, relative_path: pathlib.Path, content: bytes) -> None:
+        path = root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+    transaction_bytes = json.dumps(transaction.to_dict(), sort_keys=True).encode("utf-8") + b"\n"
+    for root in (tmp_path, tmp_path / "checkpoint-sibling"):
+        write_file(root, relative_paths["database"], database_bytes)
+        write_file(root, relative_paths["report"], report_bytes)
+        write_file(root, relative_paths["transaction"], transaction_bytes)
+
+    output_path = tmp_path / "github-output.txt"
+    env = {
+        "ARTIFACT_ID": "701",
+        "ARTIFACT_DIGEST": "sha256:" + "c" * 64,
+        "ARTIFACT_SIZE_BYTES": "4096",
+        "CHAIN_ID": "fixture-chain",
+        "CHECKPOINT_ARTIFACT_NAME": artifact_name,
+        "CHECKPOINT_GENERATION": "3",
+        "CURRENT_RUN_ID": "12345",
+        "GITHUB_OUTPUT": str(output_path),
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+    accepted = _run_python(validator, env=env, cwd=tmp_path)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "artifact_id=701",
+        f"artifact_digest={env['ARTIFACT_DIGEST']}",
+        "artifact_size_bytes=4096",
+    ]
+
+    mismatched_transaction = CheckpointTransaction.candidate(
+        chain_id="fixture-chain",
+        source_sha=source_sha,
+        generation=3,
+        artifact_name=artifact_name,
+        lane_contracts=[],
+        coverage_fingerprint="d" * 64,
+    ).mark_built(
+        database_sha256=database_hash,
+        report_sha256=report_hash,
+    )
+    write_file(
+        tmp_path / "checkpoint-sibling",
+        relative_paths["transaction"],
+        json.dumps(mismatched_transaction.to_dict(), sort_keys=True).encode("utf-8"),
+    )
+    output_path.unlink()
+    wrong_transaction = _run_python(validator, env=env, cwd=tmp_path)
+    assert wrong_transaction.returncode == 1
+    assert "transaction does not match the current build" in wrong_transaction.stderr
+    assert not output_path.exists()
+
+    write_file(
+        tmp_path / "checkpoint-sibling",
+        relative_paths["transaction"],
+        transaction_bytes,
+    )
+    for label, tampered_content in (
+        ("database", b"tampered-database"),
+        ("report", b'{"tampered":true}\n'),
+    ):
+        original = database_bytes if label == "database" else report_bytes
+        write_file(
+            tmp_path / "checkpoint-sibling",
+            relative_paths[label],
+            tampered_content,
+        )
+        rejected = _run_python(validator, env=env, cwd=tmp_path)
+        assert rejected.returncode == 1
+        assert f"checkpoint sibling {label} hash does not match the build" in rejected.stderr
+        assert not output_path.exists()
+        write_file(
+            tmp_path / "checkpoint-sibling",
+            relative_paths[label],
+            original,
+        )
+
+
+def test_checkpoint_receipt_records_exact_verified_source(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    receipt_validator = _embedded_python_after(
+        _step_block(checkpoint, "Verify immutable checkpoint receipt"),
+        "run: |",
+    )
+    artifact_name = "full-extraction-checkpoint-fixture-chain-iter-3"
+    source_sha = "a" * 40
+    owner_head_sha = "b" * 40
+    run_id = "12345"
+    digest = "sha256:" + "c" * 64
+
+    for case_name, outcomes, artifact_id, expected_source in (
+        (
+            "initial",
+            ("success", "skipped", "skipped"),
+            "701",
+            "newly_uploaded",
+        ),
+        (
+            "sibling",
+            ("failure", "success", "skipped"),
+            "702",
+            "validated_existing",
+        ),
+        (
+            "retry",
+            ("failure", "skipped", "success"),
+            "703",
+            "newly_uploaded_retry",
+        ),
+    ):
+        case_dir = tmp_path / case_name
+        artifact = {
+            "id": int(artifact_id),
+            "name": artifact_name,
+            "digest": digest,
+            "size_in_bytes": 4096,
+            "expired": False,
+            "workflow_run": {
+                "id": int(run_id),
+                "head_sha": owner_head_sha,
+            },
+        }
+        fixture_env = _gh_fixture_env(
+            case_dir,
+            [
+                {
+                    "id": int(run_id),
+                    "head_sha": owner_head_sha,
+                },
+                artifact,
+            ],
+        )
+        output_path = case_dir / "github-output.txt"
+        initial_outcome, sibling_outcome, retry_outcome = outcomes
+        env = {
+            **fixture_env,
+            "CHECKPOINT_ARTIFACT_NAME": artifact_name,
+            "CURRENT_RUN_ID": run_id,
+            "GITHUB_OUTPUT": str(output_path),
+            "GITHUB_REPOSITORY": "acme/nbadb",
+            "INITIAL_UPLOAD_OUTCOME": initial_outcome,
+            "INITIAL_ARTIFACT_ID": "701",
+            "INITIAL_ARTIFACT_DIGEST": digest,
+            "SIBLING_VALIDATION_OUTCOME": sibling_outcome,
+            "SIBLING_ARTIFACT_ID": "702",
+            "SIBLING_ARTIFACT_DIGEST": digest,
+            "RETRY_UPLOAD_OUTCOME": retry_outcome,
+            "RETRY_ARTIFACT_ID": "703",
+            "RETRY_ARTIFACT_DIGEST": digest,
+            "WORKFLOW_SOURCE_SHA": source_sha,
+        }
+        accepted = _run_python(receipt_validator, env=env, cwd=case_dir)
+        assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+        assert output_path.read_text(encoding="utf-8").splitlines() == [
+            f"artifact_id={artifact_id}",
+            f"artifact_digest={digest}",
+            "artifact_size_bytes=4096",
+            f"receipt_source={expected_source}",
+        ]
+
+    no_source_dir = tmp_path / "no-source"
+    no_source_dir.mkdir()
+    no_source = _run_python(
+        receipt_validator,
+        env={
+            "CHECKPOINT_ARTIFACT_NAME": artifact_name,
+            "CURRENT_RUN_ID": run_id,
+            "GITHUB_OUTPUT": str(no_source_dir / "github-output.txt"),
+            "GITHUB_REPOSITORY": "acme/nbadb",
+            "INITIAL_UPLOAD_OUTCOME": "failure",
+            "INITIAL_ARTIFACT_ID": "",
+            "INITIAL_ARTIFACT_DIGEST": "",
+            "SIBLING_VALIDATION_OUTCOME": "failure",
+            "SIBLING_ARTIFACT_ID": "",
+            "SIBLING_ARTIFACT_DIGEST": "",
+            "RETRY_UPLOAD_OUTCOME": "failure",
+            "RETRY_ARTIFACT_ID": "",
+            "RETRY_ARTIFACT_DIGEST": "",
+            "WORKFLOW_SOURCE_SHA": source_sha,
+        },
+        cwd=no_source_dir,
+    )
+    assert no_source.returncode == 1
+    assert "checkpoint artifact receipt has no verified source" in no_source.stderr
 
 
 def test_inline_project_imports_run_in_uv_environment() -> None:
@@ -414,6 +1027,19 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
 def test_resume_source_downloads_each_lane_metadata_artifact_to_a_unique_directory() -> None:
     plan = _job_block(_workflow_text(), "plan")
 
+    resolver = _step_block(plan, "Resolve resume source committed manifest")
+    download = _step_block(plan, "Download resume source committed manifest")
+    prepare = _step_block(plan, "Prepare resume source manifest")
+    assert "RESUME_SOURCE_COMMITTED_MANIFEST_RESOLVER" in resolver
+    assert "canonical_fallback" in resolver
+    assert "ambiguous immutable committed next-manifest" in resolver
+    assert "artifacts for attempt" in resolver
+    assert "artifact-ids: ${{ steps.resume_source_manifest.outputs.artifact_id }}" in (download)
+    assert "digest-mismatch: error" in download
+    assert prepare.index('if [ "$RESUME_SOURCE_MANIFEST_RESOLUTION" = "committed" ]') < (
+        prepare.index('gh run download "$RESUME_SOURCE_RUN_ID"')
+    )
+    assert 'find "$RUNNER_TEMP/resume-source/manifest-committed"' in prepare
     assert 'metadata_dir="$RUNNER_TEMP/resume-source/metadata/$metadata_name"' in plan
     assert 'mkdir -p "$metadata_dir"' in plan
     assert '--dir "$metadata_dir"' in plan
@@ -745,8 +1371,8 @@ def test_redispatch_preserves_auto_and_enforces_numeric_iteration_cap() -> None:
     assert 'effective_max="$ITERATION_BUDGET"' in dispatch
     assert 'effective_max="$max_input"' in dispatch
     assert 'if [ "$next" -gt "$effective_max" ]; then' in dispatch
-    assert '-f max_iterations="$MAX_ITERATIONS"' in dispatch
-    assert '-f max_iterations="$effective_max"' not in dispatch
+    assert '"max_iterations": os.environ["MAX_ITERATIONS"]' in dispatch
+    assert '"max_iterations": os.environ["ITERATION_BUDGET"]' not in dispatch
 
 
 def test_redispatch_rejects_active_or_successful_chain_iteration_before_enqueue() -> None:
@@ -769,7 +1395,7 @@ def test_redispatch_rejects_active_or_successful_chain_iteration_before_enqueue(
 
     duplicate_lookup = dispatch.index("/actions/workflows/full-extraction.yml/runs")
     duplicate_rejection = dispatch.index("Refusing duplicate redispatch")
-    enqueue = dispatch.index("gh workflow run full-extraction.yml")
+    enqueue = dispatch.index("/actions/workflows/full-extraction.yml/dispatches")
     assert duplicate_lookup < duplicate_rejection < enqueue
 
 
@@ -781,17 +1407,19 @@ def test_redispatch_cancels_an_unacknowledged_child_when_parent_stops() -> None:
     assert "on_dispatch_exit()" in dispatch
     assert "trap on_dispatch_exit EXIT" in dispatch
     assert "trap on_dispatch_signal INT TERM" in dispatch
-    assert "child_dispatch_may_exist=true\n          gh workflow run" in dispatch
-    assert 'child_run_id="$acknowledged_child_run_id"' in dispatch
+    assert "child_dispatch_may_exist=true" in dispatch
+    assert '"return_run_details": True' in dispatch
+    assert 'child_run_id = str(response.get("workflow_run_id") or "").strip()' in dispatch
     assert "child_acknowledged=true" in dispatch
     assert "/actions/runs/${candidate_id}/cancel" in dispatch
     assert "unacknowledged child run" in dispatch
 
     dispatch_start = dispatch.index("child_dispatch_may_exist=true")
-    enqueue = dispatch.index("gh workflow run full-extraction.yml")
+    enqueue = dispatch.index("/actions/workflows/full-extraction.yml/dispatches")
+    identity = dispatch.index('response.get("workflow_run_id")', enqueue)
     acknowledgement = dispatch.index("child_acknowledged=true")
     trap_disarm = dispatch.index("trap - EXIT INT TERM", acknowledgement)
-    assert dispatch_start < enqueue < acknowledgement < trap_disarm
+    assert dispatch_start < enqueue < identity < acknowledgement < trap_disarm
 
 
 def test_redispatch_allows_failed_history_and_acknowledges_only_the_new_child(
@@ -799,10 +1427,14 @@ def test_redispatch_allows_failed_history_and_acknowledges_only_the_new_child(
 ) -> None:
     dispatch = _job_block(_workflow_text(), "dispatch_next")
     precheck = _embedded_python(dispatch, "CHILD_RUN_PRECHECK")
-    matcher = _embedded_python(dispatch, "CHILD_RUN_MATCHER")
+    response_parser = _embedded_python_after(
+        dispatch,
+        'DISPATCH_RESPONSE_PATH="$dispatch_response_path"',
+    )
     run_name = "Full Extraction chain=123 iteration=2"
     runs_path = tmp_path / "runs.json"
     existing_ids_path = tmp_path / "existing.json"
+    response_path = tmp_path / "dispatch-response.json"
     child_path = tmp_path / "child.json"
     failed_run = {
         "id": 100,
@@ -834,28 +1466,59 @@ def test_redispatch_allows_failed_history_and_acknowledges_only_the_new_child(
     assert precheck_result.stdout.strip() == ""
     assert json.loads(existing_ids_path.read_text(encoding="utf-8")) == ["100", "101"]
 
-    new_run = {
-        "id": 102,
-        "display_title": run_name,
-        "status": "queued",
-        "conclusion": None,
-        "html_url": "https://example.test/runs/102",
-    }
-    runs_path.write_text(
-        json.dumps([{"workflow_runs": [failed_run, cancelled_run, new_run]}]),
+    response_path.write_text(
+        json.dumps(
+            {
+                "workflow_run_id": 102,
+                "run_url": "https://api.github.test/repos/acme/nbadb/actions/runs/102",
+                "html_url": "https://github.test/acme/nbadb/actions/runs/102",
+            }
+        ),
         encoding="utf-8",
     )
-    match_result = _run_python(
-        matcher,
-        env={**env, "CHILD_RUN_PATH": str(child_path)},
+    response_result = _run_python(
+        response_parser,
+        env={
+            "DISPATCH_RESPONSE_PATH": str(response_path),
+            "CHILD_RUN_PATH": str(child_path),
+            "EXPECTED_RUN_NAME": run_name,
+            "GITHUB_API_URL": "https://api.github.test",
+            "GITHUB_REPOSITORY": "acme/nbadb",
+            "GITHUB_SERVER_URL": "https://github.test",
+        },
     )
 
-    assert match_result.returncode == 0, match_result.stderr or match_result.stdout
+    assert response_result.returncode == 0, response_result.stderr or response_result.stdout
     assert json.loads(child_path.read_text(encoding="utf-8")) == {
         "display_title": run_name,
         "id": "102",
-        "url": "https://example.test/runs/102",
+        "url": "https://github.test/acme/nbadb/actions/runs/102",
+        "api_url": "https://api.github.test/repos/acme/nbadb/actions/runs/102",
     }
+
+    response_path.write_text(
+        json.dumps(
+            {
+                "workflow_run_id": "invalid",
+                "run_url": "https://api.github.test/actions/runs/102",
+                "html_url": "https://github.test/actions/runs/102",
+            }
+        ),
+        encoding="utf-8",
+    )
+    malformed = _run_python(
+        response_parser,
+        env={
+            "DISPATCH_RESPONSE_PATH": str(response_path),
+            "CHILD_RUN_PATH": str(child_path),
+            "EXPECTED_RUN_NAME": run_name,
+            "GITHUB_API_URL": "https://api.github.test",
+            "GITHUB_REPOSITORY": "acme/nbadb",
+            "GITHUB_SERVER_URL": "https://github.test",
+        },
+    )
+    assert malformed.returncode == 1
+    assert "did not return an exact child identity" in malformed.stderr
 
 
 def test_redispatch_precheck_blocks_active_and_successful_runs(tmp_path: pathlib.Path) -> None:
@@ -924,7 +1587,321 @@ def test_redispatch_preserves_requested_auto_network_mode() -> None:
 
     assert "NETWORK_MODE: ${{ inputs.network_mode }}" in dispatch
     assert "NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode" not in dispatch
-    assert '-f network_mode="$NETWORK_MODE"' in dispatch
+    assert '"network_mode": os.environ["NETWORK_MODE"]' in dispatch
+
+
+def test_manifest_handoff_uses_an_exact_immutable_receipt() -> None:
+    workflow = _workflow_text()
+    dispatch_inputs = workflow.split("    inputs:\n", 1)[1].split("\nenv:\n", 1)[0]
+    input_names = re.findall(r"(?m)^      ([a-z][a-z0-9_]*):$", dispatch_inputs)
+    assert len(input_names) == 25
+    assert "lane_manifest_artifact_id" in input_names
+    assert "lane_manifest_artifact_digest" in input_names
+
+    guard = _step_block(
+        _job_block(workflow, "workflow_guard"),
+        "Verify immutable workflow definition",
+    )
+    assert (
+        "lane_manifest_artifact_id and lane_manifest_artifact_digest must be provided together"
+        in guard
+    )
+    assert (
+        'if [ "$has_manifest_receipt" = "true" ] && { '
+        '[ -z "$LANE_MANIFEST_RUN_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_NAME" ]; };'
+    ) in guard
+    assert "receipt-aware manifest handoff requires run ID, artifact name, ID, and digest" in guard
+    assert "receipt-aware manifest handoff cannot be combined with lane_manifest_json" in guard
+
+    plan = _job_block(workflow, "plan")
+    verify = _step_block(plan, "Verify exact input manifest receipt")
+    download = _step_block(plan, "Download exact input manifest")
+    build = _step_block(plan, "Build lane manifest")
+    assert plan.index("Verify exact input manifest receipt") < plan.index(
+        "Download exact input manifest"
+    )
+    assert plan.index("Download exact input manifest") < plan.index("Build lane manifest")
+    assert "if: ${{ inputs.lane_manifest_artifact_id != '' }}" in verify
+    assert "isinstance(rest_artifact_id, bool)" in verify
+    assert "not isinstance(rest_artifact_id, int)" in verify
+    assert "rest_artifact_id != int(artifact_id)" in verify
+    assert 'artifact.get("name") != os.environ["LANE_MANIFEST_ARTIFACT_NAME"]' in verify
+    assert 'artifact.get("digest") != digest' in verify
+    assert 'artifact.get("size_in_bytes")' in verify
+    assert 'str(workflow_run.get("id") or "") != run_id' in verify
+    assert 'workflow_run.get("head_sha")' in verify
+    assert "artifact-ids: ${{ inputs.lane_manifest_artifact_id }}" in download
+    assert "run-id: ${{ inputs.lane_manifest_run_id }}" in download
+    assert "digest-mismatch: error" in download
+    legacy_gate = (
+        'if [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] && [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then'
+    )
+    assert legacy_gate in build
+    assert build.index(legacy_gate) < build.index('gh run download "$LANE_MANIFEST_RUN_ID"')
+    assert (
+        'elif [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then'
+    ) in build
+
+    lane_control = _job_block(workflow, "lane_control")
+    next_manifest = _step_block(lane_control, "Build next manifest")
+    assert (
+        "f\"{int(os.environ['ITERATION']) + 1}-run-{os.environ['GITHUB_RUN_ID']}-\""
+        in next_manifest
+    )
+    assert "f\"attempt-{os.environ['GITHUB_RUN_ATTEMPT']}\"" in next_manifest
+    committed_upload = _step_block(
+        _job_block(workflow, "checkpoint"),
+        "Upload committed next manifest",
+    )
+    assert "overwrite: false" in committed_upload
+
+    dispatch = _job_block(workflow, "dispatch_next")
+    manifest_receipt = _step_block(dispatch, "Verify committed manifest dispatch receipt")
+    dispatch_step = _step_block(dispatch, "Dispatch next iteration")
+    assert "ARTIFACT_ID: ${{ needs.checkpoint.outputs.manifest-artifact-id }}" in (manifest_receipt)
+    assert (
+        "ARTIFACT_DIGEST: ${{ needs.checkpoint.outputs.manifest-artifact-digest }}"
+        in manifest_receipt
+    )
+    assert "ARTIFACT_ID: ${{ steps.manifest_receipt.outputs.artifact_id }}" in (dispatch_step)
+    assert "ARTIFACT_DIGEST: ${{ steps.manifest_receipt.outputs.artifact_digest }}" in dispatch_step
+    assert '"lane_manifest_artifact_id": os.environ["ARTIFACT_ID"]' in dispatch
+    assert '"lane_manifest_artifact_digest": os.environ["ARTIFACT_DIGEST"]' in dispatch
+
+
+def test_redispatch_manifest_receipt_is_exact_and_fail_closed(
+    tmp_path: pathlib.Path,
+) -> None:
+    dispatch = _job_block(_workflow_text(), "dispatch_next")
+    verifier_step = _step_block(dispatch, "Verify committed manifest dispatch receipt")
+    verifier = _embedded_python(verifier_step, "REDISPATCH_MANIFEST_RECEIPT_VERIFIER")
+    assert dispatch.index("Verify committed manifest dispatch receipt") < dispatch.index(
+        "/actions/workflows/full-extraction.yml/dispatches"
+    )
+
+    chain_id = "fixture-chain"
+    current_run_id = "12345"
+    current_run_attempt = "2"
+    iteration = "3"
+    artifact_id = "701"
+    owner_head_sha = "b" * 40
+    artifact_name = "full-extraction-next-manifest-fixture-chain-iter-4-run-12345-attempt-2"
+    artifact_digest = "sha256:" + "c" * 64
+    owner_run = {
+        "id": int(current_run_id),
+        "head_sha": owner_head_sha,
+        "run_attempt": int(current_run_attempt),
+    }
+    artifact = {
+        "id": int(artifact_id),
+        "name": artifact_name,
+        "digest": artifact_digest,
+        "size_in_bytes": 4096,
+        "expired": False,
+        "workflow_run": {
+            "id": int(current_run_id),
+            "head_sha": owner_head_sha,
+        },
+    }
+    base_env = {
+        "ARTIFACT_DIGEST": artifact_digest.removeprefix("sha256:"),
+        "ARTIFACT_ID": artifact_id,
+        "ARTIFACT_NAME": artifact_name,
+        "CHAIN_ID": chain_id,
+        "CURRENT_RUN_ATTEMPT": current_run_attempt,
+        "CURRENT_RUN_ID": current_run_id,
+        "GITHUB_REPOSITORY": "acme/nbadb",
+        "ITERATION": iteration,
+    }
+
+    accepted_dir = tmp_path / "accepted"
+    accepted_fixture = _gh_fixture_env(accepted_dir, [owner_run, artifact])
+    output_path = accepted_dir / "github-output.txt"
+    accepted = _run_python(
+        verifier,
+        env={
+            **accepted_fixture,
+            **base_env,
+            "GITHUB_OUTPUT": str(output_path),
+        },
+        cwd=accepted_dir,
+    )
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        f"artifact_name={artifact_name}",
+        f"artifact_id={artifact_id}",
+        f"artifact_digest={artifact_digest}",
+    ]
+
+    for label, overrides, error in (
+        (
+            "missing-id",
+            {"ARTIFACT_ID": ""},
+            "artifact ID must be positive",
+        ),
+        (
+            "legacy-name",
+            {"ARTIFACT_NAME": f"full-extraction-manifest-{chain_id}"},
+            "exact immutable committed next-manifest artifact",
+        ),
+        (
+            "bad-digest",
+            {"ARTIFACT_DIGEST": "not-a-digest"},
+            "artifact digest must be SHA-256",
+        ),
+    ):
+        rejected_dir = tmp_path / label
+        rejected_fixture = _gh_fixture_env(rejected_dir, [owner_run, artifact])
+        counter_path = pathlib.Path(rejected_fixture["GH_FIXTURE_COUNTER"])
+        rejected = _run_python(
+            verifier,
+            env={
+                **rejected_fixture,
+                **base_env,
+                **overrides,
+                "GITHUB_OUTPUT": str(rejected_dir / "github-output.txt"),
+            },
+            cwd=rejected_dir,
+        )
+        assert rejected.returncode == 1
+        assert error in rejected.stderr
+        assert not counter_path.exists()
+
+    mismatch_dir = tmp_path / "rest-mismatch"
+    mismatch_fixture = _gh_fixture_env(
+        mismatch_dir,
+        [owner_run, {**artifact, "digest": "sha256:" + "d" * 64}],
+    )
+    rest_mismatch = _run_python(
+        verifier,
+        env={
+            **mismatch_fixture,
+            **base_env,
+            "GITHUB_OUTPUT": str(mismatch_dir / "github-output.txt"),
+        },
+        cwd=mismatch_dir,
+    )
+    assert rest_mismatch.returncode == 1
+    assert "REST identity does not match the immutable upload receipt" in (rest_mismatch.stderr)
+
+    bool_attempt_name = "full-extraction-next-manifest-fixture-chain-iter-4-run-12345-attempt-1"
+    bool_attempt_dir = tmp_path / "bool-attempt"
+    bool_attempt_fixture = _gh_fixture_env(
+        bool_attempt_dir,
+        [
+            {**owner_run, "run_attempt": True},
+            {**artifact, "name": bool_attempt_name},
+        ],
+    )
+    bool_attempt = _run_python(
+        verifier,
+        env={
+            **bool_attempt_fixture,
+            **base_env,
+            "ARTIFACT_NAME": bool_attempt_name,
+            "CURRENT_RUN_ATTEMPT": "1",
+            "GITHUB_OUTPUT": str(bool_attempt_dir / "github-output.txt"),
+        },
+        cwd=bool_attempt_dir,
+    )
+    assert bool_attempt.returncode == 1
+    assert "owner run identity is invalid" in bool_attempt.stderr
+
+    bool_artifact_id_dir = tmp_path / "bool-artifact-id"
+    bool_artifact_id_fixture = _gh_fixture_env(
+        bool_artifact_id_dir,
+        [owner_run, {**artifact, "id": True}],
+    )
+    bool_artifact_id = _run_python(
+        verifier,
+        env={
+            **bool_artifact_id_fixture,
+            **base_env,
+            "ARTIFACT_ID": "1",
+            "GITHUB_OUTPUT": str(bool_artifact_id_dir / "github-output.txt"),
+        },
+        cwd=bool_artifact_id_dir,
+    )
+    assert bool_artifact_id.returncode == 1
+    assert "REST identity does not match the immutable upload receipt" in (bool_artifact_id.stderr)
+
+
+def test_input_manifest_receipt_rejects_any_rest_identity_mismatch(
+    tmp_path: pathlib.Path,
+) -> None:
+    verifier = _embedded_python_after(
+        _step_block(
+            _job_block(_workflow_text(), "plan"),
+            "Verify exact input manifest receipt",
+        ),
+        "run: |",
+    )
+    artifact_id = "701"
+    run_id = "12345"
+    source_sha = "a" * 40
+    owner_head_sha = "b" * 40
+    artifact_name = "full-extraction-next-manifest-fixture-chain-iter-3-run-12345-attempt-1"
+    digest = "sha256:" + "c" * 64
+    valid_artifact = {
+        "id": int(artifact_id),
+        "name": artifact_name,
+        "digest": digest,
+        "size_in_bytes": 4096,
+        "expired": False,
+        "workflow_run": {
+            "id": int(run_id),
+            "head_sha": owner_head_sha,
+        },
+    }
+    owner_run = {
+        "id": int(run_id),
+        "head_sha": owner_head_sha,
+    }
+    base_env = {
+        "GITHUB_REPOSITORY": "acme/nbadb",
+        "LANE_MANIFEST_ARTIFACT_DIGEST": digest,
+        "LANE_MANIFEST_ARTIFACT_ID": artifact_id,
+        "LANE_MANIFEST_ARTIFACT_NAME": artifact_name,
+        "LANE_MANIFEST_RUN_ID": run_id,
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+
+    def run_case(
+        name: str,
+        artifact: dict[str, object],
+    ) -> subprocess.CompletedProcess[str]:
+        case_dir = tmp_path / name
+        fixture_env = _gh_fixture_env(case_dir, [owner_run, artifact])
+        return _run_python(
+            verifier,
+            env={**fixture_env, **base_env},
+            cwd=case_dir,
+        )
+
+    accepted = run_case("accepted", valid_artifact)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+
+    mismatches = {
+        "id": {**valid_artifact, "id": 702},
+        "name": {**valid_artifact, "name": "wrong-manifest"},
+        "digest": {**valid_artifact, "digest": "sha256:" + "d" * 64},
+        "size": {**valid_artifact, "size_in_bytes": 0},
+        "expired": {**valid_artifact, "expired": True},
+        "run": {
+            **valid_artifact,
+            "workflow_run": {"id": 12346, "head_sha": owner_head_sha},
+        },
+        "source": {
+            **valid_artifact,
+            "workflow_run": {"id": int(run_id), "head_sha": "c" * 40},
+        },
+    }
+    for label, mismatched_artifact in mismatches.items():
+        rejected = run_case(label, mismatched_artifact)
+        assert rejected.returncode == 1
+        assert "lane-manifest REST identity does not match its committed receipt" in (
+            rejected.stderr
+        )
 
 
 def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
@@ -960,6 +1937,17 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
     )
     assert matching.returncode == 0, matching.stderr or matching.stdout
     assert "Verified manual manifest handoff for chain 12345" in matching.stdout
+
+    matching_receipt_name = _run_python(
+        verifier,
+        env={
+            **base_env,
+            "ARTIFACT_NAME": ("full-extraction-next-manifest-12345-iter-2-run-98765-attempt-1"),
+        },
+    )
+    assert matching_receipt_name.returncode == 0, (
+        matching_receipt_name.stderr or matching_receipt_name.stdout
+    )
 
     wrong_standard_name = _run_python(
         verifier,
@@ -1008,6 +1996,137 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
     )
 
 
+def test_resume_source_prefers_exact_committed_manifest_and_falls_back_only_when_absent(
+    tmp_path: pathlib.Path,
+) -> None:
+    plan = _job_block(_workflow_text(), "plan")
+    resolver = _embedded_python(plan, "RESUME_SOURCE_COMMITTED_MANIFEST_RESOLVER")
+    chain_id = "12345"
+    source_run_id = "987654"
+    owner_head_sha = "b" * 40
+    exact_name = "full-extraction-next-manifest-12345-iter-3-run-987654-attempt-2"
+    owner_run = {
+        "id": int(source_run_id),
+        "head_sha": owner_head_sha,
+        "run_attempt": 2,
+    }
+    exact_artifact = {
+        "id": 701,
+        "name": exact_name,
+        "digest": "sha256:" + "c" * 64,
+        "size_in_bytes": 4096,
+        "expired": False,
+        "workflow_run": {
+            "id": int(source_run_id),
+            "head_sha": owner_head_sha,
+        },
+    }
+    canonical_artifact = {
+        **exact_artifact,
+        "id": 600,
+        "name": f"full-extraction-manifest-{chain_id}",
+    }
+
+    def run_case(
+        name: str,
+        artifacts: list[dict[str, object]],
+    ) -> tuple[subprocess.CompletedProcess[str], pathlib.Path]:
+        case_dir = tmp_path / name
+        fixture_env = _gh_fixture_env(
+            case_dir,
+            [
+                owner_run,
+                [
+                    {
+                        "total_count": len(artifacts),
+                        "artifacts": artifacts,
+                    }
+                ],
+            ],
+        )
+        output_path = case_dir / "github-output.txt"
+        result = _run_python(
+            resolver,
+            env={
+                **fixture_env,
+                "CHAIN_ID": chain_id,
+                "GITHUB_OUTPUT": str(output_path),
+                "GITHUB_REPOSITORY": "acme/nbadb",
+                "RESUME_SOURCE_RUN_ID": source_run_id,
+            },
+            cwd=case_dir,
+        )
+        return result, output_path
+
+    committed, committed_output = run_case(
+        "committed",
+        [
+            canonical_artifact,
+            {
+                **exact_artifact,
+                "id": 700,
+                "name": ("full-extraction-next-manifest-12345-iter-3-run-987654-attempt-1"),
+            },
+            exact_artifact,
+        ],
+    )
+    assert committed.returncode == 0, committed.stderr or committed.stdout
+    assert committed_output.read_text(encoding="utf-8").splitlines() == [
+        "resolution=committed",
+        f"artifact_name={exact_name}",
+        "artifact_id=701",
+        f"artifact_digest={exact_artifact['digest']}",
+        f"source_run_id={source_run_id}",
+        "source_run_attempt=2",
+    ]
+
+    prior_artifact = {
+        **exact_artifact,
+        "id": 700,
+        "name": ("full-extraction-next-manifest-12345-iter-3-run-987654-attempt-1"),
+    }
+    prior_attempt, prior_output = run_case(
+        "prior-attempt",
+        [canonical_artifact, prior_artifact],
+    )
+    assert prior_attempt.returncode == 0, prior_attempt.stderr or prior_attempt.stdout
+    assert prior_output.read_text(encoding="utf-8").splitlines()[-2:] == [
+        f"source_run_id={source_run_id}",
+        "source_run_attempt=1",
+    ]
+
+    fallback, fallback_output = run_case("fallback", [canonical_artifact])
+    assert fallback.returncode == 0, fallback.stderr or fallback.stdout
+    assert "No immutable committed next-manifest exists" in fallback.stdout
+    assert fallback_output.read_text(encoding="utf-8").splitlines() == [
+        "resolution=canonical_fallback"
+    ]
+
+    ambiguous, ambiguous_output = run_case(
+        "ambiguous",
+        [exact_artifact, {**exact_artifact, "id": 702}],
+    )
+    assert ambiguous.returncode == 1
+    assert "ambiguous immutable committed next-manifest" in ambiguous.stderr
+    assert not ambiguous_output.exists()
+
+    wrong_provenance, wrong_output = run_case(
+        "wrong-provenance",
+        [
+            {
+                **exact_artifact,
+                "workflow_run": {
+                    "id": int(source_run_id),
+                    "head_sha": "0" * 40,
+                },
+            }
+        ],
+    )
+    assert wrong_provenance.returncode == 1
+    assert "committed-manifest artifact provenance is invalid" in (wrong_provenance.stderr)
+    assert not wrong_output.exists()
+
+
 def test_resume_source_manifest_requires_matching_chain_and_source_sha(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -1018,6 +2137,9 @@ def test_resume_source_manifest_requires_matching_chain_and_source_sha(
     base_env = {
         "MANIFEST_PATH": str(manifest_path),
         "REQUESTED_CHAIN_ID": "12345",
+        "RESUME_SOURCE_MANIFEST_RESOLUTION": "canonical_fallback",
+        "SOURCE_ARTIFACT_NAME": "full-extraction-manifest-12345",
+        "SOURCE_RUN_ID": "987654",
         "WORKFLOW_SOURCE_SHA": source_sha,
     }
 
@@ -1049,6 +2171,60 @@ def test_resume_source_manifest_requires_matching_chain_and_source_sha(
     missing_provenance = _run_python(verifier, env=base_env)
     assert missing_provenance.returncode == 1
     assert "'<missing>'" in missing_provenance.stdout
+
+    transaction = _committed_checkpoint_transaction(
+        chain_id="12345",
+        source_sha=source_sha,
+        generation=2,
+        artifact_id=701,
+        artifact_run_id=987654,
+        artifact_digest="sha256:" + "c" * 64,
+        artifact_size_bytes=4096,
+        database_sha256="d" * 64,
+        report_sha256="e" * 64,
+        coverage_fingerprint="f" * 64,
+        lane_id="fixture-lane",
+        lane_coverage_hash="0" * 64,
+    )
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "chain_id": "12345",
+                "workflow_source_sha": source_sha,
+                "chain_state": {
+                    "latest_checkpoint_transaction": transaction.to_dict(),
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    committed_env = {
+        **base_env,
+        "RESUME_SOURCE_MANIFEST_RESOLUTION": "committed",
+        "SOURCE_ARTIFACT_NAME": ("full-extraction-next-manifest-12345-iter-3-run-987654-attempt-2"),
+    }
+    committed = _run_python(verifier, env=committed_env)
+    assert committed.returncode == 0, committed.stderr or committed.stdout
+
+    uncommitted_payload = transaction.to_dict()
+    uncommitted_payload["state"] = "built"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "chain_id": "12345",
+                "workflow_source_sha": source_sha,
+                "chain_state": {
+                    "latest_checkpoint_transaction": uncommitted_payload,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    uncommitted = _run_python(verifier, env=committed_env)
+    assert uncommitted.returncode == 1
+    assert "matching committed checkpoint transaction" in uncommitted.stdout
 
 
 def test_checkpoint_generation_derives_from_trusted_manifest_pointer(
@@ -1127,46 +2303,15 @@ def test_checkpoint_generation_derives_from_trusted_manifest_pointer(
     assert wrong_source.returncode == 1
     assert "manifest source SHA does not match" in wrong_source.stderr
 
-    coverage_resolver = _embedded_python(build_step, "CHECKPOINT_COVERAGE_RESOLVER")
-    completed_lane = FullExtractionLane(
-        lane_id="completed",
-        lane_index=0,
-        lane_name="Completed",
-        lane_kind="static",
-        season_start=None,
-        season_end=None,
-        patterns=("static",),
-        endpoints=("static_players",),
-        resume_only=True,
-    )
-    active_lane = FullExtractionLane(
-        lane_id="active",
-        lane_index=1,
-        lane_name="Active",
-        lane_kind="static",
-        season_start=None,
-        season_end=None,
-        patterns=("static",),
-        endpoints=("static_teams",),
-    )
-    provisional_path = tmp_path / "provisional-manifest.json"
-    provisional_path.write_text(
-        json.dumps(manifest_payload([completed_lane, active_lane])),
-        encoding="utf-8",
-    )
-    resolved_coverage = _run_python(
-        coverage_resolver,
-        env={"PROVISIONAL_MANIFEST": str(provisional_path)},
-    )
-    assert resolved_coverage.returncode == 0, resolved_coverage.stderr or resolved_coverage.stdout
+    assert "CHECKPOINT_COVERAGE_RESOLVER" not in build_step
+    assert "--latest-checkpoint-generation" not in build_step
+    assert "--latest-checkpoint-coverage-hash" not in build_step
+    assert "--latest-checkpoint-run-id" not in build_step
+    assert "--latest-checkpoint-artifact-name" not in build_step
     assert (
-        resolved_coverage.stdout.strip()
-        == manifest_payload([completed_lane])["coverage_fingerprint"]
-    )
-
-    assert '--latest-checkpoint-generation "$CHECKPOINT_GENERATION"' in build_step
-    assert '--latest-checkpoint-coverage-hash "$CHECKPOINT_COVERAGE_HASH"' in build_step
-    assert "CHECKPOINT_COVERAGE_RESOLVER" in build_step
+        'CHECKPOINT_ARTIFACT_NAME="full-extraction-checkpoint-'
+        '${CHAIN_ID}-iter-${CHECKPOINT_GENERATION}"'
+    ) in build_step
     assert "iter-${CHECKPOINT_GENERATION}" in build_step
     assert '--latest-checkpoint-generation "$ITERATION"' not in build_step
 
@@ -1216,10 +2361,12 @@ def test_checkpoint_result_validator_rejects_generation_and_suffix_drift(
     manifest = {
         "chain_id": chain_id,
         "chain_state": {
-            "latest_checkpoint_artifact_name": artifact_name,
-            "latest_checkpoint_coverage_hash": coverage_hash,
-            "latest_checkpoint_generation": expected_generation,
-            "latest_checkpoint_run_id": run_id,
+            "latest_checkpoint_artifact_name": (
+                f"full-extraction-checkpoint-{chain_id}-iter-{expected_generation - 1}"
+            ),
+            "latest_checkpoint_coverage_hash": "b" * 64,
+            "latest_checkpoint_generation": expected_generation - 1,
+            "latest_checkpoint_run_id": "111",
         },
         "workflow_source_sha": source_sha,
     }
@@ -1270,20 +2417,20 @@ def test_checkpoint_result_validator_rejects_generation_and_suffix_drift(
     assert "Checkpoint artifact suffix/generation disagreement" in wrong_suffix.stdout
     assert not output_path.exists()
 
-    report["coverage_fingerprint"] = "d" * 64
+    report["coverage_fingerprint"] = "not-a-sha"
     report_path.write_text(json.dumps(report), encoding="utf-8")
     wrong_coverage = _run_python(validator, env=env)
     assert wrong_coverage.returncode == 1
-    assert "manifest/report coverage fingerprint disagreement" in wrong_coverage.stdout
+    assert "Checkpoint report coverage hash must be a SHA-256" in wrong_coverage.stdout
     assert not output_path.exists()
     report["coverage_fingerprint"] = coverage_hash
     report_path.write_text(json.dumps(report), encoding="utf-8")
 
-    manifest["chain_state"]["latest_checkpoint_generation"] = expected_generation - 1
+    manifest["chain_state"]["latest_checkpoint_generation"] = expected_generation
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     stale_manifest = _run_python(validator, env=env)
     assert stale_manifest.returncode == 1
-    assert "Checkpoint manifest/report generation disagreement" in stale_manifest.stdout
+    assert "Checkpoint candidate precommitted or skipped a generation" in stale_manifest.stdout
     assert not output_path.exists()
 
 
@@ -1447,7 +2594,8 @@ def test_lane_control_merges_and_clears_pending_contract_blocked_commitment(
         "WORKFLOW_SOURCE_SHA": "a" * 40,
         "CHECKPOINT_ARTIFACT_NAME": "full-extraction-checkpoint-fixture-chain-iter-1",
         "CHECKPOINT_GENERATION": "1",
-        "CHECKPOINT_COVERAGE_HASH": "b" * 64,
+        "GITHUB_RUN_ID": "12345",
+        "GITHUB_RUN_ATTEMPT": "1",
         "ITERATION": "1",
         "GITHUB_OUTPUT": str(tmp_path / "github-output.txt"),
     }
@@ -1899,6 +3047,11 @@ def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
                     "artifacts": [
                         {"name": source_metadata, "expired": False},
                         {"name": source_artifact, "expired": False},
+                        {"name": source_metadata},
+                        {"name": source_artifact, "expired": None},
+                        {
+                            "name": f"full-extraction-discovery-artifacts-{chain_id}",
+                        },
                         {"name": stale_resumed_metadata, "expired": False},
                         {"name": diagnostics_only_metadata, "expired": False},
                         {
@@ -2165,7 +3318,7 @@ def test_publish_false_keeps_terminal_assurance_and_blocks_publication() -> None
     assert "contents: write" in publish
     assert "Refresh checked-in metadata" in publish
     assert "Upload to Kaggle" in publish
-    assert '-f publish="$PUBLISH"' in _job_block(workflow, "dispatch_next")
+    assert '"publish": os.environ["PUBLISH"]' in _job_block(workflow, "dispatch_next")
 
 
 def test_terminal_hard_scan_runs_after_export_and_before_assured_manifest() -> None:
@@ -2691,6 +3844,7 @@ def test_assured_artifact_archive_verifier_rejects_digest_and_identity_mismatch(
         ({"name": "wrong-name"}, "artifact metadata name does not match"),
         ({"workflow_run": {"id": 999}}, "artifact workflow run identity does not match"),
         ({"expired": True}, "artifact is expired"),
+        ({"expired": None}, "artifact is expired"),
     ],
 )
 def test_assured_artifact_archive_verifier_rejects_metadata_provenance_tampering(
@@ -2955,6 +4109,11 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
     )
     replay_download = _step_block(merge, "Download replayed terminal checkpoint")
     prepare_merge = _step_block(merge, "Prepare checkpoint-first merge")
+    source_manifest_resolver = _step_block(replay, "Resolve immutable source committed manifest")
+    source_manifest_download = _step_block(replay, "Download immutable source committed manifest")
+    source_resolver = _step_block(replay, "Resolve exact source checkpoint receipt")
+    source_download = _step_block(replay, "Download exact source checkpoint")
+    replay_attestation = _step_block(replay, "Attest terminal replay inputs")
     replay_header = replay.split("    steps:\n", 1)[0]
     lane_control_header = lane_control.split("    steps:\n", 1)[0]
 
@@ -2971,13 +4130,41 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
         "needs.plan.outputs.matrix-lane-count == '0'",
     ):
         assert predicate in replay_header
-    assert "Terminal replay requires at most one unexpired source" in replay
-    assert "checkpoint artifact; found" in replay
-    assert "No source checkpoint exists; rebuilding from attested" in replay
-    assert 'gh run download "$SOURCE_RUN_ID"' in replay
-    assert "steps.source_checkpoint.outputs.artifact_name != ''" in replay
+    assert "TERMINAL_REPLAY_MANIFEST_RESOLVER" in source_manifest_resolver
+    assert "full-extraction-next-manifest-" in source_manifest_resolver
+    assert "source workflow run identity is invalid" in source_manifest_resolver
+    assert "source committed-manifest artifact provenance is invalid" in (source_manifest_resolver)
+    assert "artifact-ids: ${{ steps.source_manifest.outputs.artifact_id }}" in (
+        source_manifest_download
+    )
+    assert "run-id: ${{ steps.source_manifest.outputs.source_run_id }}" in (
+        source_manifest_download
+    )
+    assert "digest-mismatch: error" in source_manifest_download
+    assert "latest_checkpoint_transaction" in source_resolver
+    assert "zero-active replay requires a committed checkpoint transaction" in source_resolver
+    assert "source checkpoint REST identity does not match its committed receipt" in (
+        source_resolver
+    )
+    assert "rebuilding from attested complete-lane artifacts" in source_resolver
+    assert 'gh run download "$SOURCE_RUN_ID"' not in replay
+    assert "artifact-ids: ${{ steps.source_checkpoint.outputs.artifact_id }}" in (source_download)
+    assert "run-id: ${{ steps.source_checkpoint.outputs.source_run_id }}" in source_download
+    assert "digest-mismatch: error" in source_download
+    assert "steps.source_checkpoint.outputs.artifact_id != ''" in replay
+    assert "CHECKPOINT_TRANSACTION_PATH" in replay_attestation
+    assert "TRUST_MANIFEST_PATH" in replay_attestation
+    assert "zero-active replay trust manifest identity does not match" in (replay_attestation)
+    assert "source checkpoint built transaction does not match the committed trust root" in (
+        replay_attestation
+    )
+    assert "latest_checkpoint_run_id" not in replay_attestation
+    assert "latest_checkpoint_artifact_name" not in replay_attestation
+    assert "latest_checkpoint_generation" not in replay_attestation
+    assert "latest_checkpoint_coverage_hash" not in replay_attestation
     assert "source checkpoint lane coverage hashes do not match" in replay
     assert "source checkpoint database SHA-256 does not match" in replay
+    assert "source checkpoint report SHA-256 does not match" in replay
     assert "source checkpoint artifact identity does not match" in replay
     assert "source checkpoint source SHA does not match" in replay
     assert "checkpoint-manifest.json" in replay
@@ -3018,283 +4205,527 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
     assert "needs.terminal_replay.outputs.artifact-name == ''" in merge
 
 
-def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
+def test_terminal_replay_resolves_source_runs_immutable_committed_manifest(
+    tmp_path: pathlib.Path,
+) -> None:
+    replay = _job_block(_workflow_text(), "terminal_replay")
+    resolver = _embedded_python(replay, "TERMINAL_REPLAY_MANIFEST_RESOLVER")
+    chain_id = "fixture-chain"
+    source_run_id = "987654"
+    source_run_attempt = 2
+    owner_head_sha = "e" * 40
+    artifact_name = "full-extraction-next-manifest-fixture-chain-iter-4-run-987654-attempt-2"
+    artifact_digest = "sha256:" + "f" * 64
+    owner_run = {
+        "id": int(source_run_id),
+        "head_sha": owner_head_sha,
+        "run_attempt": source_run_attempt,
+    }
+    exact_artifact = {
+        "id": 801,
+        "name": artifact_name,
+        "digest": artifact_digest,
+        "size_in_bytes": 2048,
+        "expired": False,
+        "workflow_run": {
+            "id": int(source_run_id),
+            "head_sha": owner_head_sha,
+        },
+    }
+    stale_canonical = {
+        **exact_artifact,
+        "id": 700,
+        "name": f"full-extraction-manifest-{chain_id}",
+    }
+
+    def run_case(
+        name: str,
+        inventory_artifacts: list[dict[str, object]],
+    ) -> tuple[subprocess.CompletedProcess[str], pathlib.Path]:
+        case_dir = tmp_path / name
+        fixture_env = _gh_fixture_env(
+            case_dir,
+            [
+                owner_run,
+                [
+                    {
+                        "total_count": len(inventory_artifacts),
+                        "artifacts": inventory_artifacts,
+                    }
+                ],
+            ],
+        )
+        output_path = case_dir / "github-output.txt"
+        result = _run_python(
+            resolver,
+            env={
+                **fixture_env,
+                "CHAIN_ID": chain_id,
+                "GITHUB_OUTPUT": str(output_path),
+                "GITHUB_REPOSITORY": "acme/nbadb",
+                "SOURCE_RUN_ID": source_run_id,
+            },
+            cwd=case_dir,
+        )
+        return result, output_path
+
+    resolved, output_path = run_case(
+        "resolved",
+        [
+            stale_canonical,
+            {
+                **exact_artifact,
+                "id": 800,
+                "name": ("full-extraction-next-manifest-fixture-chain-iter-4-run-987654-attempt-1"),
+            },
+            exact_artifact,
+        ],
+    )
+    assert resolved.returncode == 0, resolved.stderr or resolved.stdout
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        f"artifact_name={artifact_name}",
+        "artifact_id=801",
+        f"artifact_digest={artifact_digest}",
+        "artifact_size_bytes=2048",
+        f"source_run_id={source_run_id}",
+        f"source_run_head_sha={owner_head_sha}",
+        f"source_run_attempt={source_run_attempt}",
+    ]
+
+    prior_artifact = {
+        **exact_artifact,
+        "id": 800,
+        "name": ("full-extraction-next-manifest-fixture-chain-iter-4-run-987654-attempt-1"),
+    }
+    prior_attempt, prior_output = run_case(
+        "prior-attempt",
+        [stale_canonical, prior_artifact],
+    )
+    assert prior_attempt.returncode == 0, prior_attempt.stderr or prior_attempt.stdout
+    assert prior_output.read_text(encoding="utf-8").splitlines()[-1] == ("source_run_attempt=1")
+
+    missing, missing_output = run_case("missing", [stale_canonical])
+    assert missing.returncode == 0, missing.stderr or missing.stdout
+    assert "No immutable committed next-manifest exists" in missing.stdout
+    assert not missing_output.exists()
+
+    ambiguous, ambiguous_output = run_case(
+        "ambiguous",
+        [exact_artifact, {**exact_artifact, "id": 802}],
+    )
+    assert ambiguous.returncode == 1
+    assert "ambiguous immutable committed next-manifest" in ambiguous.stderr
+    assert not ambiguous_output.exists()
+
+    wrong_head, wrong_head_output = run_case(
+        "wrong-head",
+        [
+            {
+                **exact_artifact,
+                "workflow_run": {
+                    "id": int(source_run_id),
+                    "head_sha": "0" * 40,
+                },
+            }
+        ],
+    )
+    assert wrong_head.returncode == 1
+    assert "committed-manifest artifact provenance is invalid" in wrong_head.stderr
+    assert not wrong_head_output.exists()
+
+
+def test_terminal_replay_uses_committed_transaction_and_rejects_tampering(
     tmp_path: pathlib.Path,
 ) -> None:
     replay = _job_block(_workflow_text(), "terminal_replay")
     resolver = _embedded_python(replay, "TERMINAL_REPLAY_ARTIFACT_RESOLVER")
     attestation = _embedded_python(replay, "TERMINAL_REPLAY_ATTESTATION")
-    artifacts_path = tmp_path / "artifacts.json"
-    output_path = tmp_path / "github-output.txt"
-    checkpoint_name = "full-extraction-checkpoint-fixture-chain-iter-3"
-    artifacts_path.write_text(
-        json.dumps(
-            [
-                {
-                    "artifacts": [
-                        {"name": checkpoint_name, "expired": False},
-                        {
-                            "name": "full-extraction-checkpoint-fixture-chain-iter-2",
-                            "expired": True,
-                        },
-                        {"name": "unrelated", "expired": False},
-                    ]
-                }
-            ]
-        ),
-        encoding="utf-8",
+    chain_id = "fixture-chain"
+    source_sha = "a" * 40
+    coverage_fingerprint = "b" * 64
+    lane_coverage_hash = "c" * 64
+    artifact_digest = "sha256:" + "d" * 64
+    source_run_id = "987654"
+    owner_head_sha = "e" * 40
+    artifact_id = 701
+    checkpoint_name = f"full-extraction-checkpoint-{chain_id}-iter-3"
+    database_path = tmp_path / "nba.duckdb"
+    database_path.write_bytes(b"attested-checkpoint")
+    database_sha256 = hashlib.sha256(database_path.read_bytes()).hexdigest()
+    report_path = tmp_path / "checkpoint-report.json"
+    report = {
+        "active_lane_count": 0,
+        "chain_id": chain_id,
+        "checkpoint_generation": 3,
+        "complete_lane_count": 1,
+        "coverage_fingerprint": coverage_fingerprint,
+        "included_lane_coverage_hashes": {
+            "fixture-lane": lane_coverage_hash,
+        },
+        "database_sha256": database_sha256,
+        "run_id": source_run_id,
+        "artifact_name": checkpoint_name,
+        "source_sha": source_sha,
+        "terminal_ready": True,
+    }
+    report_bytes = json.dumps(report, sort_keys=True).encode("utf-8")
+    report_path.write_bytes(report_bytes)
+    report_sha256 = hashlib.sha256(report_bytes).hexdigest()
+    transaction = _committed_checkpoint_transaction(
+        chain_id=chain_id,
+        source_sha=source_sha,
+        generation=3,
+        artifact_id=artifact_id,
+        artifact_run_id=int(source_run_id),
+        artifact_digest=artifact_digest,
+        artifact_size_bytes=4096,
+        database_sha256=database_sha256,
+        report_sha256=report_sha256,
+        coverage_fingerprint=coverage_fingerprint,
+        lane_id="fixture-lane",
+        lane_coverage_hash=lane_coverage_hash,
     )
+    transaction_payload = transaction.to_dict()
+    plan_manifest_path = tmp_path / "manifest.json"
+    plan_manifest = {
+        "lane_count": 1,
+        "active_lane_count": 0,
+        "matrix_lane_count": 0,
+        "coverage_fingerprint": coverage_fingerprint,
+        "chain_state": {
+            "latest_checkpoint_run_id": "stale-flat-run",
+            "latest_checkpoint_artifact_name": "stale-flat-artifact",
+            "latest_checkpoint_generation": 2,
+            "latest_checkpoint_coverage_hash": "stale-flat-coverage",
+        },
+    }
+    plan_manifest_path.write_text(json.dumps(plan_manifest), encoding="utf-8")
+    trust_manifest_path = tmp_path / "next-manifest.json"
+    trust_manifest = {
+        "chain_id": chain_id,
+        "workflow_source_sha": source_sha,
+        "chain_state": {
+            "latest_checkpoint_transaction": transaction_payload,
+        },
+    }
+    trust_manifest_path.write_text(json.dumps(trust_manifest), encoding="utf-8")
+    owner_run = {
+        "id": int(source_run_id),
+        "head_sha": owner_head_sha,
+    }
+    artifact = {
+        "id": artifact_id,
+        "name": checkpoint_name,
+        "digest": artifact_digest,
+        "size_in_bytes": 4096,
+        "expired": False,
+        "workflow_run": {
+            "id": int(source_run_id),
+            "head_sha": owner_head_sha,
+        },
+    }
+    resolver_dir = tmp_path / "resolver"
+    fixture_env = _gh_fixture_env(resolver_dir, [owner_run, artifact])
+    output_path = tmp_path / "github-output.txt"
     resolver_env = {
-        "ARTIFACTS_PATH": str(artifacts_path),
-        "CHAIN_ID": "fixture-chain",
+        **fixture_env,
+        "CHAIN_ID": chain_id,
         "GITHUB_OUTPUT": str(output_path),
+        "GITHUB_REPOSITORY": "acme/nbadb",
+        "PLAN_MANIFEST_PATH": str(trust_manifest_path),
+        "SOURCE_RUN_ID": source_run_id,
+        "WORKFLOW_SOURCE_SHA": source_sha,
     }
     resolved = _run_python(resolver, env=resolver_env)
     assert resolved.returncode == 0, resolved.stderr or resolved.stdout
     assert output_path.read_text(encoding="utf-8").splitlines() == [
         f"artifact_name={checkpoint_name}",
+        f"artifact_id={artifact_id}",
+        f"artifact_digest={artifact_digest}",
+        "artifact_size_bytes=4096",
+        f"source_run_id={source_run_id}",
         "checkpoint_generation=3",
+        f"coverage_fingerprint={coverage_fingerprint}",
+        f"database_sha256={database_sha256}",
+        f"report_sha256={report_sha256}",
     ]
 
     output_path.unlink()
-    artifacts_path.write_text('[{"artifacts": []}]\n', encoding="utf-8")
+    trust_manifest["chain_state"] = {}
+    trust_manifest_path.write_text(json.dumps(trust_manifest), encoding="utf-8")
     missing = _run_python(resolver, env=resolver_env)
     assert missing.returncode == 0, missing.stderr or missing.stdout
-    assert "No source checkpoint exists" in missing.stdout
+    assert "No committed source checkpoint transaction exists" in missing.stdout
     assert not output_path.exists()
 
-    artifacts_path.write_text(
-        json.dumps(
-            [
-                {
-                    "artifacts": [
-                        {"name": checkpoint_name, "expired": False},
-                        {
-                            "name": "full-extraction-checkpoint-fixture-chain-iter-4",
-                            "expired": False,
-                        },
-                    ]
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
-    ambiguous = _run_python(resolver, env=resolver_env)
-    assert ambiguous.returncode == 1
-    assert "requires at most one unexpired source checkpoint" in ambiguous.stdout
+    for label, malformed_transaction in (
+        ("null", None),
+        ("empty-string", ""),
+        ("empty-list", []),
+        ("empty-object", {}),
+    ):
+        trust_manifest["chain_state"] = {
+            "latest_checkpoint_transaction": malformed_transaction,
+        }
+        trust_manifest_path.write_text(json.dumps(trust_manifest), encoding="utf-8")
+        malformed = _run_python(resolver, env=resolver_env)
+        assert malformed.returncode == 1, label
+        assert "zero-active replay requires a committed checkpoint transaction" in malformed.stderr
+        assert not output_path.exists()
 
-    database_path = tmp_path / "nba.duckdb"
-    database_path.write_bytes(b"attested-checkpoint")
-    plan_manifest_path = tmp_path / "manifest.json"
-    plan_manifest_path.write_text(
-        json.dumps(
-            {
-                "lane_count": 1,
-                "active_lane_count": 0,
-                "matrix_lane_count": 0,
-                "coverage_fingerprint": "fixture-coverage",
-                "chain_state": {
-                    "latest_checkpoint_run_id": "stale-run",
-                    "latest_checkpoint_artifact_name": "stale-artifact",
-                    "latest_checkpoint_generation": 2,
-                    "latest_checkpoint_coverage_hash": "stale-coverage",
-                },
-            }
-        ),
-        encoding="utf-8",
+    trust_manifest["chain_state"] = {
+        "latest_checkpoint_transaction": transaction_payload,
+    }
+    trust_manifest_path.write_text(json.dumps(trust_manifest), encoding="utf-8")
+    invalid_transaction = json.loads(json.dumps(transaction_payload))
+    invalid_transaction["receipt"]["database_sha256"] = "0" * 64
+    trust_manifest["chain_state"]["latest_checkpoint_transaction"] = invalid_transaction
+    trust_manifest_path.write_text(json.dumps(trust_manifest), encoding="utf-8")
+    invalid_receipt = _run_python(resolver, env=resolver_env)
+    assert invalid_receipt.returncode == 1
+    assert "committed checkpoint artifact receipt is invalid" in invalid_receipt.stderr
+    assert not output_path.exists()
+
+    trust_manifest["chain_state"]["latest_checkpoint_transaction"] = transaction_payload
+    trust_manifest_path.write_text(json.dumps(trust_manifest), encoding="utf-8")
+    mismatch_dir = tmp_path / "resolver-rest-mismatch"
+    mismatch_env = _gh_fixture_env(
+        mismatch_dir,
+        [owner_run, {**artifact, "size_in_bytes": 8192}],
     )
+    rest_mismatch = _run_python(
+        resolver,
+        env={**resolver_env, **mismatch_env},
+    )
+    assert rest_mismatch.returncode == 1
+    assert "REST identity does not match its committed receipt" in rest_mismatch.stderr
+    assert not output_path.exists()
+
     checkpoint_manifest_path = tmp_path / "checkpoint-manifest.json"
     checkpoint_manifest = {
-        "chain_id": "fixture-chain",
-        "workflow_source_sha": "a" * 40,
+        "chain_id": chain_id,
+        "workflow_source_sha": source_sha,
         "lane_count": 1,
-        "coverage_fingerprint": "fixture-coverage",
+        "coverage_fingerprint": coverage_fingerprint,
         "chain_state": {
-            "latest_checkpoint_run_id": "987654",
-            "latest_checkpoint_artifact_name": checkpoint_name,
-            "latest_checkpoint_generation": 3,
-            "latest_checkpoint_coverage_hash": "fixture-coverage",
+            "latest_checkpoint_run_id": "stale-candidate-run",
+            "latest_checkpoint_artifact_name": "stale-candidate-artifact",
+            "latest_checkpoint_generation": 2,
+            "latest_checkpoint_coverage_hash": "stale-candidate-coverage",
         },
         "lanes": [
             {
                 "lane_id": "fixture-lane",
-                "coverage_units_hash": "fixture-lane-coverage",
+                "coverage_units_hash": lane_coverage_hash,
             }
         ],
     }
     checkpoint_manifest_path.write_text(json.dumps(checkpoint_manifest), encoding="utf-8")
-    report_path = tmp_path / "checkpoint-report.json"
-    report = {
-        "active_lane_count": 0,
-        "chain_id": "fixture-chain",
-        "checkpoint_generation": 3,
-        "complete_lane_count": 1,
-        "coverage_fingerprint": "fixture-coverage",
-        "included_lane_coverage_hashes": {"fixture-lane": "fixture-lane-coverage"},
-        "database_sha256": hashlib.sha256(database_path.read_bytes()).hexdigest(),
-        "run_id": "987654",
-        "artifact_name": checkpoint_name,
-        "source_sha": "a" * 40,
-        "terminal_ready": True,
-    }
-    report_path.write_text(json.dumps(report), encoding="utf-8")
+    candidate_transaction_path = tmp_path / "checkpoint-transaction.json"
+    candidate_transaction = json.loads(json.dumps(transaction_payload))
+    candidate_transaction["state"] = "built"
+    candidate_transaction["receipt"] = None
+    candidate_transaction_path.write_text(
+        json.dumps(candidate_transaction),
+        encoding="utf-8",
+    )
     attestation_env = {
-        "CHAIN_ID": "fixture-chain",
+        "CHAIN_ID": chain_id,
         "CHECKPOINT_DATABASE_PATH": str(database_path),
+        "CHECKPOINT_TRANSACTION_PATH": str(candidate_transaction_path),
         "CHECKPOINT_REPORT_PATH": str(report_path),
         "EXPECTED_CHECKPOINT_GENERATION": "3",
+        "EXPECTED_COVERAGE_FINGERPRINT": coverage_fingerprint,
+        "EXPECTED_DATABASE_SHA256": database_sha256,
+        "EXPECTED_REPORT_SHA256": report_sha256,
         "PLAN_MANIFEST_PATH": str(plan_manifest_path),
+        "TRUST_MANIFEST_PATH": str(trust_manifest_path),
         "CHECKPOINT_MANIFEST_PATH": str(checkpoint_manifest_path),
         "SOURCE_CHECKPOINT_ARTIFACT": checkpoint_name,
-        "SOURCE_RUN_ID": "987654",
-        "WORKFLOW_SOURCE_SHA": "a" * 40,
+        "SOURCE_RUN_ID": source_run_id,
+        "WORKFLOW_SOURCE_SHA": source_sha,
     }
     accepted = _run_python(attestation, env=attestation_env)
     assert accepted.returncode == 0, accepted.stderr or accepted.stdout
 
-    checkpoint_manifest["chain_state"]["latest_checkpoint_generation"] = 2
-    checkpoint_manifest_path.write_text(json.dumps(checkpoint_manifest), encoding="utf-8")
-    stale_checkpoint_pointer = _run_python(attestation, env=attestation_env)
-    assert stale_checkpoint_pointer.returncode == 1
-    assert "source checkpoint manifest latest generation does not match" in (
-        stale_checkpoint_pointer.stdout
+    mismatched_candidate = json.loads(json.dumps(candidate_transaction))
+    mismatched_candidate["build"]["database_sha256"] = "0" * 64
+    candidate_transaction_path.write_text(
+        json.dumps(mismatched_candidate),
+        encoding="utf-8",
     )
-    checkpoint_manifest["chain_state"]["latest_checkpoint_generation"] = 3
-    checkpoint_manifest_path.write_text(json.dumps(checkpoint_manifest), encoding="utf-8")
+    wrong_candidate = _run_python(attestation, env=attestation_env)
+    assert wrong_candidate.returncode == 1
+    assert "built transaction does not match the committed trust root" in (wrong_candidate.stdout)
+    candidate_transaction_path.write_text(
+        json.dumps(candidate_transaction),
+        encoding="utf-8",
+    )
 
-    report["included_lane_coverage_hashes"]["fixture-lane"] = "tampered"
-    report_path.write_text(json.dumps(report), encoding="utf-8")
+    tampered_report = {**report}
+    tampered_report["included_lane_coverage_hashes"] = {
+        "fixture-lane": "0" * 64,
+    }
+    report_path.write_text(json.dumps(tampered_report, sort_keys=True), encoding="utf-8")
     wrong_lane_contract = _run_python(attestation, env=attestation_env)
     assert wrong_lane_contract.returncode == 1
     assert "source checkpoint lane coverage hashes do not match" in wrong_lane_contract.stdout
+    report_path.write_bytes(report_bytes)
 
-    report["included_lane_coverage_hashes"]["fixture-lane"] = "fixture-lane-coverage"
-    report["database_sha256"] = "0" * 64
-    report_path.write_text(json.dumps(report), encoding="utf-8")
-    tampered = _run_python(attestation, env=attestation_env)
-    assert tampered.returncode == 1
-    assert "source checkpoint database SHA-256 does not match" in tampered.stdout
+    database_path.write_bytes(b"tampered")
+    tampered_database = _run_python(attestation, env=attestation_env)
+    assert tampered_database.returncode == 1
+    assert "source checkpoint database SHA-256 does not match" in (tampered_database.stdout)
+    database_path.write_bytes(b"attested-checkpoint")
+
+    report_path.write_bytes(report_bytes + b"\n")
+    tampered_report_file = _run_python(attestation, env=attestation_env)
+    assert tampered_report_file.returncode == 1
+    assert "source checkpoint report SHA-256 does not match" in (tampered_report_file.stdout)
 
 
-def test_post_dispatch_poll_requires_one_exact_title_child_and_records_it(
+def test_dispatch_rest_response_and_child_provenance_are_exact(
     tmp_path: pathlib.Path,
 ) -> None:
     dispatch = _job_block(_workflow_text(), "dispatch_next")
-    matcher = _embedded_python(dispatch, "CHILD_RUN_MATCHER")
+    redispatch_guard = _step_block(dispatch, "Verify redispatch workflow definition")
+    response_parser = _embedded_python_after(
+        dispatch,
+        'DISPATCH_RESPONSE_PATH="$dispatch_response_path"',
+    )
+    provenance_validator = _embedded_python_after(
+        dispatch,
+        'CHILD_DETAILS_PATH="$child_details_path"',
+    )
     expected_title = "Full Extraction chain=12345 iteration=2"
-    runs_path = tmp_path / "runs.json"
+    pinned_source_sha = "a" * 40
+    trusted_branch_tip_sha = "b" * 40
+    response_path = tmp_path / "dispatch-response.json"
     child_path = tmp_path / "child.json"
-    existing_ids_path = tmp_path / "existing.json"
-    existing_ids_path.write_text("[]\n", encoding="utf-8")
-    base_env = {
-        "RUNS_PATH": str(runs_path),
-        "CHILD_RUN_PATH": str(child_path),
-        "EXISTING_CHILD_RUN_IDS_PATH": str(existing_ids_path),
-        "EXPECTED_RUN_NAME": expected_title,
-    }
-
-    runs_path.write_text('[{"workflow_runs": []}]\n', encoding="utf-8")
-    absent = _run_python(matcher, env=base_env)
-    assert absent.returncode == 1
-    assert not child_path.exists()
-
-    runs_path.write_text(
+    details_path = tmp_path / "child-details.json"
+    expected_html_url = "https://github.example/acme/nbadb/actions/runs/42"
+    expected_api_url = "https://api.github.example/repos/acme/nbadb/actions/runs/42"
+    response_path.write_text(
         json.dumps(
-            [
-                {
-                    "workflow_runs": [
-                        {
-                            "id": 10,
-                            "display_title": "Full Extraction chain=other iteration=2",
-                            "html_url": "https://github.example/runs/10",
-                        }
-                    ]
-                },
-                {
-                    "workflow_runs": [
-                        {
-                            "id": 42,
-                            "display_title": expected_title,
-                            "status": "queued",
-                            "html_url": "https://github.example/runs/42",
-                        }
-                    ]
-                },
-            ]
+            {
+                "workflow_run_id": 42,
+                "html_url": expected_html_url,
+                "run_url": expected_api_url,
+            }
         )
         + "\n",
         encoding="utf-8",
     )
-    single = _run_python(matcher, env=base_env)
-    assert single.returncode == 0, single.stderr or single.stdout
+    response_env = {
+        "DISPATCH_RESPONSE_PATH": str(response_path),
+        "CHILD_RUN_PATH": str(child_path),
+        "EXPECTED_RUN_NAME": expected_title,
+        "GITHUB_API_URL": "https://api.github.example",
+        "GITHUB_REPOSITORY": "acme/nbadb",
+        "GITHUB_SERVER_URL": "https://github.example",
+    }
+
+    parsed = _run_python(response_parser, env=response_env)
+    assert parsed.returncode == 0, parsed.stderr or parsed.stdout
     assert json.loads(child_path.read_text(encoding="utf-8")) == {
+        "api_url": expected_api_url,
         "display_title": expected_title,
         "id": "42",
-        "url": "https://github.example/runs/42",
+        "url": expected_html_url,
     }
 
-    changed_child = _run_python(
-        matcher,
-        env={**base_env, "EXPECTED_CHILD_RUN_ID": "41"},
-    )
-    assert changed_child.returncode == 4
-    assert "changed during stabilization" in changed_child.stdout
+    details = {
+        "id": 42,
+        "display_title": expected_title,
+        "html_url": expected_html_url,
+        "event": "workflow_dispatch",
+        "head_sha": trusted_branch_tip_sha,
+    }
+    details_path.write_text(json.dumps(details) + "\n", encoding="utf-8")
+    provenance_env = {
+        "CHILD_DETAILS_PATH": str(details_path),
+        "EXPECTED_CHILD_RUN_ID": "42",
+        "EXPECTED_RUN_NAME": expected_title,
+        "EXPECTED_CHILD_URL": expected_html_url,
+        "TRUSTED_BRANCH_TIP_SHA": trusted_branch_tip_sha,
+        "WORKFLOW_SHA": pinned_source_sha,
+    }
+    accepted = _run_python(provenance_validator, env=provenance_env)
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
 
-    runs_path.write_text(
+    for key, invalid_value in (
+        ("id", 43),
+        ("display_title", "Full Extraction chain=other iteration=2"),
+        ("html_url", "https://github.example/acme/nbadb/actions/runs/43"),
+        ("event", "schedule"),
+        ("head_sha", "c" * 40),
+    ):
+        invalid_details = {**details, key: invalid_value}
+        details_path.write_text(
+            json.dumps(invalid_details) + "\n",
+            encoding="utf-8",
+        )
+        rejected = _run_python(provenance_validator, env=provenance_env)
+        assert rejected.returncode == 1
+        assert "self-dispatched child provenance does not match" in rejected.stderr
+
+    response_path.write_text(
         json.dumps(
-            [
-                {
-                    "workflow_runs": [
-                        {
-                            "id": run_id,
-                            "display_title": expected_title,
-                            "status": "queued",
-                            "html_url": f"https://github.example/runs/{run_id}",
-                        }
-                    ]
-                }
-                for run_id in (42, 43)
-            ]
+            {
+                "workflow_run_id": 42,
+                "html_url": "https://github.example/acme/nbadb/actions/runs/41",
+                "run_url": expected_api_url,
+            }
         )
         + "\n",
         encoding="utf-8",
     )
-    duplicate = _run_python(matcher, env=base_env)
-    assert duplicate.returncode == 2
-    assert "created 2 exact-title child runs" in duplicate.stdout
+    mismatched_response = _run_python(response_parser, env=response_env)
+    assert mismatched_response.returncode == 1
+    assert "did not return an exact child identity" in mismatched_response.stderr
 
-    runs_path.write_text(
+    response_path.write_text(
         json.dumps(
-            [
-                {
-                    "workflow_runs": [
-                        {
-                            "id": "invalid",
-                            "display_title": expected_title,
-                            "html_url": "",
-                        }
-                    ]
-                }
-            ]
+            {
+                "workflow_run_id": 42,
+                "html_url": f"https://attacker.example{expected_html_url}",
+                "run_url": f"https://attacker.example{expected_api_url}",
+            }
         )
         + "\n",
         encoding="utf-8",
     )
-    malformed = _run_python(matcher, env=base_env)
-    assert malformed.returncode == 3
-    assert "missing a valid id or URL" in malformed.stdout
+    suffix_spoof = _run_python(response_parser, env=response_env)
+    assert suffix_spoof.returncode == 1
+    assert "did not return an exact child identity" in suffix_spoof.stderr
 
-    enqueue = dispatch.index("gh workflow run full-extraction.yml")
-    poll = dispatch.index('child_run_path="$RUNNER_TEMP/full-extraction-child-run.json"')
-    assert enqueue < poll
-    assert 'CHILD_POLL_ATTEMPTS: "12"' in dispatch
+    payload = dispatch.index('"return_run_details": True')
+    enqueue = dispatch.index("/actions/workflows/full-extraction.yml/dispatches")
+    response = dispatch.index('response.get("workflow_run_id")', enqueue)
+    exact_get = dispatch.index('"$child_run_api_url" > "$child_details_path"', response)
+    provenance = dispatch.index("self-dispatched child provenance does not match", exact_get)
+    acknowledgement = dispatch.index("child_acknowledged=true", provenance)
+    assert payload < enqueue < response < exact_get < provenance < acknowledgement
+    assert "gh workflow run full-extraction.yml" not in dispatch
+    assert "# CHILD_RUN_MATCHER" not in dispatch
+    assert '-H "X-GitHub-Api-Version: 2022-11-28"' in dispatch
+    assert '"return_run_details": True' in dispatch
+    assert "GITHUB_SERVER_URL" in dispatch
+    assert "GITHUB_API_URL" in dispatch
+    assert "gh api \\\n              --method GET" in dispatch
+    assert "id: redispatch_guard" in redispatch_guard
+    assert 'echo "trusted_branch_tip_sha=$trusted_branch_commit"' in redispatch_guard
+    assert (
+        "TRUSTED_BRANCH_TIP_SHA: "
+        "${{ steps.redispatch_guard.outputs.trusted_branch_tip_sha }}" in dispatch
+    )
+    assert '"workflow_sha": os.environ["WORKFLOW_SHA"]' in dispatch
+    assert 'os.environ["TRUSTED_BRANCH_TIP_SHA"].lower()' in provenance_validator
+    assert 'os.environ["WORKFLOW_SHA"].lower()' not in provenance_validator
     assert 'CHILD_POLL_INTERVAL_SECONDS: "5"' in dispatch
-    assert "--paginate" in dispatch[poll:]
-    assert "--slurp" in dispatch[poll:]
-    assert dispatch.count("# CHILD_RUN_MATCHER") == 2
-    assert 'EXPECTED_CHILD_RUN_ID="$acknowledged_child_run_id"' in dispatch
-    assert "exact-title child inventory did not stabilize" in dispatch
-    assert "Self-dispatch child run was not visible" in dispatch
+    assert "for _attempt in 1 2 3; do" in dispatch
+    assert 'EXPECTED_CHILD_RUN_ID="$child_run_id"' in dispatch
+    assert "Exact self-dispatched child run $child_run_id was not readable" in dispatch
     assert 'echo "child_run_id=$child_run_id"' in dispatch
     assert 'echo "child_run_url=$child_run_url"' in dispatch
 
@@ -3323,7 +4754,7 @@ def test_ci_runs_checksum_pinned_actionlint_on_all_workflows() -> None:
     assert workflow.count(".github/scripts/vpn_control_plane.py") == 3
 
 
-def test_full_extraction_artifacts_are_safe_to_replace_on_job_reruns() -> None:
+def test_full_extraction_artifact_overwrite_semantics_are_explicit() -> None:
     workflow = _workflow_text()
     upload_steps = re.findall(
         r"(?ms)^      - (?:name: [^\n]+\n(?:        [^\n]*\n)*)?"
@@ -3337,9 +4768,26 @@ def test_full_extraction_artifacts_are_safe_to_replace_on_job_reruns() -> None:
     assert all(
         "overwrite: true" in inputs or "overwrite: false" in inputs for inputs in upload_steps
     )
-    assert workflow.count("overwrite: false") == 3
+    assert workflow.count("overwrite: false") == 7
     assert "vpn-capacity-connected-run-${{ github.run_id }}-attempt-" in workflow
     assert "full-extraction-vpn-auth-circuit-run-${{ github.run_id }}-attempt-" in workflow
+
+    capacity = _job_block(workflow, "vpn_capacity")
+    extract = _job_block(workflow, "extract")
+    lane_control = _job_block(workflow, "lane_control")
+    checkpoint = _job_block(workflow, "checkpoint")
+    for block, step_name in (
+        (capacity, "Publish connected VPN capacity marker"),
+        (extract, "Publish VPN auth circuit marker"),
+        (extract, "Retry VPN auth circuit marker publication"),
+        (lane_control, "Upload checkpoint candidate manifest"),
+        (checkpoint, "Upload checkpoint artifact"),
+        (checkpoint, "Retry checkpoint artifact upload after stable absence"),
+        (checkpoint, "Upload committed next manifest"),
+    ):
+        step = _step_block(block, step_name)
+        assert "overwrite: false" in step
+        assert "overwrite: true" not in step
 
 
 def test_planner_output_drives_exact_discovery_scope_cardinality(

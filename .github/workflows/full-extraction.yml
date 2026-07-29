@@ -141,6 +141,14 @@ on:
         description: "Lane manifest artifact name to download from lane_manifest_run_id"
         type: string
         default: ""
+      lane_manifest_artifact_id:
+        description: "Exact committed lane-manifest artifact ID for chained handoff"
+        type: string
+        default: ""
+      lane_manifest_artifact_digest:
+        description: "Exact committed lane-manifest artifact SHA-256 for chained handoff"
+        type: string
+        default: ""
       resume_source_run_id:
         description: "Completed or failed source run ID to resume from metadata and its original manifest"
         type: string
@@ -176,7 +184,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
@@ -185,6 +193,8 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANE_MANIFEST_ARTIFACT_DIGEST: ${{ inputs.lane_manifest_artifact_digest }}
+          LANE_MANIFEST_ARTIFACT_ID: ${{ inputs.lane_manifest_artifact_id }}
           LANE_MANIFEST_ARTIFACT_NAME: ${{ inputs.lane_manifest_artifact_name }}
           LANE_MANIFEST_JSON: ${{ inputs.lane_manifest_json }}
           LANE_MANIFEST_RUN_ID: ${{ inputs.lane_manifest_run_id }}
@@ -266,6 +276,23 @@ jobs:
             fi
           fi
 
+          has_manifest_receipt=false
+          if [ -n "$LANE_MANIFEST_ARTIFACT_ID" ] || [ -n "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then
+            if [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then
+              echo "::error::lane_manifest_artifact_id and lane_manifest_artifact_digest must be provided together"
+              exit 1
+            fi
+            has_manifest_receipt=true
+          fi
+          if [ "$has_manifest_receipt" = "true" ] && { [ -z "$LANE_MANIFEST_RUN_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_NAME" ]; }; then
+            echo "::error::receipt-aware manifest handoff requires run ID, artifact name, ID, and digest"
+            exit 1
+          fi
+          if [ "$has_manifest_receipt" = "true" ] && [ -n "$LANE_MANIFEST_JSON" ]; then
+            echo "::error::receipt-aware manifest handoff cannot be combined with lane_manifest_json"
+            exit 1
+          fi
+
           source_blob="$(git rev-parse "${source_commit}:${WORKFLOW_PATH}")"
           definition_blob="$(gh api \
             --method GET \
@@ -299,13 +326,14 @@ jobs:
       iteration-budget: ${{ steps.manifest.outputs.iteration-budget }}
       max-matrix-lanes: ${{ steps.manifest.outputs.max-matrix-lanes }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -450,10 +478,391 @@ jobs:
           retention-days: 7
           compression-level: 6
 
+      - name: Verify exact input manifest receipt
+        if: ${{ inputs.lane_manifest_artifact_id != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANE_MANIFEST_ARTIFACT_DIGEST: ${{ inputs.lane_manifest_artifact_digest }}
+          LANE_MANIFEST_ARTIFACT_ID: ${{ inputs.lane_manifest_artifact_id }}
+          LANE_MANIFEST_ARTIFACT_NAME: ${{ inputs.lane_manifest_artifact_name }}
+          LANE_MANIFEST_RUN_ID: ${{ inputs.lane_manifest_run_id }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          artifact_id = os.environ["LANE_MANIFEST_ARTIFACT_ID"]
+          run_id = os.environ["LANE_MANIFEST_RUN_ID"]
+          if re.fullmatch(r"[1-9][0-9]*", artifact_id) is None:
+              raise SystemExit("lane-manifest artifact ID must be a positive integer")
+          if re.fullmatch(r"[1-9][0-9]*", run_id) is None:
+              raise SystemExit("lane-manifest run ID must be a positive integer")
+          digest = os.environ["LANE_MANIFEST_ARTIFACT_DIGEST"].lower()
+          if not digest.startswith("sha256:"):
+              digest = f"sha256:{digest}"
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+              raise SystemExit("lane-manifest artifact digest must be a SHA-256")
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          if (
+              str(owner_run.get("id") or "") != run_id
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+          ):
+              raise SystemExit("lane-manifest owner run identity is invalid")
+          raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/artifacts/{artifact_id}"
+                  ),
+              ],
+              text=True,
+          )
+          artifact = json.loads(raw)
+          workflow_run = artifact.get("workflow_run")
+          rest_artifact_id = artifact.get("id")
+          size = artifact.get("size_in_bytes")
+          if (
+              isinstance(rest_artifact_id, bool)
+              or not isinstance(rest_artifact_id, int)
+              or rest_artifact_id != int(artifact_id)
+              or artifact.get("name") != os.environ["LANE_MANIFEST_ARTIFACT_NAME"]
+              or artifact.get("digest") != digest
+              or artifact.get("expired") is not False
+              or isinstance(size, bool)
+              or not isinstance(size, int)
+              or size < 1
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "lane-manifest REST identity does not match its committed receipt"
+              )
+          PY
+
+      - name: Download exact input manifest
+        if: ${{ inputs.lane_manifest_artifact_id != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ inputs.lane_manifest_artifact_id }}
+          path: ${{ runner.temp }}/lane-manifest-input
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.lane_manifest_run_id }}
+          digest-mismatch: error
+
+      - name: Resolve resume source committed manifest
+        id: resume_source_manifest
+        if: ${{ inputs.resume_source_run_id != '' }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RESUME_SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+        run: |
+          python - <<'PY'
+          # RESUME_SOURCE_COMMITTED_MANIFEST_RESOLVER
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          source_run_id = os.environ["RESUME_SOURCE_RUN_ID"]
+          if re.fullmatch(r"[1-9][0-9]*", source_run_id) is None:
+              raise SystemExit("resume source run ID must be a positive integer")
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{source_run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          run_attempt = owner_run.get("run_attempt")
+          if (
+              str(owner_run.get("id") or "") != source_run_id
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+              or isinstance(run_attempt, bool)
+              or not isinstance(run_attempt, int)
+              or run_attempt < 1
+          ):
+              raise SystemExit("resume source workflow run identity is invalid")
+
+          inventory_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "--method",
+                  "GET",
+                  "--paginate",
+                  "--slurp",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{source_run_id}/artifacts"
+                  ),
+                  "-f",
+                  "per_page=100",
+              ],
+              text=True,
+          )
+          pages = json.loads(inventory_raw)
+          if not isinstance(pages, list) or not pages:
+              raise SystemExit("resume source artifact inventory must contain pages")
+          prefix = f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-"
+          run_marker = f"-run-{source_run_id}-attempt-"
+          pattern = re.compile(
+              (
+                  rf"^{re.escape(prefix)}iter-[1-9][0-9]*-"
+                  rf"run-{re.escape(source_run_id)}-"
+                  r"attempt-(?P<attempt>[1-9][0-9]*)$"
+              )
+          )
+          matches_by_attempt: dict[int, list[dict[str, object]]] = {}
+          for page in pages:
+              if not isinstance(page, dict):
+                  raise SystemExit("resume source artifact inventory page must be an object")
+              artifacts = page.get("artifacts")
+              if not isinstance(artifacts, list):
+                  raise SystemExit("resume source artifact inventory page is malformed")
+              for artifact in artifacts:
+                  if not isinstance(artifact, dict):
+                      raise SystemExit(
+                          "resume source artifact inventory entry must be an object"
+                      )
+                  artifact_name = str(artifact.get("name") or "")
+                  match = pattern.fullmatch(artifact_name)
+                  if match is not None:
+                      attempt = int(match.group("attempt"))
+                      if attempt > run_attempt:
+                          raise SystemExit(
+                              "resume source committed-manifest attempt exceeds "
+                              "the owner run attempt"
+                          )
+                      matches_by_attempt.setdefault(attempt, []).append(artifact)
+                  elif artifact_name.startswith(prefix) and run_marker in artifact_name:
+                      raise SystemExit(
+                          "resume source committed-manifest artifact name is malformed"
+                      )
+          if not matches_by_attempt:
+              with Path(os.environ["GITHUB_OUTPUT"]).open(
+                  "a", encoding="utf-8"
+              ) as handle:
+                  handle.write("resolution=canonical_fallback\n")
+              print(
+                  "::notice::No immutable committed next-manifest exists for the "
+                  "resume source run attempt; using its canonical pre-checkpoint manifest"
+              )
+              raise SystemExit(0)
+          selected_attempt = max(matches_by_attempt)
+          matches = matches_by_attempt[selected_attempt]
+          if len(matches) != 1:
+              raise SystemExit(
+                  "resume source has ambiguous immutable committed next-manifest "
+                  f"artifacts for attempt {selected_attempt}"
+              )
+
+          artifact = matches[0]
+          artifact_id = artifact.get("id")
+          artifact_name = str(artifact.get("name") or "")
+          artifact_digest = str(artifact.get("digest") or "").lower()
+          artifact_size = artifact.get("size_in_bytes")
+          workflow_run = artifact.get("workflow_run")
+          if (
+              isinstance(artifact_id, bool)
+              or not isinstance(artifact_id, int)
+              or artifact_id < 1
+              or re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None
+              or isinstance(artifact_size, bool)
+              or not isinstance(artifact_size, int)
+              or artifact_size < 1
+              or artifact.get("expired") is not False
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != source_run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "resume source committed-manifest artifact provenance is invalid"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write("resolution=committed\n")
+              handle.write(f"artifact_name={artifact_name}\n")
+              handle.write(f"artifact_id={artifact_id}\n")
+              handle.write(f"artifact_digest={artifact_digest}\n")
+              handle.write(f"source_run_id={source_run_id}\n")
+              handle.write(f"source_run_attempt={selected_attempt}\n")
+          PY
+
+      - name: Download resume source committed manifest
+        if: ${{ steps.resume_source_manifest.outputs.resolution == 'committed' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ steps.resume_source_manifest.outputs.artifact_id }}
+          path: ${{ runner.temp }}/resume-source/manifest-committed
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.resume_source_manifest.outputs.source_run_id }}
+          digest-mismatch: error
+
+      - name: Prepare resume source manifest
+        if: ${{ inputs.resume_source_run_id != '' }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_CHAIN_ID: ${{ inputs.chain_id }}
+          RESUME_SOURCE_MANIFEST_ARTIFACT_NAME: ${{ steps.resume_source_manifest.outputs.artifact_name }}
+          RESUME_SOURCE_MANIFEST_RESOLUTION: ${{ steps.resume_source_manifest.outputs.resolution }}
+          RESUME_SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/resume-source/manifest"
+          if [ "$RESUME_SOURCE_MANIFEST_RESOLUTION" = "committed" ]; then
+            mapfile -t source_manifests < <(
+              find "$RUNNER_TEMP/resume-source/manifest-committed" \
+                -name next-manifest.json -type f -print
+            )
+            source_artifact_name="$RESUME_SOURCE_MANIFEST_ARTIFACT_NAME"
+          elif [ "$RESUME_SOURCE_MANIFEST_RESOLUTION" = "canonical_fallback" ]; then
+            gh run download "$RESUME_SOURCE_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --name "full-extraction-manifest-${CHAIN_ID}" \
+              --dir "$RUNNER_TEMP/resume-source/manifest"
+            mapfile -t source_manifests < <(
+              find "$RUNNER_TEMP/resume-source/manifest" \
+                -name manifest.json -type f -print
+            )
+            source_artifact_name="full-extraction-manifest-${CHAIN_ID}"
+          else
+            echo "::error::Resume source manifest resolution is unavailable"
+            exit 1
+          fi
+          if [ "${#source_manifests[@]}" -ne 1 ]; then
+            echo "::error::Resume source manifest resolution did not provide exactly one manifest"
+            find "$RUNNER_TEMP/resume-source" -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+          source_manifest="${source_manifests[0]}"
+          MANIFEST_PATH="$source_manifest" \
+            REQUESTED_CHAIN_ID="$REQUESTED_CHAIN_ID" \
+            RESUME_SOURCE_MANIFEST_RESOLUTION="$RESUME_SOURCE_MANIFEST_RESOLUTION" \
+            SOURCE_ARTIFACT_NAME="$source_artifact_name" \
+            SOURCE_RUN_ID="$RESUME_SOURCE_RUN_ID" \
+            python - <<'PY'
+          # RESUME_SOURCE_MANIFEST_VERIFIER
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          requested_chain_id = os.environ["REQUESTED_CHAIN_ID"]
+          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          manifest_chain_id = str(manifest.get("chain_id") or "").strip()
+          manifest_source_sha = str(manifest.get("workflow_source_sha") or "").lower()
+
+          if manifest_chain_id != requested_chain_id:
+              print(
+                  "::error::Resume source manifest chain identity does not match "
+                  f"requested chain_id {requested_chain_id!r}: "
+                  f"{manifest_chain_id or '<missing>'!r}"
+              )
+              raise SystemExit(1)
+          if manifest_source_sha != expected_source_sha:
+              print(
+                  "::error::Resume source manifest SHA does not match the pinned "
+                  f"workflow source {expected_source_sha!r}: "
+                  f"{manifest_source_sha or '<missing>'!r}"
+              )
+              raise SystemExit(1)
+          resolution = os.environ["RESUME_SOURCE_MANIFEST_RESOLUTION"]
+          source_artifact_name = os.environ["SOURCE_ARTIFACT_NAME"]
+          if resolution == "committed":
+              state = manifest.get("chain_state")
+              transaction = (
+                  state.get("latest_checkpoint_transaction")
+                  if isinstance(state, dict)
+                  else None
+              )
+              identity = (
+                  transaction.get("identity")
+                  if isinstance(transaction, dict)
+                  else None
+              )
+              receipt = (
+                  transaction.get("receipt")
+                  if isinstance(transaction, dict)
+                  else None
+              )
+              if (
+                  not source_artifact_name.startswith(
+                      f"full-extraction-next-manifest-{requested_chain_id}-"
+                  )
+                  or not isinstance(transaction, dict)
+                  or transaction.get("state") != "committed"
+                  or not isinstance(identity, dict)
+                  or str(identity.get("chain_id") or "") != requested_chain_id
+                  or str(identity.get("source_sha") or "").lower()
+                  != expected_source_sha
+                  or not isinstance(receipt, dict)
+                  or str(receipt.get("artifact_run_id") or "")
+                  != os.environ["SOURCE_RUN_ID"]
+              ):
+                  print(
+                      "::error::Resume source committed manifest does not contain "
+                      "a matching committed checkpoint transaction"
+                  )
+                  raise SystemExit(1)
+          elif (
+              resolution != "canonical_fallback"
+              or source_artifact_name
+              != f"full-extraction-manifest-{requested_chain_id}"
+          ):
+              print("::error::Resume source manifest resolution is inconsistent")
+              raise SystemExit(1)
+          print(
+              f"Verified resume source manifest for chain {requested_chain_id} "
+              f"at {expected_source_sha}"
+          )
+          PY
+          cp "$source_manifest" "$RUNNER_TEMP/resume-source/resolved-manifest.json"
+
       - name: Build lane manifest
         id: manifest
         env:
           INPUT_LANE_MANIFEST_JSON: ${{ inputs.lane_manifest_json }}
+          LANE_MANIFEST_ARTIFACT_DIGEST: ${{ inputs.lane_manifest_artifact_digest }}
+          LANE_MANIFEST_ARTIFACT_ID: ${{ inputs.lane_manifest_artifact_id }}
           LANE_MANIFEST_RUN_ID: ${{ inputs.lane_manifest_run_id }}
           LANE_MANIFEST_ARTIFACT_NAME: ${{ inputs.lane_manifest_artifact_name }}
           RESUME_SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
@@ -506,10 +915,16 @@ jobs:
               exit 1
             fi
             mkdir -p "$RUNNER_TEMP/lane-manifest-input"
-            gh run download "$LANE_MANIFEST_RUN_ID" \
-              --repo "${{ github.repository }}" \
-              --name "$LANE_MANIFEST_ARTIFACT_NAME" \
-              --dir "$RUNNER_TEMP/lane-manifest-input"
+            if [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] && [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then
+              echo "::warning::Using bounded legacy run/name manifest handoff without an immutable receipt"
+              gh run download "$LANE_MANIFEST_RUN_ID" \
+                --repo "${{ github.repository }}" \
+                --name "$LANE_MANIFEST_ARTIFACT_NAME" \
+                --dir "$RUNNER_TEMP/lane-manifest-input"
+            elif [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then
+              echo "::error::lane_manifest_artifact_id and lane_manifest_artifact_digest must be provided together"
+              exit 1
+            fi
             manifest_path="$(find "$RUNNER_TEMP/lane-manifest-input" \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
             if [ -z "$manifest_path" ]; then
               echo "::error::Manifest artifact $LANE_MANIFEST_ARTIFACT_NAME from run $LANE_MANIFEST_RUN_ID did not contain next-manifest.json or manifest.json"
@@ -558,10 +973,18 @@ jobs:
               raise SystemExit(1)
 
           initial_name = f"full-extraction-manifest-{requested}"
-          chained_name = re.fullmatch(
+          legacy_chained_name = re.fullmatch(
               rf"full-extraction-next-manifest-{re.escape(requested)}-iter-[1-9][0-9]*",
               artifact_name,
           )
+          receipt_chained_name = re.fullmatch(
+              (
+                  rf"full-extraction-next-manifest-{re.escape(requested)}-"
+                  r"iter-[1-9][0-9]*-run-[1-9][0-9]*-attempt-[1-9][0-9]*"
+              ),
+              artifact_name,
+          )
+          chained_name = legacy_chained_name or receipt_chained_name
           standard_name = artifact_name.startswith(
               ("full-extraction-manifest-", "full-extraction-next-manifest-")
           )
@@ -586,11 +1009,12 @@ jobs:
               echo "::error::resume_source_run_id requires chain_id so source artifacts can be resolved; use the original chain id, usually the source run id"
               exit 1
             fi
-            mkdir -p "$RUNNER_TEMP/resume-source/manifest" "$RUNNER_TEMP/resume-source/metadata"
-            gh run download "$RESUME_SOURCE_RUN_ID" \
-              --repo "${{ github.repository }}" \
-              --name "full-extraction-manifest-${CHAIN_ID}" \
-              --dir "$RUNNER_TEMP/resume-source/manifest"
+            mkdir -p "$RUNNER_TEMP/resume-source/metadata"
+            source_manifest="$RUNNER_TEMP/resume-source/resolved-manifest.json"
+            if [ ! -f "$source_manifest" ]; then
+              echo "::error::Verified resume source manifest is unavailable"
+              exit 1
+            fi
             metadata_inventory="$RUNNER_TEMP/resume-source/metadata-artifacts.txt"
             if ! gh api \
               "repos/${{ github.repository }}/actions/runs/${RESUME_SOURCE_RUN_ID}/artifacts?per_page=100" \
@@ -632,47 +1056,6 @@ jobs:
             else
               echo "::notice::Resume source run $RESUME_SOURCE_RUN_ID has no lane metadata artifacts; recovery will re-plan from the manifest"
             fi
-            source_manifest="$(find "$RUNNER_TEMP/resume-source/manifest" -name manifest.json -type f -print -quit)"
-            if [ -z "$source_manifest" ]; then
-              echo "::error::Resume source run $RESUME_SOURCE_RUN_ID did not provide full-extraction-manifest-${CHAIN_ID}/manifest.json"
-              find "$RUNNER_TEMP/resume-source/manifest" -maxdepth 4 -type f -print || true
-              exit 1
-            fi
-            MANIFEST_PATH="$source_manifest" \
-              REQUESTED_CHAIN_ID="$REQUESTED_CHAIN_ID" \
-              python - <<'PY'
-          # RESUME_SOURCE_MANIFEST_VERIFIER
-          import json
-          import os
-          from pathlib import Path
-
-          manifest = json.loads(
-              Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8")
-          )
-          requested_chain_id = os.environ["REQUESTED_CHAIN_ID"]
-          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
-          manifest_chain_id = str(manifest.get("chain_id") or "").strip()
-          manifest_source_sha = str(manifest.get("workflow_source_sha") or "").lower()
-
-          if manifest_chain_id != requested_chain_id:
-              print(
-                  "::error::Resume source manifest chain identity does not match "
-                  f"requested chain_id {requested_chain_id!r}: "
-                  f"{manifest_chain_id or '<missing>'!r}"
-              )
-              raise SystemExit(1)
-          if manifest_source_sha != expected_source_sha:
-              print(
-                  "::error::Resume source manifest SHA does not match the pinned "
-                  f"workflow source {expected_source_sha!r}: "
-                  f"{manifest_source_sha or '<missing>'!r}"
-              )
-              raise SystemExit(1)
-          print(
-              f"Verified resume source manifest for chain {requested_chain_id} "
-              f"at {expected_source_sha}"
-          )
-          PY
             resume_args=(
               resume
               --lane-manifest-path "$source_manifest"
@@ -1017,13 +1400,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -1083,13 +1467,14 @@ jobs:
       vpn-capacity-count: ${{ steps.vpn_capacity.outputs.capacity-count }}
       vpn-capacity-matrix: ${{ steps.vpn_capacity.outputs.matrix }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -1446,13 +1831,14 @@ jobs:
       vpn-server: ${{ steps.vpn.outputs.server }}
       vpn-failed-servers-json: ${{ steps.vpn.outputs.failed-servers-json }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -1760,7 +2146,7 @@ jobs:
       max-parallel: ${{ fromJSON(inputs.vpn_parallelism) }}
       matrix: ${{ fromJSON(needs.preflight.outputs.vpn-capacity-matrix) }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
@@ -1809,9 +2195,10 @@ jobs:
           print(f"::notice::VPN capacity rerun contains the complete {expected}-job cohort")
           PY
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -2013,7 +2400,7 @@ jobs:
     outputs:
       vpn-quarantined-servers-json: ${{ steps.aggregate.outputs.vpn-quarantined-servers-json }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
@@ -2083,7 +2470,7 @@ jobs:
             echo "NBADB_EXTRACT_FINALIZATION_RESERVE_SECONDS=$FINALIZATION_RESERVE_SECONDS"
           } >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
@@ -2098,9 +2485,10 @@ jobs:
           VPN_AUTH_SOURCE: ${{ needs.preflight.outputs.vpn-auth-source }}
         run: python3 .github/scripts/vpn_control_plane.py auth-guard
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -3053,7 +3441,7 @@ jobs:
       artifact-name: ${{ steps.replay.outputs.artifact_name }}
       checkpoint-generation: ${{ steps.replay.outputs.checkpoint_generation }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
@@ -3063,114 +3451,447 @@ jobs:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
 
-      - name: Resolve exact source checkpoint artifact
-        id: source_checkpoint
+      - name: Resolve immutable source committed manifest
+        id: source_manifest
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
         run: |
-          set -euo pipefail
-          if ! [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
-            echo "::error::resume_source_run_id must be a numeric GitHub Actions run ID"
-            exit 1
-          fi
-
-          artifacts_path="$RUNNER_TEMP/source-run-artifacts.json"
-          gh api \
-            --method GET \
-            --paginate \
-            --slurp \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100" \
-            > "$artifacts_path"
-
-          ARTIFACTS_PATH="$artifacts_path" python - <<'PY'
-          # TERMINAL_REPLAY_ARTIFACT_RESOLVER
+          python - <<'PY'
+          # TERMINAL_REPLAY_MANIFEST_RESOLVER
           import json
           import os
           import re
+          import subprocess
           from pathlib import Path
 
-          pages = json.loads(Path(os.environ["ARTIFACTS_PATH"]).read_text(encoding="utf-8"))
-          chain_id = os.environ["CHAIN_ID"]
-          pattern = re.compile(
-              rf"^full-extraction-checkpoint-{re.escape(chain_id)}-iter-([1-9][0-9]*)$"
-          )
-          matches = []
-          for page in pages:
-              for artifact in page.get("artifacts", []):
-                  name = str(artifact.get("name") or "")
-                  match = pattern.fullmatch(name)
-                  if match is not None and artifact.get("expired") is not True:
-                      matches.append((name, int(match.group(1))))
-
-          if len(matches) > 1:
-              names = ", ".join(name for name, _generation in matches) or "none"
-              print(
-                  "::error::Terminal replay requires at most one unexpired source "
-                  f"checkpoint artifact; found {len(matches)}: {names}"
+          source_run_id = os.environ["SOURCE_RUN_ID"]
+          if re.fullmatch(r"[1-9][0-9]*", source_run_id) is None:
+              raise SystemExit(
+                  "resume_source_run_id must be a positive GitHub Actions run ID"
               )
-              raise SystemExit(1)
-          if not matches:
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{source_run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          run_attempt = owner_run.get("run_attempt")
+          if (
+              str(owner_run.get("id") or "") != source_run_id
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+              or isinstance(run_attempt, bool)
+              or not isinstance(run_attempt, int)
+              or run_attempt < 1
+          ):
+              raise SystemExit("source workflow run identity is invalid")
+
+          raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "--method",
+                  "GET",
+                  "--paginate",
+                  "--slurp",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{source_run_id}/artifacts"
+                  ),
+                  "-f",
+                  "per_page=100",
+              ],
+              text=True,
+          )
+          pages = json.loads(raw)
+          if not isinstance(pages, list) or not pages:
+              raise SystemExit("source committed-manifest inventory must contain pages")
+          prefix = f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-"
+          run_marker = f"-run-{source_run_id}-attempt-"
+          pattern = re.compile(
+              (
+                  rf"^{re.escape(prefix)}iter-[1-9][0-9]*-"
+                  rf"run-{re.escape(source_run_id)}-"
+                  r"attempt-(?P<attempt>[1-9][0-9]*)$"
+              )
+          )
+          matches_by_attempt: dict[int, list[dict[str, object]]] = {}
+          for page in pages:
+              if not isinstance(page, dict):
+                  raise SystemExit(
+                      "source committed-manifest inventory page must be an object"
+                  )
+              artifacts = page.get("artifacts")
+              if not isinstance(artifacts, list):
+                  raise SystemExit(
+                      "source committed-manifest inventory page is malformed"
+                  )
+              for artifact in artifacts:
+                  if not isinstance(artifact, dict):
+                      raise SystemExit(
+                          "source committed-manifest inventory entry must be an object"
+                      )
+                  artifact_name = str(artifact.get("name") or "")
+                  match = pattern.fullmatch(artifact_name)
+                  if match is not None:
+                      attempt = int(match.group("attempt"))
+                      if attempt > run_attempt:
+                          raise SystemExit(
+                              "source committed-manifest attempt exceeds the owner run attempt"
+                          )
+                      matches_by_attempt.setdefault(attempt, []).append(artifact)
+                  elif artifact_name.startswith(prefix) and run_marker in artifact_name:
+                      raise SystemExit(
+                          "source committed-manifest artifact name is malformed"
+                      )
+          if not matches_by_attempt:
               print(
-                  "::notice::No source checkpoint exists; rebuilding from attested "
-                  "complete-lane artifacts"
+                  "::notice::No immutable committed next-manifest exists for the "
+                  "source run attempt; rebuilding from attested complete-lane artifacts"
               )
               raise SystemExit(0)
+          selected_attempt = max(matches_by_attempt)
+          matches = matches_by_attempt[selected_attempt]
+          if len(matches) != 1:
+              raise SystemExit(
+                  "source run has ambiguous immutable committed next-manifest "
+                  f"artifacts for attempt {selected_attempt}"
+              )
 
-          artifact_name, generation = matches[0]
+          artifact = matches[0]
+          artifact_id = artifact.get("id")
+          artifact_name = str(artifact.get("name") or "")
+          artifact_digest = str(artifact.get("digest") or "").lower()
+          artifact_size = artifact.get("size_in_bytes")
+          workflow_run = artifact.get("workflow_run")
+          if (
+              isinstance(artifact_id, bool)
+              or not isinstance(artifact_id, int)
+              or artifact_id < 1
+              or re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None
+              or isinstance(artifact_size, bool)
+              or not isinstance(artifact_size, int)
+              or artifact_size < 1
+              or artifact.get("expired") is not False
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != source_run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "source committed-manifest artifact provenance is invalid"
+              )
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"artifact_name={artifact_name}\n")
+              handle.write(f"artifact_id={artifact_id}\n")
+              handle.write(f"artifact_digest={artifact_digest}\n")
+              handle.write(f"artifact_size_bytes={artifact_size}\n")
+              handle.write(f"source_run_id={source_run_id}\n")
+              handle.write(f"source_run_head_sha={owner_head_sha}\n")
+              handle.write(f"source_run_attempt={selected_attempt}\n")
+          PY
+
+      - name: Download immutable source committed manifest
+        if: ${{ steps.source_manifest.outputs.artifact_id != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ steps.source_manifest.outputs.artifact_id }}
+          path: source-committed-manifest/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.source_manifest.outputs.source_run_id }}
+          digest-mismatch: error
+
+      - name: Resolve exact source checkpoint receipt
+        id: source_checkpoint
+        if: ${{ steps.source_manifest.outputs.artifact_id != '' }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::resume_source_run_id must be a numeric GitHub Actions run ID"
+            exit 1
+          fi
+          mapfile -t plan_manifests < <(find source-committed-manifest -name next-manifest.json -type f -print)
+          if [ "${#plan_manifests[@]}" -ne 1 ]; then
+            echo "::error::Zero-active replay requires exactly one committed source manifest"
+            find source-committed-manifest -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+
+          PLAN_MANIFEST_PATH="${plan_manifests[0]}" python - <<'PY'
+          # TERMINAL_REPLAY_ARTIFACT_RESOLVER
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["PLAN_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          if not isinstance(manifest, dict):
+              raise SystemExit("zero-active replay plan manifest must be an object")
+          chain_id = os.environ["CHAIN_ID"]
+          source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          source_run_id = os.environ["SOURCE_RUN_ID"]
+          state = manifest.get("chain_state")
+          if not isinstance(state, dict):
+              raise SystemExit("zero-active replay plan chain_state must be an object")
+          if "latest_checkpoint_transaction" not in state:
+              print(
+                  "::notice::No committed source checkpoint transaction exists; "
+                  "rebuilding from attested complete-lane artifacts"
+              )
+              raise SystemExit(0)
+          transaction = state["latest_checkpoint_transaction"]
+          if (
+              not isinstance(transaction, dict)
+              or transaction.get("schema_version") != 1
+              or transaction.get("state") != "committed"
+          ):
+              raise SystemExit(
+                  "zero-active replay requires a committed checkpoint transaction"
+              )
+          identity = transaction.get("identity")
+          coverage = identity.get("coverage") if isinstance(identity, dict) else None
+          build = transaction.get("build")
+          receipt = transaction.get("receipt")
+          if (
+              not isinstance(identity, dict)
+              or not isinstance(coverage, dict)
+              or not isinstance(build, dict)
+              or not isinstance(receipt, dict)
+          ):
+              raise SystemExit("committed checkpoint transaction is incomplete")
+
+          generation = identity.get("generation")
+          coverage_fingerprint = str(
+              coverage.get("coverage_fingerprint") or ""
+          ).lower()
+          artifact_name = str(transaction.get("artifact_name") or "")
+          database_sha256 = str(build.get("database_sha256") or "").lower()
+          report_sha256 = str(build.get("report_sha256") or "").lower()
+          artifact_id = receipt.get("artifact_id")
+          artifact_run_id = receipt.get("artifact_run_id")
+          artifact_digest = str(receipt.get("artifact_digest") or "").lower()
+          artifact_size = receipt.get("artifact_size_bytes")
+          expected_name = (
+              f"full-extraction-checkpoint-{chain_id}-iter-{generation}"
+          )
+          if (
+              str(identity.get("chain_id") or "") != chain_id
+              or str(identity.get("source_sha") or "").lower() != source_sha
+              or isinstance(generation, bool)
+              or not isinstance(generation, int)
+              or generation < 1
+              or artifact_name != expected_name
+              or re.fullmatch(r"[0-9a-f]{64}", coverage_fingerprint) is None
+              or re.fullmatch(r"[0-9a-f]{64}", database_sha256) is None
+              or re.fullmatch(r"[0-9a-f]{64}", report_sha256) is None
+          ):
+              raise SystemExit("committed checkpoint transaction identity is invalid")
+
+          lanes = coverage.get("lanes")
+          if not isinstance(lanes, list):
+              raise SystemExit("committed checkpoint lane inventory must be a list")
+          canonical_lanes: list[dict[str, str]] = []
+          seen_lane_ids: set[str] = set()
+          for lane in lanes:
+              if not isinstance(lane, dict) or set(lane) != {
+                  "lane_id",
+                  "coverage_units_hash",
+              }:
+                  raise SystemExit("committed checkpoint lane inventory is malformed")
+              lane_id = str(lane.get("lane_id") or "")
+              lane_hash = str(lane.get("coverage_units_hash") or "").lower()
+              if (
+                  not lane_id
+                  or lane_id in seen_lane_ids
+                  or re.fullmatch(r"[0-9a-f]{64}", lane_hash) is None
+              ):
+                  raise SystemExit("committed checkpoint lane inventory is invalid")
+              seen_lane_ids.add(lane_id)
+              canonical_lanes.append(
+                  {"lane_id": lane_id, "coverage_units_hash": lane_hash}
+              )
+          canonical_lanes.sort(key=lambda lane: lane["lane_id"])
+          lane_inventory_sha256 = hashlib.sha256(
+              json.dumps(
+                  canonical_lanes,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              ).encode("utf-8")
+          ).hexdigest()
+          if (
+              str(coverage.get("lane_inventory_sha256") or "").lower()
+              != lane_inventory_sha256
+          ):
+              raise SystemExit("committed checkpoint lane inventory digest is invalid")
+
+          if (
+              isinstance(artifact_id, bool)
+              or not isinstance(artifact_id, int)
+              or artifact_id < 1
+              or isinstance(artifact_run_id, bool)
+              or not isinstance(artifact_run_id, int)
+              or str(artifact_run_id) != source_run_id
+              or re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None
+              or isinstance(artifact_size, bool)
+              or not isinstance(artifact_size, int)
+              or artifact_size < 1
+              or str(receipt.get("artifact_name") or "") != artifact_name
+              or str(receipt.get("database_sha256") or "").lower()
+              != database_sha256
+              or str(receipt.get("report_sha256") or "").lower() != report_sha256
+              or str(receipt.get("chain_id") or "") != chain_id
+              or str(receipt.get("source_sha") or "").lower() != source_sha
+              or receipt.get("generation") != generation
+              or str(receipt.get("coverage_fingerprint") or "").lower()
+              != coverage_fingerprint
+              or str(receipt.get("lane_inventory_sha256") or "").lower()
+              != lane_inventory_sha256
+          ):
+              raise SystemExit("committed checkpoint artifact receipt is invalid")
+
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{source_run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          if (
+              str(owner_run.get("id") or "") != source_run_id
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+          ):
+              raise SystemExit("source checkpoint owner run identity is invalid")
+          raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/artifacts/{artifact_id}"
+                  ),
+              ],
+              text=True,
+          )
+          artifact = json.loads(raw)
+          workflow_run = artifact.get("workflow_run")
+          rest_artifact_id = artifact.get("id")
+          rest_artifact_size = artifact.get("size_in_bytes")
+          if (
+              isinstance(rest_artifact_id, bool)
+              or not isinstance(rest_artifact_id, int)
+              or rest_artifact_id != artifact_id
+              or artifact.get("name") != artifact_name
+              or artifact.get("digest") != artifact_digest
+              or isinstance(rest_artifact_size, bool)
+              or not isinstance(rest_artifact_size, int)
+              or rest_artifact_size != artifact_size
+              or artifact.get("expired") is not False
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != source_run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "source checkpoint REST identity does not match its committed receipt"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"artifact_name={artifact_name}\n")
+              handle.write(f"artifact_id={artifact_id}\n")
+              handle.write(f"artifact_digest={artifact_digest}\n")
+              handle.write(f"artifact_size_bytes={artifact_size}\n")
+              handle.write(f"source_run_id={source_run_id}\n")
               handle.write(f"checkpoint_generation={generation}\n")
+              handle.write(f"coverage_fingerprint={coverage_fingerprint}\n")
+              handle.write(f"database_sha256={database_sha256}\n")
+              handle.write(f"report_sha256={report_sha256}\n")
           PY
 
       - name: Download exact source checkpoint
-        if: ${{ steps.source_checkpoint.outputs.artifact_name != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
-          SOURCE_CHECKPOINT_ARTIFACT: ${{ steps.source_checkpoint.outputs.artifact_name }}
-        run: |
-          set -euo pipefail
-          mkdir -p source-checkpoint
-          gh run download "$SOURCE_RUN_ID" \
-            --repo "${{ github.repository }}" \
-            --name "$SOURCE_CHECKPOINT_ARTIFACT" \
-            --dir source-checkpoint
+        if: ${{ steps.source_checkpoint.outputs.artifact_id != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ steps.source_checkpoint.outputs.artifact_id }}
+          path: source-checkpoint/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.source_checkpoint.outputs.source_run_id }}
+          digest-mismatch: error
 
       - name: Attest terminal replay inputs
         id: replay
-        if: ${{ steps.source_checkpoint.outputs.artifact_name != '' }}
+        if: ${{ steps.source_checkpoint.outputs.artifact_id != '' }}
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           EXPECTED_CHECKPOINT_GENERATION: ${{ steps.source_checkpoint.outputs.checkpoint_generation }}
+          EXPECTED_COVERAGE_FINGERPRINT: ${{ steps.source_checkpoint.outputs.coverage_fingerprint }}
+          EXPECTED_DATABASE_SHA256: ${{ steps.source_checkpoint.outputs.database_sha256 }}
+          EXPECTED_REPORT_SHA256: ${{ steps.source_checkpoint.outputs.report_sha256 }}
           SOURCE_CHECKPOINT_ARTIFACT: ${{ steps.source_checkpoint.outputs.artifact_name }}
-          SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+          SOURCE_RUN_ID: ${{ steps.source_checkpoint.outputs.source_run_id }}
         run: |
           set -euo pipefail
           mkdir -p terminal-replay-inputs/checkpoint artifacts/full-extraction
           mapfile -t plan_manifests < <(find plan-artifact -name manifest.json -type f -print)
+          mapfile -t trust_manifests < <(find source-committed-manifest -name next-manifest.json -type f -print)
           mapfile -t checkpoint_manifests < <(find source-checkpoint -name checkpoint-manifest.json -type f -print)
           mapfile -t checkpoint_reports < <(find source-checkpoint -name checkpoint-report.json -type f -print)
           mapfile -t checkpoint_databases < <(find source-checkpoint -name nba.duckdb -type f -print)
+          mapfile -t checkpoint_transactions < <(find source-checkpoint -name checkpoint-transaction.json -type f -print)
           if [ "${#plan_manifests[@]}" -ne 1 ] || \
+             [ "${#trust_manifests[@]}" -ne 1 ] || \
              [ "${#checkpoint_manifests[@]}" -ne 1 ] || \
              [ "${#checkpoint_reports[@]}" -ne 1 ] || \
-             [ "${#checkpoint_databases[@]}" -ne 1 ]; then
+             [ "${#checkpoint_databases[@]}" -ne 1 ] || \
+             [ "${#checkpoint_transactions[@]}" -ne 1 ]; then
             echo "::error::Terminal replay inputs are incomplete"
-            find plan-artifact source-checkpoint -maxdepth 6 -type f -print || true
+            find plan-artifact source-committed-manifest source-checkpoint \
+              -maxdepth 6 -type f -print || true
             exit 1
           fi
           plan_manifest_path="${plan_manifests[0]}"
+          trust_manifest_path="${trust_manifests[0]}"
           checkpoint_manifest="${checkpoint_manifests[0]}"
           checkpoint_report="${checkpoint_reports[0]}"
           checkpoint_database="${checkpoint_databases[0]}"
+          checkpoint_transaction="${checkpoint_transactions[0]}"
 
           PLAN_MANIFEST_PATH="$plan_manifest_path" \
+            TRUST_MANIFEST_PATH="$trust_manifest_path" \
             CHECKPOINT_MANIFEST_PATH="$checkpoint_manifest" \
             CHECKPOINT_REPORT_PATH="$checkpoint_report" \
             CHECKPOINT_DATABASE_PATH="$checkpoint_database" \
+            CHECKPOINT_TRANSACTION_PATH="$checkpoint_transaction" \
             python - <<'PY'
           # TERMINAL_REPLAY_ATTESTATION
           import hashlib
@@ -3179,32 +3900,138 @@ jobs:
           from pathlib import Path
 
           plan_manifest_path = Path(os.environ["PLAN_MANIFEST_PATH"])
+          trust_manifest_path = Path(os.environ["TRUST_MANIFEST_PATH"])
           checkpoint_manifest_path = Path(os.environ["CHECKPOINT_MANIFEST_PATH"])
           report_path = Path(os.environ["CHECKPOINT_REPORT_PATH"])
           database_path = Path(os.environ["CHECKPOINT_DATABASE_PATH"])
+          candidate_transaction_path = Path(
+              os.environ["CHECKPOINT_TRANSACTION_PATH"]
+          )
           plan_manifest = json.loads(plan_manifest_path.read_text(encoding="utf-8"))
+          trust_manifest = json.loads(
+              trust_manifest_path.read_text(encoding="utf-8")
+          )
           checkpoint_manifest = json.loads(
               checkpoint_manifest_path.read_text(encoding="utf-8")
           )
           report = json.loads(report_path.read_text(encoding="utf-8"))
-          expected_generation = int(os.environ["EXPECTED_CHECKPOINT_GENERATION"])
-          expected_coverage = str(
-              checkpoint_manifest.get("coverage_fingerprint") or ""
-              if isinstance(checkpoint_manifest, dict)
-              else ""
+          candidate_transaction = json.loads(
+              candidate_transaction_path.read_text(encoding="utf-8")
           )
+          expected_generation = int(os.environ["EXPECTED_CHECKPOINT_GENERATION"])
+          expected_coverage = os.environ["EXPECTED_COVERAGE_FINGERPRINT"].lower()
+          expected_database_sha256 = os.environ["EXPECTED_DATABASE_SHA256"].lower()
+          expected_report_sha256 = os.environ["EXPECTED_REPORT_SHA256"].lower()
 
           failures: list[str] = []
           if not isinstance(plan_manifest, dict):
               failures.append("zero-active replay plan manifest is invalid")
               plan_manifest = {}
+          if not isinstance(trust_manifest, dict):
+              failures.append("zero-active replay trust manifest is invalid")
+              trust_manifest = {}
+          trust_state = trust_manifest.get("chain_state")
+          if not isinstance(trust_state, dict):
+              failures.append("zero-active replay trust chain_state is invalid")
+              trust_state = {}
+          if (
+              str(trust_manifest.get("chain_id") or "")
+              != os.environ["CHAIN_ID"]
+              or str(trust_manifest.get("workflow_source_sha") or "").lower()
+              != os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          ):
+              failures.append("zero-active replay trust manifest identity does not match")
+          committed_transaction = trust_state.get("latest_checkpoint_transaction")
+          if not isinstance(committed_transaction, dict):
+              failures.append(
+                  "zero-active replay trust manifest lacks a committed checkpoint transaction"
+              )
+              committed_transaction = {}
+          committed_identity = committed_transaction.get("identity")
+          committed_build = committed_transaction.get("build")
+          committed_receipt = committed_transaction.get("receipt")
+          if not isinstance(committed_identity, dict):
+              failures.append("committed checkpoint identity is invalid")
+              committed_identity = {}
+          if not isinstance(committed_build, dict):
+              failures.append("committed checkpoint build is invalid")
+              committed_build = {}
+          if not isinstance(committed_receipt, dict):
+              failures.append("committed checkpoint receipt is invalid")
+              committed_receipt = {}
+          committed_coverage = committed_identity.get("coverage")
+          if not isinstance(committed_coverage, dict):
+              failures.append("committed checkpoint coverage is invalid")
+              committed_coverage = {}
+          if (
+              committed_transaction.get("schema_version") != 1
+              or committed_transaction.get("state") != "committed"
+          ):
+              failures.append("zero-active replay transaction is not committed")
+          if (
+              str(committed_identity.get("chain_id") or "")
+              != os.environ["CHAIN_ID"]
+              or str(committed_identity.get("source_sha") or "").lower()
+              != os.environ["WORKFLOW_SOURCE_SHA"].lower()
+              or committed_identity.get("generation") != expected_generation
+              or str(committed_coverage.get("coverage_fingerprint") or "").lower()
+              != expected_coverage
+              or str(committed_transaction.get("artifact_name") or "")
+              != os.environ["SOURCE_CHECKPOINT_ARTIFACT"]
+              or str(committed_build.get("database_sha256") or "").lower()
+              != expected_database_sha256
+              or str(committed_build.get("report_sha256") or "").lower()
+              != expected_report_sha256
+          ):
+              failures.append(
+                  "zero-active replay committed transaction identity does not match"
+              )
+          if (
+              str(committed_receipt.get("artifact_run_id") or "")
+              != os.environ["SOURCE_RUN_ID"]
+              or str(committed_receipt.get("artifact_name") or "")
+              != os.environ["SOURCE_CHECKPOINT_ARTIFACT"]
+              or str(committed_receipt.get("database_sha256") or "").lower()
+              != expected_database_sha256
+              or str(committed_receipt.get("report_sha256") or "").lower()
+              != expected_report_sha256
+              or str(committed_receipt.get("chain_id") or "")
+              != os.environ["CHAIN_ID"]
+              or str(committed_receipt.get("source_sha") or "").lower()
+              != os.environ["WORKFLOW_SOURCE_SHA"].lower()
+              or committed_receipt.get("generation") != expected_generation
+              or str(
+                  committed_receipt.get("coverage_fingerprint") or ""
+              ).lower()
+              != expected_coverage
+              or str(
+                  committed_receipt.get("lane_inventory_sha256") or ""
+              ).lower()
+              != str(
+                  committed_coverage.get("lane_inventory_sha256") or ""
+              ).lower()
+          ):
+              failures.append(
+                  "zero-active replay committed receipt does not match"
+              )
           if not isinstance(checkpoint_manifest, dict):
               failures.append("source checkpoint manifest is invalid")
               checkpoint_manifest = {}
-          checkpoint_state = checkpoint_manifest.get("chain_state")
-          if not isinstance(checkpoint_state, dict):
-              failures.append("source checkpoint manifest chain_state is invalid")
-              checkpoint_state = {}
+          if not isinstance(candidate_transaction, dict):
+              failures.append("source checkpoint transaction is invalid")
+              candidate_transaction = {}
+          if (
+              candidate_transaction.get("schema_version") != 1
+              or candidate_transaction.get("state") != "built"
+              or candidate_transaction.get("receipt") is not None
+              or candidate_transaction.get("identity") != committed_identity
+              or candidate_transaction.get("artifact_name")
+              != committed_transaction.get("artifact_name")
+              or candidate_transaction.get("build") != committed_build
+          ):
+              failures.append(
+                  "source checkpoint built transaction does not match the committed trust root"
+              )
           if int(plan_manifest.get("lane_count", 0)) <= 0:
               failures.append("zero-active replay manifest has no lanes")
           if int(plan_manifest.get("active_lane_count", -1)) != 0:
@@ -3240,31 +4067,19 @@ jobs:
               failures.append("source checkpoint manifest source SHA does not match")
           if int(report.get("checkpoint_generation", 0)) != expected_generation:
               failures.append("source checkpoint generation does not match its artifact name")
-          if not expected_coverage or str(report.get("coverage_fingerprint") or "") != expected_coverage:
+          if (
+              not expected_coverage
+              or str(report.get("coverage_fingerprint") or "").lower()
+              != expected_coverage
+          ):
               failures.append("source checkpoint coverage fingerprint does not match")
-          if str(plan_manifest.get("coverage_fingerprint") or "") != expected_coverage:
+          if (
+              str(plan_manifest.get("coverage_fingerprint") or "").lower()
+              != expected_coverage
+          ):
               failures.append("zero-active replay coverage does not match source checkpoint")
           if int(report.get("complete_lane_count", 0)) <= 0:
               failures.append("source checkpoint contains no completed lanes")
-          if (
-              str(checkpoint_state.get("latest_checkpoint_run_id") or "")
-              != os.environ["SOURCE_RUN_ID"]
-          ):
-              failures.append("source checkpoint manifest latest run identity does not match")
-          if (
-              str(checkpoint_state.get("latest_checkpoint_artifact_name") or "")
-              != os.environ["SOURCE_CHECKPOINT_ARTIFACT"]
-          ):
-              failures.append(
-                  "source checkpoint manifest latest artifact identity does not match"
-              )
-          if int(checkpoint_state.get("latest_checkpoint_generation", 0)) != expected_generation:
-              failures.append("source checkpoint manifest latest generation does not match")
-          if (
-              str(checkpoint_state.get("latest_checkpoint_coverage_hash") or "")
-              != expected_coverage
-          ):
-              failures.append("source checkpoint manifest latest coverage does not match")
 
           manifest_lane_hashes = {
               str(lane.get("lane_id") or ""): str(lane.get("coverage_units_hash") or "")
@@ -3277,11 +4092,26 @@ jobs:
                   report.get("included_lane_coverage_hashes", {})
               ).items()
           }
+          committed_lane_hashes = {
+              str(lane.get("lane_id") or ""): str(
+                  lane.get("coverage_units_hash") or ""
+              )
+              for lane in committed_coverage.get("lanes", [])
+              if isinstance(lane, dict)
+          }
           mismatched_lane_hashes = sorted(
-              set(manifest_lane_hashes) ^ set(report_lane_hashes)
+              set(manifest_lane_hashes)
+              ^ set(report_lane_hashes)
+              | set(manifest_lane_hashes)
+              ^ set(committed_lane_hashes)
           ) + sorted(
               lane_id for lane_id, coverage_hash in manifest_lane_hashes.items()
-              if not lane_id or not coverage_hash or report_lane_hashes.get(lane_id) != coverage_hash
+              if (
+                  not lane_id
+                  or not coverage_hash
+                  or report_lane_hashes.get(lane_id) != coverage_hash
+                  or committed_lane_hashes.get(lane_id) != coverage_hash
+              )
           )
           if mismatched_lane_hashes:
               failures.append(
@@ -3291,13 +4121,21 @@ jobs:
           if report.get("current_lane_attestation_failures"):
               failures.append("source checkpoint records lane attestation failures")
 
-          expected_digest = str(report.get("database_sha256") or "")
-          digest = hashlib.sha256()
-          with database_path.open("rb") as handle:
-              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                  digest.update(chunk)
-          if expected_digest != digest.hexdigest():
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          if (
+              str(report.get("database_sha256") or "").lower()
+              != expected_database_sha256
+              or sha256(database_path) != expected_database_sha256
+          ):
               failures.append("source checkpoint database SHA-256 does not match")
+          if sha256(report_path) != expected_report_sha256:
+              failures.append("source checkpoint report SHA-256 does not match")
 
           if failures:
               for failure in failures:
@@ -3400,13 +4238,14 @@ jobs:
       final-data-artifact-digest: ${{ steps.assured_data.outputs.artifact-digest }}
       coverage-fingerprint: ${{ steps.terminal_identity.outputs.coverage_fingerprint }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -3418,15 +4257,17 @@ jobs:
         if: ${{ needs.terminal_replay.outputs.artifact-name == '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: ${{ needs.lane_control.outputs.artifact-name }}
+          artifact-ids: ${{ needs.checkpoint.outputs.manifest-artifact-id }}
           path: next-manifest-artifact/
+          digest-mismatch: error
 
       - name: Download terminal checkpoint from completed lanes
         if: ${{ needs.terminal_replay.outputs.artifact-name == '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: ${{ needs.checkpoint.outputs.artifact-name }}
+          artifact-ids: ${{ needs.checkpoint.outputs.artifact-id }}
           path: checkpoint-artifact/
+          digest-mismatch: error
 
       - name: Download replayed terminal checkpoint
         if: ${{ needs.terminal_replay.outputs.artifact-name != '' }}
@@ -3700,15 +4541,16 @@ jobs:
       actions: read
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -3773,7 +4615,7 @@ jobs:
               failures.append("artifact metadata ID does not match")
           if str(metadata.get("name") or "") != artifact_name:
               failures.append("artifact metadata name does not match")
-          if metadata.get("expired") is True:
+          if metadata.get("expired") is not False:
               failures.append("artifact is expired")
           if not isinstance(workflow_run, dict) or str(workflow_run.get("id") or "") != source_run_id:
               failures.append("artifact workflow run identity does not match")
@@ -4023,17 +4865,19 @@ jobs:
       split-lane-count: ${{ steps.next_manifest.outputs.split_lane_count }}
       vpn-auth-circuit-open: ${{ steps.next_manifest.outputs.vpn_auth_circuit_open }}
       artifact-name: ${{ steps.next_manifest.outputs.artifact_name }}
+      candidate-artifact-name: ${{ steps.next_manifest.outputs.candidate_artifact_name }}
       checkpoint-artifact-name: ${{ steps.next_manifest.outputs.checkpoint_artifact_name }}
       checkpoint-generation: ${{ steps.next_manifest.outputs.checkpoint_generation }}
       iteration-budget: ${{ steps.next_manifest.outputs.iteration_budget }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -4195,45 +5039,7 @@ jobs:
           fi
           uv run python -m nbadb.orchestrate.full_extraction_control \
             "${common_resume_args[@]}" \
-            --output-path artifacts/full-extraction/provisional-next-manifest.json \
-            > artifacts/full-extraction/provisional-next-manifest.stdout.json
-
-          CHECKPOINT_COVERAGE_HASH="$(PROVISIONAL_MANIFEST=artifacts/full-extraction/provisional-next-manifest.json uv run python - <<'PY'
-          # CHECKPOINT_COVERAGE_RESOLVER
-          import json
-          import os
-          import re
-          from pathlib import Path
-
-          from nbadb.orchestrate.full_extraction_control import (
-              manifest_payload,
-              normalize_manifest,
-          )
-
-          provisional = normalize_manifest(
-              json.loads(
-                  Path(os.environ["PROVISIONAL_MANIFEST"]).read_text(encoding="utf-8")
-              )
-          )
-          completed_lanes = [lane for lane in provisional.lanes if lane.resume_only]
-          coverage_hash = str(
-              manifest_payload(completed_lanes).get("coverage_fingerprint") or ""
-          ).lower()
-          if re.fullmatch(r"[0-9a-f]{64}", coverage_hash) is None:
-              raise SystemExit("provisional checkpoint coverage fingerprint is invalid")
-          print(coverage_hash)
-          PY
-          )"
-          export CHECKPOINT_COVERAGE_HASH
-          resume_args=(
-            "${common_resume_args[@]}"
-            --latest-checkpoint-run-id "${{ github.run_id }}"
-            --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME"
-            --latest-checkpoint-generation "$CHECKPOINT_GENERATION"
-            --latest-checkpoint-coverage-hash "$CHECKPOINT_COVERAGE_HASH"
-            --output-path artifacts/full-extraction/next-manifest.json
-          )
-          uv run python -m nbadb.orchestrate.full_extraction_control "${resume_args[@]}" \
+            --output-path artifacts/full-extraction/next-manifest.json \
             > artifacts/full-extraction/next-manifest.stdout.json
 
           uv run python -m nbadb.orchestrate.full_extraction_control audit \
@@ -4244,7 +5050,6 @@ jobs:
           {
             echo "CHECKPOINT_ARTIFACT_NAME=$CHECKPOINT_ARTIFACT_NAME"
             echo "CHECKPOINT_GENERATION=$CHECKPOINT_GENERATION"
-            echo "CHECKPOINT_COVERAGE_HASH=$CHECKPOINT_COVERAGE_HASH"
           } >> "$GITHUB_ENV"
 
       - name: Build next manifest
@@ -4421,13 +5226,18 @@ jobs:
           redispatch_json = json.dumps(redispatch_payload, separators=(",", ":"))
           artifact_name = (
               f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-iter-"
-              f"{int(os.environ['ITERATION']) + 1}"
+              f"{int(os.environ['ITERATION']) + 1}-run-{os.environ['GITHUB_RUN_ID']}-"
+              f"attempt-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          )
+          candidate_artifact_name = (
+              f"full-extraction-checkpoint-candidate-{os.environ['CHAIN_ID']}-"
+              f"run-{os.environ['GITHUB_RUN_ID']}-attempt-{os.environ['GITHUB_RUN_ATTEMPT']}"
           )
           report = {
               "artifact_name": artifact_name,
+              "candidate_artifact_name": candidate_artifact_name,
               "checkpoint_artifact_name": os.environ["CHECKPOINT_ARTIFACT_NAME"],
               "checkpoint_generation": int(os.environ["CHECKPOINT_GENERATION"]),
-              "checkpoint_coverage_hash": os.environ["CHECKPOINT_COVERAGE_HASH"],
               "active_lane_count": int(summary.get("active_lane_count", 0)),
               "resume_only_lane_count": int(summary.get("resume_only_lane_count", 0)),
               "contract_blocked_lane_count": int(summary.get("contract_blocked_lane_count", 0)),
@@ -4483,6 +5293,7 @@ jobs:
                       f"iteration_budget={report['iteration_budget']}",
                       f"redispatch_payload_bytes={report['redispatch_payload_bytes']}",
                       f"artifact_name={artifact_name}",
+                      f"candidate_artifact_name={candidate_artifact_name}",
                       f"checkpoint_artifact_name={report['checkpoint_artifact_name']}",
                   ]
               )
@@ -4637,12 +5448,12 @@ jobs:
             echo "**Unresolved reasons:** \`$failure_reason_counts\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload next manifest artifact
+      - name: Upload checkpoint candidate manifest
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          overwrite: true
-          name: ${{ steps.next_manifest.outputs.artifact_name || format('full-extraction-next-manifest-{0}-iter-{1}', env.ACTIVE_CHAIN_ID, inputs.iteration) }}
+          overwrite: false
+          name: ${{ steps.next_manifest.outputs.candidate_artifact_name || format('full-extraction-checkpoint-candidate-{0}-run-{1}-attempt-{2}', env.ACTIVE_CHAIN_ID, github.run_id, github.run_attempt) }}
           path: |
             artifacts/full-extraction/current-manifest.json
             artifacts/full-extraction/next-manifest.json
@@ -4681,18 +5492,25 @@ jobs:
       contents: read
     outputs:
       artifact-name: ${{ steps.checkpoint.outputs.artifact_name }}
+      artifact-id: ${{ steps.commit_manifest.outputs.artifact_id }}
+      artifact-digest: ${{ steps.commit_manifest.outputs.artifact_digest }}
+      artifact-receipt-source: ${{ steps.checkpoint_receipt.outputs.receipt_source }}
+      manifest-artifact-name: ${{ steps.commit_manifest.outputs.manifest_artifact_name }}
+      manifest-artifact-id: ${{ steps.committed_manifest.outputs.artifact-id }}
+      manifest-artifact-digest: ${{ steps.committed_manifest.outputs.artifact-digest }}
       checkpoint-generation: ${{ steps.checkpoint.outputs.checkpoint_generation }}
       coverage-fingerprint: ${{ steps.checkpoint.outputs.coverage_fingerprint }}
       terminal-ready: ${{ steps.checkpoint.outputs.terminal_ready }}
       active-lane-count: ${{ steps.checkpoint.outputs.active_lane_count }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
@@ -4703,10 +5521,11 @@ jobs:
       - name: Download lane-control manifest
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: ${{ needs.lane_control.outputs.artifact-name }}
+          name: ${{ needs.lane_control.outputs.candidate-artifact-name }}
           path: lane-control-artifact/
 
-      - name: Download previous checkpoint
+      - name: Resolve previous checkpoint receipt
+        id: previous_checkpoint
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -4718,33 +5537,138 @@ jobs:
             exit 1
           fi
 
-          checkpoint_pointer="$(CURRENT_MANIFEST="$current_manifest" python - <<'PY'
+          CURRENT_MANIFEST="$current_manifest" python - <<'PY'
           import json
           import os
+          import re
+          import subprocess
           from pathlib import Path
 
           manifest_path = Path(os.environ["CURRENT_MANIFEST"])
           manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
           state = manifest.get("chain_state", {})
-          print(
-              str(state.get("latest_checkpoint_run_id") or ""),
-              str(state.get("latest_checkpoint_artifact_name") or ""),
+          if not isinstance(state, dict):
+              raise SystemExit("checkpoint chain_state must be an object")
+          run_id = str(state.get("latest_checkpoint_run_id") or "").strip()
+          artifact_name = str(
+              state.get("latest_checkpoint_artifact_name") or ""
+          ).strip()
+          has_transaction = "latest_checkpoint_transaction" in state
+          transaction = (
+              state["latest_checkpoint_transaction"] if has_transaction else None
           )
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          if not run_id and not artifact_name and not has_transaction:
+              with output.open("a", encoding="utf-8") as handle:
+                  handle.write("run_id=\nartifact_name=\nartifact_id=\n")
+              raise SystemExit(0)
+          if re.fullmatch(r"[1-9][0-9]*", run_id) is None or not artifact_name:
+              raise SystemExit("previous checkpoint pointer is incomplete")
+          if not has_transaction:
+              with output.open("a", encoding="utf-8") as handle:
+                  handle.write(f"run_id={run_id}\n")
+                  handle.write(f"artifact_name={artifact_name}\n")
+                  handle.write("artifact_id=\n")
+              raise SystemExit(0)
+          if not isinstance(transaction, dict) or transaction.get("state") != "committed":
+              raise SystemExit("previous checkpoint transaction must be committed")
+          receipt = transaction.get("receipt")
+          if not isinstance(receipt, dict):
+              raise SystemExit("previous checkpoint transaction receipt is missing")
+          artifact_id = receipt.get("artifact_id")
+          if isinstance(artifact_id, bool) or not isinstance(artifact_id, int) or artifact_id < 1:
+              raise SystemExit("previous checkpoint artifact ID must be positive")
+          expected_digest = str(receipt.get("artifact_digest") or "")
+          expected_size = receipt.get("artifact_size_bytes")
+          if (
+              str(receipt.get("artifact_run_id") or "") != run_id
+              or str(receipt.get("artifact_name") or "") != artifact_name
+              or re.fullmatch(r"sha256:[0-9a-f]{64}", expected_digest) is None
+              or isinstance(expected_size, bool)
+              or not isinstance(expected_size, int)
+              or expected_size < 1
+          ):
+              raise SystemExit("previous checkpoint artifact receipt is invalid")
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          if (
+              str(owner_run.get("id") or "") != run_id
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+          ):
+              raise SystemExit("previous checkpoint owner run identity is invalid")
+          raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  f"/repos/{os.environ['GITHUB_REPOSITORY']}/actions/artifacts/{artifact_id}",
+              ],
+              text=True,
+          )
+          artifact = json.loads(raw)
+          workflow_run = artifact.get("workflow_run", {})
+          rest_artifact_id = artifact.get("id")
+          rest_artifact_size = artifact.get("size_in_bytes")
+          if (
+              isinstance(rest_artifact_id, bool)
+              or not isinstance(rest_artifact_id, int)
+              or rest_artifact_id != artifact_id
+              or artifact.get("name") != artifact_name
+              or artifact.get("digest") != expected_digest
+              or isinstance(rest_artifact_size, bool)
+              or not isinstance(rest_artifact_size, int)
+              or rest_artifact_size != expected_size
+              or artifact.get("expired") is not False
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "previous checkpoint REST identity does not match its committed receipt"
+              )
+          with output.open("a", encoding="utf-8") as handle:
+              handle.write(f"run_id={run_id}\n")
+              handle.write(f"artifact_name={artifact_name}\n")
+              handle.write(f"artifact_id={artifact_id}\n")
           PY
-          )"
-          read -r previous_run_id previous_artifact_name <<< "$checkpoint_pointer"
 
-          if [ -z "$previous_run_id" ] || [ -z "$previous_artifact_name" ]; then
-            echo "::notice::No previous checkpoint pointer found"
-            exit 0
-          fi
+      - name: Download previous checkpoint by immutable ID
+        if: ${{ steps.previous_checkpoint.outputs.artifact_id != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ steps.previous_checkpoint.outputs.artifact_id }}
+          path: previous-checkpoint/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.previous_checkpoint.outputs.run_id }}
+          digest-mismatch: error
 
-          echo "Downloading previous checkpoint $previous_artifact_name from run $previous_run_id"
-          if ! gh run download "$previous_run_id" \
+      - name: Download legacy previous checkpoint
+        if: ${{ steps.previous_checkpoint.outputs.artifact_id == '' && steps.previous_checkpoint.outputs.run_id != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh run download "${{ steps.previous_checkpoint.outputs.run_id }}" \
             --repo "${{ github.repository }}" \
-            --name "$previous_artifact_name" \
+            --name "${{ steps.previous_checkpoint.outputs.artifact_name }}" \
             --dir previous-checkpoint; then
-            echo "::warning::Previous checkpoint artifact $previous_artifact_name from run $previous_run_id was unavailable"
+            echo "::error::Legacy previous checkpoint artifact was unavailable"
+            exit 1
           fi
 
       - name: Verify previous checkpoint before inventory use
@@ -4937,7 +5861,10 @@ jobs:
                   if not isinstance(page, dict) or not isinstance(page.get("artifacts", []), list):
                       raise SystemExit(f"artifact inventory for run {run_id} is malformed")
                   for artifact in page.get("artifacts", []):
-                      if not isinstance(artifact, dict) or artifact.get("expired") is True:
+                      if (
+                          not isinstance(artifact, dict)
+                          or artifact.get("expired") is not False
+                      ):
                           continue
                       name = str(artifact.get("name") or "")
                       if name in seen_names:
@@ -5090,6 +6017,8 @@ jobs:
             --chain-id "$CHAIN_ID" \
             --run-id "$CURRENT_RUN_ID" \
             --source-sha "$WORKFLOW_SOURCE_SHA" \
+            --checkpoint-generation "$EXPECTED_CHECKPOINT_GENERATION" \
+            --checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME" \
             > artifacts/full-extraction/checkpoint.stdout.json
 
       - name: Bind checkpoint blocked evidence
@@ -5493,28 +6422,19 @@ jobs:
               != expected_source_sha
           ):
               failures.append("Checkpoint manifest source SHA does not match")
-          if str(manifest_state.get("latest_checkpoint_run_id") or "") != current_run_id:
-              failures.append("Checkpoint manifest latest run identity does not match")
-          if (
-              str(manifest_state.get("latest_checkpoint_artifact_name") or "")
-              != expected_artifact_name
-          ):
-              failures.append("Checkpoint manifest latest artifact name does not match")
           manifest_generation = manifest_state.get("latest_checkpoint_generation")
           if isinstance(manifest_generation, bool) or not isinstance(manifest_generation, int):
               failures.append("Checkpoint manifest latest generation must be an integer")
-          elif manifest_generation != expected_generation:
+          elif manifest_generation != expected_generation - 1:
               failures.append(
-                  "Checkpoint manifest/report generation disagreement: "
-                  f"manifest={manifest_generation}, checkpoint={reported_generation}"
+                  "Checkpoint candidate precommitted or skipped a generation: "
+                  f"candidate={manifest_generation}, expected={expected_generation - 1}"
               )
-          expected_coverage_hash = str(
-              manifest_state.get("latest_checkpoint_coverage_hash") or ""
+          actual_coverage_hash = str(
+              report.get("coverage_fingerprint") or ""
           ).lower()
-          if re.fullmatch(r"[0-9a-f]{64}", expected_coverage_hash) is None:
-              failures.append("Checkpoint manifest latest coverage hash must be a SHA-256")
-          if str(report.get("coverage_fingerprint") or "").lower() != expected_coverage_hash:
-              failures.append("Checkpoint manifest/report coverage fingerprint disagreement")
+          if re.fullmatch(r"[0-9a-f]{64}", actual_coverage_hash) is None:
+              failures.append("Checkpoint report coverage hash must be a SHA-256")
           if checkpoint_active_lane_count != lane_control_active_lane_count:
               failures.append(
                   "Lane-control/checkpoint remaining-count disagreement: "
@@ -5602,24 +6522,499 @@ jobs:
           PY
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Build checkpoint transaction
+        if: ${{ steps.checkpoint.outcome == 'success' }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          CHECKPOINT_GENERATION: ${{ needs.lane_control.outputs.checkpoint-generation }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          uv run python -m nbadb.orchestrate.full_extraction_control \
+            build-checkpoint-transaction \
+            --lane-manifest-path artifacts/full-extraction/checkpoint-manifest.json \
+            --checkpoint-report-path artifacts/full-extraction/checkpoint-report.json \
+            --checkpoint-database-path data/nbadb-checkpoint/nba.duckdb \
+            --output-path artifacts/full-extraction/checkpoint-transaction.json \
+            --chain-id "$CHAIN_ID" \
+            --run-id "$CURRENT_RUN_ID" \
+            --source-sha "$WORKFLOW_SOURCE_SHA" \
+            --checkpoint-generation "$CHECKPOINT_GENERATION" \
+            --checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME" \
+            > artifacts/full-extraction/checkpoint-transaction.stdout.json
+
       - name: Upload checkpoint artifact
         id: canonical_checkpoint
         if: ${{ steps.checkpoint.outcome == 'success' }}
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          overwrite: true
+          overwrite: false
           name: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
           path: |
             data/nbadb-checkpoint/nba.duckdb
             artifacts/full-extraction/checkpoint-report.json
             artifacts/full-extraction/checkpoint.stdout.json
             artifacts/full-extraction/checkpoint-manifest.json
+            artifacts/full-extraction/checkpoint-transaction.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
 
+      - name: Resolve colliding checkpoint sibling
+        id: checkpoint_collision
+        if: ${{ always() && steps.checkpoint.outcome == 'success' && steps.canonical_checkpoint.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import time
+          from pathlib import Path
+
+          artifact_name = os.environ["CHECKPOINT_ARTIFACT_NAME"]
+          current_run_id = os.environ["CURRENT_RUN_ID"]
+          source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          if re.fullmatch(r"[1-9][0-9]*", current_run_id) is None:
+              raise SystemExit("current workflow run ID must be positive")
+          if re.fullmatch(r"[0-9a-f]{40}", source_sha) is None:
+              raise SystemExit("workflow source SHA must be a full commit SHA")
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{current_run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          if (
+              str(owner_run.get("id") or "") != current_run_id
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+          ):
+              raise SystemExit("current checkpoint owner run identity is invalid")
+
+          def inventory_snapshot() -> tuple[tuple[object, ...], ...]:
+              raw = subprocess.check_output(
+                  [
+                      "gh",
+                      "api",
+                      "--method",
+                      "GET",
+                      "--paginate",
+                      "--slurp",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      (
+                          f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                          f"/actions/runs/{current_run_id}/artifacts"
+                      ),
+                      "-f",
+                      "per_page=100",
+                      "-f",
+                      f"name={artifact_name}",
+                  ],
+                  text=True,
+              )
+              pages = json.loads(raw)
+              if not isinstance(pages, list) or not pages:
+                  raise SystemExit("checkpoint sibling inventory response must contain pages")
+              artifacts: list[dict[str, object]] = []
+              totals: set[int] = set()
+              for page in pages:
+                  if not isinstance(page, dict):
+                      raise SystemExit("checkpoint sibling inventory page must be an object")
+                  total_count = page.get("total_count")
+                  page_artifacts = page.get("artifacts")
+                  if (
+                      isinstance(total_count, bool)
+                      or not isinstance(total_count, int)
+                      or total_count < 0
+                      or not isinstance(page_artifacts, list)
+                  ):
+                      raise SystemExit("checkpoint sibling inventory page is malformed")
+                  totals.add(total_count)
+                  for artifact in page_artifacts:
+                      if not isinstance(artifact, dict):
+                          raise SystemExit(
+                              "checkpoint sibling inventory entry must be an object"
+                          )
+                      artifacts.append(artifact)
+              if len(totals) != 1 or totals.pop() != len(artifacts):
+                  raise SystemExit(
+                      "checkpoint sibling inventory pagination is inconsistent"
+                  )
+
+              normalized: list[tuple[object, ...]] = []
+              seen_ids: set[int] = set()
+              for artifact in artifacts:
+                  artifact_id = artifact.get("id")
+                  digest = artifact.get("digest")
+                  size = artifact.get("size_in_bytes")
+                  workflow_run = artifact.get("workflow_run")
+                  if (
+                      isinstance(artifact_id, bool)
+                      or not isinstance(artifact_id, int)
+                      or artifact_id < 1
+                      or artifact_id in seen_ids
+                      or artifact.get("name") != artifact_name
+                      or not isinstance(digest, str)
+                      or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+                      or isinstance(size, bool)
+                      or not isinstance(size, int)
+                      or size < 1
+                      or artifact.get("expired") is not False
+                      or not isinstance(workflow_run, dict)
+                      or str(workflow_run.get("id") or "") != current_run_id
+                      or str(workflow_run.get("head_sha") or "").lower()
+                      != owner_head_sha
+                  ):
+                      raise SystemExit(
+                          "checkpoint sibling inventory contains invalid provenance"
+                      )
+                  seen_ids.add(artifact_id)
+                  normalized.append(
+                      (
+                          artifact_id,
+                          artifact_name,
+                          digest,
+                          size,
+                          current_run_id,
+                          owner_head_sha,
+                      )
+                  )
+              normalized.sort()
+              if len(normalized) > 1:
+                  raise SystemExit("checkpoint sibling inventory is ambiguous")
+              return tuple(normalized)
+
+          snapshots: list[tuple[tuple[object, ...], ...]] = []
+          for attempt in range(4):
+              snapshots.append(inventory_snapshot())
+              if attempt < 3:
+                  time.sleep(3)
+
+          if all(not snapshot for snapshot in snapshots):
+              with Path(os.environ["GITHUB_OUTPUT"]).open(
+                  "a", encoding="utf-8"
+              ) as handle:
+                  handle.write("resolution=absent_timeout\n")
+              raise SystemExit(0)
+          if (
+              len(snapshots[-1]) == 1
+              and snapshots[-2] == snapshots[-1]
+          ):
+              artifact_id, _, digest, size, _, _ = snapshots[-1][0]
+              with Path(os.environ["GITHUB_OUTPUT"]).open(
+                  "a", encoding="utf-8"
+              ) as handle:
+                  handle.write("resolution=reuse\n")
+                  handle.write(f"artifact_id={artifact_id}\n")
+                  handle.write(f"artifact_digest={digest}\n")
+                  handle.write(f"artifact_size_bytes={size}\n")
+              raise SystemExit(0)
+          raise SystemExit("checkpoint sibling inventory did not stabilize")
+          PY
+
+      - name: Download colliding checkpoint sibling
+        if: ${{ steps.checkpoint_collision.outputs.resolution == 'reuse' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ steps.checkpoint_collision.outputs.artifact_id }}
+          path: checkpoint-sibling/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+          digest-mismatch: error
+
+      - name: Validate colliding checkpoint sibling
+        id: checkpoint_sibling
+        if: ${{ steps.checkpoint_collision.outputs.resolution == 'reuse' }}
+        env:
+          ARTIFACT_ID: ${{ steps.checkpoint_collision.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ steps.checkpoint_collision.outputs.artifact_digest }}
+          ARTIFACT_SIZE_BYTES: ${{ steps.checkpoint_collision.outputs.artifact_size_bytes }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          CHECKPOINT_GENERATION: ${{ needs.lane_control.outputs.checkpoint-generation }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          uv run python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from nbadb.orchestrate.checkpoint_contract import (
+              CheckpointState,
+              CheckpointTransaction,
+          )
+
+          local_root = Path(".")
+          sibling_root = Path("checkpoint-sibling")
+          relative_paths = {
+              "database": Path("data/nbadb-checkpoint/nba.duckdb"),
+              "report": Path("artifacts/full-extraction/checkpoint-report.json"),
+              "transaction": Path(
+                  "artifacts/full-extraction/checkpoint-transaction.json"
+              ),
+          }
+          for label, relative_path in relative_paths.items():
+              if not (local_root / relative_path).is_file():
+                  raise SystemExit(f"local checkpoint {label} file is missing")
+              if not (sibling_root / relative_path).is_file():
+                  raise SystemExit(f"checkpoint sibling {label} file is missing")
+
+          def load_transaction(path: Path) -> CheckpointTransaction:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              if not isinstance(payload, dict):
+                  raise SystemExit("checkpoint transaction must be an object")
+              return CheckpointTransaction.from_dict(payload)
+
+          local_transaction = load_transaction(
+              local_root / relative_paths["transaction"]
+          )
+          sibling_transaction = load_transaction(
+              sibling_root / relative_paths["transaction"]
+          )
+          if (
+              local_transaction.state is not CheckpointState.BUILT
+              or sibling_transaction.state is not CheckpointState.BUILT
+              or local_transaction.to_dict() != sibling_transaction.to_dict()
+          ):
+              raise SystemExit(
+                  "checkpoint sibling transaction does not match the current build"
+              )
+          identity = local_transaction.identity
+          if (
+              identity.chain_id != os.environ["CHAIN_ID"]
+              or identity.source_sha != os.environ["WORKFLOW_SOURCE_SHA"].lower()
+              or identity.generation != int(os.environ["CHECKPOINT_GENERATION"])
+              or local_transaction.artifact_name
+              != os.environ["CHECKPOINT_ARTIFACT_NAME"]
+              or not identity.coverage.coverage_fingerprint
+          ):
+              raise SystemExit(
+                  "checkpoint sibling transaction provenance does not match"
+              )
+          assert local_transaction.build is not None
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          expected_hashes = {
+              "database": local_transaction.build.database_sha256,
+              "report": local_transaction.build.report_sha256,
+          }
+          for label, expected_hash in expected_hashes.items():
+              relative_path = relative_paths[label]
+              if (
+                  sha256(local_root / relative_path) != expected_hash
+                  or sha256(sibling_root / relative_path) != expected_hash
+              ):
+                  raise SystemExit(
+                      f"checkpoint sibling {label} hash does not match the build"
+                  )
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"artifact_id={os.environ['ARTIFACT_ID']}\n")
+              handle.write(f"artifact_digest={os.environ['ARTIFACT_DIGEST']}\n")
+              handle.write(
+                  f"artifact_size_bytes={os.environ['ARTIFACT_SIZE_BYTES']}\n"
+              )
+          PY
+
+      - name: Retry checkpoint artifact upload after stable absence
+        id: canonical_checkpoint_retry
+        if: ${{ steps.checkpoint_collision.outputs.resolution == 'absent_timeout' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: false
+          name: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          path: |
+            data/nbadb-checkpoint/nba.duckdb
+            artifacts/full-extraction/checkpoint-report.json
+            artifacts/full-extraction/checkpoint.stdout.json
+            artifacts/full-extraction/checkpoint-manifest.json
+            artifacts/full-extraction/checkpoint-transaction.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Verify immutable checkpoint receipt
+        id: checkpoint_receipt
+        if: ${{ always() && (steps.canonical_checkpoint.outcome == 'success' || steps.checkpoint_sibling.outcome == 'success' || steps.canonical_checkpoint_retry.outcome == 'success') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INITIAL_UPLOAD_OUTCOME: ${{ steps.canonical_checkpoint.outcome }}
+          INITIAL_ARTIFACT_ID: ${{ steps.canonical_checkpoint.outputs.artifact-id }}
+          INITIAL_ARTIFACT_DIGEST: ${{ steps.canonical_checkpoint.outputs.artifact-digest }}
+          SIBLING_VALIDATION_OUTCOME: ${{ steps.checkpoint_sibling.outcome }}
+          SIBLING_ARTIFACT_ID: ${{ steps.checkpoint_sibling.outputs.artifact_id }}
+          SIBLING_ARTIFACT_DIGEST: ${{ steps.checkpoint_sibling.outputs.artifact_digest }}
+          RETRY_UPLOAD_OUTCOME: ${{ steps.canonical_checkpoint_retry.outcome }}
+          RETRY_ARTIFACT_ID: ${{ steps.canonical_checkpoint_retry.outputs.artifact-id }}
+          RETRY_ARTIFACT_DIGEST: ${{ steps.canonical_checkpoint_retry.outputs.artifact-digest }}
+          CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          if os.environ["INITIAL_UPLOAD_OUTCOME"] == "success":
+              artifact_id = os.environ["INITIAL_ARTIFACT_ID"]
+              upload_digest = os.environ["INITIAL_ARTIFACT_DIGEST"]
+              receipt_source = "newly_uploaded"
+          elif os.environ["SIBLING_VALIDATION_OUTCOME"] == "success":
+              artifact_id = os.environ["SIBLING_ARTIFACT_ID"]
+              upload_digest = os.environ["SIBLING_ARTIFACT_DIGEST"]
+              receipt_source = "validated_existing"
+          elif os.environ["RETRY_UPLOAD_OUTCOME"] == "success":
+              artifact_id = os.environ["RETRY_ARTIFACT_ID"]
+              upload_digest = os.environ["RETRY_ARTIFACT_DIGEST"]
+              receipt_source = "newly_uploaded_retry"
+          else:
+              raise SystemExit("checkpoint artifact receipt has no verified source")
+          if re.fullmatch(r"[1-9][0-9]*", artifact_id) is None:
+              raise SystemExit("checkpoint upload did not return a positive artifact ID")
+          upload_digest = upload_digest.lower()
+          if upload_digest.startswith("sha256:"):
+              upload_digest = upload_digest.removeprefix("sha256:")
+          if re.fullmatch(r"[0-9a-f]{64}", upload_digest) is None:
+              raise SystemExit("checkpoint upload did not return a SHA-256 digest")
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{os.environ['CURRENT_RUN_ID']}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          if (
+              str(owner_run.get("id") or "") != os.environ["CURRENT_RUN_ID"]
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+          ):
+              raise SystemExit("current checkpoint owner run identity is invalid")
+          raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  f"/repos/{os.environ['GITHUB_REPOSITORY']}/actions/artifacts/{artifact_id}",
+              ],
+              text=True,
+          )
+          artifact = json.loads(raw)
+          workflow_run = artifact.get("workflow_run", {})
+          expected_digest = f"sha256:{upload_digest}"
+          rest_artifact_id = artifact.get("id")
+          size = artifact.get("size_in_bytes")
+          if (
+              isinstance(rest_artifact_id, bool)
+              or not isinstance(rest_artifact_id, int)
+              or rest_artifact_id != int(artifact_id)
+              or artifact.get("name") != os.environ["CHECKPOINT_ARTIFACT_NAME"]
+              or artifact.get("digest") != expected_digest
+              or artifact.get("expired") is not False
+              or isinstance(size, bool)
+              or not isinstance(size, int)
+              or size < 1
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != os.environ["CURRENT_RUN_ID"]
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "checkpoint REST identity does not match the immutable upload receipt"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"artifact_id={artifact_id}\n")
+              handle.write(f"artifact_digest={expected_digest}\n")
+              handle.write(f"artifact_size_bytes={size}\n")
+              handle.write(f"receipt_source={receipt_source}\n")
+          PY
+
+      - name: Commit checkpoint manifest
+        id: commit_manifest
+        if: ${{ steps.checkpoint_receipt.outcome == 'success' }}
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          ARTIFACT_ID: ${{ steps.checkpoint_receipt.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ steps.checkpoint_receipt.outputs.artifact_digest }}
+          ARTIFACT_SIZE_BYTES: ${{ steps.checkpoint_receipt.outputs.artifact_size_bytes }}
+          MANIFEST_ARTIFACT_NAME: ${{ needs.lane_control.outputs.artifact-name }}
+        run: |
+          mkdir -p committed-manifest
+          uv run python -m nbadb.orchestrate.full_extraction_control \
+            commit-checkpoint-manifest \
+            --lane-manifest-path artifacts/full-extraction/checkpoint-manifest.json \
+            --checkpoint-transaction-path artifacts/full-extraction/checkpoint-transaction.json \
+            --checkpoint-report-path artifacts/full-extraction/checkpoint-report.json \
+            --checkpoint-database-path data/nbadb-checkpoint/nba.duckdb \
+            --output-path committed-manifest/next-manifest.json \
+            --chain-id "$CHAIN_ID" \
+            --run-id "$CURRENT_RUN_ID" \
+            --source-sha "$WORKFLOW_SOURCE_SHA" \
+            --artifact-id "$ARTIFACT_ID" \
+            --artifact-digest "$ARTIFACT_DIGEST" \
+            --artifact-size-bytes "$ARTIFACT_SIZE_BYTES" \
+            > committed-manifest/checkpoint-commit.json
+          cp artifacts/full-extraction/checkpoint-report.json \
+            committed-manifest/checkpoint-report.json
+          cp artifacts/full-extraction/checkpoint-transaction.json \
+            committed-manifest/checkpoint-transaction.json
+          cp lane-control-artifact/extraction-audit.json \
+            committed-manifest/extraction-audit.json
+          cp lane-control-artifact/chain-dispatch.json \
+            committed-manifest/chain-dispatch.json
+          {
+            echo "artifact_id=$ARTIFACT_ID"
+            echo "artifact_digest=$ARTIFACT_DIGEST"
+            echo "manifest_artifact_name=$MANIFEST_ARTIFACT_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload committed next manifest
+        id: committed_manifest
+        if: ${{ steps.commit_manifest.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: false
+          name: ${{ needs.lane_control.outputs.artifact-name }}
+          path: committed-manifest/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+
       - name: Upload checkpoint failure diagnostics
-        if: ${{ always() && (steps.checkpoint.outcome != 'success' || steps.canonical_checkpoint.outcome != 'success') }}
+        if: ${{ always() && (steps.checkpoint.outcome != 'success' || steps.checkpoint_receipt.outcome != 'success' || steps.commit_manifest.outcome != 'success' || steps.committed_manifest.outcome != 'success') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -5651,12 +7046,13 @@ jobs:
       child-run-id: ${{ steps.dispatch.outputs.child_run_id }}
       child-run-url: ${{ steps.dispatch.outputs.child_run_url }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
       - name: Verify redispatch workflow definition
+        id: redispatch_guard
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -5712,6 +7108,132 @@ jobs:
             echo "::error::Workflow definition drift detected: ${WORKFLOW_PATH} at redispatch ref ${WORKFLOW_REF} does not match workflow_source_sha ${source_commit}"
             exit 1
           fi
+          echo "trusted_branch_tip_sha=$trusted_branch_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Verify committed manifest dispatch receipt
+        id: manifest_receipt
+        env:
+          ARTIFACT_DIGEST: ${{ needs.checkpoint.outputs.manifest-artifact-digest }}
+          ARTIFACT_ID: ${{ needs.checkpoint.outputs.manifest-artifact-id }}
+          ARTIFACT_NAME: ${{ needs.checkpoint.outputs.manifest-artifact-name }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CURRENT_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ITERATION: ${{ inputs.iteration }}
+        run: |
+          python - <<'PY'
+          # REDISPATCH_MANIFEST_RECEIPT_VERIFIER
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          artifact_id_text = os.environ["ARTIFACT_ID"]
+          artifact_name = os.environ["ARTIFACT_NAME"]
+          artifact_digest = os.environ["ARTIFACT_DIGEST"].lower()
+          current_run_id = os.environ["CURRENT_RUN_ID"]
+          current_run_attempt = os.environ["CURRENT_RUN_ATTEMPT"]
+          iteration = os.environ["ITERATION"]
+          for field_name, value in (
+              ("current run ID", current_run_id),
+              ("current run attempt", current_run_attempt),
+              ("iteration", iteration),
+          ):
+              if re.fullmatch(r"[1-9][0-9]*", value) is None:
+                  raise SystemExit(
+                      f"redispatch manifest {field_name} must be a positive integer"
+                  )
+          expected_name = (
+              f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-iter-"
+              f"{int(iteration) + 1}-run-{current_run_id}-"
+              f"attempt-{current_run_attempt}"
+          )
+          if artifact_name != expected_name:
+              raise SystemExit(
+                  "redispatch requires the current run attempt's exact immutable "
+                  "committed next-manifest artifact"
+              )
+          if re.fullmatch(r"[1-9][0-9]*", artifact_id_text) is None:
+              raise SystemExit(
+                  "redispatch committed-manifest artifact ID must be positive"
+              )
+          if not artifact_digest.startswith("sha256:"):
+              artifact_digest = f"sha256:{artifact_digest}"
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None:
+              raise SystemExit(
+                  "redispatch committed-manifest artifact digest must be SHA-256"
+              )
+
+          run_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/runs/{current_run_id}"
+                  ),
+              ],
+              text=True,
+          )
+          owner_run = json.loads(run_raw)
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          owner_run_attempt = owner_run.get("run_attempt")
+          if (
+              str(owner_run.get("id") or "") != current_run_id
+              or isinstance(owner_run_attempt, bool)
+              or not isinstance(owner_run_attempt, int)
+              or owner_run_attempt != int(current_run_attempt)
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+          ):
+              raise SystemExit(
+                  "redispatch committed-manifest owner run identity is invalid"
+              )
+
+          artifact_raw = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  (
+                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/actions/artifacts/{artifact_id_text}"
+                  ),
+              ],
+              text=True,
+          )
+          artifact = json.loads(artifact_raw)
+          workflow_run = artifact.get("workflow_run")
+          rest_artifact_id = artifact.get("id")
+          artifact_size = artifact.get("size_in_bytes")
+          if (
+              isinstance(rest_artifact_id, bool)
+              or not isinstance(rest_artifact_id, int)
+              or rest_artifact_id != int(artifact_id_text)
+              or artifact.get("name") != artifact_name
+              or str(artifact.get("digest") or "").lower() != artifact_digest
+              or isinstance(artifact_size, bool)
+              or not isinstance(artifact_size, int)
+              or artifact_size < 1
+              or artifact.get("expired") is not False
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != current_run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "redispatch committed-manifest REST identity does not match "
+                  "the immutable upload receipt"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"artifact_name={artifact_name}\n")
+              handle.write(f"artifact_id={artifact_id_text}\n")
+              handle.write(f"artifact_digest={artifact_digest}\n")
+          PY
 
       - name: Dispatch next iteration
         id: dispatch
@@ -5719,6 +7241,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
           WORKFLOW_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          TRUSTED_BRANCH_TIP_SHA: ${{ steps.redispatch_guard.outputs.trusted_branch_tip_sha }}
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CONCURRENCY: ${{ inputs.concurrency }}
@@ -5735,12 +7258,17 @@ jobs:
           PUBLISH: ${{ inputs.publish }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
-          ARTIFACT_NAME: ${{ needs.lane_control.outputs.artifact-name }}
+          ARTIFACT_NAME: ${{ steps.manifest_receipt.outputs.artifact_name }}
+          ARTIFACT_ID: ${{ steps.manifest_receipt.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ steps.manifest_receipt.outputs.artifact_digest }}
           ITERATION_BUDGET: ${{ needs.lane_control.outputs.iteration-budget }}
-          CHILD_POLL_ATTEMPTS: "12"
           CHILD_POLL_INTERVAL_SECONDS: "5"
         run: |
           set -euo pipefail
+          if ! [[ "$TRUSTED_BRANCH_TIP_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::trusted redispatch branch tip must be a full commit SHA"
+            exit 1
+          fi
           if ! [[ "$ITERATION" =~ ^[0-9]+$ ]] || [ "$ITERATION" -lt 1 ]; then
             echo "::error::iteration must be a positive integer, got '$ITERATION'"
             exit 1
@@ -5907,225 +7435,101 @@ jobs:
 
           echo "::notice::Some lanes incomplete — triggering iteration $next/$effective_max at $next_concurrency concurrency (chain $CHAIN_ID; max_iterations=$MAX_ITERATIONS)"
           child_dispatch_may_exist=true
-          gh workflow run full-extraction.yml \
-            --repo "${{ github.repository }}" \
-            --ref "$WORKFLOW_REF" \
-            -f concurrency="$next_concurrency" \
-            -f vpn_parallelism="$VPN_PARALLELISM" \
-            -f matrix_batch_size="$MATRIX_BATCH_SIZE" \
-            -f direct_parallelism="$DIRECT_PARALLELISM" \
-            -f direct_request_profile="$DIRECT_REQUEST_PROFILE" \
-            -f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES" \
-            -f retry_pipeline_failures="$RETRY_PIPELINE_FAILURES" \
-            -f network_mode="$NETWORK_MODE" \
-            -f chunk_profile="$CHUNK_PROFILE" \
-            -f iteration="$next" \
-            -f max_iterations="$MAX_ITERATIONS" \
-            -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
-            -f backfill_patterns="$BACKFILL_PATTERNS" \
-            -f force_reextract=false \
-            -f publish="$PUBLISH" \
-            -f chain_id="$CHAIN_ID" \
-            -f workflow_ref="$WORKFLOW_REF" \
-            -f workflow_sha="$WORKFLOW_SHA" \
-            -f lane_manifest_run_id="${{ github.run_id }}" \
-            -f lane_manifest_artifact_name="$ARTIFACT_NAME"
-
-          child_run_path="$RUNNER_TEMP/full-extraction-child-run.json"
-          child_found=false
-          for attempt in $(seq 1 "$CHILD_POLL_ATTEMPTS"); do
-            gh api \
-              --method GET \
-              --paginate \
-              --slurp \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
-              -f "event=workflow_dispatch" \
-              -f "per_page=100" \
-              > "$runs_path"
-
-            set +e
-            RUNS_PATH="$runs_path" \
-              CHILD_RUN_PATH="$child_run_path" \
-              EXISTING_CHILD_RUN_IDS_PATH="$existing_child_run_ids_path" \
-              EXPECTED_RUN_NAME="$next_run_name" \
-              python - <<'PY'
-          # CHILD_RUN_MATCHER
-          import json
-          import os
-          from pathlib import Path
-
-          pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
-          expected_run_name = os.environ["EXPECTED_RUN_NAME"]
-          expected_child_run_id = os.environ.get("EXPECTED_CHILD_RUN_ID", "").strip()
-          existing_ids = set(
-              json.loads(
-                  Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).read_text(encoding="utf-8")
-              )
-          )
-          matches = sorted(
-              (
-                  run
-                  for page in pages
-                  for run in page.get("workflow_runs", [])
-                  if str(run.get("display_title") or "") == expected_run_name
-                  and str(run.get("id") or "") not in existing_ids
-              ),
-              key=lambda run: str(run.get("id") or ""),
-          )
-          if len(matches) > 1:
-              details = ", ".join(
-                  f"{run.get('id')}:{run.get('status')}:{run.get('html_url')}"
-                  for run in matches
-              )
-              print(
-                  f"::error::Self-dispatch created {len(matches)} exact-title child runs "
-                  f"for {expected_run_name!r}: {details}"
-              )
-              raise SystemExit(2)
-          if not matches:
-              raise SystemExit(1)
-
-          child = matches[0]
-          child_run_id = str(child.get("id") or "").strip()
-          child_run_url = str(child.get("html_url") or "").strip()
-          if not child_run_id.isdigit() or not child_run_url:
-              print(
-                  "::error::Exact-title child run is missing a valid id or URL: "
-                  f"{child!r}"
-              )
-              raise SystemExit(3)
-          if expected_child_run_id and child_run_id != expected_child_run_id:
-              print(
-                  "::error::Exact-title child run changed during stabilization: "
-                  f"expected {expected_child_run_id}, got {child_run_id}"
-              )
-              raise SystemExit(4)
-          Path(os.environ["CHILD_RUN_PATH"]).write_text(
-              json.dumps(
-                  {
-                      "display_title": expected_run_name,
-                      "id": child_run_id,
-                      "url": child_run_url,
-                  },
-                  indent=2,
-              )
-              + "\n",
-              encoding="utf-8",
-          )
-          PY
-            poll_status=$?
-            set -e
-
-            case "$poll_status" in
-              0)
-                child_found=true
-                break
-                ;;
-              1)
-                echo "::notice::Waiting for exact-title child run $next_run_name (attempt $attempt/$CHILD_POLL_ATTEMPTS)"
-                ;;
-              2)
-                exit 1
-                ;;
-              *)
-                echo "::error::Unable to validate self-dispatched child run (matcher exit $poll_status)"
-                exit 1
-                ;;
-            esac
-            if [ "$attempt" -lt "$CHILD_POLL_ATTEMPTS" ]; then
-              sleep "$CHILD_POLL_INTERVAL_SECONDS"
-            fi
-          done
-
-          if [ "$child_found" != "true" ]; then
-            echo "::error::Self-dispatch child run was not visible after $CHILD_POLL_ATTEMPTS attempts for exact title: $next_run_name"
-            exit 1
-          fi
-
-          acknowledged_child_run_id="$(CHILD_RUN_PATH="$child_run_path" python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["id"])
-          PY
-          )"
-          child_run_id="$acknowledged_child_run_id"
-          sleep "$CHILD_POLL_INTERVAL_SECONDS"
-          gh api \
-            --method GET \
-            --paginate \
-            --slurp \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
-            -f "event=workflow_dispatch" \
-            -f "per_page=100" \
-            > "$runs_path"
-          set +e
-          RUNS_PATH="$runs_path" \
-            CHILD_RUN_PATH="$child_run_path" \
-            EXISTING_CHILD_RUN_IDS_PATH="$existing_child_run_ids_path" \
-            EXPECTED_RUN_NAME="$next_run_name" \
-            EXPECTED_CHILD_RUN_ID="$acknowledged_child_run_id" \
+          dispatch_payload_path="$RUNNER_TEMP/full-extraction-dispatch-payload.json"
+          DISPATCH_PAYLOAD_PATH="$dispatch_payload_path" \
+            NEXT_ITERATION="$next" \
+            NEXT_CONCURRENCY="$next_concurrency" \
+            PARENT_RUN_ID="${{ github.run_id }}" \
             python - <<'PY'
-          # CHILD_RUN_MATCHER
           import json
           import os
           from pathlib import Path
 
-          pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
-          expected_run_name = os.environ["EXPECTED_RUN_NAME"]
-          expected_child_run_id = os.environ.get("EXPECTED_CHILD_RUN_ID", "").strip()
-          existing_ids = set(
-              json.loads(
-                  Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).read_text(encoding="utf-8")
-              )
+          inputs = {
+              "concurrency": os.environ["NEXT_CONCURRENCY"],
+              "vpn_parallelism": os.environ["VPN_PARALLELISM"],
+              "matrix_batch_size": os.environ["MATRIX_BATCH_SIZE"],
+              "direct_parallelism": os.environ["DIRECT_PARALLELISM"],
+              "direct_request_profile": os.environ["DIRECT_REQUEST_PROFILE"],
+              "direct_timeout_cap_minutes": os.environ["DIRECT_TIMEOUT_CAP_MINUTES"],
+              "retry_pipeline_failures": os.environ["RETRY_PIPELINE_FAILURES"],
+              "network_mode": os.environ["NETWORK_MODE"],
+              "chunk_profile": os.environ["CHUNK_PROFILE"],
+              "iteration": os.environ["NEXT_ITERATION"],
+              "max_iterations": os.environ["MAX_ITERATIONS"],
+              "backfill_endpoints": os.environ["BACKFILL_ENDPOINTS"],
+              "backfill_patterns": os.environ["BACKFILL_PATTERNS"],
+              "force_reextract": "false",
+              "publish": os.environ["PUBLISH"],
+              "chain_id": os.environ["CHAIN_ID"],
+              "workflow_ref": os.environ["WORKFLOW_REF"],
+              "workflow_sha": os.environ["WORKFLOW_SHA"],
+              "lane_manifest_run_id": os.environ["PARENT_RUN_ID"],
+              "lane_manifest_artifact_name": os.environ["ARTIFACT_NAME"],
+              "lane_manifest_artifact_id": os.environ["ARTIFACT_ID"],
+              "lane_manifest_artifact_digest": os.environ["ARTIFACT_DIGEST"],
+          }
+          payload = {
+              "ref": os.environ["WORKFLOW_REF"],
+              "inputs": inputs,
+              "return_run_details": True,
+          }
+          Path(os.environ["DISPATCH_PAYLOAD_PATH"]).write_text(
+              json.dumps(payload, separators=(",", ":")) + "\n",
+              encoding="utf-8",
           )
-          matches = sorted(
-              (
-                  run
-                  for page in pages
-                  for run in page.get("workflow_runs", [])
-                  if str(run.get("display_title") or "") == expected_run_name
-                  and str(run.get("id") or "") not in existing_ids
-              ),
-              key=lambda run: str(run.get("id") or ""),
-          )
-          if len(matches) > 1:
-              details = ", ".join(
-                  f"{run.get('id')}:{run.get('status')}:{run.get('html_url')}"
-                  for run in matches
-              )
-              print(
-                  f"::error::Self-dispatch created {len(matches)} exact-title child runs "
-                  f"for {expected_run_name!r}: {details}"
-              )
-              raise SystemExit(2)
-          if not matches:
-              raise SystemExit(1)
+          PY
+          dispatch_response_path="$RUNNER_TEMP/full-extraction-dispatch-response.json"
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/dispatches" \
+            --input "$dispatch_payload_path" \
+            > "$dispatch_response_path"
+          child_run_path="$RUNNER_TEMP/full-extraction-child-run.json"
+          DISPATCH_RESPONSE_PATH="$dispatch_response_path" \
+            CHILD_RUN_PATH="$child_run_path" \
+            EXPECTED_RUN_NAME="$next_run_name" \
+            python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
 
-          child = matches[0]
-          child_run_id = str(child.get("id") or "").strip()
-          child_run_url = str(child.get("html_url") or "").strip()
-          if not child_run_id.isdigit() or not child_run_url:
-              print(
-                  "::error::Exact-title child run is missing a valid id or URL: "
-                  f"{child!r}"
+          response = json.loads(
+              Path(os.environ["DISPATCH_RESPONSE_PATH"]).read_text(encoding="utf-8")
+          )
+          expected_run_name = os.environ["EXPECTED_RUN_NAME"]
+          child_run_id = str(response.get("workflow_run_id") or "").strip()
+          child_run_url = str(response.get("html_url") or "").strip()
+          run_api_url = str(response.get("run_url") or "").strip()
+          repository = os.environ["GITHUB_REPOSITORY"]
+          if re.fullmatch(r"[^/]+/[^/]+", repository) is None:
+              raise SystemExit("GitHub repository identity is invalid")
+          expected_child_url = (
+              f"{os.environ['GITHUB_SERVER_URL'].rstrip('/')}/{repository}/"
+              f"actions/runs/{child_run_id}"
+          )
+          expected_api_url = (
+              f"{os.environ['GITHUB_API_URL'].rstrip('/')}/repos/{repository}/"
+              f"actions/runs/{child_run_id}"
+          )
+          if (
+              re.fullmatch(r"[1-9][0-9]*", child_run_id) is None
+              or child_run_url != expected_child_url
+              or run_api_url != expected_api_url
+          ):
+              raise SystemExit(
+                  f"workflow dispatch did not return an exact child identity: {response!r}"
               )
-              raise SystemExit(3)
-          if expected_child_run_id and child_run_id != expected_child_run_id:
-              print(
-                  "::error::Exact-title child run changed during stabilization: "
-                  f"expected {expected_child_run_id}, got {child_run_id}"
-              )
-              raise SystemExit(4)
           Path(os.environ["CHILD_RUN_PATH"]).write_text(
               json.dumps(
                   {
                       "display_title": expected_run_name,
                       "id": child_run_id,
-                      "url": child_run_url,
+                      "url": expected_child_url,
+                      "api_url": expected_api_url,
                   },
                   indent=2,
               )
@@ -6133,13 +7537,6 @@ jobs:
               encoding="utf-8",
           )
           PY
-          stabilization_status=$?
-          set -e
-          if [ "$stabilization_status" -ne 0 ]; then
-            echo "::error::Self-dispatch exact-title child inventory did not stabilize (matcher exit $stabilization_status)"
-            exit 1
-          fi
-
           child_run_id="$(CHILD_RUN_PATH="$child_run_path" python - <<'PY'
           import json
           import os
@@ -6156,6 +7553,54 @@ jobs:
           print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["url"])
           PY
           )"
+          child_run_api_url="$(CHILD_RUN_PATH="$child_run_path" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["api_url"])
+          PY
+          )"
+          child_details_path="$RUNNER_TEMP/full-extraction-child-details.json"
+          child_visible=false
+          for _attempt in 1 2 3; do
+            if gh api \
+              --method GET \
+              -H "Accept: application/vnd.github+json" \
+              "$child_run_api_url" > "$child_details_path"; then
+              child_visible=true
+              break
+            fi
+            sleep "$CHILD_POLL_INTERVAL_SECONDS"
+          done
+          if [ "$child_visible" != "true" ]; then
+            echo "::error::Exact self-dispatched child run $child_run_id was not readable"
+            exit 1
+          fi
+          CHILD_DETAILS_PATH="$child_details_path" \
+            EXPECTED_CHILD_RUN_ID="$child_run_id" \
+            EXPECTED_RUN_NAME="$next_run_name" \
+            EXPECTED_CHILD_URL="$child_run_url" \
+            python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          child = json.loads(
+              Path(os.environ["CHILD_DETAILS_PATH"]).read_text(encoding="utf-8")
+          )
+          if (
+              str(child.get("id") or "") != os.environ["EXPECTED_CHILD_RUN_ID"]
+              or str(child.get("display_title") or "") != os.environ["EXPECTED_RUN_NAME"]
+              or str(child.get("html_url") or "") != os.environ["EXPECTED_CHILD_URL"]
+              or str(child.get("event") or "") != "workflow_dispatch"
+              or str(child.get("head_sha") or "").lower()
+              != os.environ["TRUSTED_BRANCH_TIP_SHA"].lower()
+          ):
+              raise SystemExit(
+                  f"self-dispatched child provenance does not match: {child!r}"
+              )
+          PY
           child_acknowledged=true
           trap - EXIT INT TERM
           {
