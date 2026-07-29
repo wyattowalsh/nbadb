@@ -189,7 +189,23 @@ coverage.
 empty. That improves runtime at the cost of silently losing required data and is
 incompatible with terminal assurance.
 
-### 8. Verification proceeds from deterministic local evidence to live gates
+### 8. The VPN canary mirrors the pinned `nba_api` HTTP contract
+
+The TeamYears canary remains a small, strict, response-shape-validated request,
+but its request headers are an exact copy of `nba_api 1.11.4`
+`STATS_HEADERS`. The public `nbadb.core.NBA_HEADERS` mapping is also a defensive
+copy of that runtime source. Unit contract tests import the pinned constant and
+fail on connector order/value drift or public-export drift. This preserves the
+connector's standard-library execution while ensuring every repository-owned
+NBA reachability surface uses the same request contract as the extraction stack
+it protects.
+
+**Alternative considered:** keep a browser-like subset of the headers. NBA.com
+can silently time out requests missing its current client-hint headers, which
+misclassifies working tunnels as network failures and quarantines healthy
+servers.
+
+### 9. Verification proceeds from deterministic local evidence to live gates
 
 Validation is staged so inexpensive failures stop before costly network runs:
 
@@ -225,6 +241,9 @@ No later wave proceeds when an earlier fail-closed gate is red.
 - **[Risk] A response-contract circuit masks a transiently malformed response.**
   -> Scope it to one pattern execution, require consecutive identical permanent
   classifications, keep every suppressed call failed, and retry it on resume.
+- **[Risk] The upstream package changes its request header contract.** -> Pin
+  `nba_api`, assert exact header parity in CI, and require the connector and
+  runtime dependency to update in one atomic change.
 - **[Risk] Exact dispatch response support changes.** -> Validate the returned
   shape and fail closed; do not silently fall back to ambiguous run discovery.
 - **[Risk] Full-suite or live validation exceeds practical runtime.** -> Preserve
@@ -272,5 +291,5 @@ previous committed pointer; it must never rewrite the committed artifact.
   inventory.
 - Live evidence is still required to determine whether the configured
   `win_probability` threshold of three gives the best wall-clock savings
-without excessive false opening; coverage semantics do not depend on the
-chosen positive threshold.
+  without excessive false opening; coverage semantics do not depend on the
+  chosen positive threshold.

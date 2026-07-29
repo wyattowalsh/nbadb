@@ -10,6 +10,7 @@ import types
 from pathlib import Path
 
 import pytest
+from nba_api.stats.library.http import STATS_HEADERS
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "actions" / "nordvpn-connect" / "connect.py"
@@ -620,7 +621,16 @@ def test_nba_probe_succeeds_with_compatible_headers_and_bounded_request(
     assert "Accept: application/json, text/plain, */*" in headers
     assert "Referer: https://www.nba.com/" in headers
     assert any(header.startswith("User-Agent: Mozilla/5.0 ") for header in headers)
+    assert headers == [f"{name}: {value}" for name, value in module.NBA_PROBE_HEADERS]
     assert kwargs["timeout"] == 10.25
+
+
+def test_nba_probe_headers_match_pinned_nba_api_contract(
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+
+    assert tuple(STATS_HEADERS.items()) == module.NBA_PROBE_HEADERS
 
 
 def test_nba_probe_timeout_is_capped_by_remaining_budget(

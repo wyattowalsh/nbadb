@@ -260,6 +260,9 @@ still complete them.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 bounded GitHub control-plane reachability probe, strict NBA result-set probe, and
 installed-stack player/game discovery canaries pass.
+The strict `TeamYears` canary sends the exact ordered header contract from the
+pinned `nba_api` runtime; dependency or header changes must update the standalone
+connector and public `nbadb.core.NBA_HEADERS` copy atomically.
 The player canary also requires a positive player/team membership row.
 NBA-blocked servers are rejected across fallback technologies. Preflight and discovery
 failures, plus failed hosts reported by successful concurrent capacity probes, are

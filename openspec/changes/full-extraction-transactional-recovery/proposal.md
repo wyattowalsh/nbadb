@@ -19,6 +19,8 @@ discarded 13 completed lane artifacts after more than 85 hours of extraction.
   inventory polling to discover a child run.
 - Bound repeated response-contract failures by pattern without recording
   suppressed calls as successes or reducing required coverage.
+- Keep the strict VPN TeamYears canary and public `NBA_HEADERS` export aligned
+  with the exact HTTP header contract of the pinned `nba_api` runtime.
 
 ## Capabilities
 
@@ -32,6 +34,9 @@ discarded 13 completed lane artifacts after more than 85 hours of extraction.
 - `bounded-extraction-failure-circuits`: Pattern-aware repeated
   response-contract suppression that preserves failed-call accounting and
   resume coverage.
+- `nba-stats-probe-contract-parity`: Exact pinned-runtime HTTP headers for the
+  fail-closed VPN TeamYears canary and public `nbadb.core.NBA_HEADERS`
+  request-header contract, with drift detection.
 
 ### Modified Capabilities
 
@@ -41,7 +46,8 @@ None. This repository did not previously contain OpenSpec capability files.
 
 The change affects the full-extraction manifest and checkpoint artifact
 contracts, GitHub Actions orchestration, extraction retry policy, control-plane
-tests and fixtures, operator documentation, and the next full extraction and
-Kaggle publication run. Existing source-SHA trust gates, lane-state
-attestations, terminal assurance, and publication verification remain
-fail-closed.
+tests and fixtures, the public `nbadb.core.NBA_HEADERS` request-header contract,
+the pinned `nba_api` dependency coupling, operator documentation, and the next
+full extraction and Kaggle publication run. Existing source-SHA trust gates,
+lane-state attestations, terminal assurance, and publication verification
+remain fail-closed.

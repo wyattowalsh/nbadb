@@ -136,6 +136,20 @@ parallel subagent leaves unless they name the same file.
 - [ ] 8.18 Add a resume test proving suppressed params remain absent from completed journal coverage (depends: 8.8-8.12)
 - [x] 8.19 Add metrics or structured summary counts for upstream attempts, circuit suppressions, signature, and preserved outstanding calls (depends: 8.8)
 
+## 8A. NBA Stats Probe Header Contract
+
+- [x] 8A.1 Reproduce the targeted-smoke TeamYears timeout with the connector's reduced header set
+- [x] 8A.2 Prove the same endpoint and host return a valid TeamYears response with pinned `nba_api 1.11.4` `STATS_HEADERS` (depends: 8A.1)
+- [x] 8A.3 Replace the connector subset with the exact pinned runtime header contract (depends: 8A.2)
+- [x] 8A.4 Add a unit test that imports `STATS_HEADERS` and requires exact connector parity (depends: 8A.3)
+- [x] 8A.5 Assert the generated curl command sends every contract header in canonical order (depends: 8A.3)
+- [x] 8A.6 Derive the public `NBA_HEADERS` copy from the pinned runtime and test export parity (depends: 8A.3)
+- [x] 8A.7 Run focused connector/core tests, Ruff, `ty`, and the direct live canary comparison (depends: 8A.4-8A.6)
+- [x] 8A.8 Update `README.md`, root `AGENTS.md`, and the troubleshooting playbook with the atomic header-parity invariant (depends: 8A.6)
+- [x] 8A.9 Run strict OpenSpec validation and scoped docs formatting/lint after the documentation settles (depends: 8A.7-8A.8)
+- [ ] 8A.10 Run exact-SHA CI on the atomic header-contract commit (depends: 8A.9)
+- [ ] 8A.11 Run a fresh one-lane VPN smoke on that exact green SHA (depends: 8A.10)
+
 ## 9. Focused Deterministic Assurance
 
 - [ ] 9.1 Run Ruff formatting checks on every touched Python and test path (depends: 2-8)
