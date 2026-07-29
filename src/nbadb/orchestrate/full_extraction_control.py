@@ -19,6 +19,11 @@ from nbadb.core.types import (
     SeasonType,
     classify_season_type_availability,
 )
+from nbadb.orchestrate.checkpoint_contract import (
+    CheckpointArtifactReceipt,
+    CheckpointState,
+    CheckpointTransaction,
+)
 from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extraction_contract import (
     DISCOVERY_SEED_OWNED_ENDPOINTS,
@@ -405,10 +410,12 @@ class FullExtractionChainState:
     latest_checkpoint_artifact_name: str = ""
     latest_checkpoint_generation: int = 0
     latest_checkpoint_coverage_hash: str = ""
+    latest_checkpoint_transaction: dict[str, Any] | None = None
     previous_checkpoint_run_id: str = ""
     previous_checkpoint_artifact_name: str = ""
     previous_checkpoint_generation: int = 0
     previous_checkpoint_coverage_hash: str = ""
+    previous_checkpoint_transaction: dict[str, Any] | None = None
     scheduler_rotation_cursor: int = 0
     iteration_budget: int = 0
     contract_blocked_evidence: tuple[dict[str, Any], ...] = ()
@@ -441,6 +448,10 @@ class FullExtractionChainState:
                 self.previous_contract_blocked_evidence_sha256
             ),
         }
+        if self.latest_checkpoint_transaction is not None:
+            payload["latest_checkpoint_transaction"] = dict(self.latest_checkpoint_transaction)
+        if self.previous_checkpoint_transaction is not None:
+            payload["previous_checkpoint_transaction"] = dict(self.previous_checkpoint_transaction)
         if self.pending_contract_blocked_evidence or self.pending_contract_blocked_evidence_sha256:
             payload["pending_contract_blocked_evidence"] = [
                 dict(row) for row in self.pending_contract_blocked_evidence
@@ -484,6 +495,19 @@ def _normalize_scalar_string(raw: Any) -> str:
     return str(raw).strip()
 
 
+def _normalize_checkpoint_transaction(
+    raw: Any,
+    *,
+    field_name: str,
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise ValueError(f"chain_state {field_name} must be an object")
+    transaction = CheckpointTransaction.from_dict(raw)
+    if transaction.state is not CheckpointState.COMMITTED:
+        raise ValueError(f"chain_state {field_name} must be committed")
+    return transaction.to_dict()
+
+
 def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
     if raw_chain_state is None or raw_chain_state == "":
         return FullExtractionChainState()
@@ -520,6 +544,14 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
         latest_checkpoint_coverage_hash=_normalize_scalar_string(
             raw_chain_state.get("latest_checkpoint_coverage_hash")
         ),
+        latest_checkpoint_transaction=(
+            _normalize_checkpoint_transaction(
+                raw_chain_state["latest_checkpoint_transaction"],
+                field_name="latest_checkpoint_transaction",
+            )
+            if "latest_checkpoint_transaction" in raw_chain_state
+            else None
+        ),
         previous_checkpoint_run_id=_normalize_scalar_string(
             raw_chain_state.get("previous_checkpoint_run_id")
         ),
@@ -531,6 +563,14 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
         ),
         previous_checkpoint_coverage_hash=_normalize_scalar_string(
             raw_chain_state.get("previous_checkpoint_coverage_hash")
+        ),
+        previous_checkpoint_transaction=(
+            _normalize_checkpoint_transaction(
+                raw_chain_state["previous_checkpoint_transaction"],
+                field_name="previous_checkpoint_transaction",
+            )
+            if "previous_checkpoint_transaction" in raw_chain_state
+            else None
         ),
         scheduler_rotation_cursor=(
             int(raw_chain_state.get("scheduler_rotation_cursor") or 0)
@@ -2494,6 +2534,14 @@ def _int_metadata_value(value: Any) -> int:
         return 0
 
 
+def _nonnegative_int_metadata_value(value: Any) -> int | None:
+    if type(value) is int:
+        return value if value >= 0 else None
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
 def _metadata_has_required_noncomplete_artifacts(payload: dict[str, Any]) -> bool:
     if not payload:
         return False
@@ -3199,10 +3247,6 @@ def build_resume_manifest(
     allow_pipeline_failures: bool = False,
     completed_artifact_run_id: str | None = None,
     chunk_profile: str | None = None,
-    latest_checkpoint_run_id: str | None = None,
-    latest_checkpoint_artifact_name: str | None = None,
-    latest_checkpoint_generation: int | None = None,
-    latest_checkpoint_coverage_hash: str | None = None,
     current_iteration: int = 1,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
     expected_chain_id: str | None = None,
@@ -3590,10 +3634,9 @@ def build_resume_manifest(
     next_scheduler_cursor = (
         previous_state.scheduler_rotation_cursor + dispatched_lane_count
     ) % len(SCHEDULER_QUEUE_SEQUENCE)
-    replacing_checkpoint = bool(latest_checkpoint_run_id and latest_checkpoint_artifact_name)
     merged_artifact_run_ids = _normalize_server_list(
         [
-            *(() if replacing_checkpoint else previous_state.artifact_run_ids),
+            *previous_state.artifact_run_ids,
             *([completed_artifact_run_id] if completed_artifact_run_id else []),
         ]
     )
@@ -3603,11 +3646,6 @@ def build_resume_manifest(
         chunk_profile=profile,
         max_matrix_lanes=max_matrix_lanes,
         rotation_cursor=next_scheduler_cursor,
-    )
-    checkpoint_generation = (
-        int(latest_checkpoint_generation)
-        if latest_checkpoint_generation is not None
-        else previous_state.latest_checkpoint_generation
     )
     pending_contract_blocked_evidence = tuple(
         pending_contract_blocked_rows[lane_id] for lane_id in sorted(pending_contract_blocked_rows)
@@ -3625,52 +3663,23 @@ def build_resume_manifest(
     next_chain_state = FullExtractionChainState(
         vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers)),
         artifact_run_ids=tuple(merged_artifact_run_ids),
-        latest_checkpoint_run_id=(
-            _normalize_scalar_string(latest_checkpoint_run_id)
-            or previous_state.latest_checkpoint_run_id
-        ),
-        latest_checkpoint_artifact_name=(
-            _normalize_scalar_string(latest_checkpoint_artifact_name)
-            or previous_state.latest_checkpoint_artifact_name
-        ),
-        latest_checkpoint_generation=checkpoint_generation,
-        latest_checkpoint_coverage_hash=(
-            _normalize_scalar_string(latest_checkpoint_coverage_hash)
-            or previous_state.latest_checkpoint_coverage_hash
-        ),
-        previous_checkpoint_run_id=(
-            previous_state.latest_checkpoint_run_id
-            if replacing_checkpoint
-            else previous_state.previous_checkpoint_run_id
-        ),
-        previous_checkpoint_artifact_name=(
-            previous_state.latest_checkpoint_artifact_name
-            if replacing_checkpoint
-            else previous_state.previous_checkpoint_artifact_name
-        ),
-        previous_checkpoint_generation=(
-            previous_state.latest_checkpoint_generation
-            if replacing_checkpoint
-            else previous_state.previous_checkpoint_generation
-        ),
-        previous_checkpoint_coverage_hash=(
-            previous_state.latest_checkpoint_coverage_hash
-            if replacing_checkpoint
-            else previous_state.previous_checkpoint_coverage_hash
-        ),
+        latest_checkpoint_run_id=previous_state.latest_checkpoint_run_id,
+        latest_checkpoint_artifact_name=(previous_state.latest_checkpoint_artifact_name),
+        latest_checkpoint_generation=previous_state.latest_checkpoint_generation,
+        latest_checkpoint_coverage_hash=(previous_state.latest_checkpoint_coverage_hash),
+        latest_checkpoint_transaction=previous_state.latest_checkpoint_transaction,
+        previous_checkpoint_run_id=previous_state.previous_checkpoint_run_id,
+        previous_checkpoint_artifact_name=(previous_state.previous_checkpoint_artifact_name),
+        previous_checkpoint_generation=(previous_state.previous_checkpoint_generation),
+        previous_checkpoint_coverage_hash=(previous_state.previous_checkpoint_coverage_hash),
+        previous_checkpoint_transaction=previous_state.previous_checkpoint_transaction,
         scheduler_rotation_cursor=next_scheduler_cursor,
         iteration_budget=previous_state.iteration_budget,
         contract_blocked_evidence=previous_state.contract_blocked_evidence,
         contract_blocked_evidence_sha256=previous_state.contract_blocked_evidence_sha256,
-        previous_contract_blocked_evidence=(
-            previous_state.contract_blocked_evidence
-            if replacing_checkpoint
-            else previous_state.previous_contract_blocked_evidence
-        ),
+        previous_contract_blocked_evidence=(previous_state.previous_contract_blocked_evidence),
         previous_contract_blocked_evidence_sha256=(
-            previous_state.contract_blocked_evidence_sha256
-            if replacing_checkpoint
-            else previous_state.previous_contract_blocked_evidence_sha256
+            previous_state.previous_contract_blocked_evidence_sha256
         ),
         pending_contract_blocked_evidence=pending_contract_blocked_evidence,
         pending_contract_blocked_evidence_sha256=(pending_contract_blocked_evidence_sha256),
@@ -4409,6 +4418,7 @@ class _CheckpointPointer:
     artifact_name: str
     generation: int
     coverage_hash: str
+    transaction: CheckpointTransaction | None = None
 
 
 def _checkpoint_pointer(
@@ -4423,13 +4433,26 @@ def _checkpoint_pointer(
     artifact_name = getattr(chain_state, f"{prefix}_checkpoint_artifact_name")
     generation = getattr(chain_state, f"{prefix}_checkpoint_generation")
     coverage_hash = getattr(chain_state, f"{prefix}_checkpoint_coverage_hash").lower()
-    present = (bool(run_id), bool(artifact_name), generation != 0, bool(coverage_hash))
-    if any(present) and not all(present):
+    transaction_payload = getattr(
+        chain_state,
+        f"{prefix}_checkpoint_transaction",
+    )
+    flat_fields_present = (
+        bool(run_id),
+        bool(artifact_name),
+        generation != 0,
+        bool(coverage_hash),
+    )
+    if any(flat_fields_present) and not all(flat_fields_present):
         raise ValueError(
             f"The {prefix} checkpoint pointer must set run ID, artifact name, "
             "generation, and coverage hash together"
         )
-    if not any(present):
+    if transaction_payload is not None and not all(flat_fields_present):
+        raise ValueError(
+            f"The {prefix} checkpoint pointer must set its flat identity and transaction together"
+        )
+    if not any(flat_fields_present):
         return None
     if not _is_positive_run_id(run_id):
         raise ValueError(f"The {prefix} checkpoint run ID must be a positive integer")
@@ -4442,11 +4465,39 @@ def _checkpoint_pointer(
         )
     if not _is_sha256(coverage_hash):
         raise ValueError(f"The {prefix} checkpoint coverage hash must be a SHA-256")
+    transaction = (
+        CheckpointTransaction.from_dict(transaction_payload)
+        if transaction_payload is not None
+        else None
+    )
+    if transaction is not None:
+        if transaction.state is not CheckpointState.COMMITTED:
+            raise ValueError(f"The {prefix} checkpoint transaction must be committed")
+        receipt = transaction.committed_receipt
+        transaction_fields = (
+            ("run ID", str(receipt.artifact_run_id), run_id),
+            ("artifact name", transaction.artifact_name, artifact_name),
+            ("generation", transaction.identity.generation, generation),
+            (
+                "coverage hash",
+                transaction.identity.coverage.coverage_fingerprint,
+                coverage_hash,
+            ),
+        )
+        mismatches = [label for label, actual, expected in transaction_fields if actual != expected]
+        if transaction.identity.chain_id != chain_id:
+            mismatches.append("chain ID")
+        if mismatches:
+            raise ValueError(
+                f"The {prefix} checkpoint transaction disagrees with its pointer: "
+                + ", ".join(mismatches)
+            )
     return _CheckpointPointer(
         run_id=run_id,
         artifact_name=artifact_name,
         generation=generation,
         coverage_hash=coverage_hash,
+        transaction=transaction,
     )
 
 
@@ -4475,6 +4526,17 @@ def _validate_checkpoint_trust_root(
             raise ValueError(
                 f"The {prefix} checkpoint generation must be represented as an integer"
             )
+        raw_transaction = raw_chain_state.get(f"{prefix}_checkpoint_transaction")
+        if raw_transaction is not None:
+            if not isinstance(raw_transaction, dict):
+                raise ValueError(f"The {prefix} checkpoint transaction must be an object")
+            transaction = CheckpointTransaction.from_dict(raw_transaction)
+            if transaction.state is not CheckpointState.COMMITTED:
+                raise ValueError(f"The {prefix} checkpoint transaction must be committed")
+            if transaction.identity.chain_id != chain_id:
+                raise ValueError(f"The {prefix} checkpoint transaction chain ID does not match")
+            if transaction.identity.source_sha != normalized_source_sha:
+                raise ValueError(f"The {prefix} checkpoint transaction source SHA does not match")
     if str(raw_manifest.get("chain_id") or "") != chain_id:
         raise ValueError("Checkpoint manifest chain_id does not match the trusted chain")
     if str(raw_manifest.get("workflow_source_sha") or "").strip().lower() != normalized_source_sha:
@@ -4595,6 +4657,15 @@ def _validate_previous_checkpoint_report(
     if actual_database_sha256 != reported_database_sha256.lower():
         msg = "Previous checkpoint database digest does not match its report"
         raise ValueError(msg)
+    if pointer.transaction is not None:
+        build = pointer.transaction.build
+        if build is None:
+            raise ValueError("Committed checkpoint transaction has no build contract")
+        if build.database_sha256 != actual_database_sha256:
+            raise ValueError("Previous checkpoint database digest does not match its transaction")
+        actual_report_sha256 = _file_sha256(previous_report_path)
+        if build.report_sha256 != actual_report_sha256:
+            raise ValueError("Previous checkpoint report digest does not match its transaction")
 
     raw_lane_ids = previous_report.get("included_lane_ids")
     if not isinstance(raw_lane_ids, list):
@@ -4646,6 +4717,15 @@ def _validate_previous_checkpoint_report(
             "Previous checkpoint report has invalid lane coverage hashes: "
             + ", ".join(invalid_hash_ids)
         )
+    if pointer.transaction is not None:
+        transaction_coverage_hashes = {
+            lane.lane_id: lane.coverage_units_hash
+            for lane in pointer.transaction.identity.coverage.lanes
+        }
+        if transaction_coverage_hashes != coverage_hashes:
+            raise ValueError(
+                "Previous checkpoint report lane inventory does not match its transaction"
+            )
 
     for lane_id in sorted(included_lane_ids & set(lanes_by_id)):
         expected_hash = _coverage_hash_for_lane(lanes_by_id[lane_id])
@@ -4806,7 +4886,7 @@ def validate_checkpoint_artifact(
             pointer_prefix=pointer_prefix,
         )
     )
-    return {
+    summary = {
         "run_id": pointer.run_id,
         "artifact_name": pointer.artifact_name,
         "checkpoint_generation": pointer.generation,
@@ -4818,6 +4898,10 @@ def validate_checkpoint_artifact(
         "contract_blocked_lane_count": len(contract_blocked_rows),
         "contract_blocked_evidence_sha256": contract_blocked_evidence_sha256,
     }
+    if pointer.transaction is not None:
+        summary["checkpoint_transaction"] = pointer.transaction.to_dict()
+        summary["artifact_receipt"] = pointer.transaction.committed_receipt.to_dict()
+    return summary
 
 
 def _database_row_counts(db_path: Path) -> tuple[dict[str, int], int]:
@@ -4889,8 +4973,8 @@ def _metadata_lane_contract_errors(
             errors.append(f"metadata_{metadata_field}_mismatch")
 
     if "lane_index" in payload:
-        if _int_metadata_value(payload.get("lane_index")) != lane.lane_index:
-            errors.append("metadata_lane_index_mismatch")
+        if _nonnegative_int_metadata_value(payload.get("lane_index")) is None:
+            errors.append("metadata_lane_index_invalid")
     elif strict:
         errors.append("metadata_lane_index_missing")
 
@@ -6027,6 +6111,8 @@ def build_checkpoint_database(
     chain_id: str = "",
     run_id: str = "",
     source_sha: str = "",
+    checkpoint_generation: int = 0,
+    checkpoint_artifact_name: str = "",
 ) -> dict[str, Any]:
     raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     trusted_manifest = _validate_checkpoint_trust_root(
@@ -6052,23 +6138,26 @@ def build_checkpoint_database(
             "Checkpoint manifest lanes overlap committed contract-blocked evidence: "
             + ", ".join(duplicate_accounted_lane_ids)
         )
-    latest_pointer = _checkpoint_pointer(
+    previous_pointer = _checkpoint_pointer(
         manifest.chain_state,
         prefix="latest",
         chain_id=chain_id,
     )
-    if latest_pointer is None:
-        raise ValueError("Checkpoint manifest is missing its latest checkpoint pointer")
-    if latest_pointer.run_id != run_id:
-        raise ValueError("Latest checkpoint pointer run ID does not match checkpoint run_id")
-    previous_pointer = _checkpoint_pointer(
-        manifest.chain_state,
-        prefix="previous",
-        chain_id=chain_id,
-    )
     expected_previous_generation = previous_pointer.generation if previous_pointer else 0
-    if latest_pointer.generation != expected_previous_generation + 1:
-        raise ValueError("Checkpoint pointer generations are not contiguous")
+    if checkpoint_generation != expected_previous_generation + 1:
+        raise ValueError(
+            "Candidate checkpoint generation must immediately follow the committed checkpoint"
+        )
+    expected_checkpoint_artifact_name = _checkpoint_artifact_name(
+        chain_id,
+        checkpoint_generation,
+    )
+    if checkpoint_artifact_name != expected_checkpoint_artifact_name:
+        raise ValueError(
+            "Candidate checkpoint artifact name must be "
+            f"{expected_checkpoint_artifact_name}, got "
+            f"{checkpoint_artifact_name or '<missing>'}"
+        )
     previous_inputs = (
         previous_checkpoint_dir is not None,
         previous_checkpoint_report_path is not None,
@@ -6116,7 +6205,7 @@ def build_checkpoint_database(
         _validate_contract_blocked_evidence_commitment(
             previous_report,
             manifest.chain_state,
-            pointer_prefix="previous",
+            pointer_prefix="latest",
         )
         (
             previous_included_lane_ids,
@@ -6174,17 +6263,23 @@ def build_checkpoint_database(
         merge_mode = "checkpoint"
         output_path = str(checkpoint_db_path)
     else:
+        checkpoint_db_path = output_dir / "nba.duckdb"
+        conn = duckdb.connect(str(checkpoint_db_path))
+        try:
+            conn.execute("CHECKPOINT")
+        finally:
+            conn.close()
         merge_summary = {
             "merged_database_count": 0,
             "merged_table_operations": 0,
-            "output_path": "",
+            "output_path": str(checkpoint_db_path),
             "table_reports": {},
             "journal_report": {},
         }
         table_row_counts = {}
         journal_row_count = 0
         merge_mode = "empty"
-        output_path = ""
+        output_path = str(checkpoint_db_path)
 
     included_lane_ids = (
         previous_included_lane_ids | compatible_previous_lane_ids | current_included_lane_ids
@@ -6206,7 +6301,6 @@ def build_checkpoint_database(
         )
     )
     workload_contract_errors.extend(included_workload_contract_errors)
-    checkpoint_generation = latest_pointer.generation
     included_run_ids = list(
         dict.fromkeys([*previous_run_ids, *sorted(current_artifact_run_ids), run_id])
     )
@@ -6214,14 +6308,10 @@ def build_checkpoint_database(
     manifest_lane_count = len(lanes) + len(committed_contract_blocked_lane_ids)
     complete_lane_count = len(effective_included_lane_ids)
     contract_blocked_lane_count = len(accounted_contract_blocked_lane_ids)
-    if coverage_fingerprint != latest_pointer.coverage_hash:
-        raise ValueError(
-            "Latest checkpoint pointer coverage hash does not match the built checkpoint"
-        )
     report = {
         "chain_id": chain_id,
         "run_id": run_id,
-        "artifact_name": latest_pointer.artifact_name,
+        "artifact_name": checkpoint_artifact_name,
         "source_sha": normalized_source_sha,
         "chunk_profile": _manifest_chunk_profile(lanes),
         "checkpoint_generation": checkpoint_generation,
@@ -6261,6 +6351,288 @@ def build_checkpoint_database(
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
+
+
+def build_checkpoint_transaction(
+    *,
+    manifest_path: Path,
+    checkpoint_report_path: Path,
+    checkpoint_database_path: Path,
+    output_path: Path,
+    chain_id: str,
+    run_id: str,
+    source_sha: str,
+    checkpoint_generation: int,
+    checkpoint_artifact_name: str,
+) -> dict[str, Any]:
+    raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    trusted_manifest = _validate_checkpoint_trust_root(
+        raw_manifest,
+        chain_id=chain_id,
+        source_sha=source_sha,
+        run_id=run_id,
+    )
+    manifest = normalize_manifest(trusted_manifest)
+    previous_pointer = _checkpoint_pointer(
+        manifest.chain_state,
+        prefix="latest",
+        chain_id=chain_id,
+    )
+    expected_generation = (previous_pointer.generation if previous_pointer else 0) + 1
+    if checkpoint_generation != expected_generation:
+        raise ValueError(
+            "Checkpoint transaction generation must immediately follow the committed checkpoint"
+        )
+    expected_artifact_name = _checkpoint_artifact_name(chain_id, checkpoint_generation)
+    if checkpoint_artifact_name != expected_artifact_name:
+        raise ValueError(f"Checkpoint transaction artifact name must be {expected_artifact_name}")
+
+    report = _read_json_file(checkpoint_report_path)
+    if not report:
+        raise ValueError("Checkpoint transaction requires a readable checkpoint report")
+    report_fields = (
+        ("chain_id", chain_id),
+        ("run_id", run_id),
+        ("artifact_name", checkpoint_artifact_name),
+        ("source_sha", source_sha.strip().lower()),
+    )
+    for field_name, expected in report_fields:
+        actual = str(report.get(field_name) or "").strip()
+        if field_name == "source_sha":
+            actual = actual.lower()
+        if actual != expected:
+            raise ValueError(f"Checkpoint report {field_name} does not match the transaction")
+    if report.get("checkpoint_generation") != checkpoint_generation:
+        raise ValueError("Checkpoint report generation does not match the transaction")
+
+    coverage_fingerprint = str(report.get("coverage_fingerprint") or "").lower()
+    if not _is_sha256(coverage_fingerprint):
+        raise ValueError("Checkpoint report coverage fingerprint must be a SHA-256")
+    included_lane_ids = report.get("included_lane_ids")
+    coverage_hashes = report.get("included_lane_coverage_hashes")
+    if not isinstance(included_lane_ids, list) or not isinstance(coverage_hashes, dict):
+        raise ValueError("Checkpoint report requires lane IDs and lane coverage hashes")
+    normalized_lane_ids = [str(lane_id).strip() for lane_id in included_lane_ids]
+    if (
+        any(not lane_id for lane_id in normalized_lane_ids)
+        or len(normalized_lane_ids) != len(set(normalized_lane_ids))
+        or set(normalized_lane_ids) != set(coverage_hashes)
+    ):
+        raise ValueError("Checkpoint report lane inventory does not match its coverage hashes")
+    lanes_by_id = {lane.lane_id: lane for lane in manifest.lanes}
+    missing_manifest_lane_ids = sorted(set(normalized_lane_ids) - set(lanes_by_id))
+    if missing_manifest_lane_ids:
+        raise ValueError(
+            "Checkpoint report lane inventory is absent from the manifest: "
+            + ", ".join(missing_manifest_lane_ids)
+        )
+    expected_coverage_fingerprint = _coverage_fingerprint(
+        [lanes_by_id[lane_id] for lane_id in normalized_lane_ids]
+    )
+    if coverage_fingerprint != expected_coverage_fingerprint:
+        raise ValueError(
+            "Checkpoint report coverage fingerprint does not match its manifest lane inventory"
+        )
+    lane_contracts: list[dict[str, str]] = []
+    for lane_id in sorted(normalized_lane_ids):
+        coverage_units_hash = str(coverage_hashes.get(lane_id) or "").lower()
+        if not _is_sha256(coverage_units_hash):
+            raise ValueError(f"Checkpoint lane coverage hash is invalid for {lane_id}")
+        expected_lane_hash = _coverage_hash_for_lane(lanes_by_id[lane_id])
+        if coverage_units_hash != expected_lane_hash:
+            raise ValueError(
+                f"Checkpoint lane coverage hash does not match the manifest for {lane_id}"
+            )
+        lane_contracts.append(
+            {
+                "lane_id": lane_id,
+                "coverage_units_hash": coverage_units_hash,
+            }
+        )
+
+    if (
+        checkpoint_database_path.is_symlink()
+        or not checkpoint_database_path.is_file()
+        or checkpoint_report_path.is_symlink()
+        or not checkpoint_report_path.is_file()
+    ):
+        raise ValueError("Checkpoint database and report must be regular files")
+    database_sha256 = _file_sha256(checkpoint_database_path)
+    if database_sha256 != str(report.get("database_sha256") or "").lower():
+        raise ValueError("Checkpoint database digest does not match the checkpoint report")
+    report_sha256 = _file_sha256(checkpoint_report_path)
+    transaction = CheckpointTransaction.candidate(
+        chain_id=chain_id,
+        source_sha=source_sha.strip().lower(),
+        generation=checkpoint_generation,
+        artifact_name=checkpoint_artifact_name,
+        lane_contracts=lane_contracts,
+        coverage_fingerprint=coverage_fingerprint,
+    ).mark_built(
+        database_sha256=database_sha256,
+        report_sha256=report_sha256,
+    )
+    payload = transaction.to_dict()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return payload
+
+
+def commit_checkpoint_manifest(
+    *,
+    manifest_path: Path,
+    checkpoint_transaction_path: Path,
+    checkpoint_report_path: Path,
+    checkpoint_database_path: Path,
+    output_path: Path,
+    chain_id: str,
+    run_id: str,
+    source_sha: str,
+    artifact_id: int,
+    artifact_digest: str,
+    artifact_size_bytes: int,
+) -> dict[str, Any]:
+    raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    trusted_manifest = _validate_checkpoint_trust_root(
+        raw_manifest,
+        chain_id=chain_id,
+        source_sha=source_sha,
+        run_id=run_id,
+    )
+    manifest = normalize_manifest(trusted_manifest)
+    previous_pointer = _checkpoint_pointer(
+        manifest.chain_state,
+        prefix="latest",
+        chain_id=chain_id,
+    )
+    transaction_payload = _read_json_file(checkpoint_transaction_path)
+    transaction = CheckpointTransaction.from_dict(transaction_payload)
+    if transaction.state is not CheckpointState.BUILT:
+        raise ValueError("Only a built checkpoint transaction may be committed")
+    if transaction.identity.chain_id != chain_id:
+        raise ValueError("Checkpoint transaction chain ID does not match")
+    normalized_source_sha = source_sha.strip().lower()
+    if transaction.identity.source_sha != normalized_source_sha:
+        raise ValueError("Checkpoint transaction source SHA does not match")
+    expected_generation = (previous_pointer.generation if previous_pointer else 0) + 1
+    if transaction.identity.generation != expected_generation:
+        raise ValueError("Checkpoint transaction generation does not follow the committed pointer")
+
+    report = _read_json_file(checkpoint_report_path)
+    if not report:
+        raise ValueError("Checkpoint commit requires a readable checkpoint report")
+    report_fields = (
+        ("chain_id", chain_id),
+        ("run_id", run_id),
+        ("artifact_name", transaction.artifact_name),
+        ("source_sha", normalized_source_sha),
+    )
+    for field_name, expected in report_fields:
+        actual = str(report.get(field_name) or "").strip()
+        if field_name == "source_sha":
+            actual = actual.lower()
+        if actual != expected:
+            raise ValueError(f"Checkpoint report {field_name} does not match the commit")
+    if report.get("checkpoint_generation") != transaction.identity.generation:
+        raise ValueError("Checkpoint report generation does not match the commit")
+    if transaction.build is None:
+        raise ValueError("Built checkpoint transaction has no build contract")
+    if _file_sha256(checkpoint_report_path) != transaction.build.report_sha256:
+        raise ValueError("Checkpoint report changed after the build transaction")
+    if _file_sha256(checkpoint_database_path) != transaction.build.database_sha256:
+        raise ValueError("Checkpoint database changed after the build transaction")
+    if str(report.get("coverage_fingerprint") or "").lower() != (
+        transaction.identity.coverage.coverage_fingerprint
+    ):
+        raise ValueError("Checkpoint report coverage does not match the build transaction")
+
+    receipt = CheckpointArtifactReceipt(
+        artifact_id=artifact_id,
+        artifact_run_id=int(run_id),
+        artifact_name=transaction.artifact_name,
+        artifact_digest=artifact_digest,
+        artifact_size_bytes=artifact_size_bytes,
+        database_sha256=transaction.build.database_sha256,
+        report_sha256=transaction.build.report_sha256,
+        chain_id=chain_id,
+        source_sha=normalized_source_sha,
+        generation=transaction.identity.generation,
+        coverage_fingerprint=transaction.identity.coverage.coverage_fingerprint,
+        lane_inventory_sha256=(transaction.identity.coverage.lane_inventory_sha256),
+    )
+    committed = transaction.mark_uploaded_verified(receipt).commit()
+    committed_receipt = committed.committed_receipt
+
+    state = dict(raw_manifest.get("chain_state") or {})
+    if previous_pointer is None:
+        for field_name in (
+            "previous_checkpoint_run_id",
+            "previous_checkpoint_artifact_name",
+            "previous_checkpoint_generation",
+            "previous_checkpoint_coverage_hash",
+            "previous_checkpoint_transaction",
+        ):
+            state.pop(field_name, None)
+    else:
+        state.update(
+            {
+                "previous_checkpoint_run_id": previous_pointer.run_id,
+                "previous_checkpoint_artifact_name": previous_pointer.artifact_name,
+                "previous_checkpoint_generation": previous_pointer.generation,
+                "previous_checkpoint_coverage_hash": previous_pointer.coverage_hash,
+            }
+        )
+        if previous_pointer.transaction is None:
+            state.pop("previous_checkpoint_transaction", None)
+        else:
+            state["previous_checkpoint_transaction"] = previous_pointer.transaction.to_dict()
+    state.update(
+        {
+            "latest_checkpoint_run_id": str(committed_receipt.artifact_run_id),
+            "latest_checkpoint_artifact_name": committed_receipt.artifact_name,
+            "latest_checkpoint_generation": committed_receipt.generation,
+            "latest_checkpoint_coverage_hash": (committed_receipt.coverage_fingerprint),
+            "latest_checkpoint_transaction": committed.to_dict(),
+        }
+    )
+    raw_run_ids = state.get("artifact_run_ids", [])
+    if not isinstance(raw_run_ids, list):
+        raise ValueError("Checkpoint artifact_run_ids must be a list")
+    state["artifact_run_ids"] = list(
+        dict.fromkeys([*[str(value) for value in raw_run_ids], run_id])
+    )
+    raw_manifest["chain_state"] = state
+
+    committed_manifest = normalize_manifest(raw_manifest)
+    committed_pointer = _checkpoint_pointer(
+        committed_manifest.chain_state,
+        prefix="latest",
+        chain_id=chain_id,
+    )
+    if (
+        committed_pointer is None
+        or committed_pointer.transaction is None
+        or committed_pointer.transaction.state is not CheckpointState.COMMITTED
+    ):
+        raise ValueError("Committed checkpoint manifest did not retain its transaction")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(raw_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "artifact_id": committed_receipt.artifact_id,
+        "artifact_run_id": committed_receipt.artifact_run_id,
+        "artifact_name": committed_receipt.artifact_name,
+        "artifact_digest": committed_receipt.artifact_digest,
+        "artifact_size_bytes": committed_receipt.artifact_size_bytes,
+        "checkpoint_generation": committed_receipt.generation,
+        "coverage_fingerprint": committed_receipt.coverage_fingerprint,
+        "manifest_path": str(output_path),
+    }
 
 
 def merge_final_database(
@@ -6405,10 +6777,6 @@ def _command_resume(args: argparse.Namespace) -> int:
         allow_pipeline_failures=args.allow_pipeline_failures,
         completed_artifact_run_id=args.completed_artifact_run_id,
         chunk_profile=args.chunk_profile,
-        latest_checkpoint_run_id=args.latest_checkpoint_run_id,
-        latest_checkpoint_artifact_name=args.latest_checkpoint_artifact_name,
-        latest_checkpoint_generation=args.latest_checkpoint_generation,
-        latest_checkpoint_coverage_hash=args.latest_checkpoint_coverage_hash,
         current_iteration=args.iteration,
         max_matrix_lanes=args.max_matrix_lanes,
         expected_chain_id=manifest.chain_id,
@@ -6457,6 +6825,42 @@ def _command_checkpoint(args: argparse.Namespace) -> int:
         chain_id=args.chain_id,
         run_id=args.run_id,
         source_sha=args.source_sha,
+        checkpoint_generation=args.checkpoint_generation,
+        checkpoint_artifact_name=args.checkpoint_artifact_name,
+    )
+    print(json.dumps(summary))
+    return 0
+
+
+def _command_build_checkpoint_transaction(args: argparse.Namespace) -> int:
+    summary = build_checkpoint_transaction(
+        manifest_path=args.lane_manifest_path,
+        checkpoint_report_path=args.checkpoint_report_path,
+        checkpoint_database_path=args.checkpoint_database_path,
+        output_path=args.output_path,
+        chain_id=args.chain_id,
+        run_id=args.run_id,
+        source_sha=args.source_sha,
+        checkpoint_generation=args.checkpoint_generation,
+        checkpoint_artifact_name=args.checkpoint_artifact_name,
+    )
+    print(json.dumps(summary))
+    return 0
+
+
+def _command_commit_checkpoint_manifest(args: argparse.Namespace) -> int:
+    summary = commit_checkpoint_manifest(
+        manifest_path=args.lane_manifest_path,
+        checkpoint_transaction_path=args.checkpoint_transaction_path,
+        checkpoint_report_path=args.checkpoint_report_path,
+        checkpoint_database_path=args.checkpoint_database_path,
+        output_path=args.output_path,
+        chain_id=args.chain_id,
+        run_id=args.run_id,
+        source_sha=args.source_sha,
+        artifact_id=args.artifact_id,
+        artifact_digest=args.artifact_digest,
+        artifact_size_bytes=args.artifact_size_bytes,
     )
     print(json.dumps(summary))
     return 0
@@ -6506,10 +6910,6 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--lane-manifest-path", type=Path, default=None)
     resume.add_argument("--metadata-dir", type=Path, required=True)
     resume.add_argument("--completed-artifact-run-id", type=str, default=None)
-    resume.add_argument("--latest-checkpoint-run-id", type=str, default=None)
-    resume.add_argument("--latest-checkpoint-artifact-name", type=str, default=None)
-    resume.add_argument("--latest-checkpoint-generation", type=int, default=None)
-    resume.add_argument("--latest-checkpoint-coverage-hash", type=str, default=None)
     resume.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--allow-pipeline-failures", action="store_true")
@@ -6531,7 +6931,45 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument("--chain-id", type=str, required=True)
     checkpoint.add_argument("--run-id", type=str, required=True)
     checkpoint.add_argument("--source-sha", type=str, required=True)
+    checkpoint.add_argument("--checkpoint-generation", type=int, required=True)
+    checkpoint.add_argument("--checkpoint-artifact-name", type=str, required=True)
     checkpoint.set_defaults(func=_command_checkpoint)
+
+    build_transaction = subparsers.add_parser(
+        "build-checkpoint-transaction",
+        help="Bind a built checkpoint database and report before artifact upload.",
+    )
+    build_transaction.add_argument("--lane-manifest-path", type=Path, required=True)
+    build_transaction.add_argument("--checkpoint-report-path", type=Path, required=True)
+    build_transaction.add_argument("--checkpoint-database-path", type=Path, required=True)
+    build_transaction.add_argument("--output-path", type=Path, required=True)
+    build_transaction.add_argument("--chain-id", type=str, required=True)
+    build_transaction.add_argument("--run-id", type=str, required=True)
+    build_transaction.add_argument("--source-sha", type=str, required=True)
+    build_transaction.add_argument("--checkpoint-generation", type=int, required=True)
+    build_transaction.add_argument("--checkpoint-artifact-name", type=str, required=True)
+    build_transaction.set_defaults(func=_command_build_checkpoint_transaction)
+
+    commit_manifest = subparsers.add_parser(
+        "commit-checkpoint-manifest",
+        help="Commit a verified immutable checkpoint receipt into the next manifest.",
+    )
+    commit_manifest.add_argument("--lane-manifest-path", type=Path, required=True)
+    commit_manifest.add_argument(
+        "--checkpoint-transaction-path",
+        type=Path,
+        required=True,
+    )
+    commit_manifest.add_argument("--checkpoint-report-path", type=Path, required=True)
+    commit_manifest.add_argument("--checkpoint-database-path", type=Path, required=True)
+    commit_manifest.add_argument("--output-path", type=Path, required=True)
+    commit_manifest.add_argument("--chain-id", type=str, required=True)
+    commit_manifest.add_argument("--run-id", type=str, required=True)
+    commit_manifest.add_argument("--source-sha", type=str, required=True)
+    commit_manifest.add_argument("--artifact-id", type=int, required=True)
+    commit_manifest.add_argument("--artifact-digest", type=str, required=True)
+    commit_manifest.add_argument("--artifact-size-bytes", type=int, required=True)
+    commit_manifest.set_defaults(func=_command_commit_checkpoint_manifest)
 
     verify_checkpoint = subparsers.add_parser(
         "verify-checkpoint",

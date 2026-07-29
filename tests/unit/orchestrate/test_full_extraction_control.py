@@ -625,33 +625,26 @@ def _build_checkpoint_database(
         expected_checkpoint_lane_ids = (
             previous_lane_ids | compatible_lane_ids | attested_lane_ids
         ) & {lane.lane_id for lane in lanes}
-    checkpoint_lanes = [lane for lane in lanes if lane.lane_id in expected_checkpoint_lane_ids]
-    latest_generation = previous_generation + 1
-    latest_coverage_hash = _coverage_fingerprint(checkpoint_lanes)
     chain_state = dict(raw_manifest.get("chain_state") or {})
     if previous_generation:
         chain_state.update(
             {
-                "previous_checkpoint_run_id": str(previous_report.get("run_id") or ""),
-                "previous_checkpoint_artifact_name": str(
-                    previous_report.get("artifact_name") or ""
-                ),
-                "previous_checkpoint_generation": previous_generation,
-                "previous_checkpoint_coverage_hash": str(
+                "latest_checkpoint_run_id": str(previous_report.get("run_id") or ""),
+                "latest_checkpoint_artifact_name": str(previous_report.get("artifact_name") or ""),
+                "latest_checkpoint_generation": previous_generation,
+                "latest_checkpoint_coverage_hash": str(
                     previous_report.get("coverage_fingerprint") or ""
                 ),
             }
         )
-    chain_state.update(
-        {
-            "artifact_run_ids": [run_id],
-            "latest_checkpoint_run_id": run_id,
-            "latest_checkpoint_artifact_name": (
-                f"full-extraction-checkpoint-{chain_id}-iter-{latest_generation}"
-            ),
-            "latest_checkpoint_generation": latest_generation,
-            "latest_checkpoint_coverage_hash": latest_coverage_hash,
-        }
+    latest_generation = int(chain_state.get("latest_checkpoint_generation") or 0) + 1
+    chain_state["artifact_run_ids"] = list(
+        dict.fromkeys(
+            [
+                *[str(value) for value in chain_state.get("artifact_run_ids", []) if str(value)],
+                run_id,
+            ]
+        )
     )
     raw_manifest.update(
         {
@@ -661,6 +654,11 @@ def _build_checkpoint_database(
         }
     )
     manifest_path.write_text(json.dumps(raw_manifest), encoding="utf-8")
+    kwargs.setdefault("checkpoint_generation", latest_generation)
+    kwargs.setdefault(
+        "checkpoint_artifact_name",
+        f"full-extraction-checkpoint-{chain_id}-iter-{latest_generation}",
+    )
     return build_checkpoint_database(**kwargs)
 
 
@@ -928,9 +926,12 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "needs.checkpoint.outputs.active-lane-count == '0'" in workflow
 
     assert 'args+=(--chunk-profile "$CHUNK_PROFILE")' in workflow
-    assert "--latest-checkpoint-run-id" in workflow
-    assert "--latest-checkpoint-artifact-name" in workflow
+    assert "--latest-checkpoint-run-id" not in workflow
+    assert "--latest-checkpoint-artifact-name" not in workflow
     assert "full_extraction_control checkpoint" in workflow
+    assert "build-checkpoint-transaction" in workflow
+    assert "commit-checkpoint-manifest" in workflow
+    assert '--checkpoint-generation "$EXPECTED_CHECKPOINT_GENERATION"' in workflow
     assert '--previous-checkpoint-report-path "$previous_report"' in workflow
     assert "--checkpoint-dir checkpoint-artifact" in workflow
     assert "--checkpoint-report-path checkpoint-artifact/checkpoint-report.json" in workflow
@@ -961,8 +962,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
         1,
     )[0]
     assert "RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}" in lane_control_block
-    assert "resume_args=(" in lane_control_block
-    assert 'full_extraction_control "${resume_args[@]}"' in lane_control_block
+    assert "common_resume_args=(" in lane_control_block
+    assert '"${common_resume_args[@]}"' in lane_control_block
     assert "--allow-missing-attempted-metadata" in lane_control_block
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
@@ -971,13 +972,16 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
         "== 'token' && '1' || needs.plan.outputs.matrix-lane-count)) }}"
     )
     assert direct_parallel_expr in workflow
-    assert '-f network_mode="$NETWORK_MODE"' in workflow
-    assert '-f direct_parallelism="$DIRECT_PARALLELISM"' in workflow
-    assert '-f direct_request_profile="$DIRECT_REQUEST_PROFILE"' in workflow
-    assert '-f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES"' in workflow
-    assert '-f retry_pipeline_failures="$RETRY_PIPELINE_FAILURES"' in workflow
-    assert '-f matrix_batch_size="$MATRIX_BATCH_SIZE"' in workflow
-    assert '-f chunk_profile="$CHUNK_PROFILE"' in workflow
+    for input_name, env_name in (
+        ("network_mode", "NETWORK_MODE"),
+        ("direct_parallelism", "DIRECT_PARALLELISM"),
+        ("direct_request_profile", "DIRECT_REQUEST_PROFILE"),
+        ("direct_timeout_cap_minutes", "DIRECT_TIMEOUT_CAP_MINUTES"),
+        ("retry_pipeline_failures", "RETRY_PIPELINE_FAILURES"),
+        ("matrix_batch_size", "MATRIX_BATCH_SIZE"),
+        ("chunk_profile", "CHUNK_PROFILE"),
+    ):
+        assert f'"{input_name}": os.environ["{env_name}"]' in workflow
     assert "--verify-remote" in workflow
 
 
@@ -4726,7 +4730,7 @@ def test_build_resume_manifest_rejects_unattested_auth_circuit_deferral(
         ("chain_id", "other-chain"),
         ("source_sha", "b" * 40),
         ("coverage_units_hash", "c" * 64),
-        ("lane_index", "99"),
+        ("lane_index", "-1"),
         ("lane_index", []),
         ("endpoints", ["other_endpoint"]),
         ("season_start", []),
@@ -9712,7 +9716,7 @@ def test_full_extraction_nonterminal_redispatch_handoff_e2e(tmp_path: Path) -> N
     assert round_tripped.chain_state == next_chain_state
 
 
-def test_resume_manifest_preserves_and_updates_checkpoint_state(tmp_path: Path) -> None:
+def test_resume_manifest_cannot_advance_checkpoint_without_receipt(tmp_path: Path) -> None:
     lane = FullExtractionLane(
         lane_id="reference-static",
         lane_index=0,
@@ -9739,27 +9743,19 @@ def test_resume_manifest_preserves_and_updates_checkpoint_state(tmp_path: Path) 
         [lane],
         metadata_dir,
         chain_state=FullExtractionChainState(
-            artifact_run_ids=("old-run",),
-            latest_checkpoint_run_id="old-run",
-            latest_checkpoint_artifact_name="checkpoint-old",
+            artifact_run_ids=("111",),
+            latest_checkpoint_run_id="111",
+            latest_checkpoint_artifact_name="full-extraction-checkpoint-chain-iter-1",
             latest_checkpoint_generation=1,
-            latest_checkpoint_coverage_hash="old-hash",
+            latest_checkpoint_coverage_hash="a" * 64,
         ),
-        completed_artifact_run_id="new-run",
-        latest_checkpoint_run_id="new-run",
-        latest_checkpoint_artifact_name="checkpoint-new",
-        latest_checkpoint_generation=2,
-        latest_checkpoint_coverage_hash="new-hash",
+        completed_artifact_run_id="222",
     )
 
     assert next_chain_state == FullExtractionChainState(
-        artifact_run_ids=("new-run",),
-        latest_checkpoint_run_id="new-run",
-        latest_checkpoint_artifact_name="checkpoint-new",
-        latest_checkpoint_generation=2,
-        latest_checkpoint_coverage_hash="new-hash",
-        previous_checkpoint_run_id="old-run",
-        previous_checkpoint_artifact_name="checkpoint-old",
-        previous_checkpoint_generation=1,
-        previous_checkpoint_coverage_hash="old-hash",
+        artifact_run_ids=("111", "222"),
+        latest_checkpoint_run_id="111",
+        latest_checkpoint_artifact_name="full-extraction-checkpoint-chain-iter-1",
+        latest_checkpoint_generation=1,
+        latest_checkpoint_coverage_hash="a" * 64,
     )
