@@ -90,6 +90,45 @@ def _write_upload_bundle(
     )
 
 
+def _durable_ledger(events: list[str]) -> MagicMock:
+    from nbadb.kaggle.publication_ledger import ExecutionReceipt
+
+    ledger = MagicMock()
+    ledger.source_sha = _ASSURED_PROVENANCE["source_sha"]
+    deployment = SimpleNamespace(to_dict=lambda: {"deployment_id": 1, "state": "pending"})
+
+    def prepare(intent: object) -> object:
+        events.append("prepare")
+        ledger.intent = intent
+        return deployment
+
+    def claim_pending(_receipt: object) -> ExecutionReceipt:
+        events.append("claim")
+        return ExecutionReceipt(
+            deployment_id=1,
+            status_id=2,
+            intent_id=ledger.intent.intent_id,
+            dataset="wyattowalsh/basketball",
+            nonce="6" * 32,
+            claim_digest="7" * 64,
+            executor_admission_digest="8" * 64,
+            run_id=123,
+            run_attempt=1,
+            job="daily",
+            url="https://api.github.com/repos/wyattowalsh/nbadb/deployments/1/statuses/2",
+        )
+
+    def mark_resolved(*_args: object, **_kwargs: object) -> object:
+        events.append("resolve")
+        return SimpleNamespace(to_dict=lambda: {"deployment_id": 1, "state": "success"})
+
+    ledger.prepare.side_effect = prepare
+    ledger.claim_pending.side_effect = claim_pending
+    ledger.mark_resolved.side_effect = mark_resolved
+    ledger.find_remote_match.return_value = None
+    return ledger
+
+
 def _write_upload_metadata(
     data_dir: Path,
     *,
@@ -1149,7 +1188,7 @@ class TestKaggleClientUpload:
         )
 
     @patch("nbadb.kaggle.client.get_settings")
-    def test_upload_local_enospc_fails_without_remote_reconciliation_retry(
+    def test_upload_enospc_after_call_boundary_remains_unresolved(
         self, mock_settings: MagicMock, tmp_path: Path
     ) -> None:
         data_dir = tmp_path / "data"
@@ -1161,24 +1200,47 @@ class TestKaggleClientUpload:
             data_dir=data_dir,
             log_dir=tmp_path / "logs",
         )
-        from nbadb.kaggle.client import KaggleClient
+        from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
 
         client = KaggleClient()
         disk_error = OSError(errno.ENOSPC, "archive disk full")
+        upload_boundary_crossed = False
+        post_boundary_clock = 0.0
+
+        def fail_after_call_boundary(**_kwargs: object) -> None:
+            nonlocal upload_boundary_crossed
+            upload_boundary_crossed = True
+            raise disk_error
+
+        def monotonic() -> float:
+            nonlocal post_boundary_clock
+            if not upload_boundary_crossed:
+                return 0.0
+            post_boundary_clock += 1.0
+            return post_boundary_clock
+
         with (
-            patch("kagglehub.dataset_upload", side_effect=disk_error) as upload,
+            patch("kagglehub.dataset_upload", side_effect=fail_after_call_boundary) as upload,
             patch(
                 "kagglehub.registry.dataset_resolver",
                 return_value=(str(stale_dir), 40),
             ) as resolver,
             patch.object(client, "_resolve_remote_dataset_version", return_value=40) as version,
+            patch.object(client, "_monotonic", side_effect=monotonic),
             patch.object(client, "_sleep") as sleep,
-            pytest.raises(OSError, match="archive disk full"),
+            pytest.raises(
+                KagglePublicationPendingError,
+                match="did not expose the expected bundle",
+            ),
         ):
-            client.upload(data_dir=data_dir, verify_remote=True)
+            client.upload(
+                data_dir=data_dir,
+                verify_remote=True,
+                remote_timeout_seconds=0.5,
+            )
 
         upload.assert_called_once()
-        assert resolver.call_count == 2
+        assert resolver.call_count == 3
         assert version.call_count == 2
         sleep.assert_not_called()
         manifest = json.loads(
@@ -1186,15 +1248,16 @@ class TestKaggleClientUpload:
                 encoding="utf-8"
             )
         )
-        assert manifest["status"] == "upload_failed_local_resource"
-        assert manifest["publication"]["result"] == "upload_failed_local_resource"
+        assert manifest["status"] == "publication_reconciliation_required"
+        assert manifest["publication"]["result"] == "publication_reconciliation_required"
+        assert manifest["publication"]["upload_error"] == "OSError: [Errno 28] archive disk full"
         state = json.loads(
             (tmp_path / "logs" / "kaggle" / "kaggle-publication-state.json").read_text(
                 encoding="utf-8"
             )
         )
         record = next(iter(state["datasets"]["wyattowalsh/basketball"]["publications"].values()))
-        assert record["state"] == "failed"
+        assert record["state"] == "unresolved"
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_capacity_guard_fails_before_kaggle_submission(
@@ -2851,6 +2914,125 @@ class TestKaggleClientUpload:
             version=41,
             expected_tree=manifest["post_upload"],
         )
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_durable_intent_claim_immediately_precedes_upload_and_resolution(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        stale_dir = tmp_path / "stale"
+        uploaded_dir = tmp_path / "uploaded"
+        _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
+        _write_stale_publication_marker(stale_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        events: list[str] = []
+        ledger = _durable_ledger(events)
+
+        def capture_upload(**kwargs: object) -> None:
+            events.append("upload")
+            shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
+
+        client = KaggleClient()
+        inventory_api = _paginated_inventory_api({41: uploaded_dir})
+        with (
+            patch("kagglehub.dataset_upload", side_effect=capture_upload) as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                side_effect=[
+                    (str(stale_dir), 40),
+                    (str(stale_dir), 40),
+                    (str(uploaded_dir), 41),
+                ],
+            ),
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({41: uploaded_dir}),
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[40, 40, 41, 41],
+            ),
+        ):
+            manifest_path = client.upload(
+                data_dir=data_dir,
+                verify_remote=True,
+                publication_ledger=ledger,
+                require_durable_intent=True,
+            )
+
+        assert events == ["prepare", "claim", "upload", "resolve"]
+        upload.assert_called_once()
+        ledger.mark_resolved.assert_called_once()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "uploaded_remote_verified"
+        assert manifest["publication"]["durable_intent"]["state"] == "success"
+        assert manifest["publication"]["durable_resolution"]["state"] == "success"
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_system_exit_after_durable_claim_leaves_intent_unresolved(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        stale_dir = tmp_path / "stale"
+        _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
+        _write_stale_publication_marker(stale_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        events: list[str] = []
+        ledger = _durable_ledger(events)
+
+        def exit_after_call_boundary(**_kwargs: object) -> None:
+            events.append("upload")
+            raise SystemExit(75)
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload", side_effect=exit_after_call_boundary) as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                return_value=(str(stale_dir), 40),
+            ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=40),
+            pytest.raises(SystemExit) as exited,
+        ):
+            client.upload(
+                data_dir=data_dir,
+                verify_remote=True,
+                publication_ledger=ledger,
+                require_durable_intent=True,
+            )
+
+        assert exited.value.code == 75
+        assert events == ["prepare", "claim", "upload"]
+        upload.assert_called_once()
+        ledger.mark_resolved.assert_not_called()
+        manifest = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "durable_intent_pending"
+        state = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-publication-state.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        record = next(iter(state["datasets"]["wyattowalsh/basketball"]["publications"].values()))
+        assert record["state"] == "unresolved"
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_ambiguous_application_error_still_reconciles_remote(

@@ -22,6 +22,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import BinaryIO, Protocol
 
+    from nbadb.kaggle.publication_ledger import (
+        ExecutionReceipt,
+        PublicationLedger,
+    )
+
     class _FcntlModule(Protocol):
         LOCK_EX: int
         LOCK_NB: int
@@ -44,6 +49,7 @@ from nbadb.core.artifact_identity import (
 )
 from nbadb.core.config import get_settings
 from nbadb.core.types import validate_sql_identifier
+from nbadb.kaggle.publication_ledger import PublicationIntent
 
 PUBLICATION_MARKER_NAME = "nbadb-publication.json"
 PUBLICATION_STATE_NAME = "kaggle-publication-state.json"
@@ -259,12 +265,14 @@ class KaggleClient:
         full_publication: bool = False,
         remote_timeout_seconds: float = 3600.0,
         remote_poll_interval_seconds: float = 15.0,
+        publication_ledger: PublicationLedger | None = None,
+        require_durable_intent: bool = False,
     ) -> Path:
-        """Upload with same-host serialization and remote publication reconciliation.
+        """Upload with local serialization and optional crash-durable intent.
 
         The advisory file claim coordinates processes that share this client's local
-        log directory. Kaggle has no conditional version-upload API, so separate hosts
-        remain coordinated only by the marker and exact-version checks.
+        log directory. Durable mode additionally records a verified GitHub Deployment
+        intent before entering Kaggle's non-idempotent upload call.
         Full-publication mode additionally requires assured terminal extraction evidence.
         """
         with self._local_upload_claim():
@@ -276,6 +284,8 @@ class KaggleClient:
                 full_publication=full_publication,
                 remote_timeout_seconds=remote_timeout_seconds,
                 remote_poll_interval_seconds=remote_poll_interval_seconds,
+                publication_ledger=publication_ledger,
+                require_durable_intent=require_durable_intent,
             )
 
     def _upload_claimed(
@@ -287,6 +297,8 @@ class KaggleClient:
         full_publication: bool = False,
         remote_timeout_seconds: float = 3600.0,
         remote_poll_interval_seconds: float = 15.0,
+        publication_ledger: PublicationLedger | None = None,
+        require_durable_intent: bool = False,
     ) -> Path:
         """Validate and upload a bundle while the local upload claim is held."""
         import kagglehub
@@ -310,6 +322,12 @@ class KaggleClient:
 
         verify_remote = verify_remote or full_publication
         require_assured = require_assured or full_publication
+        if require_durable_intent and publication_ledger is None:
+            msg = "Durable Kaggle publication requires an external publication ledger"
+            raise ValueError(msg)
+        if publication_ledger is not None and not verify_remote:
+            msg = "Durable Kaggle publication requires exact remote verification"
+            raise ValueError(msg)
         preflight = self._snapshot_upload_bundle(
             upload_dir,
             require_assured=require_assured,
@@ -359,6 +377,7 @@ class KaggleClient:
                 "verification_attempts": 0,
                 "observations": [],
                 "result": "pending",
+                "durable_intent_required": require_durable_intent,
             }
             if staged["fingerprint"] != expected_staged["fingerprint"]:
                 self._write_upload_manifest(
@@ -401,6 +420,23 @@ class KaggleClient:
                 )
                 msg = "Kaggle upload source bundle changed before upload"
                 raise RuntimeError(msg)
+
+            durable_intent: PublicationIntent | None = None
+            if publication_ledger is not None:
+                durable_intent = self._build_publication_intent(
+                    preflight=preflight,
+                    expected_staged=expected_staged,
+                    publication_marker=publication_marker,
+                    publication_ledger=publication_ledger,
+                    verify_remote=verify_remote,
+                    full_publication=full_publication,
+                )
+                publication["durable_intent"] = {
+                    "intent_id": durable_intent.intent_id,
+                    "source_sha": durable_intent.source_sha,
+                    "ledger": "github_deployment",
+                    "state": "not_prepared",
+                }
 
             try:
                 prior_unresolved = self._prior_unresolved_publication(publish_key=publish_key)
@@ -525,6 +561,16 @@ class KaggleClient:
                         baseline_marker,
                         expected=publication_marker,
                     )
+                    durable_baseline_receipt = (
+                        publication_ledger.find_remote_match(
+                            baseline_marker,
+                            marker_sha256=hashlib.sha256(
+                                self._publication_marker_bytes(baseline_marker)
+                            ).hexdigest(),
+                        )
+                        if publication_ledger is not None
+                        else None
+                    )
                     prior_matches = prior_unresolved is not None and (
                         self._publication_marker_matches_record(
                             baseline_marker,
@@ -586,7 +632,7 @@ class KaggleClient:
                             error=self._redacted_error(error),
                         )
                         raise error
-                    if prior_matches or baseline_matches:
+                    if prior_matches or baseline_matches or durable_baseline_receipt is not None:
                         try:
                             baseline_resource_verification = self._verify_remote_bundle(
                                 expected_staged if baseline_matches else None,
@@ -606,6 +652,12 @@ class KaggleClient:
                                     f"marker={baseline_version}, current={post_readback_version}"
                                 )
                                 raise RuntimeError(msg)
+                            durable_reconciliation = self._reconcile_durable_publication(
+                                publication_ledger=publication_ledger,
+                                marker=baseline_marker,
+                                resolved_version=baseline_version,
+                                resource_verification=baseline_resource_verification,
+                            )
                         except Exception as exc:
                             if self._is_local_resource_error(exc):
                                 raise
@@ -628,6 +680,8 @@ class KaggleClient:
                         publication["baseline"]["resource_verification"] = (
                             baseline_resource_verification
                         )
+                        if durable_reconciliation is not None:
+                            publication["durable_reconciliation"] = durable_reconciliation
                     else:
                         marker_baseline = (baseline_marker, baseline_version)
                     if (
@@ -786,6 +840,14 @@ class KaggleClient:
                     publication["bootstrap_pre_upload"]["resource_verification"] = (
                         resource_verification
                     )
+                    durable_reconciliation = self._reconcile_durable_publication(
+                        publication_ledger=publication_ledger,
+                        marker=remote_marker,
+                        resolved_version=resolved_version,
+                        resource_verification=resource_verification,
+                    )
+                    if durable_reconciliation is not None:
+                        publication["durable_reconciliation"] = durable_reconciliation
                     publication.update(
                         {
                             "result": "reconciled_existing_remote",
@@ -889,6 +951,14 @@ class KaggleClient:
                             f"current={post_readback_version}"
                         )
                         raise RuntimeError(msg)
+                    durable_reconciliation = self._reconcile_durable_publication(
+                        publication_ledger=publication_ledger,
+                        marker=remote_marker,
+                        resolved_version=resolved_version,
+                        resource_verification=resource_verification,
+                    )
+                    if durable_reconciliation is not None:
+                        publication["durable_reconciliation"] = durable_reconciliation
                     publication.update(
                         {
                             "result": "reconciled_existing_remote",
@@ -957,9 +1027,60 @@ class KaggleClient:
                     error=self._redacted_error(exc),
                 )
                 raise
+            durable_receipt = None
+            if publication_ledger is not None:
+                if durable_intent is None:
+                    raise AssertionError("Durable publication intent was not initialized")
+                try:
+                    durable_receipt = publication_ledger.prepare(durable_intent)
+                except Exception as exc:
+                    publication["result"] = "durable_intent_reconciliation_required"
+                    durable_publication = cast(
+                        "dict[str, Any]",
+                        publication["durable_intent"],
+                    )
+                    durable_publication["state"] = "reconciliation_required"
+                    durable_publication["error"] = self._redacted_error(exc)
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="durable_intent_reconciliation_required",
+                        preflight=preflight,
+                        post_upload=staged,
+                        publication=publication,
+                        error=self._redacted_error(exc),
+                    )
+                    raise
+                durable_publication = cast(
+                    "dict[str, Any]",
+                    publication["durable_intent"],
+                )
+                durable_publication.update(
+                    {
+                        "state": "pending",
+                        "deployment": durable_receipt.to_dict(),
+                    }
+                )
+                self._transition_publication_state(
+                    publication,
+                    state_name="unresolved",
+                    status="durable_intent_pending",
+                )
+                self._write_upload_manifest(
+                    data_dir=upload_dir,
+                    staged_dir=staged_dir,
+                    version_notes=version_notes,
+                    status="durable_intent_pending",
+                    preflight=preflight,
+                    post_upload=staged,
+                    publication=publication,
+                )
+
             upload_error: Exception | None = None
-            try:
-                publication["upload_attempts"] = 1
+            execution_receipt: ExecutionReceipt | None = None
+            publication["upload_attempts"] = 1
+            if publication_ledger is None:
                 self._transition_publication_state(
                     publication,
                     state_name="unresolved",
@@ -974,33 +1095,31 @@ class KaggleClient:
                     post_upload=staged,
                     publication=publication,
                 )
-                kagglehub.dataset_upload(
-                    handle=self._dataset,
-                    local_dataset_dir=str(staged_dir),
-                    version_notes=version_notes,
-                )
-            except Exception as exc:
-                if self._is_local_resource_error(exc):
-                    publication["upload_error"] = self._redacted_error(exc)
-                    publication["result"] = "upload_failed_local_resource"
-                    self._transition_publication_state(
-                        publication,
-                        state_name="failed",
-                        status="upload_failed_local_resource",
-                        error=self._redacted_error(exc),
-                    )
-                    self._write_upload_manifest(
-                        data_dir=upload_dir,
-                        staged_dir=staged_dir,
+            try:
+                if publication_ledger is not None:
+                    if durable_receipt is None:
+                        raise AssertionError("Durable publication receipt was not initialized")
+                    execution_receipt = publication_ledger.claim_pending(durable_receipt)
+                    kagglehub.dataset_upload(
+                        handle=self._dataset,
+                        local_dataset_dir=str(staged_dir),
                         version_notes=version_notes,
-                        status="upload_failed_local_resource",
-                        preflight=preflight,
-                        post_upload=staged,
-                        publication=publication,
-                        error=self._redacted_error(exc),
                     )
-                    raise
+                else:
+                    kagglehub.dataset_upload(
+                        handle=self._dataset,
+                        local_dataset_dir=str(staged_dir),
+                        version_notes=version_notes,
+                    )
+            except Exception as exc:
                 upload_error = exc
+                if execution_receipt is not None:
+                    publication["durable_execution"] = execution_receipt.to_dict()
+                    durable_publication = cast(
+                        "dict[str, Any]",
+                        publication["durable_intent"],
+                    )
+                    durable_publication["state"] = "in_progress"
                 publication["upload_error"] = self._redacted_error(exc)
                 publication["result"] = "upload_ambiguous"
                 self._transition_publication_state(
@@ -1020,6 +1139,14 @@ class KaggleClient:
                 )
                 if not verify_remote:
                     raise
+            else:
+                if execution_receipt is not None:
+                    publication["durable_execution"] = execution_receipt.to_dict()
+                    durable_publication = cast(
+                        "dict[str, Any]",
+                        publication["durable_intent"],
+                    )
+                    durable_publication["state"] = "in_progress"
 
             post_upload = self._snapshot_tree(staged_dir)
             if post_upload["fingerprint"] != staged["fingerprint"]:
@@ -1073,6 +1200,32 @@ class KaggleClient:
                         error=self._redacted_error(exc),
                     )
                     raise
+                if publication_ledger is not None:
+                    if execution_receipt is None:
+                        raise AssertionError(
+                            "Durable publication execution receipt was not initialized"
+                        )
+                    resource_verification = cast(
+                        "dict[str, Any]",
+                        remote_readback["resource_verification"],
+                    )
+                    resolution_receipt = publication_ledger.mark_resolved(
+                        execution_receipt,
+                        resolved_version=self._require_exact_dataset_version(
+                            publication.get("resolved_version"),
+                            source="durable publication resolution",
+                        ),
+                        publication_marker_sha256=hashlib.sha256(
+                            self._publication_marker_bytes(publication_marker)
+                        ).hexdigest(),
+                        readback_fingerprint=str(resource_verification["fingerprint"]),
+                    )
+                    publication["durable_resolution"] = resolution_receipt.to_dict()
+                    durable_publication = cast(
+                        "dict[str, Any]",
+                        publication["durable_intent"],
+                    )
+                    durable_publication["state"] = "success"
                 publication["result"] = (
                     "reconciled_after_upload_error" if upload_error is not None else "verified"
                 )
@@ -2205,6 +2358,84 @@ class KaggleClient:
             "files": files,
             "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
         }
+
+    def _build_publication_intent(
+        self,
+        *,
+        preflight: dict[str, Any],
+        expected_staged: dict[str, Any],
+        publication_marker: dict[str, Any],
+        publication_ledger: PublicationLedger,
+        verify_remote: bool,
+        full_publication: bool,
+    ) -> PublicationIntent:
+        resources = {
+            str(resource["path"]): resource
+            for resource in cast("list[dict[str, Any]]", preflight["resources"])
+        }
+        provenance = cast("dict[str, Any] | None", preflight.get("provenance"))
+        source_sha = publication_ledger.source_sha
+        if provenance is not None and provenance.get("source_sha") != source_sha:
+            msg = "Durable Kaggle publication source does not match assured artifact provenance"
+            raise ValueError(msg)
+
+        assured_resource = resources.get(ASSURED_ARTIFACT_MANIFEST_NAME)
+        terminal_resource = resources.get(TERMINAL_ASSURANCE_REPORT_NAME)
+        marker_sha256 = hashlib.sha256(
+            self._publication_marker_bytes(publication_marker)
+        ).hexdigest()
+        return PublicationIntent(
+            dataset=self._dataset,
+            source_sha=source_sha,
+            publish_key=str(publication_marker["publish_key"]),
+            bundle_fingerprint=str(publication_marker["bundle_fingerprint"]),
+            data_tree_fingerprint=str(publication_marker["data_tree_fingerprint"]),
+            staged_tree_fingerprint=str(expected_staged["fingerprint"]),
+            publication_marker_sha256=marker_sha256,
+            metadata_sha256=str(publication_marker["metadata_sha256"]),
+            resource_count=int(publication_marker["resource_count"]),
+            resource_bytes=int(publication_marker["resource_bytes"]),
+            verify_remote=verify_remote,
+            full_publication=full_publication,
+            chain_id=(str(provenance["chain_id"]) if provenance is not None else None),
+            coverage_fingerprint=(
+                str(provenance["coverage_fingerprint"]) if provenance is not None else None
+            ),
+            assured_data_tree_fingerprint=(
+                str(provenance["data_tree_fingerprint"]) if provenance is not None else None
+            ),
+            assured_manifest_sha256=(
+                str(assured_resource["sha256"]) if assured_resource is not None else None
+            ),
+            terminal_assurance_report_sha256=(
+                str(terminal_resource["sha256"]) if terminal_resource is not None else None
+            ),
+        )
+
+    def _reconcile_durable_publication(
+        self,
+        *,
+        publication_ledger: PublicationLedger | None,
+        marker: dict[str, Any],
+        resolved_version: int,
+        resource_verification: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        if publication_ledger is None:
+            return None
+        marker_sha256 = hashlib.sha256(self._publication_marker_bytes(marker)).hexdigest()
+        receipt = publication_ledger.find_remote_match(
+            marker,
+            marker_sha256=marker_sha256,
+        )
+        if receipt is None:
+            return None
+        resolution = publication_ledger.mark_reconciled(
+            receipt,
+            resolved_version=resolved_version,
+            publication_marker_sha256=marker_sha256,
+            readback_fingerprint=str(resource_verification["fingerprint"]),
+        )
+        return resolution.to_dict()
 
     def _publication_marker_payload(
         self,

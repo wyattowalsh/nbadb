@@ -161,6 +161,14 @@ on:
 env:
   NBADB_DATA_DIR: data/nbadb
   ACTIVE_CHAIN_ID: ${{ inputs.chain_id || github.run_id }}
+  FULL_EXTRACTION_CHAIN_INPUT: ${{ inputs.chain_id }}
+  FULL_EXTRACTION_EXPECTED_RUN_NAME: Full Extraction chain=${{ inputs.chain_id || github.run_id }} iteration=${{ inputs.iteration }}
+  FULL_EXTRACTION_LANE_MANIFEST_ARTIFACT_DIGEST: ${{ inputs.lane_manifest_artifact_digest }}
+  FULL_EXTRACTION_LANE_MANIFEST_ARTIFACT_ID: ${{ inputs.lane_manifest_artifact_id }}
+  FULL_EXTRACTION_LANE_MANIFEST_ARTIFACT_NAME: ${{ inputs.lane_manifest_artifact_name }}
+  FULL_EXTRACTION_LANE_MANIFEST_JSON_PRESENT: ${{ inputs.lane_manifest_json != '' }}
+  FULL_EXTRACTION_LANE_MANIFEST_RUN_ID: ${{ inputs.lane_manifest_run_id }}
+  FULL_EXTRACTION_RESUME_SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
   WORKFLOW_SOURCE_REF: ${{ inputs.workflow_ref || github.ref_name }}
   WORKFLOW_SOURCE_SHA: ${{ inputs.workflow_sha || github.sha }}
   FULL_EXTRACTION_CHUNK_PROFILE: ${{ inputs.chunk_profile }}
@@ -181,13 +189,24 @@ jobs:
   workflow_guard:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    concurrency:
+      group: full-extraction-attempt-${{ inputs.chain_id || github.run_id }}-${{ inputs.iteration }}
+      queue: max
+      cancel-in-progress: false
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: primary
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - name: Verify immutable workflow definition
         env:
@@ -329,6 +348,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -504,12 +529,17 @@ jobs:
               digest = f"sha256:{digest}"
           if re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
               raise SystemExit("lane-manifest artifact digest must be a SHA-256")
+          workflow_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].strip().lower()
+          if re.fullmatch(r"[0-9a-f]{40}", workflow_source_sha) is None:
+              raise SystemExit("pinned workflow source SHA is invalid")
           run_raw = subprocess.check_output(
               [
                   "gh",
                   "api",
                   "-H",
                   "Accept: application/vnd.github+json",
+                  "-H",
+                  "X-GitHub-Api-Version: 2026-03-10",
                   (
                       f"/repos/{os.environ['GITHUB_REPOSITORY']}"
                       f"/actions/runs/{run_id}"
@@ -519,9 +549,31 @@ jobs:
           )
           owner_run = json.loads(run_raw)
           owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          owner_attempt = owner_run.get("run_attempt")
+          owner_status = owner_run.get("status")
+          owner_conclusion = owner_run.get("conclusion")
+          workflow_id = owner_run.get("workflow_id")
+          valid_owner_state = (
+              owner_status in {"queued", "in_progress"}
+              and owner_conclusion is None
+          ) or (
+              owner_status == "completed"
+              and owner_conclusion
+              in {"cancelled", "failure", "success", "timed_out"}
+          )
           if (
               str(owner_run.get("id") or "") != run_id
               or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+              or owner_head_sha != workflow_source_sha
+              or isinstance(owner_attempt, bool)
+              or not isinstance(owner_attempt, int)
+              or owner_attempt < 1
+              or not valid_owner_state
+              or owner_run.get("event") != "workflow_dispatch"
+              or owner_run.get("path") != ".github/workflows/full-extraction.yml"
+              or isinstance(workflow_id, bool)
+              or not isinstance(workflow_id, int)
+              or workflow_id < 1
           ):
               raise SystemExit("lane-manifest owner run identity is invalid")
           raw = subprocess.check_output(
@@ -530,6 +582,8 @@ jobs:
                   "api",
                   "-H",
                   "Accept: application/vnd.github+json",
+                  "-H",
+                  "X-GitHub-Api-Version: 2026-03-10",
                   (
                       f"/repos/{os.environ['GITHUB_REPOSITORY']}"
                       f"/actions/artifacts/{artifact_id}"
@@ -586,60 +640,206 @@ jobs:
           import os
           import re
           import subprocess
+          import time
           from pathlib import Path
+
+          def gh_json(arguments: list[str]) -> object:
+              raw = subprocess.check_output(
+                  ["gh", "api", *arguments],
+                  text=True,
+              )
+              return json.loads(raw)
 
           source_run_id = os.environ["RESUME_SOURCE_RUN_ID"]
           if re.fullmatch(r"[1-9][0-9]*", source_run_id) is None:
               raise SystemExit("resume source run ID must be a positive integer")
-          run_raw = subprocess.check_output(
+          repository = os.environ["GITHUB_REPOSITORY"].strip()
+          workflow_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].strip().lower()
+          if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
+              raise SystemExit("GitHub repository identity is invalid")
+          if re.fullmatch(r"[0-9a-f]{40}", workflow_source_sha) is None:
+              raise SystemExit("pinned workflow source SHA is invalid")
+
+          owner_run = gh_json(
               [
-                  "gh",
-                  "api",
+                  "--method",
+                  "GET",
                   "-H",
                   "Accept: application/vnd.github+json",
-                  (
-                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
-                      f"/actions/runs/{source_run_id}"
-                  ),
-              ],
-              text=True,
+                  "-H",
+                  "X-GitHub-Api-Version: 2026-03-10",
+                  f"/repos/{repository}/actions/runs/{source_run_id}",
+              ]
           )
-          owner_run = json.loads(run_raw)
+          if not isinstance(owner_run, dict):
+              raise SystemExit("resume source workflow run must be an object")
           owner_head_sha = str(owner_run.get("head_sha") or "").lower()
           run_attempt = owner_run.get("run_attempt")
+          workflow_id = owner_run.get("workflow_id")
           if (
               str(owner_run.get("id") or "") != source_run_id
               or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+              or owner_head_sha != workflow_source_sha
               or isinstance(run_attempt, bool)
               or not isinstance(run_attempt, int)
               or run_attempt < 1
+              or owner_run.get("status") != "completed"
+              or owner_run.get("conclusion")
+              not in {"cancelled", "failure", "success", "timed_out"}
+              or owner_run.get("event") != "workflow_dispatch"
+              or owner_run.get("path") != ".github/workflows/full-extraction.yml"
+              or isinstance(workflow_id, bool)
+              or not isinstance(workflow_id, int)
+              or workflow_id < 1
           ):
               raise SystemExit("resume source workflow run identity is invalid")
 
-          inventory_raw = subprocess.check_output(
-              [
-                  "gh",
-                  "api",
-                  "--method",
-                  "GET",
-                  "--paginate",
-                  "--slurp",
-                  "-H",
-                  "Accept: application/vnd.github+json",
-                  (
-                      f"/repos/{os.environ['GITHUB_REPOSITORY']}"
-                      f"/actions/runs/{source_run_id}/artifacts"
+          def normalized_artifact(raw: object) -> dict[str, object]:
+              if not isinstance(raw, dict):
+                  raise SystemExit(
+                      "resume source artifact inventory entry must be an object"
+                  )
+              artifact_id = raw.get("id")
+              artifact_name = raw.get("name")
+              artifact_digest = str(raw.get("digest") or "").lower()
+              artifact_size = raw.get("size_in_bytes")
+              workflow_run = raw.get("workflow_run")
+              expected_archive_url = (
+                  f"{os.environ['GITHUB_API_URL'].rstrip('/')}/repos/{repository}"
+                  f"/actions/artifacts/{artifact_id}/zip"
+              )
+              if (
+                  isinstance(artifact_id, bool)
+                  or not isinstance(artifact_id, int)
+                  or artifact_id < 1
+                  or not isinstance(artifact_name, str)
+                  or not artifact_name
+                  or re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None
+                  or isinstance(artifact_size, bool)
+                  or not isinstance(artifact_size, int)
+                  or artifact_size < 1
+                  or type(raw.get("expired")) is not bool
+                  or raw.get("archive_download_url") != expected_archive_url
+                  or not isinstance(workflow_run, dict)
+                  or str(workflow_run.get("id") or "") != source_run_id
+                  or str(workflow_run.get("head_sha") or "").lower()
+                  != owner_head_sha
+              ):
+                  raise SystemExit(
+                      "resume source artifact REST identity is malformed"
+                  )
+              return {
+                  "archive_download_url": expected_archive_url,
+                  "digest": artifact_digest,
+                  "expired": raw["expired"],
+                  "id": artifact_id,
+                  "name": artifact_name,
+                  "size_in_bytes": artifact_size,
+                  "workflow_run": {
+                      "head_sha": owner_head_sha,
+                      "id": int(source_run_id),
+                  },
+              }
+
+          def artifact_inventory_snapshot() -> dict[str, object]:
+              pages = gh_json(
+                  [
+                      "--method",
+                      "GET",
+                      "--paginate",
+                      "--slurp",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2026-03-10",
+                      f"/repos/{repository}/actions/runs/{source_run_id}/artifacts",
+                      "-f",
+                      "per_page=100",
+                  ]
+              )
+              if not isinstance(pages, list) or not pages:
+                  raise SystemExit(
+                      "resume source artifact inventory must contain pages"
+                  )
+              expected_total: int | None = None
+              artifact_ids: set[int] = set()
+              artifacts: list[dict[str, object]] = []
+              for page in pages:
+                  if not isinstance(page, dict):
+                      raise SystemExit(
+                          "resume source artifact inventory page must be an object"
+                      )
+                  page_total = page.get("total_count")
+                  entries = page.get("artifacts")
+                  if (
+                      isinstance(page_total, bool)
+                      or not isinstance(page_total, int)
+                      or page_total < 0
+                      or not isinstance(entries, list)
+                  ):
+                      raise SystemExit(
+                          "resume source artifact inventory page is malformed"
+                      )
+                  if expected_total is None:
+                      expected_total = page_total
+                  elif expected_total != page_total:
+                      raise SystemExit(
+                          "resume source artifact inventory total changed during pagination"
+                      )
+                  for entry in entries:
+                      artifact = normalized_artifact(entry)
+                      artifact_id = int(artifact["id"])
+                      if artifact_id in artifact_ids:
+                          raise SystemExit(
+                              "resume source artifact inventory repeated an artifact ID"
+                          )
+                      artifact_ids.add(artifact_id)
+                      artifacts.append(artifact)
+              if expected_total != len(artifacts):
+                  raise SystemExit(
+                      "resume source artifact inventory count does not match total_count"
+                  )
+              return {
+                  "artifacts": sorted(
+                      artifacts,
+                      key=lambda artifact: int(artifact["id"]),
                   ),
-                  "-f",
-                  "per_page=100",
-              ],
-              text=True,
+                  "total_count": expected_total,
+              }
+
+          raw_interval = (
+              os.environ.get(
+                  "RESUME_MANIFEST_RECEIPT_POLL_INTERVAL_SECONDS",
+                  "",
+              ).strip()
+              or "2"
           )
-          pages = json.loads(inventory_raw)
-          if not isinstance(pages, list) or not pages:
-              raise SystemExit("resume source artifact inventory must contain pages")
+          try:
+              poll_interval = float(raw_interval)
+          except ValueError as exc:
+              raise SystemExit(
+                  "resume manifest receipt poll interval must be numeric"
+              ) from exc
+          if poll_interval < 0 or poll_interval > 30:
+              raise SystemExit(
+                  "resume manifest receipt poll interval must be between 0 and 30 seconds"
+              )
+          observations: list[dict[str, object]] = []
+          for observation_index in range(3):
+              observations.append(artifact_inventory_snapshot())
+              if observation_index < 2 and poll_interval:
+                  time.sleep(poll_interval)
+          if observations[-2] != observations[-1]:
+              raise SystemExit(
+                  "resume source artifact inventory did not stabilize across "
+                  "the final two observations"
+              )
+          artifacts = observations[-1]["artifacts"]
+          assert isinstance(artifacts, list)
+
           prefix = f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-"
           run_marker = f"-run-{source_run_id}-attempt-"
+          canonical_name = f"full-extraction-manifest-{os.environ['CHAIN_ID']}"
           pattern = re.compile(
               (
                   rf"^{re.escape(prefix)}iter-[1-9][0-9]*-"
@@ -648,83 +848,92 @@ jobs:
               )
           )
           matches_by_attempt: dict[int, list[dict[str, object]]] = {}
-          for page in pages:
-              if not isinstance(page, dict):
-                  raise SystemExit("resume source artifact inventory page must be an object")
-              artifacts = page.get("artifacts")
-              if not isinstance(artifacts, list):
-                  raise SystemExit("resume source artifact inventory page is malformed")
-              for artifact in artifacts:
-                  if not isinstance(artifact, dict):
+          canonical_matches: list[dict[str, object]] = []
+          for artifact in artifacts:
+              assert isinstance(artifact, dict)
+              artifact_name = str(artifact.get("name") or "")
+              if artifact_name == canonical_name and artifact.get("expired") is not True:
+                  canonical_matches.append(artifact)
+                  continue
+              match = pattern.fullmatch(artifact_name)
+              if match is not None:
+                  attempt = int(match.group("attempt"))
+                  if attempt > run_attempt:
                       raise SystemExit(
-                          "resume source artifact inventory entry must be an object"
+                          "resume source committed-manifest attempt exceeds "
+                          "the owner run attempt"
                       )
-                  artifact_name = str(artifact.get("name") or "")
-                  match = pattern.fullmatch(artifact_name)
-                  if match is not None:
-                      attempt = int(match.group("attempt"))
-                      if attempt > run_attempt:
-                          raise SystemExit(
-                              "resume source committed-manifest attempt exceeds "
-                              "the owner run attempt"
-                          )
-                      matches_by_attempt.setdefault(attempt, []).append(artifact)
-                  elif artifact_name.startswith(prefix) and run_marker in artifact_name:
-                      raise SystemExit(
-                          "resume source committed-manifest artifact name is malformed"
-                      )
-          if not matches_by_attempt:
-              with Path(os.environ["GITHUB_OUTPUT"]).open(
-                  "a", encoding="utf-8"
-              ) as handle:
-                  handle.write("resolution=canonical_fallback\n")
-              print(
-                  "::notice::No immutable committed next-manifest exists for the "
-                  "resume source run attempt; using its canonical pre-checkpoint manifest"
+                  matches_by_attempt.setdefault(attempt, []).append(artifact)
+              elif artifact_name.startswith(prefix) and run_marker in artifact_name:
+                  raise SystemExit(
+                      "resume source committed-manifest artifact name is malformed"
+                  )
+          if len(canonical_matches) > 1:
+              raise SystemExit(
+                  "resume source has ambiguous canonical manifest artifacts"
               )
-              raise SystemExit(0)
-          selected_attempt = max(matches_by_attempt)
-          matches = matches_by_attempt[selected_attempt]
-          if len(matches) != 1:
+          duplicate_attempts = sorted(
+              attempt
+              for attempt, matches in matches_by_attempt.items()
+              if len(matches) != 1
+          )
+          if duplicate_attempts:
               raise SystemExit(
                   "resume source has ambiguous immutable committed next-manifest "
-                  f"artifacts for attempt {selected_attempt}"
+                  f"artifacts for attempt {duplicate_attempts[0]}"
               )
 
-          artifact = matches[0]
+          if matches_by_attempt:
+              selected_attempt = max(matches_by_attempt)
+              artifact = matches_by_attempt[selected_attempt][0]
+              resolution = "committed"
+          elif len(canonical_matches) == 1:
+              selected_attempt = run_attempt
+              artifact = canonical_matches[0]
+              resolution = "canonical"
+          else:
+              raise SystemExit(
+                  "resume source run has no exact committed or canonical manifest artifact"
+              )
+
           artifact_id = artifact.get("id")
           artifact_name = str(artifact.get("name") or "")
           artifact_digest = str(artifact.get("digest") or "").lower()
           artifact_size = artifact.get("size_in_bytes")
-          workflow_run = artifact.get("workflow_run")
-          if (
-              isinstance(artifact_id, bool)
-              or not isinstance(artifact_id, int)
-              or artifact_id < 1
-              or re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None
-              or isinstance(artifact_size, bool)
-              or not isinstance(artifact_size, int)
-              or artifact_size < 1
-              or artifact.get("expired") is not False
-              or not isinstance(workflow_run, dict)
-              or str(workflow_run.get("id") or "") != source_run_id
-              or str(workflow_run.get("head_sha") or "").lower()
-              != owner_head_sha
-          ):
+          if artifact.get("expired") is not False:
               raise SystemExit(
                   "resume source committed-manifest artifact provenance is invalid"
               )
+          direct_artifact = normalized_artifact(
+              gh_json(
+                  [
+                      "--method",
+                      "GET",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2026-03-10",
+                      f"/repos/{repository}/actions/artifacts/{artifact_id}",
+                  ]
+              )
+          )
+          if direct_artifact != artifact:
+              raise SystemExit(
+                  "selected resume source manifest changed before exact-ID download"
+              )
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
-              handle.write("resolution=committed\n")
+              handle.write(f"resolution={resolution}\n")
               handle.write(f"artifact_name={artifact_name}\n")
               handle.write(f"artifact_id={artifact_id}\n")
               handle.write(f"artifact_digest={artifact_digest}\n")
+              handle.write(f"artifact_size_bytes={artifact_size}\n")
               handle.write(f"source_run_id={source_run_id}\n")
+              handle.write(f"source_run_head_sha={owner_head_sha}\n")
               handle.write(f"source_run_attempt={selected_attempt}\n")
           PY
 
-      - name: Download resume source committed manifest
-        if: ${{ steps.resume_source_manifest.outputs.resolution == 'committed' }}
+      - name: Download exact resume source manifest
+        if: ${{ steps.resume_source_manifest.outputs.resolution != '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           artifact-ids: ${{ steps.resume_source_manifest.outputs.artifact_id }}
@@ -743,6 +952,7 @@ jobs:
           RESUME_SOURCE_MANIFEST_ARTIFACT_NAME: ${{ steps.resume_source_manifest.outputs.artifact_name }}
           RESUME_SOURCE_MANIFEST_RESOLUTION: ${{ steps.resume_source_manifest.outputs.resolution }}
           RESUME_SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+          RESUME_SOURCE_RUN_HEAD_SHA: ${{ steps.resume_source_manifest.outputs.source_run_head_sha }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/resume-source/manifest"
@@ -752,16 +962,12 @@ jobs:
                 -name next-manifest.json -type f -print
             )
             source_artifact_name="$RESUME_SOURCE_MANIFEST_ARTIFACT_NAME"
-          elif [ "$RESUME_SOURCE_MANIFEST_RESOLUTION" = "canonical_fallback" ]; then
-            gh run download "$RESUME_SOURCE_RUN_ID" \
-              --repo "${{ github.repository }}" \
-              --name "full-extraction-manifest-${CHAIN_ID}" \
-              --dir "$RUNNER_TEMP/resume-source/manifest"
+          elif [ "$RESUME_SOURCE_MANIFEST_RESOLUTION" = "canonical" ]; then
             mapfile -t source_manifests < <(
-              find "$RUNNER_TEMP/resume-source/manifest" \
+              find "$RUNNER_TEMP/resume-source/manifest-committed" \
                 -name manifest.json -type f -print
             )
-            source_artifact_name="full-extraction-manifest-${CHAIN_ID}"
+            source_artifact_name="$RESUME_SOURCE_MANIFEST_ARTIFACT_NAME"
           else
             echo "::error::Resume source manifest resolution is unavailable"
             exit 1
@@ -776,6 +982,7 @@ jobs:
             REQUESTED_CHAIN_ID="$REQUESTED_CHAIN_ID" \
             RESUME_SOURCE_MANIFEST_RESOLUTION="$RESUME_SOURCE_MANIFEST_RESOLUTION" \
             SOURCE_ARTIFACT_NAME="$source_artifact_name" \
+            SOURCE_RUN_HEAD_SHA="$RESUME_SOURCE_RUN_HEAD_SHA" \
             SOURCE_RUN_ID="$RESUME_SOURCE_RUN_ID" \
             python - <<'PY'
           # RESUME_SOURCE_MANIFEST_VERIFIER
@@ -790,6 +997,7 @@ jobs:
           expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
           manifest_chain_id = str(manifest.get("chain_id") or "").strip()
           manifest_source_sha = str(manifest.get("workflow_source_sha") or "").lower()
+          source_run_head_sha = os.environ["SOURCE_RUN_HEAD_SHA"].lower()
 
           if manifest_chain_id != requested_chain_id:
               print(
@@ -803,6 +1011,13 @@ jobs:
                   "::error::Resume source manifest SHA does not match the pinned "
                   f"workflow source {expected_source_sha!r}: "
                   f"{manifest_source_sha or '<missing>'!r}"
+              )
+              raise SystemExit(1)
+          if source_run_head_sha != expected_source_sha:
+              print(
+                  "::error::Resume source owner SHA does not match the pinned "
+                  f"workflow source {expected_source_sha!r}: "
+                  f"{source_run_head_sha or '<missing>'!r}"
               )
               raise SystemExit(1)
           resolution = os.environ["RESUME_SOURCE_MANIFEST_RESOLUTION"]
@@ -844,7 +1059,7 @@ jobs:
                   )
                   raise SystemExit(1)
           elif (
-              resolution != "canonical_fallback"
+              resolution != "canonical"
               or source_artifact_name
               != f"full-extraction-manifest-{requested_chain_id}"
           ):
@@ -917,20 +1132,36 @@ jobs:
             mkdir -p "$RUNNER_TEMP/lane-manifest-input"
             if [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] && [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then
               echo "::warning::Using bounded legacy run/name manifest handoff without an immutable receipt"
-              gh run download "$LANE_MANIFEST_RUN_ID" \
-                --repo "${{ github.repository }}" \
-                --name "$LANE_MANIFEST_ARTIFACT_NAME" \
-                --dir "$RUNNER_TEMP/lane-manifest-input"
+              legacy_receipt="$RUNNER_TEMP/lane-manifest-input/legacy-receipt.json"
+              LEGACY_RECEIPT_PATH="$legacy_receipt" \
+                python .github/scripts/resolve_legacy_manifest_handoff.py resolve
+              legacy_artifact_id="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["id"])' "$legacy_receipt")"
+              legacy_archive="$RUNNER_TEMP/lane-manifest-input/legacy-manifest.zip"
+              gh api \
+                --method GET \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2026-03-10" \
+                "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${legacy_artifact_id}/zip" \
+                > "$legacy_archive"
+              LEGACY_ARCHIVE_PATH="$legacy_archive" \
+                LEGACY_RECEIPT_PATH="$legacy_receipt" \
+                LEGACY_OUTPUT_DIR="$RUNNER_TEMP/lane-manifest-input" \
+                python .github/scripts/resolve_legacy_manifest_handoff.py extract
             elif [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then
               echo "::error::lane_manifest_artifact_id and lane_manifest_artifact_digest must be provided together"
               exit 1
             fi
-            manifest_path="$(find "$RUNNER_TEMP/lane-manifest-input" \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
-            if [ -z "$manifest_path" ]; then
-              echo "::error::Manifest artifact $LANE_MANIFEST_ARTIFACT_NAME from run $LANE_MANIFEST_RUN_ID did not contain next-manifest.json or manifest.json"
+            mapfile -t manifest_candidates < <(
+              find "$RUNNER_TEMP/lane-manifest-input" \
+                \( -name next-manifest.json -o -name manifest.json \) \
+                -type f -print
+            )
+            if [ "${#manifest_candidates[@]}" -ne 1 ] || [ -L "${manifest_candidates[0]:-}" ]; then
+              echo "::error::Manifest artifact $LANE_MANIFEST_ARTIFACT_NAME from run $LANE_MANIFEST_RUN_ID must contain exactly one regular manifest.json or next-manifest.json"
               find "$RUNNER_TEMP/lane-manifest-input" -maxdepth 4 -type f -print || true
               exit 1
             fi
+            manifest_path="${manifest_candidates[0]}"
             MANIFEST_PATH="$manifest_path" \
               ARTIFACT_NAME="$LANE_MANIFEST_ARTIFACT_NAME" \
               REQUESTED_CHAIN_ID="$REQUESTED_CHAIN_ID" \
@@ -1398,11 +1629,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -1457,6 +1695,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: read
     outputs:
       effective-network-mode: ${{ steps.network_mode.outputs.effective-network-mode }}
@@ -1470,6 +1709,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -1835,6 +2080,12 @@ jobs:
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
+
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
@@ -1852,109 +2103,498 @@ jobs:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
 
-      - name: Restore prior discovery artifacts
-        if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' || github.run_attempt > 1 }}
+      - name: Resolve prior discovery artifact receipt
+        id: prior_discovery
+        if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURRENT_RUN_ID: ${{ github.run_id }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          MANIFEST_SOURCE_RUN_ID: ${{ inputs.lane_manifest_run_id || inputs.resume_source_run_id }}
           DISCOVERY_ARTIFACT_NAME: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
           DISCOVERY_RECOVERY_PREFIX: full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANIFEST_SOURCE_RUN_ID: ${{ inputs.lane_manifest_run_id || inputs.resume_source_run_id }}
+        run: |
+          python - <<'PY'
+          # DISCOVERY_ARTIFACT_RECEIPT_RESOLVER
+          import json
+          import os
+          import re
+          import subprocess
+          import time
+          from pathlib import Path
+
+          def gh_json(arguments: list[str]) -> object:
+              raw = subprocess.check_output(["gh", "api", *arguments], text=True)
+              try:
+                  return json.loads(raw)
+              except json.JSONDecodeError as exc:
+                  raise SystemExit(
+                      f"GitHub discovery receipt response is not valid JSON: {exc}"
+                  ) from exc
+
+          def normalized_artifact(
+              artifact: object,
+              *,
+              repository: str,
+          ) -> dict[str, object]:
+              if not isinstance(artifact, dict):
+                  raise SystemExit(
+                      "discovery artifact inventory entries must be objects"
+                  )
+              artifact_id = artifact.get("id")
+              name = artifact.get("name")
+              digest = str(artifact.get("digest") or "").lower()
+              size = artifact.get("size_in_bytes")
+              expired = artifact.get("expired")
+              workflow_run = artifact.get("workflow_run")
+              if (
+                  isinstance(artifact_id, bool)
+                  or not isinstance(artifact_id, int)
+                  or artifact_id < 1
+                  or not isinstance(name, str)
+                  or not name
+                  or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+                  or isinstance(size, bool)
+                  or not isinstance(size, int)
+                  or size < 1
+                  or not isinstance(expired, bool)
+                  or not isinstance(workflow_run, dict)
+              ):
+                  raise SystemExit("discovery artifact inventory entry is malformed")
+              workflow_run_id = workflow_run.get("id")
+              workflow_head_sha = str(workflow_run.get("head_sha") or "").lower()
+              expected_archive_url = (
+                  f"{os.environ['GITHUB_API_URL'].rstrip('/')}/repos/{repository}/"
+                  f"actions/artifacts/{artifact_id}/zip"
+              )
+              if (
+                  isinstance(workflow_run_id, bool)
+                  or not isinstance(workflow_run_id, int)
+                  or workflow_run_id < 1
+                  or re.fullmatch(r"[0-9a-f]{40}", workflow_head_sha) is None
+                  or artifact.get("archive_download_url") != expected_archive_url
+              ):
+                  raise SystemExit(
+                      "discovery artifact REST identity is malformed"
+                  )
+              return {
+                  "archive_download_url": expected_archive_url,
+                  "digest": digest,
+                  "expired": expired,
+                  "id": artifact_id,
+                  "name": name,
+                  "size_in_bytes": size,
+                  "workflow_run": {
+                      "head_sha": workflow_head_sha,
+                      "id": workflow_run_id,
+                  },
+              }
+
+          def artifact_inventory_snapshot(
+              *,
+              repository: str,
+              source_run_id: str,
+          ) -> dict[str, object]:
+              pages = gh_json(
+                  [
+                      "--method",
+                      "GET",
+                      "--paginate",
+                      "--slurp",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2026-03-10",
+                      f"/repos/{repository}/actions/runs/{source_run_id}/artifacts",
+                      "-f",
+                      "per_page=100",
+                  ]
+              )
+              if not isinstance(pages, list) or not pages:
+                  raise SystemExit(
+                      "discovery artifact inventory must contain pages"
+                  )
+
+              artifacts: list[dict[str, object]] = []
+              expected_total: int | None = None
+              artifact_ids: set[int] = set()
+              for page in pages:
+                  if not isinstance(page, dict):
+                      raise SystemExit(
+                          "discovery artifact inventory pages must be objects"
+                      )
+                  total_count = page.get("total_count")
+                  entries = page.get("artifacts")
+                  if (
+                      isinstance(total_count, bool)
+                      or not isinstance(total_count, int)
+                      or total_count < 0
+                      or not isinstance(entries, list)
+                  ):
+                      raise SystemExit(
+                          "discovery artifact inventory page is malformed"
+                      )
+                  if expected_total is None:
+                      expected_total = total_count
+                  elif expected_total != total_count:
+                      raise SystemExit(
+                          "discovery artifact inventory total changed during pagination"
+                      )
+                  for entry in entries:
+                      artifact = normalized_artifact(
+                          entry,
+                          repository=repository,
+                      )
+                      artifact_id = int(artifact["id"])
+                      if artifact_id in artifact_ids:
+                          raise SystemExit(
+                              "discovery artifact inventory repeated an artifact ID"
+                          )
+                      artifact_ids.add(artifact_id)
+                      artifacts.append(artifact)
+              if expected_total != len(artifacts):
+                  raise SystemExit(
+                      "discovery artifact inventory count does not match total_count"
+                  )
+              return {
+                  "artifacts": sorted(
+                      artifacts,
+                      key=lambda artifact: int(artifact["id"]),
+                  ),
+                  "total_count": expected_total,
+              }
+
+          source_run_id = os.environ["MANIFEST_SOURCE_RUN_ID"].strip()
+          current_run_id = os.environ["CURRENT_RUN_ID"].strip()
+          repository = os.environ["GITHUB_REPOSITORY"].strip()
+          workflow_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].strip().lower()
+          if re.fullmatch(r"[1-9][0-9]*", source_run_id) is None:
+              raise SystemExit("discovery source run ID must be a positive integer")
+          if re.fullmatch(r"[1-9][0-9]*", current_run_id) is None:
+              raise SystemExit("current workflow run ID must be a positive integer")
+          if source_run_id == current_run_id:
+              raise SystemExit(
+                  "discovery recovery requires a distinct source workflow run; "
+                  "prior attempts of the current run are not a recovery boundary"
+              )
+          if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
+              raise SystemExit("GitHub repository identity is invalid")
+          if re.fullmatch(r"[0-9a-f]{40}", workflow_source_sha) is None:
+              raise SystemExit("pinned workflow source SHA is invalid")
+
+          owner_run = gh_json(
+              [
+                  "--method",
+                  "GET",
+                  "-H",
+                  "Accept: application/vnd.github+json",
+                  "-H",
+                  "X-GitHub-Api-Version: 2026-03-10",
+                  f"/repos/{repository}/actions/runs/{source_run_id}",
+              ]
+          )
+          if not isinstance(owner_run, dict):
+              raise SystemExit("discovery source workflow run must be an object")
+          source_attempt = owner_run.get("run_attempt")
+          owner_head_sha = str(owner_run.get("head_sha") or "").lower()
+          workflow_id = owner_run.get("workflow_id")
+          if (
+              str(owner_run.get("id") or "") != source_run_id
+              or isinstance(source_attempt, bool)
+              or not isinstance(source_attempt, int)
+              or source_attempt < 1
+              or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+              or owner_head_sha != workflow_source_sha
+              or owner_run.get("status") != "completed"
+              or owner_run.get("conclusion")
+              not in {
+                  "cancelled",
+                  "failure",
+                  "success",
+                  "timed_out",
+              }
+              or owner_run.get("event") != "workflow_dispatch"
+              or owner_run.get("path") != ".github/workflows/full-extraction.yml"
+              or isinstance(workflow_id, bool)
+              or not isinstance(workflow_id, int)
+              or workflow_id < 1
+          ):
+              raise SystemExit("discovery source workflow run identity is invalid")
+
+          raw_interval = (
+              os.environ.get("DISCOVERY_RECEIPT_POLL_INTERVAL_SECONDS", "").strip()
+              or "2"
+          )
+          try:
+              poll_interval = float(raw_interval)
+          except ValueError as exc:
+              raise SystemExit(
+                  "discovery receipt poll interval must be numeric"
+              ) from exc
+          if poll_interval < 0 or poll_interval > 30:
+              raise SystemExit(
+                  "discovery receipt poll interval must be between 0 and 30 seconds"
+              )
+          observations: list[dict[str, object]] = []
+          for observation_index in range(3):
+              observations.append(
+                  artifact_inventory_snapshot(
+                      repository=repository,
+                      source_run_id=source_run_id,
+                  )
+              )
+              if observation_index < 2 and poll_interval:
+                  time.sleep(poll_interval)
+          if observations[-2] != observations[-1]:
+              raise SystemExit(
+                  "discovery artifact inventory did not stabilize across "
+                  "the final two observations"
+              )
+          artifacts = observations[-1]["artifacts"]
+          assert isinstance(artifacts, list)
+
+          canonical_name = os.environ["DISCOVERY_ARTIFACT_NAME"]
+          recovery_prefix = os.environ["DISCOVERY_RECOVERY_PREFIX"]
+          recovery_name = (
+              f"{recovery_prefix}-run-{source_run_id}-attempt-{source_attempt}"
+          )
+          source_recovery_prefix = f"{recovery_prefix}-run-{source_run_id}-attempt-"
+          canonical_matches: list[dict[str, object]] = []
+          recovery_matches: list[dict[str, object]] = []
+          for artifact in artifacts:
+              artifact_name = artifact.get("name")
+              if not isinstance(artifact_name, str) or not artifact_name:
+                  raise SystemExit("discovery artifact inventory name is invalid")
+              if artifact_name == canonical_name:
+                  if artifact.get("expired") is not True:
+                      canonical_matches.append(artifact)
+                  continue
+              if artifact_name.startswith(source_recovery_prefix):
+                  match = re.fullmatch(
+                      rf"{re.escape(source_recovery_prefix)}(?P<attempt>[1-9][0-9]*)",
+                      artifact_name,
+                  )
+                  if match is None:
+                      raise SystemExit(
+                          "source discovery recovery artifact name is malformed"
+                      )
+                  artifact_attempt = int(match.group("attempt"))
+                  if artifact_attempt > source_attempt:
+                      raise SystemExit(
+                          "source discovery recovery artifact attempt exceeds "
+                          "the workflow run attempt"
+                      )
+                  if artifact_name == recovery_name and artifact.get("expired") is not True:
+                      recovery_matches.append(artifact)
+
+          if len(canonical_matches) > 1:
+              raise SystemExit(
+                  "discovery source has ambiguous unexpired canonical artifacts"
+              )
+          if len(recovery_matches) > 1:
+              raise SystemExit(
+                  "discovery source has ambiguous unexpired current-attempt recovery artifacts"
+              )
+          if canonical_matches:
+              selected = canonical_matches[0]
+              source_kind = "canonical"
+              expected_name = canonical_name
+          elif recovery_matches:
+              selected = recovery_matches[0]
+              source_kind = "recovery"
+              expected_name = recovery_name
+          else:
+              raise SystemExit(
+                  "distinct discovery source run has no exact canonical or "
+                  "current-attempt recovery artifact"
+              )
+
+          artifact_id = selected["id"]
+          artifact_digest = str(selected.get("digest") or "").lower()
+          workflow_run = selected.get("workflow_run")
+          if (
+              selected.get("name") != expected_name
+              or selected.get("expired") is not False
+              or not isinstance(workflow_run, dict)
+              or str(workflow_run.get("id") or "") != source_run_id
+              or str(workflow_run.get("head_sha") or "").lower()
+              != owner_head_sha
+          ):
+              raise SystemExit(
+                  "discovery artifact REST identity does not match its source run"
+              )
+
+          direct_artifact = normalized_artifact(
+              gh_json(
+                  [
+                      "--method",
+                      "GET",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2026-03-10",
+                      f"/repos/{repository}/actions/artifacts/{artifact_id}",
+                  ]
+              ),
+              repository=repository,
+          )
+          if direct_artifact != selected:
+              raise SystemExit(
+                  "selected discovery artifact changed before exact-ID download"
+              )
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"artifact_id={artifact_id}\n")
+              handle.write(f"artifact_name={expected_name}\n")
+              handle.write(f"artifact_digest={artifact_digest}\n")
+              handle.write(f"source_kind={source_kind}\n")
+              handle.write(f"source_run_id={source_run_id}\n")
+          print(
+              f"Resolved exact {source_kind} discovery artifact {artifact_id} "
+              f"from source run {source_run_id}"
+          )
+          PY
+
+      - name: Download exact prior discovery artifact
+        if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          artifact-ids: ${{ steps.prior_discovery.outputs.artifact_id }}
+          path: prior-discovery/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.prior_discovery.outputs.source_run_id }}
+          digest-mismatch: error
+
+      - name: Restore prior discovery artifacts
+        if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' }}
+        env:
+          DISCOVERY_SOURCE_KIND: ${{ steps.prior_discovery.outputs.source_kind }}
         run: |
           mkdir -p data/nbadb
-          discovery_source=""
-          discovery_source_kind=""
-
-          restore_discovery_from_run() {
-            local source_run_id="$1"
-            local source_label="$2"
-            local canonical_dir="prior-discovery-${source_label}-canonical"
-            local recovery_dir="prior-discovery-${source_label}-recovery"
-            local recovery_pattern="${DISCOVERY_RECOVERY_PREFIX}-run-${source_run_id}-attempt-*"
-
-            rm -rf "$canonical_dir" "$recovery_dir"
-            if gh run download "$source_run_id" \
-              --repo "${{ github.repository }}" \
-              --name "$DISCOVERY_ARTIFACT_NAME" \
-              --dir "$canonical_dir"; then
-              discovery_source="$canonical_dir"
-              discovery_source_kind="canonical"
-              echo "::notice::Restored canonical discovery bundle from $source_label run $source_run_id"
-              return 0
-            fi
-
-            mkdir -p "$recovery_dir"
-            if ! gh run download "$source_run_id" \
-              --repo "${{ github.repository }}" \
-              --pattern "$recovery_pattern" \
-              --dir "$recovery_dir"; then
-              return 1
-            fi
-            discovery_source="$(
-              find "$recovery_dir" \
-                -mindepth 1 \
-                -maxdepth 1 \
-                -type d \
-                -name "$recovery_pattern" \
-                -print \
-                | sort -V \
-                | tail -1
-            )"
-            if [ -z "$discovery_source" ]; then
-              if find "$recovery_dir" -mindepth 1 -type f -print -quit | grep -q .; then
-                discovery_source="$recovery_dir"
-              else
-                return 1
-              fi
-            fi
-            discovery_source_kind="recovery"
-            echo "::notice::Restored latest incomplete discovery recovery bundle: $(basename "$discovery_source")"
-          }
-
-          if [ "$RUN_ATTEMPT" -gt 1 ]; then
-            restore_discovery_from_run "$CURRENT_RUN_ID" "current-run" || true
+          discovery_source="prior-discovery"
+          discovery_source_kind="$DISCOVERY_SOURCE_KIND"
+          if [ "$discovery_source_kind" != "canonical" ] \
+            && [ "$discovery_source_kind" != "recovery" ]; then
+            echo "::error::Resolved discovery source kind is invalid"
+            exit 1
           fi
-          if [ -z "$discovery_source" ] \
-            && [ -n "$MANIFEST_SOURCE_RUN_ID" ] \
-            && [ "$MANIFEST_SOURCE_RUN_ID" != "$CURRENT_RUN_ID" ]; then
-            restore_discovery_from_run "$MANIFEST_SOURCE_RUN_ID" "manifest-source" || true
-          fi
-          if [ -z "$discovery_source" ]; then
-            echo "::warning::Prior discovery artifacts are unavailable; seeding this wave from scratch"
-            exit 0
+          if find "$discovery_source" plan-artifact -type l -print -quit | grep -q .; then
+            echo "::error::Discovery restore rejects symbolic links"
+            exit 1
           fi
 
-          artifact_dir="$(find "$discovery_source" -type d -name nba.discovery-artifacts -print -quit)"
-          if [ -n "$artifact_dir" ]; then
-            rm -rf data/nbadb/nba.discovery-artifacts
-            cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts
-          fi
-
-          workload_manifest="$(find "$discovery_source" -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+          mapfile -t restored_manifests < <(
+            find "$discovery_source" -type f -name discovery-manifest.json -print
+          )
+          mapfile -t active_manifests < <(
+            find plan-artifact -type f -name manifest.json -print
+          )
+          mapfile -t artifact_dirs < <(
+            find "$discovery_source" -type d -name nba.discovery-artifacts -print
+          )
+          mapfile -t discovery_summaries < <(
+            find "$discovery_source" -type f -name discovery-seed-summary.json -print
+          )
+          mapfile -t workload_manifests < <(
+            find "$discovery_source" \
+              -type f \
+              -name nba.player-team-season-workload.player-team-season-workload.json \
+              -print
+          )
           mapfile -t workload_parquets < <(
             find "$discovery_source" \
               -type f \
               -name 'nba.player-team-season-workload*.parquet' \
               -print
           )
-          if [ -n "$workload_manifest" ] && [ "${#workload_parquets[@]}" -gt 0 ]; then
-            for workload_parquet in "${workload_parquets[@]}"; do
-              cp "$workload_parquet" "data/nbadb/$(basename "$workload_parquet")"
-            done
-            cp "$workload_manifest" data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
-          elif [ "${#workload_parquets[@]}" -gt 0 ] || [ -n "$workload_manifest" ]; then
+          if [ "${#restored_manifests[@]}" -ne 1 ]; then
+            echo "::error::Discovery restore source manifest layout is ambiguous"
+            exit 1
+          fi
+          if [ "${#active_manifests[@]}" -ne 1 ]; then
+            echo "::error::Discovery restore requires exactly one active lane manifest"
+            exit 1
+          fi
+          if [ "${#artifact_dirs[@]}" -gt 1 ] \
+            || [ "${#discovery_summaries[@]}" -gt 1 ] \
+            || [ "${#workload_manifests[@]}" -gt 1 ] \
+            || [ "${#workload_parquets[@]}" -gt 1 ]; then
+            echo "::error::Discovery restore artifact layout is ambiguous"
+            exit 1
+          fi
+          declare -A restored_basenames=()
+          while IFS= read -r restored_file; do
+            restored_basename="$(basename "$restored_file")"
+            if [ -n "${restored_basenames[$restored_basename]:-}" ]; then
+              echo "::error::Discovery restore contains duplicate file basenames"
+              exit 1
+            fi
+            restored_basenames["$restored_basename"]="$restored_file"
+          done < <(
+            find "$discovery_source" \
+              -type d \
+              -name nba.discovery-artifacts \
+              -prune \
+              -o \
+              -type f \
+              -print
+          )
+          if [ "$discovery_source_kind" = "canonical" ] \
+            && { [ "${#artifact_dirs[@]}" -ne 1 ] \
+              || [ "${#discovery_summaries[@]}" -ne 1 ] \
+              || [ "${#workload_manifests[@]}" -ne 1 ] \
+              || [ "${#workload_parquets[@]}" -ne 1 ]; }; then
+            echo "::error::Canonical discovery bundle layout is incomplete"
+            exit 1
+          fi
+          RESTORED_MANIFEST_PATH="${restored_manifests[0]}" \
+            ACTIVE_MANIFEST_PATH="${active_manifests[0]}" \
+            python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          restored = json.loads(
+              Path(os.environ["RESTORED_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          active = json.loads(
+              Path(os.environ["ACTIVE_MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          if not isinstance(restored, dict) or not isinstance(active, dict):
+              raise SystemExit("discovery restore manifests must be objects")
+          for field in ("chain_id", "workflow_source_sha", "coverage_fingerprint"):
+              restored_value = str(restored.get(field) or "").strip().lower()
+              active_value = str(active.get(field) or "").strip().lower()
+              if not restored_value or restored_value != active_value:
+                  raise SystemExit(
+                      f"restored discovery manifest {field} does not match the active plan"
+                  )
+          PY
+
+          if [ "${#artifact_dirs[@]}" -eq 1 ]; then
+            rm -rf data/nbadb/nba.discovery-artifacts
+            cp -R "${artifact_dirs[0]}" data/nbadb/nba.discovery-artifacts
+          fi
+
+          find data/nbadb \
+            -maxdepth 1 \
+            -type f \
+            -name 'nba.player-team-season-workload*.parquet' \
+            -delete
+          rm -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+          if [ "${#workload_manifests[@]}" -eq 1 ] \
+            && [ "${#workload_parquets[@]}" -eq 1 ]; then
+            cp "${workload_parquets[0]}" \
+              "data/nbadb/$(basename "${workload_parquets[0]}")"
+            cp "${workload_manifests[0]}" \
+              data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+          elif [ "${#workload_parquets[@]}" -eq 1 ] \
+            || [ "${#workload_manifests[@]}" -eq 1 ]; then
             if [ "$discovery_source_kind" = "canonical" ]; then
               echo "::error::Canonical discovery workload bundle is incomplete"
               exit 1
             fi
             echo "::warning::Prior player/team workload artifact is incomplete; ignoring it"
-            find data/nbadb \
-              -maxdepth 1 \
-              -type f \
-              -name 'nba.player-team-season-workload*.parquet' \
-              -delete
-            rm -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
           elif [ "$discovery_source_kind" = "canonical" ]; then
             echo "::error::Canonical discovery workload bundle is missing"
             exit 1
@@ -2149,6 +2789,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - name: Reject partial VPN capacity reruns
         if: ${{ github.run_attempt > 1 }}
@@ -2404,6 +3050,12 @@ jobs:
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
+
       - name: Download singleton VPN capacity marker
         if: ${{ needs.preflight.outputs.vpn-capacity-required == 'true' && needs.preflight.outputs.vpn-capacity-count == '1' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -2474,6 +3126,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - name: Check run-attempt VPN auth circuit
         id: vpn_auth_circuit
@@ -3445,6 +4103,12 @@ jobs:
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
+
       - name: Download zero-active manifest
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
@@ -4172,8 +4836,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      actions: read
       contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
+
       - name: Verify terminal targeted smoke
         env:
           PLAN_RESULT: ${{ needs.plan.result }}
@@ -4241,6 +4916,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -4540,12 +5221,19 @@ jobs:
     permissions:
       actions: read
       contents: write
+      deployments: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: publication_reconcile
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -4776,16 +5464,22 @@ jobs:
             fi
             echo "::notice::Accepting exact metadata-only publication child $target_commit for rerun reconciliation"
           fi
+          printf 'NBADB_KAGGLE_EXPECTED_DEFAULT_HEAD_SHA=%s\n' "$target_commit" >> "$GITHUB_ENV"
 
       - name: Upload to Kaggle
         env:
+          GH_TOKEN: ${{ github.token }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          NBADB_KAGGLE_PUBLICATION_SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD: "true"
         run: |
           uv run nbadb upload \
             --data-dir data/nbadb \
             --verify-remote \
             --full-publication \
+            --publication-ledger github-deployment \
+            --require-durable-intent \
             --remote-timeout 3600 \
             --remote-poll-interval 15 \
             -m "Full extraction chain=${ACTIVE_CHAIN_ID} source=${WORKFLOW_SOURCE_SHA} coverage=${{ needs.merge.outputs.coverage-fingerprint }}"
@@ -4873,6 +5567,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -5506,6 +6206,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: partial
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -7051,6 +7757,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
+      - name: Validate full extraction attempt
+        env:
+          FULL_EXTRACTION_ATTEMPT_GATE_ROLE: dispatch_reconcile
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/validate_full_extraction_attempt.py
+
       - name: Verify redispatch workflow definition
         id: redispatch_guard
         env:
@@ -7101,6 +7813,7 @@ jobs:
           dispatch_blob="$(gh api \
             --method GET \
             -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
             "/repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}" \
             -f "ref=${WORKFLOW_REF}" \
             --jq '.sha')"
@@ -7121,6 +7834,7 @@ jobs:
           CURRENT_RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ITERATION: ${{ inputs.iteration }}
+          WORKFLOW_SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
         run: |
           python - <<'PY'
           # REDISPATCH_MANIFEST_RECEIPT_VERIFIER
@@ -7136,6 +7850,7 @@ jobs:
           current_run_id = os.environ["CURRENT_RUN_ID"]
           current_run_attempt = os.environ["CURRENT_RUN_ATTEMPT"]
           iteration = os.environ["ITERATION"]
+          workflow_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
           for field_name, value in (
               ("current run ID", current_run_id),
               ("current run attempt", current_run_attempt),
@@ -7145,15 +7860,42 @@ jobs:
                   raise SystemExit(
                       f"redispatch manifest {field_name} must be a positive integer"
                   )
-          expected_name = (
-              f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-iter-"
-              f"{int(iteration) + 1}-run-{current_run_id}-"
-              f"attempt-{current_run_attempt}"
-          )
-          if artifact_name != expected_name:
+          if re.fullmatch(r"[0-9a-f]{40}", workflow_source_sha) is None:
               raise SystemExit(
-                  "redispatch requires the current run attempt's exact immutable "
+                  "redispatch workflow source SHA must be a full commit SHA"
+              )
+          name_match = re.fullmatch(
+              (
+                  rf"full-extraction-next-manifest-"
+                  rf"{re.escape(os.environ['CHAIN_ID'])}-"
+                  rf"iter-(?P<iteration>[1-9][0-9]*)-"
+                  rf"run-(?P<run_id>[1-9][0-9]*)-"
+                  rf"attempt-(?P<attempt>[1-9][0-9]*)"
+              ),
+              artifact_name,
+          )
+          if name_match is None:
+              raise SystemExit(
+                  "redispatch requires an exact immutable "
                   "committed next-manifest artifact"
+              )
+          artifact_iteration = int(name_match.group("iteration"))
+          artifact_run_id = int(name_match.group("run_id"))
+          artifact_attempt = int(name_match.group("attempt"))
+          if artifact_run_id != int(current_run_id):
+              raise SystemExit(
+                  "redispatch committed-manifest artifact run does not match "
+                  "the current workflow run"
+              )
+          if artifact_iteration != int(iteration) + 1:
+              raise SystemExit(
+                  "redispatch committed-manifest artifact iteration is not "
+                  "the exact next iteration"
+              )
+          if artifact_attempt > int(current_run_attempt):
+              raise SystemExit(
+                  "redispatch committed-manifest artifact attempt exceeds "
+                  "the current workflow run attempt"
               )
           if re.fullmatch(r"[1-9][0-9]*", artifact_id_text) is None:
               raise SystemExit(
@@ -7172,6 +7914,8 @@ jobs:
                   "api",
                   "-H",
                   "Accept: application/vnd.github+json",
+                  "-H",
+                  "X-GitHub-Api-Version: 2026-03-10",
                   (
                       f"/repos/{os.environ['GITHUB_REPOSITORY']}"
                       f"/actions/runs/{current_run_id}"
@@ -7188,6 +7932,7 @@ jobs:
               or not isinstance(owner_run_attempt, int)
               or owner_run_attempt != int(current_run_attempt)
               or re.fullmatch(r"[0-9a-f]{40}", owner_head_sha) is None
+              or owner_head_sha != workflow_source_sha
           ):
               raise SystemExit(
                   "redispatch committed-manifest owner run identity is invalid"
@@ -7199,6 +7944,8 @@ jobs:
                   "api",
                   "-H",
                   "Accept: application/vnd.github+json",
+                  "-H",
+                  "X-GitHub-Api-Version: 2026-03-10",
                   (
                       f"/repos/{os.environ['GITHUB_REPOSITORY']}"
                       f"/actions/artifacts/{artifact_id_text}"
@@ -7315,8 +8062,8 @@ jobs:
                 --paginate \
                 --slurp \
                 -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2026-03-10" \
                 "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
-                -f "event=workflow_dispatch" \
                 -f "per_page=100" \
                 > "$cancel_runs_path"
               candidate_ids="$(
@@ -7339,7 +8086,8 @@ jobs:
               for run in page.get("workflow_runs", []):
                   run_id = str(run.get("id") or "")
                   if (
-                      str(run.get("display_title") or "") == expected
+                      str(run.get("event") or "") == "workflow_dispatch"
+                      and str(run.get("display_title") or "") == expected
                       and run_id not in existing_ids
                       and run_id.isdigit()
                   ):
@@ -7353,6 +8101,7 @@ jobs:
                 gh api \
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
+                  -H "X-GitHub-Api-Version: 2026-03-10" \
                   "/repos/${{ github.repository }}/actions/runs/${candidate_id}/cancel" \
                   >/dev/null 2>&1 || true
               fi
@@ -7383,8 +8132,8 @@ jobs:
             --paginate \
             --slurp \
             -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
             "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
-            -f "event=workflow_dispatch" \
             -f "per_page=100" \
             > "$runs_path"
           duplicate_runs="$(
@@ -7399,12 +8148,72 @@ jobs:
 
           pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
           expected_run_name = os.environ["EXPECTED_RUN_NAME"]
+          runs: list[dict[str, object]] = []
+          if not isinstance(pages, list) or not pages:
+              raise SystemExit("redispatch workflow run inventory must contain pages")
+          total_count: int | None = None
+          run_ids: set[int] = set()
+          for page in pages:
+              if not isinstance(page, dict):
+                  raise SystemExit("redispatch workflow run inventory pages must be objects")
+              page_total = page.get("total_count")
+              entries = page.get("workflow_runs")
+              if (
+                  isinstance(page_total, bool)
+                  or not isinstance(page_total, int)
+                  or page_total < 0
+                  or not isinstance(entries, list)
+              ):
+                  raise SystemExit("redispatch workflow run inventory page is malformed")
+              if total_count is None:
+                  total_count = page_total
+              elif total_count != page_total:
+                  raise SystemExit(
+                      "redispatch workflow run total changed during pagination"
+                  )
+              for run in entries:
+                  if not isinstance(run, dict):
+                      raise SystemExit(
+                          "redispatch workflow run inventory entries must be objects"
+                      )
+                  run_id = run.get("id")
+                  title = run.get("display_title")
+                  event = run.get("event")
+                  status = run.get("status")
+                  conclusion = run.get("conclusion")
+                  html_url = run.get("html_url")
+                  if (
+                      isinstance(run_id, bool)
+                      or not isinstance(run_id, int)
+                      or run_id < 1
+                      or not isinstance(title, str)
+                      or not title
+                      or not isinstance(event, str)
+                      or not event
+                      or not isinstance(status, str)
+                      or not status
+                      or (conclusion is not None and not isinstance(conclusion, str))
+                      or (html_url is not None and not isinstance(html_url, str))
+                  ):
+                      raise SystemExit(
+                          "redispatch workflow run inventory entry is malformed"
+                      )
+                  if run_id in run_ids:
+                      raise SystemExit(
+                          "redispatch workflow run inventory repeated a run ID"
+                      )
+                  run_ids.add(run_id)
+                  runs.append(run)
+          if total_count != len(runs):
+              raise SystemExit(
+                  "redispatch workflow run inventory count does not match total_count"
+              )
           matches = sorted(
               (
                   run
-                  for page in pages
-                  for run in page.get("workflow_runs", [])
-                  if str(run.get("display_title") or "") == expected_run_name
+                  for run in runs
+                  if str(run.get("event") or "") == "workflow_dispatch"
+                  and str(run.get("display_title") or "") == expected_run_name
               ),
               key=lambda run: int(run.get("id") or 0),
           )
@@ -7417,8 +8226,8 @@ jobs:
               run
               for run in matches
               if str(run.get("status") or "") != "completed"
-              or str(run.get("conclusion") or "") == "success"
-              or not str(run.get("conclusion") or "")
+              or str(run.get("conclusion") or "")
+              not in {"action_required", "cancelled", "failure", "timed_out"}
           ]
           print(
               ", ".join(
@@ -7483,7 +8292,7 @@ jobs:
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
             "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/dispatches" \
             --input "$dispatch_payload_path" \
             > "$dispatch_response_path"
@@ -7567,6 +8376,7 @@ jobs:
             if gh api \
               --method GET \
               -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
               "$child_run_api_url" > "$child_details_path"; then
               child_visible=true
               break

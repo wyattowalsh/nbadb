@@ -49,6 +49,16 @@ def upload(
         min=0.1,
         help="Seconds between Kaggle remote verification attempts.",
     ),
+    publication_ledger: str = typer.Option(
+        "local",
+        "--publication-ledger",
+        help="Publication intent ledger: local or github-deployment.",
+    ),
+    require_durable_intent: bool = typer.Option(
+        False,
+        "--require-durable-intent",
+        help="Fail closed unless a crash-durable external publication intent is active.",
+    ),
 ) -> None:
     """Push data to Kaggle."""
     from nbadb.kaggle.client import KaggleClient
@@ -56,6 +66,30 @@ def upload(
     settings = _build_settings(data_dir)
     remote_verification = verify_remote or full_publication
     try:
+        ledger_mode = publication_ledger.strip().lower()
+        if ledger_mode not in {"local", "github-deployment"}:
+            msg = (
+                "Unsupported Kaggle publication ledger: "
+                f"{publication_ledger!r}; expected local or github-deployment"
+            )
+            raise ValueError(msg)
+        if require_durable_intent and ledger_mode != "github-deployment":
+            raise ValueError(
+                "--require-durable-intent requires --publication-ledger github-deployment"
+            )
+        if ledger_mode == "github-deployment" and not remote_verification:
+            raise ValueError(
+                "--publication-ledger github-deployment requires --verify-remote "
+                "or --full-publication"
+            )
+        durable_ledger = None
+        if ledger_mode == "github-deployment":
+            from nbadb.kaggle.publication_ledger import (
+                GitHubDeploymentPublicationLedger,
+            )
+
+            durable_ledger = GitHubDeploymentPublicationLedger.from_actions_env()
+
         client = KaggleClient()
         client.ensure_metadata(
             settings.data_dir,
@@ -69,6 +103,8 @@ def upload(
             full_publication=full_publication,
             remote_timeout_seconds=remote_timeout,
             remote_poll_interval_seconds=remote_poll_interval,
+            publication_ledger=durable_ledger,
+            require_durable_intent=require_durable_intent,
         )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         status = manifest.get("status")

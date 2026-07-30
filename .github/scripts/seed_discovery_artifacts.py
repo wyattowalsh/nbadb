@@ -942,9 +942,34 @@ async def _seed_game_discovery_pairs(
     }
     if progress is not None:
         progress.mark_game_pairs(cached_pairs)
+    missing_pairs = requested_pairs - cached_pairs
+    if cached_pairs and on_result is not None:
+        on_result(
+            (
+                "skipped",
+                {
+                    "kind": "league_game_log",
+                    "seasons": sorted({season for season, _season_type in cached_pairs}),
+                    "season_types": list(
+                        _ordered_season_types(
+                            {season_type for _season, season_type in cached_pairs}
+                        )
+                    ),
+                    "requested_combo_count": len(cached_pairs),
+                    "covered_combo_count": len(cached_pairs),
+                    "cached_combo_count": len(cached_pairs),
+                    "persisted_combo_count": 0,
+                    "refreshed_combo_count": 0,
+                    "grouped_scope_count": 0,
+                    "cached_combos": _pair_summary_rows(cached_pairs),
+                    "reason": (
+                        "already_cached_complete" if not missing_pairs else "already_cached"
+                    ),
+                },
+            )
+        )
     if checkpoint is not None:
         checkpoint("game_cache")
-    missing_pairs = requested_pairs - cached_pairs
     grouped_scopes = _group_exact_pairs(missing_pairs)
     persisted_pairs: set[tuple[str, str]] = set()
     discovery_errors: list[str] = []
@@ -1096,8 +1121,6 @@ async def _seed_game_discovery_pairs(
         "grouped_scope_count": len(grouped_scopes),
     }
     if on_result is not None:
-        if not grouped_scopes:
-            on_result(("skipped", {**summary, "reason": "already_cached_complete"}))
         return []
     if unresolved_pairs:
         return [
@@ -1151,9 +1174,38 @@ async def _seed_player_team_season_pairs(
     }
     if progress is not None:
         progress.mark_player_team_pairs(cached_pairs)
+    missing_pairs = requested_pairs - cached_pairs
+    if cached_pairs and on_result is not None:
+        on_result(
+            (
+                "skipped",
+                {
+                    "kind": "player_team_season_workload",
+                    "seasons": sorted({season for season, _season_type in cached_pairs}),
+                    "season_types": list(
+                        _ordered_season_types(
+                            {season_type for _season, season_type in cached_pairs}
+                        )
+                    ),
+                    "requested_pair_count": len(cached_pairs),
+                    "covered_pair_count": len(cached_pairs),
+                    "requested_unique_season_count": len(
+                        {season for season, _season_type in cached_pairs}
+                    ),
+                    "cached_pair_count": len(cached_pairs),
+                    "persisted_pair_count": 0,
+                    "persisted_param_count": 0,
+                    "refreshed_pair_count": 0,
+                    "grouped_scope_count": 0,
+                    "cached_pairs": _pair_summary_rows(cached_pairs),
+                    "reason": (
+                        "already_cached_complete" if not missing_pairs else "already_cached"
+                    ),
+                },
+            )
+        )
     if checkpoint is not None:
         checkpoint("player_team_cache")
-    missing_pairs = requested_pairs - cached_pairs
     grouped_scopes = _group_exact_pairs(missing_pairs)
     persisted_pairs: set[tuple[str, str]] = set()
     persisted_param_count = 0
@@ -1292,8 +1344,6 @@ async def _seed_player_team_season_pairs(
         "grouped_scope_count": len(grouped_scopes),
     }
     if on_result is not None:
-        if not grouped_scopes:
-            on_result(("skipped", {**summary, "reason": "already_cached_complete"}))
         return []
     if unresolved_pairs:
         return [

@@ -6,7 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
+  deployments: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -103,11 +105,21 @@ jobs:
         if: always() && steps.daily.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success'
         timeout-minutes: 75
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: >-
-          uv run nbadb upload --data-dir data/nbadb --verify-remote
-          --remote-timeout 3600 --remote-poll-interval 15
+          NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD: "true"
+          NBADB_KAGGLE_PUBLICATION_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          current_source_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${DEFAULT_BRANCH}" --jq '.object.sha')"
+          if [ "$current_source_sha" != "$NBADB_KAGGLE_PUBLICATION_SOURCE_SHA" ]; then
+            echo "::error::Default branch moved before Kaggle publication: expected '$NBADB_KAGGLE_PUBLICATION_SOURCE_SHA', got '$current_source_sha'"
+            exit 1
+          fi
+          uv run nbadb upload --data-dir data/nbadb --verify-remote \
+            --publication-ledger github-deployment --require-durable-intent \
+            --remote-timeout 3600 --remote-poll-interval 15
       - name: Refresh checked-in metadata
         id: metadata_commit
         if: always() && steps.upload.outcome == 'success'

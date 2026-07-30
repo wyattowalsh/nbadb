@@ -294,6 +294,8 @@ def test_upload_passes_data_dir_message_and_orders_metadata(tmp_path: Path) -> N
         full_publication=False,
         remote_timeout_seconds=3600.0,
         remote_poll_interval_seconds=15.0,
+        publication_ledger=None,
+        require_durable_intent=False,
     )
     assert client.method_calls[0].args == (tmp_path,)
     assert client.method_calls[0].kwargs == {"include_assurance_resources": False}
@@ -336,6 +338,8 @@ def test_upload_passes_verify_remote_flag(tmp_path: Path) -> None:
         full_publication=False,
         remote_timeout_seconds=30.0,
         remote_poll_interval_seconds=2.0,
+        publication_ledger=None,
+        require_durable_intent=False,
     )
     assert "Upload complete" in result.output
 
@@ -363,8 +367,67 @@ def test_upload_passes_full_publication_mode(tmp_path: Path) -> None:
         full_publication=True,
         remote_timeout_seconds=3600.0,
         remote_poll_interval_seconds=15.0,
+        publication_ledger=None,
+        require_durable_intent=False,
     )
     assert "Upload complete" in result.output
+
+
+def test_upload_uses_github_deployment_ledger_when_required(tmp_path: Path) -> None:
+    manifest_path = _write_upload_manifest(tmp_path, status="uploaded_remote_verified")
+    ledger = MagicMock()
+    with (
+        patch(_KAGGLE_CLIENT) as mock_cls,
+        patch(
+            "nbadb.kaggle.publication_ledger.GitHubDeploymentPublicationLedger.from_actions_env",
+            return_value=ledger,
+        ) as ledger_factory,
+    ):
+        client = mock_cls.return_value
+        client.upload.return_value = manifest_path
+        result = runner.invoke(
+            app,
+            [
+                "upload",
+                "--data-dir",
+                str(tmp_path),
+                "--verify-remote",
+                "--publication-ledger",
+                "github-deployment",
+                "--require-durable-intent",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    ledger_factory.assert_called_once_with()
+    client.upload.assert_called_once_with(
+        tmp_path,
+        version_notes="Automated update",
+        verify_remote=True,
+        require_assured=False,
+        full_publication=False,
+        remote_timeout_seconds=3600.0,
+        remote_poll_interval_seconds=15.0,
+        publication_ledger=ledger,
+        require_durable_intent=True,
+    )
+
+
+def test_upload_required_durable_intent_fails_before_metadata(tmp_path: Path) -> None:
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(
+            app,
+            [
+                "upload",
+                "--data-dir",
+                str(tmp_path),
+                "--require-durable-intent",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "--publication-ledger github-deployment" in result.output
+    mock_cls.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

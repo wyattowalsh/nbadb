@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import inspect
 import json
 import os
 import shutil
@@ -17,6 +18,14 @@ from nbadb.kaggle.client import KaggleClient
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def test_durable_claim_is_textually_adjacent_to_kaggle_upload_call() -> None:
+    source = inspect.getsource(KaggleClient._upload_claimed)
+    assert (
+        "execution_receipt = publication_ledger.claim_pending(durable_receipt)\n"
+        "                    kagglehub.dataset_upload("
+    ) in source
 
 
 def _valid_publication_marker() -> dict[str, object]:

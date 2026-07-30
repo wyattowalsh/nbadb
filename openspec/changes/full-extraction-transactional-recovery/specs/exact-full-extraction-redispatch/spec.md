@@ -43,16 +43,26 @@ content-provenance identity.
 
 ### Requirement: Redispatch remains idempotent
 Before dispatch, the system SHALL inspect exact-title history and SHALL refuse a
-new child when an existing matching run is active, successful, or otherwise
-non-terminal without a failure conclusion.
+new child unless every existing matching run is completed with exactly
+`failure`, `cancelled`, `timed_out`, or `action_required`. It MUST list complete
+workflow history without a result-capping API search filter and MUST select
+`workflow_dispatch` events locally.
 
 #### Scenario: Blocking child already exists
 - **WHEN** exact chain-and-iteration history contains an active or successful matching child
 - **THEN** the system refuses duplicate dispatch and reports the blocking run identities
 
-#### Scenario: Only failed or cancelled history exists
-- **WHEN** all exact-title predecessors are terminal failures or cancellations
+#### Scenario: Only explicitly replaceable history exists
+- **WHEN** all exact-title predecessors are completed with `failure`, `cancelled`, `timed_out`, or `action_required`
 - **THEN** the system may create one replacement child subject to all other gates
+
+#### Scenario: A nonreplaceable terminal conclusion exists
+- **WHEN** an exact-title predecessor is completed with success, neutral, skipped, stale, an absent conclusion, or an unknown conclusion
+- **THEN** the system blocks redispatch before enqueueing a child
+
+#### Scenario: Non-dispatch history shares the child title
+- **WHEN** an unfiltered workflow inventory contains a same-title run from another event
+- **THEN** redispatch ignores that row only after evaluating its local event field
 
 ### Requirement: Dispatch preserves source and manifest provenance
 The system MUST verify the pinned source SHA, trusted branch ancestry, workflow
@@ -87,3 +97,23 @@ them in the workflow summary.
 #### Scenario: Child is acknowledged
 - **WHEN** exact returned identity and provenance checks pass
 - **THEN** operators and later automation receive the same positive child run ID and URL
+
+### Requirement: Dispatch-only reruns consume the exact prior-attempt receipt
+The dispatch job MAY reconcile a failed dispatch on a later run attempt only
+from the immutable committed-manifest receipt exposed by checkpoint outputs.
+The manifest artifact name MUST encode the current workflow run, the exact next
+iteration, and a positive artifact attempt no greater than the current
+`run_attempt`. The owner run's current attempt and source SHA, and the direct
+artifact ID, digest, size, expiry, name, and workflow provenance MUST match.
+
+#### Scenario: Prior-attempt committed receipt remains available
+- **WHEN** a dispatch-only rerun receives an exact artifact from an earlier positive attempt of the current run and all receipt provenance matches
+- **THEN** it may continue through idempotent child admission and dispatch acknowledgement
+
+#### Scenario: Receipt claims a future or different identity
+- **WHEN** the artifact name claims another run, a non-next iteration, or an attempt greater than the current run attempt
+- **THEN** redispatch fails before using the artifact
+
+#### Scenario: Full rerun deleted the immutable receipt
+- **WHEN** the exact checkpoint output artifact is absent or its REST identity no longer matches
+- **THEN** redispatch fails closed and does not synthesize a current-attempt artifact name

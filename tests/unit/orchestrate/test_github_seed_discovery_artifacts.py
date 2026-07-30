@@ -23,12 +23,27 @@ MODULE_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "scripts" / "seed_discovery_artifacts.py"
 )
 MODULE_CODE = compile(MODULE_PATH.read_text(encoding="utf-8"), str(MODULE_PATH), "exec")
+VERIFIER_MODULE_PATH = (
+    Path(__file__).resolve().parents[3] / ".github" / "scripts" / "verify_discovery_bundle.py"
+)
+VERIFIER_MODULE_CODE = compile(
+    VERIFIER_MODULE_PATH.read_text(encoding="utf-8"),
+    str(VERIFIER_MODULE_PATH),
+    "exec",
+)
 
 
 def _load_module():
     module = types.ModuleType("github_seed_discovery_artifacts")
     module.__file__ = str(MODULE_PATH)
     exec(MODULE_CODE, module.__dict__)
+    return module
+
+
+def _load_verifier_module():
+    module = types.ModuleType("github_verify_discovery_bundle")
+    module.__file__ = str(VERIFIER_MODULE_PATH)
+    exec(VERIFIER_MODULE_CODE, module.__dict__)
     return module
 
 
@@ -437,6 +452,207 @@ def test_player_team_seed_deduplicates_seasons_and_rejects_uncovered_pairs(
     assert FakeDiscovery.calls == [(("2024-25", "2025-26"), ("Regular Season",))]
 
 
+def test_game_seed_accounts_for_mixed_and_all_cached_pairs_once(tmp_path: Path) -> None:
+    module = _load_module()
+    cached_pair = ("2023-24", "Regular Season")
+    fresh_pair = ("2023-24", "Playoffs")
+    requested_pairs = {cached_pair, fresh_pair}
+    cached_frame = pl.DataFrame({"game_id": ["001"], "game_date": ["2023-10-24"]})
+    fresh_frame = pl.DataFrame({"game_id": ["002"], "game_date": ["2024-04-20"]})
+    store = DiscoveryArtifactStore.from_duckdb_path(tmp_path / "data" / "nba.duckdb")
+    store.upsert_game_log_combo_frames(
+        {cached_pair: cached_frame},
+        provenance="test-cache",
+    )
+
+    class FakeDiscovery:
+        calls: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+
+        async def discover_game_ids_result(
+            self,
+            seasons: list[str],
+            *,
+            season_types: list[str],
+            on_combo_covered=None,
+        ) -> GameDiscoveryResult:
+            self.calls.append((tuple(seasons), tuple(season_types)))
+            assert (seasons, season_types) == ([fresh_pair[0]], [fresh_pair[1]])
+            return GameDiscoveryResult(
+                game_ids=["002"],
+                raw=fresh_frame,
+                requested_combos=frozenset({fresh_pair}),
+                covered_combos=frozenset({fresh_pair}),
+                frames_by_combo={fresh_pair: fresh_frame},
+            )
+
+    discovery = FakeDiscovery()
+    events = []
+    checkpoints = []
+    results = module.asyncio.run(
+        module._seed_game_discovery_pairs(
+            requested_pairs=requested_pairs,
+            store=store,
+            discovery=discovery,
+            checkpoint=lambda phase: checkpoints.append((phase, len(events))),
+            on_result=events.append,
+        )
+    )
+
+    assert results == []
+    assert discovery.calls == [((fresh_pair[0],), (fresh_pair[1],))]
+    assert checkpoints[0] == ("game_cache", 1)
+    assert events[0] == (
+        "skipped",
+        {
+            "kind": "league_game_log",
+            "seasons": [cached_pair[0]],
+            "season_types": [cached_pair[1]],
+            "requested_combo_count": 1,
+            "covered_combo_count": 1,
+            "cached_combo_count": 1,
+            "persisted_combo_count": 0,
+            "refreshed_combo_count": 0,
+            "grouped_scope_count": 0,
+            "cached_combos": [{"season": cached_pair[0], "season_type": cached_pair[1]}],
+            "reason": "already_cached",
+        },
+    )
+    assert events[1][0] == "seeded"
+    assert events[1][1]["cached_combo_count"] == 0
+    assert events[1][1]["persisted_combo_count"] == 1
+
+    all_cached_events = []
+    all_cached_checkpoints = []
+    results = module.asyncio.run(
+        module._seed_game_discovery_pairs(
+            requested_pairs=requested_pairs,
+            store=store,
+            discovery=discovery,
+            checkpoint=lambda phase: all_cached_checkpoints.append((phase, len(all_cached_events))),
+            on_result=all_cached_events.append,
+        )
+    )
+
+    assert results == []
+    assert discovery.calls == [((fresh_pair[0],), (fresh_pair[1],))]
+    assert all_cached_checkpoints == [("game_cache", 1)]
+    assert len(all_cached_events) == 1
+    assert all_cached_events[0][0] == "skipped"
+    assert all_cached_events[0][1]["reason"] == "already_cached_complete"
+    assert all_cached_events[0][1]["cached_combo_count"] == 2
+    assert all_cached_events[0][1]["cached_combos"] == [
+        {"season": fresh_pair[0], "season_type": fresh_pair[1]},
+        {"season": cached_pair[0], "season_type": cached_pair[1]},
+    ]
+
+
+def test_workload_seed_accounts_for_mixed_and_all_cached_pairs_once(tmp_path: Path) -> None:
+    module = _load_module()
+    cached_pair = ("2023-24", "Regular Season")
+    fresh_pair = ("2023-24", "Playoffs")
+    requested_pairs = {cached_pair, fresh_pair}
+    store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(tmp_path / "data" / "nba.duckdb")
+    store.upsert(
+        [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": cached_pair[0],
+                "season_type": cached_pair[1],
+            }
+        ],
+        seasons=[cached_pair[0]],
+        season_types=[cached_pair[1]],
+        covered_pairs={cached_pair},
+    )
+
+    class FakeDiscovery:
+        calls: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+
+        async def discover_player_team_season_params_result(
+            self,
+            seasons: list[str],
+            *,
+            season_types: list[str],
+        ) -> PlayerTeamSeasonDiscoveryResult:
+            self.calls.append((tuple(seasons), tuple(season_types)))
+            assert (seasons, season_types) == ([fresh_pair[0]], [fresh_pair[1]])
+            return PlayerTeamSeasonDiscoveryResult(
+                params=[
+                    {
+                        "player_id": 2,
+                        "team_id": 20,
+                        "season": fresh_pair[0],
+                        "season_type": fresh_pair[1],
+                    }
+                ],
+                requested_pairs=frozenset({fresh_pair}),
+                covered_pairs=frozenset({fresh_pair}),
+            )
+
+    discovery = FakeDiscovery()
+    events = []
+    checkpoints = []
+    results = module.asyncio.run(
+        module._seed_player_team_season_pairs(
+            requested_pairs=requested_pairs,
+            store=store,
+            discovery=discovery,
+            checkpoint=lambda phase: checkpoints.append((phase, len(events))),
+            on_result=events.append,
+        )
+    )
+
+    assert results == []
+    assert discovery.calls == [((fresh_pair[0],), (fresh_pair[1],))]
+    assert checkpoints[0] == ("player_team_cache", 1)
+    assert events[0] == (
+        "skipped",
+        {
+            "kind": "player_team_season_workload",
+            "seasons": [cached_pair[0]],
+            "season_types": [cached_pair[1]],
+            "requested_pair_count": 1,
+            "covered_pair_count": 1,
+            "requested_unique_season_count": 1,
+            "cached_pair_count": 1,
+            "persisted_pair_count": 0,
+            "persisted_param_count": 0,
+            "refreshed_pair_count": 0,
+            "grouped_scope_count": 0,
+            "cached_pairs": [{"season": cached_pair[0], "season_type": cached_pair[1]}],
+            "reason": "already_cached",
+        },
+    )
+    assert events[1][0] == "seeded"
+    assert events[1][1]["cached_pair_count"] == 0
+    assert events[1][1]["persisted_pair_count"] == 1
+
+    all_cached_events = []
+    all_cached_checkpoints = []
+    results = module.asyncio.run(
+        module._seed_player_team_season_pairs(
+            requested_pairs=requested_pairs,
+            store=store,
+            discovery=discovery,
+            checkpoint=lambda phase: all_cached_checkpoints.append((phase, len(all_cached_events))),
+            on_result=all_cached_events.append,
+        )
+    )
+
+    assert results == []
+    assert discovery.calls == [((fresh_pair[0],), (fresh_pair[1],))]
+    assert all_cached_checkpoints == [("player_team_cache", 1)]
+    assert len(all_cached_events) == 1
+    assert all_cached_events[0][0] == "skipped"
+    assert all_cached_events[0][1]["reason"] == "already_cached_complete"
+    assert all_cached_events[0][1]["cached_pair_count"] == 2
+    assert all_cached_events[0][1]["cached_pairs"] == [
+        {"season": fresh_pair[0], "season_type": fresh_pair[1]},
+        {"season": cached_pair[0], "season_type": cached_pair[1]},
+    ]
+
+
 def test_seed_attests_exact_result_failure_taxonomies(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -690,6 +906,15 @@ def test_seed_refreshes_current_season_player_game_and_workload_caches(
     )
 
     assert summary["failure_count"] == 0
+    seeded_by_kind = {item["kind"]: item for item in summary["seeded"]}
+    assert seeded_by_kind["league_game_log"]["cached_combo_count"] == 0
+    assert seeded_by_kind["league_game_log"]["refreshed_combo_count"] == 1
+    assert seeded_by_kind["player_team_season_workload"]["cached_pair_count"] == 0
+    assert seeded_by_kind["player_team_season_workload"]["refreshed_pair_count"] == 1
+    assert all(
+        item["kind"] not in {"league_game_log", "player_team_season_workload"}
+        for item in summary["skipped"]
+    )
     assert artifact_store.load_ids(player_scope) == [1, 2]
     assert artifact_store.load_game_log_frame(game_scope).to_dicts() == (live_game_frame.to_dicts())
     assert workload_store.load_params() == [
@@ -1313,6 +1538,168 @@ def test_seed_writes_atomic_fail_closed_summary_before_discovery(
     artifact = summary["artifacts"]["game_combo_artifacts"][0]
     assert Path(artifact["artifact_path"]).exists()
     assert Path(artifact["manifest_path"]).exists()
+
+
+def test_mixed_game_cache_round_trips_through_checkpoint_summary_and_verifier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    verifier = _load_verifier_module()
+    cached_pair = ("2023-24", "Regular Season")
+    fresh_pair = ("2023-24", "Playoffs")
+    expected_rows = [
+        {"season": fresh_pair[0], "season_type": fresh_pair[1]},
+        {"season": cached_pair[0], "season_type": cached_pair[1]},
+    ]
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "github_matrix": {
+                    "include": [
+                        {
+                            "patterns": "game",
+                            "season_start": "2023",
+                            "season_end": "2023",
+                            "season_types": "Regular Season,Playoffs",
+                            "resume_only": False,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    duckdb_path = tmp_path / "data" / "nba.duckdb"
+    summary_path = tmp_path / "artifacts" / "summary.json"
+    store = DiscoveryArtifactStore.from_duckdb_path(duckdb_path)
+    store.upsert_game_log_combo_frames(
+        {cached_pair: pl.DataFrame({"game_id": ["001"], "game_date": ["2023-10-24"]})},
+        provenance="test-cache",
+    )
+    fresh_frame = pl.DataFrame({"game_id": ["002"], "game_date": ["2024-04-20"]})
+    persisted_summaries = []
+    real_atomic_write_json = module._atomic_write_json
+
+    def recording_atomic_write_json(path: Path, payload: dict[str, object]) -> None:
+        real_atomic_write_json(path, payload)
+        if path == summary_path:
+            persisted_summaries.append(json.loads(summary_path.read_text(encoding="utf-8")))
+
+    class FakeRegistry:
+        def discover(self) -> None:
+            return None
+
+    class FakeDiscovery:
+        calls: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+
+        def __init__(self, _registry: object) -> None:
+            return None
+
+        async def discover_game_ids_result(
+            self,
+            seasons: list[str],
+            *,
+            season_types: list[str],
+            on_combo_covered=None,
+        ) -> GameDiscoveryResult:
+            self.calls.append((tuple(seasons), tuple(season_types)))
+            assert (seasons, season_types) == ([fresh_pair[0]], [fresh_pair[1]])
+            return GameDiscoveryResult(
+                game_ids=["002"],
+                raw=fresh_frame,
+                requested_combos=frozenset({fresh_pair}),
+                covered_combos=frozenset({fresh_pair}),
+                frames_by_combo={fresh_pair: fresh_frame},
+            )
+
+    monkeypatch.setattr(module, "_atomic_write_json", recording_atomic_write_json)
+    monkeypatch.setattr(module, "current_season", lambda: "2099-00")
+    monkeypatch.setattr(module, "registry", FakeRegistry())
+    monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
+
+    summary = module.asyncio.run(
+        module.seed_player_discovery_artifacts(
+            manifest_path=manifest_path,
+            duckdb_path=duckdb_path,
+            summary_path=summary_path,
+        )
+    )
+
+    snapshots_by_phase = {snapshot["phase"]: snapshot for snapshot in persisted_summaries}
+    cache_checkpoint = snapshots_by_phase["game_cache"]
+    assert cache_checkpoint["summary_schema_version"] == 2
+    assert cache_checkpoint["coverage"]["covered"]["game_combo_count"] == 1
+    assert cache_checkpoint["coverage"]["missing"]["game_combo_count"] == 1
+    assert cache_checkpoint["covered_units"]["game_combos"] == [expected_rows[1]]
+    assert cache_checkpoint["missing_units"]["game_combos"] == [expected_rows[0]]
+    assert cache_checkpoint["skipped"] == [
+        {
+            "kind": "league_game_log",
+            "seasons": [cached_pair[0]],
+            "season_types": [cached_pair[1]],
+            "requested_combo_count": 1,
+            "covered_combo_count": 1,
+            "cached_combo_count": 1,
+            "persisted_combo_count": 0,
+            "refreshed_combo_count": 0,
+            "grouped_scope_count": 0,
+            "cached_combos": [expected_rows[1]],
+            "reason": "already_cached",
+        }
+    ]
+
+    persisted_combo_checkpoint = snapshots_by_phase["game_batch_1_combo_1_of_1"]
+    assert persisted_combo_checkpoint["summary_schema_version"] == 2
+    assert persisted_combo_checkpoint["coverage"]["covered"]["game_combo_count"] == 2
+    assert persisted_combo_checkpoint["coverage"]["missing"]["game_combo_count"] == 0
+    assert persisted_combo_checkpoint["covered_units"]["game_combos"] == expected_rows
+    assert persisted_combo_checkpoint["artifacts"]["game_combo_artifacts"]
+
+    batch_checkpoint = snapshots_by_phase["game_batch_1_of_1"]
+    assert batch_checkpoint["summary_schema_version"] == 2
+    assert batch_checkpoint["seeded_count"] == 1
+    assert batch_checkpoint["skipped_count"] == 1
+    cached_rows = [
+        row
+        for item in batch_checkpoint["skipped"]
+        if item["kind"] == "league_game_log"
+        for row in item["cached_combos"]
+    ]
+    fresh_rows = [
+        {"season": season, "season_type": season_type}
+        for item in batch_checkpoint["seeded"]
+        if item["kind"] == "league_game_log"
+        for season in item["seasons"]
+        for season_type in item["season_types"]
+    ]
+    accounted_rows = [*cached_rows, *fresh_rows]
+    assert sorted(accounted_rows, key=lambda row: (row["season"], row["season_type"])) == (
+        expected_rows
+    )
+    assert len(accounted_rows) == len(
+        {(row["season"], row["season_type"]) for row in accounted_rows}
+    )
+
+    reloaded_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert reloaded_summary == summary
+    assert reloaded_summary["summary_schema_version"] == 2
+    assert reloaded_summary["requested_units"]["game_combos"] == expected_rows
+    assert reloaded_summary["covered_units"]["game_combos"] == expected_rows
+    assert reloaded_summary["missing_exact_unit_count"] == 0
+    assert FakeDiscovery.calls == [((fresh_pair[0],), (fresh_pair[1],))]
+    assert verifier.verify_discovery_bundle(
+        summary_path=summary_path,
+        manifest_path=manifest_path,
+        duckdb_path=duckdb_path,
+    ) == {
+        "player_scopes": 0,
+        "player_seasons": 0,
+        "game_combos": 2,
+        "player_team_season_pairs": 0,
+        "exact_units": 2,
+    }
 
 
 def test_bootstrap_summary_attests_invalid_manifest_bytes(
