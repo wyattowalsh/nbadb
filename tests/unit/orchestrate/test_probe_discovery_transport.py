@@ -5,6 +5,8 @@ from pathlib import Path
 
 import polars as pl
 
+from nbadb.core.errors import TransientError
+
 MODULE_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "scripts" / "probe_discovery_transport.py"
 )
@@ -74,10 +76,14 @@ def test_probe_uses_nbadb_extractors_for_player_and_game_discovery(monkeypatch) 
 
 def test_probe_failure_attestation_excludes_exception_messages(monkeypatch) -> None:
     module = _load_module()
-    secret_marker = "credential-secret-marker"
+    root_secret = "credential-root-secret-marker"
+    wrapper_secret = "credential-wrapper-secret-marker"
 
     def _raise_transport_failure(extractor: object, **params: object) -> pl.DataFrame:
-        raise TimeoutError(secret_marker)
+        try:
+            raise TimeoutError(root_secret)
+        except TimeoutError as exc:
+            raise TransientError(wrapper_secret) from exc
 
     monkeypatch.setattr(module, "_sync_extract", _raise_transport_failure)
 
@@ -87,9 +93,11 @@ def test_probe_failure_attestation_excludes_exception_messages(monkeypatch) -> N
         "status": "failed",
         "endpoint": "common_all_players",
         "failure_kind": "exception",
-        "error_type": "TimeoutError",
+        "error_type": "TransientError",
+        "root_error_type": "TimeoutError",
     }
-    assert secret_marker not in str(result)
+    assert root_secret not in str(result)
+    assert wrapper_secret not in str(result)
 
 
 def test_probe_rejects_empty_or_wrong_schema_frames(monkeypatch) -> None:

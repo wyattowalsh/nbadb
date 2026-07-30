@@ -10,7 +10,10 @@ import types
 from pathlib import Path
 
 import pytest
+import yaml
 from nba_api.stats.library.http import STATS_HEADERS
+
+from nbadb.orchestrate.discovery import _CONCURRENT_DISCOVERY_TIMEOUT
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "actions" / "nordvpn-connect" / "connect.py"
@@ -813,9 +816,14 @@ def test_nba_stack_probe_runs_both_discovery_canaries_with_bounded_process(
         "python",
         str(action.nba_stack_probe_script),
     ]
-    assert cmd[cmd.index("--request-timeout-seconds") + 1] == "8"
+    assert cmd[cmd.index("--request-timeout-seconds") + 1] == "10"
+    expected_endpoint_timeout = int(_CONCURRENT_DISCOVERY_TIMEOUT[-1])
+    assert expected_endpoint_timeout == module.NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS
     assert cmd[cmd.index("--season") + 1] == module.NBA_STACK_PROBE_DEFAULT_SEASON
-    assert kwargs["timeout"] == 18.25
+    assert action.nba_stack_probe_timeout == 22
+    assert kwargs["timeout"] == 22.25
+    sequential_request_budget = len(module.NBA_STACK_PROBE_ENDPOINTS) * expected_endpoint_timeout
+    assert kwargs["timeout"] - sequential_request_budget == 2.25
     assert kwargs["termination_grace"] == module.NBA_PROBE_TERMINATION_GRACE_SECONDS
 
 
@@ -842,9 +850,77 @@ def test_nba_stack_probe_timeout_is_capped_by_server_attempt_deadline(
     assert calls[0][1] == 2.0
 
 
-def test_nba_stack_probe_transport_failure_remains_server_specific(
+def test_nba_stack_probe_transport_failure_surfaces_root_but_remains_server_specific(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: "/usr/bin/uv")
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        payload = {
+            "status": "failed",
+            "endpoint": "common_all_players",
+            "failure_kind": "exception",
+            "error_type": "TransientError",
+            "root_error_type": "TimeoutError",
+        }
+        return subprocess.CompletedProcess(cmd, 1, json.dumps(payload), "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.probe_nba_discovery_stack() is False
+    assert action.nba_probe_status == "stack_transport_failed"
+    assert action.nba_probe_diagnostic == (
+        "NBA discovery stack probe failed at common_all_players (TransientError; root=TimeoutError)"
+    )
+    assert action.nba_probe_diagnostic in capsys.readouterr().out
+
+
+def test_nba_stack_probe_wrapped_contract_root_is_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: "/usr/bin/uv")
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        payload = {
+            "status": "failed",
+            "endpoint": "league_game_log",
+            "failure_kind": "exception",
+            "error_type": "TransientError",
+            "root_error_type": "JSONDecodeError",
+        }
+        return subprocess.CompletedProcess(cmd, 1, json.dumps(payload), "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.probe_nba_discovery_stack()
+
+    assert excinfo.value.status == "nba_stack_contract_error"
+    assert action.nba_probe_status == "stack_contract_error"
+    assert action.nba_probe_diagnostic == (
+        "NBA discovery stack probe failed at league_game_log (TransientError; root=JSONDecodeError)"
+    )
+
+
+@pytest.mark.parametrize(
+    "root_error_type",
+    [None, "TimeoutError credential-secret-marker"],
+    ids=["absent", "malformed"],
+)
+def test_nba_stack_probe_root_error_type_falls_back_without_leaking_content(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    capsys: pytest.CaptureFixture[str],
+    root_error_type: str | None,
 ) -> None:
     module = _load_module()
     action = module.NordVpnConnectAction()
@@ -858,6 +934,8 @@ def test_nba_stack_probe_transport_failure_remains_server_specific(
             "failure_kind": "exception",
             "error_type": "TransientError",
         }
+        if root_error_type is not None:
+            payload["root_error_type"] = root_error_type
         return subprocess.CompletedProcess(cmd, 1, json.dumps(payload), "")
 
     monkeypatch.setattr(module, "run_command", _fake_run_command)
@@ -867,6 +945,10 @@ def test_nba_stack_probe_transport_failure_remains_server_specific(
     assert action.nba_probe_diagnostic == (
         "NBA discovery stack probe failed at common_all_players (TransientError)"
     )
+    output = capsys.readouterr().out
+    assert action.nba_probe_diagnostic in output
+    assert "credential-secret-marker" not in action.nba_probe_diagnostic
+    assert "credential-secret-marker" not in output
 
 
 @pytest.mark.parametrize(
@@ -2277,6 +2359,7 @@ def test_config_url_rejects_untrusted_hostnames(runner_env: Path) -> None:
 
 def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     metadata = ACTION_METADATA_PATH.read_text(encoding="utf-8")
+    action_metadata = yaml.safe_load(metadata)
 
     assert "nba-probe-enabled:" in metadata
     assert 'default: "true"' in metadata
@@ -2287,6 +2370,7 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "nba-probe-timeout-seconds:" in metadata
     assert "nba-stack-probe-enabled:" in metadata
     assert "nba-stack-probe-timeout-seconds:" in metadata
+    assert action_metadata["inputs"]["nba-stack-probe-timeout-seconds"]["default"] == "22"
     assert "nba-stack-probe-season:" in metadata
     assert "nba-probe-status:" in metadata
     assert "nba-probe-diagnostic:" in metadata

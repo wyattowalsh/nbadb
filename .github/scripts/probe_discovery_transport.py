@@ -5,6 +5,7 @@ import json
 import re
 from typing import Any
 
+from nbadb.core.extraction_failures import root_error_type
 from nbadb.extract.stats.game_log import LeagueGameLogExtractor
 from nbadb.extract.stats.player_info import CommonAllPlayersExtractor
 from nbadb.orchestrate.extractor_runner import _sync_extract
@@ -17,13 +18,22 @@ def _safe_token(value: object, default: str) -> str:
     return token or default
 
 
-def _failure(endpoint: str, kind: str, error_type: str) -> dict[str, object]:
-    return {
+def _failure(
+    endpoint: str,
+    kind: str,
+    error_type: str,
+    *,
+    root_type: str | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
         "status": "failed",
         "endpoint": _safe_token(endpoint, "unknown"),
         "failure_kind": _safe_token(kind, "unknown"),
         "error_type": _safe_token(error_type, "ProbeFailed"),
     }
+    if root_type is not None:
+        payload["root_error_type"] = _safe_token(root_type, "ProbeFailed")
+    return payload
 
 
 def run_probe(*, request_timeout_seconds: int, season: str) -> dict[str, object]:
@@ -55,7 +65,12 @@ def run_probe(*, request_timeout_seconds: int, season: str) -> dict[str, object]
         try:
             frame = _sync_extract(extractor, **params)
         except Exception as exc:
-            return _failure(endpoint, "exception", type(exc).__name__)
+            return _failure(
+                endpoint,
+                "exception",
+                type(exc).__name__,
+                root_type=root_error_type(exc),
+            )
         columns = frozenset(getattr(frame, "columns", ()))
         rows = getattr(frame, "height", None)
         if isinstance(rows, bool) or not isinstance(rows, int) or rows <= 0:

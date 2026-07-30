@@ -67,6 +67,7 @@ ATTEMPT_FINALIZATION_RESERVE_SECONDS: Final[float] = (
     + ACTION_OUTPUT_RESERVE_SECONDS
 )
 NBA_STACK_PROBE_DEFAULT_SEASON: Final[str] = "2024-25"
+NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS: Final[int] = 10
 NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS: Final[int] = 240
 NBA_STACK_PROBE_ENDPOINTS: Final[frozenset[str]] = frozenset(
     {"common_all_players", "league_game_log"}
@@ -382,7 +383,7 @@ class NordVpnConnectAction:
         self.nba_stack_probe_enabled = (
             os.environ.get("NBA_STACK_PROBE_ENABLED", "true").strip().lower() != "false"
         )
-        self.nba_stack_probe_timeout = env_int("NBA_STACK_PROBE_TIMEOUT_SECONDS", 18, minimum=2)
+        self.nba_stack_probe_timeout = env_int("NBA_STACK_PROBE_TIMEOUT_SECONDS", 22, minimum=2)
         self.nba_stack_probe_season = (
             os.environ.get("NBA_STACK_PROBE_SEASON", NBA_STACK_PROBE_DEFAULT_SEASON).strip()
             or NBA_STACK_PROBE_DEFAULT_SEASON
@@ -1588,7 +1589,13 @@ class NordVpnConnectAction:
             self.nba_probe_diagnostic = "NBA discovery stack probe runtime is unavailable"
             raise ActionError("nba_stack_unavailable", self.nba_probe_diagnostic)
 
-        endpoint_timeout = max(1, min(10, int(max(1.0, (request_limit - 1.0) / 2))))
+        endpoint_timeout = max(
+            1,
+            min(
+                NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS,
+                int(max(1.0, request_limit - 1.0)),
+            ),
+        )
         cmd = [
             uv_path,
             "run",
@@ -1635,6 +1642,13 @@ class NordVpnConnectAction:
             endpoint = self._safe_stack_probe_token(payload.get("endpoint"), "unknown")
             failure_kind = self._safe_stack_probe_token(payload.get("failure_kind"), "unknown")
             error_type = self._safe_stack_probe_token(payload.get("error_type"), "ProbeFailed")
+            raw_root_error_type = payload.get("root_error_type")
+            root_error_type = (
+                raw_root_error_type
+                if isinstance(raw_root_error_type, str)
+                and raw_root_error_type in NBA_STACK_PROBE_ERROR_TYPES
+                else None
+            )
             if (
                 payload.get("status") != "failed"
                 or endpoint not in NBA_STACK_PROBE_ENDPOINTS
@@ -1647,16 +1661,23 @@ class NordVpnConnectAction:
                 )
                 raise ActionError("nba_stack_invalid_attestation", self.nba_probe_diagnostic)
 
+            error_diagnostic = error_type
+            if root_error_type is not None:
+                error_diagnostic = f"{error_type}; root={root_error_type}"
             self.nba_probe_diagnostic = (
-                f"NBA discovery stack probe failed at {endpoint} ({error_type})"
+                f"NBA discovery stack probe failed at {endpoint} ({error_diagnostic})"
             )[:NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS]
-            if failure_kind == "exception" and error_type in NBA_STACK_PROBE_TRANSPORT_ERROR_TYPES:
+            classification_error_type = root_error_type or error_type
+            if (
+                failure_kind == "exception"
+                and classification_error_type in NBA_STACK_PROBE_TRANSPORT_ERROR_TYPES
+            ):
                 self.nba_probe_status = "stack_transport_failed"
                 print(f"::warning::{self.nba_probe_diagnostic}")
                 return False
             if (
                 failure_kind in {"empty", "invalid_values", "missing_columns"}
-                or error_type in NBA_STACK_PROBE_CONTRACT_ERROR_TYPES
+                or classification_error_type in NBA_STACK_PROBE_CONTRACT_ERROR_TYPES
             ):
                 self.nba_probe_status = "stack_contract_error"
                 raise ActionError("nba_stack_contract_error", self.nba_probe_diagnostic)

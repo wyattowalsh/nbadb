@@ -210,10 +210,35 @@ connector's standard-library execution while ensuring every repository-owned
 NBA reachability surface uses the same request contract as the extraction stack
 it protects.
 
+The installed-stack discovery canaries preserve the outer exception class and
+also report the explicit exception chain's root class as a bounded ASCII token.
+They never include exception messages, response bodies, parameters, or
+credentials. The connector surfaces a root type only when it is an exact member
+of the existing bounded error-type allowlist; absent, malformed, or unrecognized
+root values fall back to the existing outer-only diagnostic. A recognized root
+becomes the transport-versus-response-contract classification input, while the
+validated outer type remains the fallback when the root is absent or invalid.
+This prevents a response-contract root wrapped by a transport-shaped boundary
+exception from poisoning a healthy server. No route, IP, control-plane, canary,
+or connector admission gate changes. With ordinary connector budget, each
+endpoint receives the same 10-second request timeout as discovery's concurrent
+fast path. Because the two endpoint probes execute sequentially, the default
+configured child budget is 22 seconds and the existing process helper caps the
+child at 22.25 seconds. That covers both 10-second request limits plus 2.25
+seconds of bounded child startup, parsing, serialization, and shutdown
+headroom. Smaller remaining attempt budgets reduce the endpoint and process
+timeouts rather than extending the server-attempt, connector, or finalization
+deadlines.
+
 **Alternative considered:** keep a browser-like subset of the headers. NBA.com
 can silently time out requests missing its current client-hint headers, which
 misclassifies working tunnels as network failures and quarantines healthy
-servers.
+servers. Splitting the child-process budget evenly gave each installed-stack
+endpoint only eight seconds and diverged from the discovery path. Removing the
+outer child cap entirely would let two slow calls consume the connector's
+attempt and finalization headroom. Keeping the previous 18.25-second cap could
+not honor both sequential requests, while the bounded 22.25-second cap does so
+without weakening those enclosing deadlines.
 
 ### 9. Discovery recovery is cross-run and receipt-bound
 

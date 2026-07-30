@@ -229,18 +229,27 @@ and a changed public IP, confirms that GitHub remains reachable through the tunn
 validates a non-empty `TeamYears` result set, then runs bounded `common_all_players`
 and `league_game_log` canaries through the installed `nbadb`/`nba_api` extraction
 stack. The player canary requires both IDs and at least one row with positive
-player/team membership. Inspect
+player/team membership. These installed-stack requests run sequentially with a
+10-second timeout each inside the action's 22-second child budget and 22.25-second
+process cap. Inspect
 `nba-probe-status`, `nba-probe-diagnostic`, `attempted-servers-json`, and
 `failed-servers-json`. Preflight also emits `auth-source`; discovery and extract
 jobs reuse the source that actually passed instead of replacing proven configured
-credentials after a transient lane rejection. A server that passes a generic IP
-probe but times out or returns malformed NBA content is disconnected and added to
-the failed-server list before the next recommendation is tried. Runtime failures are
-excluded from every fallback technology. Preflight failures feed discovery and the
-capacity gate. A later fail-closed aggregation job validates every successful capacity
-marker and merges preflight and discovery failures with those probes' failed hosts. A
-capacity probe that does not complete remains diagnostics-only and blocks the matrix;
-its unvalidated host inventory is not promoted into extraction or a child manifest.
+credentials after a transient lane rejection.
+
+The diagnostic exposes only allowlisted exception class names in
+`OuterError; root=RootError` form. It never includes exception messages, response
+bodies, request parameters, or credentials; an absent, malformed, or unrecognized
+root falls back to the validated outer class. A recognized timeout or other transport
+root disconnects and adds that server to the failed-server list before the next
+recommendation is tried. A recognized JSON or other response-contract root is a
+host-independent fatal error and must not rotate or quarantine an otherwise healthy
+server. Runtime and invalid-attestation failures are also fatal before failed-host
+mutation. Preflight failures feed discovery and the capacity gate. A later fail-closed
+aggregation job validates every successful capacity marker and merges preflight and
+discovery transport failures with those probes' failed hosts. A capacity probe that
+does not complete remains diagnostics-only and blocks the matrix; its unvalidated
+host inventory is not promoted into extraction or a child manifest.
 
 When many otherwise healthy tunnels retain GitHub reachability but `TeamYears`
 returns zero bytes until timeout, compare the standalone canary headers with the
@@ -822,8 +831,8 @@ PY
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
 - Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; the cumulative zero-progress budget continues across alternating classes. Application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
 - If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct and launch a fresh workflow with the original chain plus `resume_source_run_id` for that distinct completed source. Receipt-bound `lane_manifest_run_id` remains the exact child/manual handoff path; never combine both source modes. Either path reruns integrity, exact-coverage, and canonical bundle gates. Both transport and response-contract/validation failures should consume the bounded recovery attempts; a first response-shape failure must not terminate the remaining budget. Do not treat a broader aggregate cache as proof of an exact missing scope.
-- If `nba-probe-status` is `timeout`, `http_error`, `request_failed`, `invalid_content`, `stack_timeout`, `stack_transport_failed`, or `stack_budget_exhausted`, treat that server as NBA-blocked even when its exit-IP probe passed. Confirm the server appears in `failed-servers-json`; do not start discovery on that tunnel.
-- If `nba-probe-status` is `stack_unavailable`, `stack_runtime_error`, `stack_contract_error`, or `stack_invalid_attestation`, stop and fix the checked-out runtime or contract. These are host-independent fatal failures and must not rotate through or quarantine healthy VPN servers.
+- If `nba-probe-status` is `timeout`, `http_error`, `request_failed`, `invalid_content`, `stack_timeout`, `stack_transport_failed`, or `stack_budget_exhausted`, treat that server as NBA-blocked even when its exit-IP probe passed. When the diagnostic reports both outer and root classes, the recognized root determines this routing. Confirm the server appears in `failed-servers-json`; do not start discovery on that tunnel.
+- If `nba-probe-status` is `stack_unavailable`, `stack_runtime_error`, `stack_contract_error`, or `stack_invalid_attestation`, stop and fix the checked-out runtime or contract. These are host-independent fatal failures and must not rotate through or quarantine healthy VPN servers. A wrapped response-contract root belongs here even when its outer class is transport-shaped.
 - If checkpoint commit fails, fix or regenerate the checkpoint before terminal merge. Do not copy a `candidate`, `built`, or unverified upload into `chain_state.latest_checkpoint_*`; only the exact `committed` receipt is recoverable. Use lane-artifact fallback only as an explicit recovery decision after confirming exact chain/source/run/artifact/generation/coverage provenance and proving that neither the prior checkpoint nor its blocked-evidence inventory names a lane outside the current manifest. If both checkpoint and lane artifacts are missing, relaunch from the latest run/attempt-unique `full-extraction-next-manifest-*` artifact by exact ID and digest rather than starting from scratch.
 - If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. A child is acknowledged only after the dispatch response returns its positive run ID and URLs and the exact-run provenance read passes. If the numeric iteration budget is exhausted while work remains, resume manually from the committed next-manifest receipt and checkpoint artifacts after deciding whether to raise the cap.
 

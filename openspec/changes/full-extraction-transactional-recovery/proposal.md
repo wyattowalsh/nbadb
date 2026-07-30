@@ -46,7 +46,11 @@ discarded 13 completed lane artifacts after more than 85 hours of extraction.
 - Bound repeated response-contract failures by pattern without recording
   suppressed calls as successes or reducing required coverage.
 - Keep the strict VPN TeamYears canary and public `NBA_HEADERS` export aligned
-  with the exact HTTP header contract of the pinned `nba_api` runtime.
+  with the exact HTTP header contract of the pinned `nba_api` runtime. Keep the
+  installed-stack discovery canaries aligned with discovery's bounded fast-path
+  timeout, provide enough bounded child time for both sequential canaries,
+  retain secret-safe outer and root exception types on failure, and use
+  recognized roots to distinguish transport from response-contract failures.
 
 ## Capabilities
 
@@ -66,7 +70,8 @@ discarded 13 completed lane artifacts after more than 85 hours of extraction.
   resume coverage.
 - `nba-stats-probe-contract-parity`: Exact pinned-runtime HTTP headers for the
   fail-closed VPN TeamYears canary and public `nbadb.core.NBA_HEADERS`
-  request-header contract, with drift detection.
+  request-header contract, plus bounded installed-stack discovery canaries with
+  secret-safe, root-classified failure attestations and discovery timeout parity.
 - `durable-kaggle-publication-intent`: Constant-bound GitHub Deployment
   write-ahead intent, exact executor and publisher-mutex admission,
   ambiguity-safe claims, retention-compacted terminal receipts, branch-head

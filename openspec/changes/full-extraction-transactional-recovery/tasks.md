@@ -149,6 +149,13 @@ parallel subagent leaves unless they name the same file.
 - [x] 8A.9 Run strict OpenSpec validation and scoped docs formatting/lint after the documentation settles (depends: 8A.7-8A.8)
 - [ ] 8A.10 Run exact-SHA CI on the atomic header-contract commit (depends: 8A.9)
 - [ ] 8A.11 Run a fresh one-lane VPN smoke on that exact green SHA (depends: 8A.10)
+- [x] 8A.12 Add a secret-safe root exception type to installed-stack failure attestations and connector diagnostics with root-first transport/contract classification and outer fallback
+- [x] 8A.13 Align installed-stack endpoint requests with discovery's 10-second fast path and give both sequential calls a 22-second default child budget while retaining the attempt, connector, and finalization caps (depends: 8A.12)
+- [x] 8A.14 Add wrapped-timeout, wrapped-contract, surfaced-root, malformed-root fallback, message-exclusion, sequential-budget, and constrained-budget regression coverage (depends: 8A.12-8A.13)
+- [x] 8A.15 Run focused Ruff, format, type, pytest, action metadata, and strict OpenSpec validation (depends: 8A.14)
+- [x] 8A.16 Update root agent policy and the operator troubleshooting playbook, then run scoped docs formatting and lint (depends: 8A.15)
+- [ ] 8A.17 Run exact-SHA CI for the installed-stack probe refinement (depends: 8A.16)
+- [ ] 8A.18 Run a bounded VPN smoke on the refined exact-green SHA before launching any new full-extraction chain or receipt-bound continuation that uses that SHA; monitor the already-active frozen-source chain independently (depends: 8A.17)
 
 ## 8B. Receipt-Bound Discovery Recovery
 
