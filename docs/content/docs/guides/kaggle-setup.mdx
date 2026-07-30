@@ -124,8 +124,11 @@ uv run nbadb upload --data-dir data/nbadb --message "Post-trade-deadline refresh
 
 Without `--verify-remote`, this path is intentionally reported as **submitted and
 unverified**, not complete. Use it only when asynchronous Kaggle submission is the
-desired contract. Release publication uses the full-extraction assured bundle and
-exact remote readback.
+desired contract. The CLI defaults to `--publication-ledger local`; that mode can
+retain local reconciliation evidence but is not crash- or cross-host-durable.
+Automated release publication uses the full-extraction assured bundle, exact remote
+readback, and the GitHub Actions-only
+`--publication-ledger github-deployment --require-durable-intent` contract.
 
 ### Preflight checklist
 
@@ -138,6 +141,10 @@ exact remote readback.
 | `dataset-metadata.json` declares every public file or directory you intend to ship | Upload stages only declared resources                                |
 | `assured-artifact-manifest.json` exists for a full release                         | `--full-publication` fails closed without it                         |
 | `terminal-assurance-report.json` exists for a full release                         | Full publication binds terminal checkpoint and blocked-lane evidence |
+| The release job grants `actions: read` and `deployments: write`                    | Durable intent verifies the executor and writes Deployment receipts  |
+| `GH_TOKEN` and `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA` are present                   | GitHub ledger and source binding fail closed without them            |
+| Default-head enforcement names the approved source or exact metadata-only child    | A moved branch cannot publish bytes from an unapproved source        |
+| The job owns `nbadb-kaggle-publish` with `queue: max` and no cancellation          | The ledger verifies the exact cross-workflow publisher mutex         |
 
 ### Operator preflight
 
@@ -166,9 +173,27 @@ uv run python -m nbadb.core.artifact_identity verify \
   --coverage-fingerprint "$coverage_fingerprint"
 uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata.json
 uv run python -m json.tool data/nbadb/dataset-metadata.json >/dev/null
-uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" --full-publication
+uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" \
+  --full-publication --publication-ledger local
 uv run python -m json.tool logs/kaggle/kaggle-upload-manifest.json >/dev/null
 ```
+
+The last command is an explicit local-operator route. It still requires terminal
+assurance and exact remote readback, but it does not provide cross-host durable
+admission. The production release command runs only inside the verified Actions
+publisher job:
+
+```bash
+uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" \
+  --full-publication \
+  --publication-ledger github-deployment \
+  --require-durable-intent
+```
+
+That job supplies `GH_TOKEN`, `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`,
+`NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD=true`, and, for an approved metadata-only child,
+`NBADB_KAGGLE_EXPECTED_DEFAULT_HEAD_SHA`. It also grants `actions: read` and
+`deployments: write` and owns the exact `nbadb-kaggle-publish` concurrency stanza.
 
 The full-extraction workflow produces the assured bundle in the required order:
 export every format, run the hard scan with required silver/gold domain anchors,
@@ -200,6 +225,22 @@ cache-directory names. The marker and persisted publication records must have va
 identity digests, state, transition evidence, and resolved versions before they can
 influence another upload.
 
+In durable mode, the client first proves the current Actions run, attempt, job, actor,
+source SHA, active workflow definition, immutable workflow content, and exact publisher
+mutex. Executor admission fully paginates up to 1,000 jobs for the exact attempt,
+requires a unique publisher job, and direct-verifies its job ID. The parent run may
+still be pending while the publisher job is in progress. Workflow identity comes from
+`GITHUB_WORKFLOW`; a dynamic `run-name` is the run title and is not compared to the
+workflow definition name. Historical status executors validate against their own
+workflow definitions. Default-head verification
+requests `/git/ref/heads/<branch>` and separately validates GitHub's canonical
+`/git/refs/heads/<branch>` response URL. Dataset-specific ledger head discovery asks
+GraphQL for the newest two Deployments ordered by `CREATED_AT DESC`, re-fetches each
+exact Deployment and its complete at-most-two-status set through REST, ignores status
+transport order and sorts chronology locally, and requires the final two of three
+observations to agree. Duplicate chronology, more than one unresolved intent, or an
+unresolved intent behind the current head fails closed.
+
 | Baseline result                                                                        | Upload behavior                                                                                                                                       | Manifest evidence                                                                                                                                 |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Matching marker already present                                                        | Skip upload and reconcile the existing remote bundle.                                                                                                 | `status=reconciled_existing_remote`, `upload_attempts=0`, and `resolved_version=<exact version>`                                                  |
@@ -223,19 +264,26 @@ remote marker later matches the recorded prior `publish_key` and
 that publication at the exact marker version, and only then may upload the current
 bundle. A missing or nonmatching marker remains reconciliation-required.
 
-Full, daily, and monthly workflows publish only from the default branch and restore
-`kaggle-publication-state.json` from the same dataset-wide Actions cache before
-publication. An `always()` save step
-persists the state after both successful and failed upload commands, and each
-publication artifact includes the same file. This is the durable handoff that
-keeps an ambiguous upload fail-closed when a retry lands on a different runner or
-another extraction chain. Those jobs share `nbadb-kaggle-publish` with
-`queue: max`, so pending publishers wait FIFO instead of replacing one another.
+The external ledger adds a write-ahead boundary around that Kaggle protocol. It creates
+and verifies one `pending` Deployment before mutation, re-verifies the executor,
+approved default head, ledger head, and remote baseline, then claims and verifies
+`in_progress` immediately before `kagglehub.dataset_upload`. `success` is recorded only
+after the exact Kaggle version, complete inventory, and every resource digest pass.
+Once `in_progress` is visible, any crash or exception is reconciliation-only: no retry
+may enter `dataset_upload` until exact marker/version/full-hash evidence resolves the
+intent. A missing or nonmatching marker keeps the dataset blocked.
+
+Full, daily, and monthly workflows publish only from the approved default-branch head.
+They restore `kaggle-publication-state.json` from the dataset-wide Actions cache before
+publication, save it in an `always()` step, and include it in publication artifacts.
+That file is secondary recovery evidence. The GitHub Deployment intent plus the
+verified `nbadb-kaggle-publish` job mutex is the crash- and cross-host-durable handoff.
+Pending publishers wait through `queue: max` instead of replacing one another.
 
 Within one process, uploads use a mutex. Processes sharing a host and log directory
 also take an advisory file lock through `fcntl` on POSIX or `msvcrt` on Windows.
-That lock is intentionally not cross-host; the shared workflow queue plus remote
-marker and exact-version reconciliation provide the distributed guard.
+That lock is intentionally not cross-host; durable Actions publication relies on the
+GitHub Deployment ledger, exact workflow mutex, and remote reconciliation instead.
 
 ## Version notes and metadata
 
@@ -254,6 +302,7 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
 - Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift. Full publication additionally checks exact resource kinds and four-format table/schema/row parity, including reconstructed Hive partition columns.
 - Use `--verify-remote` when any update needs exact Kaggle version and full resource-digest readback. Use `--full-publication` for a terminal full extraction; it implies remote verification and additionally revalidates `assured-artifact-manifest.json` plus the matching terminal assurance report. Both modes upload at most once, then poll until the exact-version API inventory and every streamed file digest match or `--remote-timeout` expires. Defaults are 3,600 seconds and a 15-second poll interval.
+- `--publication-ledger` accepts `local` or `github-deployment` and defaults to `local`. GitHub Deployment mode requires remote verification. `--require-durable-intent` requires GitHub Deployment mode and fails closed unless its external write-ahead intent is active.
 - The same `--remote-timeout` independently bounds each full-bundle baseline reconciliation, any full readback needed when a marker appears during the marker-404 bootstrap recheck, and the post-upload readback phase. A full-bundle reconciliation that overruns its deadline fails closed before a new upload.
 - The upload path validates local metadata/resources, stages only declared files and directories plus the publication marker, rejects symlinks/path traversal, and uses hardlinks where the filesystem permits so the upload root does not duplicate the source tree. It reserves disk headroom before KaggleHub archive creation and fails immediately on local permanent errors such as `ENOSPC`.
 

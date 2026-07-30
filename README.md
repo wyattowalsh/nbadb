@@ -127,10 +127,22 @@ can enter a one-upload bootstrap path after
 the dataset metadata API supplies the current version; any other baseline lookup error
 stops before upload. If an upload remains unresolved, every later bundle is
 reconciliation-only until exact evidence resolves it. Full, daily, and monthly
-workflows publish only from the default branch, serialize publishers through a FIFO
-queue, and preserve reconciliation state in a shared Actions cache and publication
-artifacts. Metadata is committed only after the remote file inventory and every
-resource digest match.
+workflows publish only from the approved default-branch head and serialize publishers
+through the exact `nbadb-kaggle-publish` FIFO job mutex. They use a dataset-scoped
+GitHub Deployment as the crash- and cross-host-durable write-ahead ledger: `pending`
+is created before the Kaggle mutation, `in_progress` is verified immediately before
+the call, and `success` is written only after exact-version inventory and SHA-256
+readback. Head discovery requests the newest two deployments through GraphQL
+`CREATED_AT DESC`, then validates each deployment and its complete at-most-two-status
+set through exact REST receipts; status transport order is ignored and chronology is
+sorted locally. Executor admission paginates up to 1,000 jobs for the exact attempt and
+direct-verifies the unique publisher job ID. The ledger binds the active workflow definition named by
+`GITHUB_WORKFLOW` at its immutable SHA; a workflow's dynamic `run-name` is only the
+run title, and a parent run may still be pending while that publisher job is already
+in progress. Historical status executors validate against their own workflow
+definitions. The Actions cache and publication artifacts retain secondary
+reconciliation evidence. Metadata is committed only after the remote file inventory
+and every resource digest match.
 
 For docs-site maintenance, regenerate generator-owned artifacts from the repo root with:
 
@@ -218,7 +230,12 @@ one endpoint identity. This spreads endpoint pressure across the six-runner wind
 it does not prove that the runners have six unique VPN exit IPs. Lane order is also
 attempt-local: durable restore and coverage identity use the semantic `lane_id`,
 pattern/endpoints, parameter scope, and coverage hash, while `lane_index` may change
-when the scheduler reorders a later attempt. A centralized
+when the scheduler reorders a later attempt. Before planning, `workflow_guard`
+requires a fresh primary or partial `workflow_dispatch` attempt, observes the stable
+exact-title run inventory, and rejects `gh run rerun` attempts. Inline manifests,
+receipt-bound lane-manifest handoffs, and source-run recovery are mutually exclusive;
+recovery requires the original chain plus a distinct completed
+`resume_source_run_id`. A centralized
 discovery job seeds only the current wave's exact
 season/season-type scopes, carries those artifacts forward by chain and source
 run, refreshes active-season player/game/workload evidence, and blocks matrix
@@ -298,8 +315,11 @@ discovery/workload Parquet generations whose manifest pointers bind scope or pai
 schema, row counts, and SHA-256. A complete bundle is checked against the exact
 lane-manifest digest and independently reloaded before upload and after lane download.
 Partial state is retained under a run/attempt-scoped
-recovery name; it can seed a retry, but it cannot spend lane retries, trigger child
-dispatch, or become canonical without passing the full seed and verifier gates.
+recovery name. A fresh workflow may restore it only from an explicit distinct source
+run; prior attempts of the current run are not a recovery boundary, and an unavailable
+or ambiguous explicit source fails closed instead of reseeding from scratch. Recovery
+state cannot spend lane retries, trigger child dispatch, or become canonical without
+passing the full seed and verifier gates.
 Each checkpoint generation copies the previous database into a new output before
 applying attested current lane deltas, preserving legitimate duplicate multiplicity
 while removing checkpoint overlap. Publication advances through `candidate`, `built`,
@@ -404,7 +424,8 @@ makes a best-effort API cancellation of the newly created child.
 Chained runs preserve literal `max_iterations=auto`, set one fixed numeric cap from
 remaining matrix dispatch credits and retry depth, and never extend that cap in a
 child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
-while allowing recovery from failed/cancelled history. Cumulative no-progress retries
+while allowing recovery from `action_required`, failed, cancelled, or timed-out
+history. Cumulative no-progress retries
 remain bounded even when failure classes alternate. Self-dispatch posts
 `workflow_dispatch` with `return_run_details=true`, validates the returned run ID and
 URLs, and re-reads that exact child to verify its title, event, head SHA, and source
@@ -412,8 +433,11 @@ before acknowledgement. Committed next-manifest artifacts use run/attempt-unique
 names without overwrite; the parent forwards the exact artifact ID and digest, and
 the child REST-verifies ID/name/digest/size/run/source before downloading by ID with
 digest mismatch set to error. Run/name-only handoff is a bounded legacy path when both
-receipt fields are absent. If the parent exits earlier, its trap attempts to cancel
-that exact returned child instead of inferring a child from title polling.
+receipt fields are absent; it still requires the exact source owner and workflow
+identity, a stable unique artifact inventory, a direct artifact-ID recheck, digest
+verification when GitHub supplies one, and exactly one safe expected manifest member.
+If the parent exits earlier, its trap attempts to cancel that exact returned child
+instead of inferring a child from title polling.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
 read-only permissions; `publish=false` never receives Kaggle secrets, while
 `publish=true` consumes the exact assured artifact in a separate FIFO-serialized
@@ -428,8 +452,17 @@ assured data identity, includes it in Kaggle metadata and marker v2, paginates t
 exact remote version inventory, and streams every remote file through SHA-256
 readback before pushing checked-in metadata as its final step. Every marker-present
 baseline is matched to the current metadata version and rechecked immediately before
-upload, preventing a concurrent publisher from being silently superseded. A publication rerun
-accepts only the original source or its single byte-identical metadata-only child. A
+upload, preventing a concurrent publisher from being silently superseded. The writer
+requires `actions: read`, `deployments: write`, `GH_TOKEN`,
+`NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`, default-head enforcement, and
+`nbadb upload --publication-ledger github-deployment --require-durable-intent`.
+The default-head REST request uses `/git/ref/heads/<branch>`, while GitHub
+canonicalizes the receipt URL to `/git/refs/heads/<branch>`; both identities are
+checked. A publication reconciliation execution accepts only the original source or
+its single byte-identical metadata-only child. Once a verified durable intent reaches
+`in_progress`, an exception or runner loss is reconciliation-only: no later execution
+may call Kaggle again until the exact marker, version, inventory, and streamed hashes
+resolve that intent. A
 zero-active resume replays the exact `checkpoint-manifest.json` stored with its attested
 terminal checkpoint when present; after interruption before checkpointing,
 it rebuilds from the exact complete lane/database pairs named by the chain's recorded

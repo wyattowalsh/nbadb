@@ -111,9 +111,13 @@ Hand-authored companion pages exist alongside them (er-diagram.mdx, table-lineag
 
 GitHub Actions workflow inputs and operator contracts are also hand-authored surfaces.
 When `.github/workflows/full-extraction.yml` changes, update the matching control-plane
-text in `README.md`, root `AGENTS.md`, and
-`content/docs/guides/troubleshooting-playbook.mdx`; do not expect `docs-autogen` to
-rewrite those explanations.
+text in `README.md`, root `AGENTS.md`,
+`content/docs/guides/troubleshooting-playbook.mdx`, and
+`content/docs/diagrams/pipeline-flow.mdx`. Publication or CLI contract changes also
+require `content/docs/guides/kaggle-setup.mdx` and
+`content/docs/cli-reference.mdx`. These files are hand-authored; do not expect
+`docs-autogen` to rewrite their workflow, recovery, permission, environment, or
+operator explanations.
 
 `lib/site-metrics.generated.ts` exports `siteMetrics: SiteMetric[]` used by homepage Counter/Scoreboard. Regenerate every listed artifact with the same `docs-autogen` command rather than editing it by hand.
 

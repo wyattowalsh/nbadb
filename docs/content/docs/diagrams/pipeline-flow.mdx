@@ -136,6 +136,12 @@ available, the scheduler also prevents six consecutive runner slots from being
 endpoint-homogeneous. This distributes endpoint pressure; it does not attest six
 unique VPN exit IPs.
 
+Before planning, `workflow_guard` requires a fresh primary or partial
+`workflow_dispatch` attempt, observes a stable exact-title inventory, and rejects
+`gh run rerun` attempts. Inline manifests, receipt-bound lane-manifest handoffs, and
+source-run recovery are mutually exclusive. A recovery launch preserves the original
+chain and pinned source while naming a distinct completed `resume_source_run_id`.
+
 The checkpoint is the recovery boundary: each redispatch copies the previous
 checkpoint into a new generation and merges only newly completed lane databases.
 Durable lane identity comes from the semantic lane contract and coverage hash, not
@@ -158,7 +164,9 @@ upload receipt does.
 
 ```mermaid
 flowchart TD
-    Plan["Plan standard lanes\nweighted 5:3:1:1 queues"] --> VpnGate{"Route + changed IP + JSON +\ninstalled discovery canaries pass?"}
+    WorkflowGuard{"Fresh attempt + stable exact-title\nsource mode valid?"} -->|yes| Plan["Plan standard lanes\nweighted 5:3:1:1 queues"]
+    WorkflowGuard -->|no| Stop
+    Plan --> VpnGate{"Route + changed IP + JSON +\ninstalled discovery canaries pass?"}
     VpnGate -->|no| RotateVpn["Reject server\nrecord + try next"]
     RotateVpn --> VpnGate
     VpnGate -->|yes| Discovery["Central discovery seed\nexact current-wave scopes"]
@@ -200,7 +208,12 @@ flowchart TD
     Scan --> Assured["Assured manifest\neffective checkpoint coverage"]
     Assured --> PublishChoice{"Publish requested?"}
     PublishChoice -->|no| Canary["Assured canary artifact"]
-    PublishChoice -->|yes| Publish["FIFO writer job\nmetadata + Kaggle readback"]
+    PublishChoice -->|yes| Publish["FIFO writer job\nverify executor + assured bytes"]
+    Publish --> Intent["GitHub Deployment pending\nwrite-ahead intent"]
+    Intent --> Claim["Recheck + claim in_progress\nimmediately before Kaggle"]
+    Claim --> Kaggle["Single Kaggle mutation"]
+    Kaggle --> Readback["Exact version + inventory\nstreamed SHA-256 readback"]
+    Readback --> LedgerSuccess["GitHub Deployment success\nverified REST receipt"]
 ```
 
 The discovery seed uses one VPN tunnel when VPN mode is effective. Tunnel selection
@@ -273,11 +286,13 @@ rejected, recorded, excluded from fallback technologies, disconnected, and repla
 The validated effective quarantine is applied before fan-out and persisted into each
 child manifest. The seed requests
 only the season/season-type combinations in the current matrix. It restores the
-prior chain's discovery artifact from the exact manifest source run, merges new
-scope evidence, refreshes every requested active-season player/game/workload scope
-(including aggregate-only player waves),
-and publishes the cumulative artifact. Stable historical scopes remain cacheable. If the prior artifact is
-unavailable, it reseeds from scratch before applying the same gate. Missing scopes
+prior chain's discovery artifact from the exact distinct manifest or resume source
+run, merges new scope evidence, refreshes every requested active-season
+player/game/workload scope (including aggregate-only player waves), and publishes the
+cumulative artifact. Stable historical scopes remain cacheable. An unavailable,
+expired, ambiguous, or invalid explicit source fails closed; prior attempts of the
+current run are not a recovery boundary, and explicit source recovery never falls
+back to scratch reseeding. Missing scopes
 stop the workflow; explicit zero-row results count only when the corresponding
 combination is recorded as covered. Typed zero-row game/workload scopes are valid;
 empty player-ID scopes are not. Immutable content-addressed discovery and workload
@@ -291,10 +306,11 @@ Both transport-transient and response-contract/validation failures, including wr
 causes, consume the bounded discovery retry budget; true application failures remain
 permanent.
 Incomplete state uses a distinct
-run/attempt-scoped recovery artifact; a later seed may resume its validated exact
-scopes, but the bundle must pass complete seeding and verification before extraction
-can consume it canonically. `lane_control` does not run after seed failure, so
-unattempted lanes cannot receive false retries.
+run/attempt-scoped recovery artifact; a fresh workflow may resume its validated exact
+scopes only through the explicit distinct source-run contract. The bundle must pass
+complete seeding and verification before extraction can consume it canonically.
+`lane_control` does not run after seed failure, so unattempted lanes cannot receive
+false retries.
 
 Checkpoint generations are immutable copy-plus-delta artifacts. Even a zero-delta
 iteration creates a distinct database copy rather than republishing or mutating
@@ -342,8 +358,11 @@ run ID and URLs, and re-reads that exact run to verify title, event, head SHA, a
 source before acknowledgement. The committed next-manifest uses a run/attempt-unique
 non-overwriting artifact; its ID and digest are forwarded to the child for REST
 ID/name/digest/size/run/source verification and exact-ID download. Run/name-only
-handoff is a bounded legacy path when both receipt fields are absent. If the parent
-exits first, its trap attempts to cancel that exact returned child ID. Direct-mode workflow concurrency uses chain and iteration,
+handoff is a bounded legacy path only when both receipt fields are absent. It still
+requires exact source-owner/workflow identity, stable unique inventory, a direct
+artifact-ID recheck, digest verification when supplied, and exactly one safe expected
+manifest member. If the parent exits first, its trap attempts to cancel that exact
+returned child ID. Direct-mode workflow concurrency uses chain and iteration,
 so the parent cannot hold the child's slot. VPN/auto chains instead share
 a repository-wide FIFO concurrency queue, preventing account-slot overlap without
 allowing a newer pending chain to displace an already-queued child.
@@ -358,10 +377,28 @@ domain anchors and row parity, and the terminal checkpoint's complete lane/run/c
 neither write permission nor Kaggle
 secrets. Publishing is a separate writer job that resolves the exact GitHub artifact
 ID, verifies the archive SHA-256 against the upload result, revalidates the assured
-manifest, and enters the shared FIFO publisher queue. Metadata is generated for all
-254 runtime transform outputs. The publisher uses `--full-publication` to require both
-assurance files, matching terminal provenance, and exact-version complete-inventory
-SHA-256 readback; generic `--verify-remote` remains available for nonterminal updates.
+manifest, and enters the exact non-cancelling `nbadb-kaggle-publish` FIFO queue. It
+requires `actions: read`, `deployments: write`, `GH_TOKEN`, the publication source
+SHA, default-head enforcement, and
+`--publication-ledger github-deployment --require-durable-intent`. Head discovery asks
+GraphQL for the newest two dataset-specific Deployments in `CREATED_AT DESC` order,
+then validates their exact REST receipts and complete at-most-two-status sets,
+ignoring transport order and sorting chronology locally. Executor admission fully
+paginates up to 1,000 attempt jobs and direct-verifies the unique publisher job ID;
+the parent run may remain pending while that job is in progress. Executor proof uses
+`GITHUB_WORKFLOW` and the immutable workflow definition, while historical status
+executors validate their own workflows; dynamic `run-name` remains a separate run
+title. Default-head proof also distinguishes Git's
+`/git/ref/heads/<branch>` request from its canonical
+`/git/refs/heads/<branch>` response URL.
+
+The ledger records `pending` before mutation, rechecks and claims `in_progress`
+immediately before Kaggle, and records `success` only after exact-version
+complete-inventory SHA-256 readback. Any crash after the verified claim is
+reconciliation-only until the exact marker/version/inventory/hash evidence resolves
+it. Metadata is generated for all 254 runtime transform outputs. The publisher uses
+`--full-publication` to require both assurance files and matching terminal provenance;
+generic `--verify-remote` remains available for nonterminal updates.
 
 ## Read the possession left to right
 
