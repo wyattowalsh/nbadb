@@ -37,13 +37,15 @@ def _failure(
 
 
 def run_probe(*, request_timeout_seconds: int, season: str) -> dict[str, object]:
+    # Current-roster only: the VPN canary shares discovery's 10s fast path.
+    # Historical is_only_current_season=0 is the discovery-seed workload, not this gate.
     probes: tuple[tuple[str, object, dict[str, Any], frozenset[str]], ...] = (
         (
             "common_all_players",
             CommonAllPlayersExtractor(),
             {
                 "season": season,
-                "is_only_current_season": 0,
+                "is_only_current_season": 1,
                 "allow_static_fallback": False,
                 "timeout": request_timeout_seconds,
             },

@@ -58,7 +58,7 @@ def test_probe_uses_nbadb_extractors_for_player_and_game_discovery(monkeypatch) 
             "common_all_players",
             {
                 "season": "2024-25",
-                "is_only_current_season": 0,
+                "is_only_current_season": 1,
                 "allow_static_fallback": False,
                 "timeout": 7,
             },
