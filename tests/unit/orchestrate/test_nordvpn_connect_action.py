@@ -816,12 +816,13 @@ def test_nba_stack_probe_runs_both_discovery_canaries_with_bounded_process(
         "python",
         str(action.nba_stack_probe_script),
     ]
-    assert cmd[cmd.index("--request-timeout-seconds") + 1] == "10"
-    expected_endpoint_timeout = int(_CONCURRENT_DISCOVERY_TIMEOUT[-1])
-    assert expected_endpoint_timeout == module.NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS
+    assert cmd[cmd.index("--request-timeout-seconds") + 1] == "20"
+    expected_endpoint_timeout = module.NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS
+    assert expected_endpoint_timeout == 20
+    assert expected_endpoint_timeout > int(_CONCURRENT_DISCOVERY_TIMEOUT[-1])
     assert cmd[cmd.index("--season") + 1] == module.NBA_STACK_PROBE_DEFAULT_SEASON
-    assert action.nba_stack_probe_timeout == 22
-    assert kwargs["timeout"] == 22.25
+    assert action.nba_stack_probe_timeout == 42
+    assert kwargs["timeout"] == 42.25
     sequential_request_budget = len(module.NBA_STACK_PROBE_ENDPOINTS) * expected_endpoint_timeout
     assert kwargs["timeout"] - sequential_request_budget == 2.25
     assert kwargs["termination_grace"] == module.NBA_PROBE_TERMINATION_GRACE_SECONDS
@@ -2370,7 +2371,7 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "nba-probe-timeout-seconds:" in metadata
     assert "nba-stack-probe-enabled:" in metadata
     assert "nba-stack-probe-timeout-seconds:" in metadata
-    assert action_metadata["inputs"]["nba-stack-probe-timeout-seconds"]["default"] == "22"
+    assert action_metadata["inputs"]["nba-stack-probe-timeout-seconds"]["default"] == "42"
     assert "nba-stack-probe-season:" in metadata
     assert "nba-probe-status:" in metadata
     assert "nba-probe-diagnostic:" in metadata

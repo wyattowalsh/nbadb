@@ -67,7 +67,7 @@ ATTEMPT_FINALIZATION_RESERVE_SECONDS: Final[float] = (
     + ACTION_OUTPUT_RESERVE_SECONDS
 )
 NBA_STACK_PROBE_DEFAULT_SEASON: Final[str] = "2024-25"
-NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS: Final[int] = 10
+NBA_STACK_PROBE_ENDPOINT_TIMEOUT_SECONDS: Final[int] = 20
 NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS: Final[int] = 240
 NBA_STACK_PROBE_ENDPOINTS: Final[frozenset[str]] = frozenset(
     {"common_all_players", "league_game_log"}
@@ -383,7 +383,7 @@ class NordVpnConnectAction:
         self.nba_stack_probe_enabled = (
             os.environ.get("NBA_STACK_PROBE_ENABLED", "true").strip().lower() != "false"
         )
-        self.nba_stack_probe_timeout = env_int("NBA_STACK_PROBE_TIMEOUT_SECONDS", 22, minimum=2)
+        self.nba_stack_probe_timeout = env_int("NBA_STACK_PROBE_TIMEOUT_SECONDS", 42, minimum=2)
         self.nba_stack_probe_season = (
             os.environ.get("NBA_STACK_PROBE_SEASON", NBA_STACK_PROBE_DEFAULT_SEASON).strip()
             or NBA_STACK_PROBE_DEFAULT_SEASON

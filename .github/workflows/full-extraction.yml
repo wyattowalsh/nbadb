@@ -2629,10 +2629,31 @@ jobs:
         env:
           EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
           SEED_REQUEST_PROFILE: ${{ inputs.concurrency }}
+          DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}
         run: |
           if [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then
-            seed_concurrency=2
-            seed_rate_limit=2
+            case "${DIRECT_REQUEST_PROFILE:-direct}" in
+              turbo)
+                seed_concurrency=8
+                seed_rate_limit=6
+                ;;
+              aggressive)
+                seed_concurrency=6
+                seed_rate_limit=5
+                ;;
+              moderate)
+                seed_concurrency=4
+                seed_rate_limit=4
+                ;;
+              direct|conservative)
+                seed_concurrency=2
+                seed_rate_limit=2
+                ;;
+              *)
+                echo "::error::Unsupported direct_request_profile: ${DIRECT_REQUEST_PROFILE:-direct}"
+                exit 1
+                ;;
+            esac
           else
             case "$SEED_REQUEST_PROFILE" in
               conservative)

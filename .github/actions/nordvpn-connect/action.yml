@@ -133,7 +133,7 @@ inputs:
   nba-stack-probe-timeout-seconds:
     description: Maximum total time for the installed-stack discovery canaries on each server.
     required: false
-    default: "22"
+    default: "42"
   nba-stack-probe-season:
     description: Stable historical season used by the installed-stack discovery canaries.
     required: false

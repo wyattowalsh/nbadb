@@ -84,19 +84,21 @@ preceding connector gate.
 - **WHEN** a recognized timeout root is wrapped by a recognized transport-error outer type
 - **THEN** the connector surfaces both types and preserves the server-specific transport failure decision
 
-### Requirement: Installed-stack endpoint timeouts match discovery's fast path
+### Requirement: Installed-stack endpoint timeouts cover VPN extractor overhead
 
-The connector MUST give each installed-stack discovery endpoint the same
-10-second request timeout as the discovery fast path when sufficient attempt
-budget remains. The default child cap MUST cover both sequential endpoint
-timeouts plus bounded process overhead. The server attempt, overall connector,
-and finalization-reserve deadlines MUST remain independently bounded.
+The connector MUST give each installed-stack discovery endpoint a 20-second
+request timeout when sufficient attempt budget remains. That budget is longer
+than discovery's raw 10-second HTTP fast path because the canary runs the
+installed extractor stack through a VPN hop. The default child cap MUST cover
+both sequential endpoint timeouts plus bounded process overhead. The server
+attempt, overall connector, and finalization-reserve deadlines MUST remain
+independently bounded.
 
 #### Scenario: The connector has its ordinary probe budget
 
 - **WHEN** the installed-stack discovery child starts with the default total probe budget
-- **THEN** each of its two sequential endpoints receives a 10-second timeout while the configured child budget is 22 seconds and the process remains capped at 22.25 seconds
-- **AND** the process cap covers the 20-second combined request budget plus 2.25 seconds of bounded child overhead
+- **THEN** each of its two sequential endpoints receives a 20-second timeout while the configured child budget is 42 seconds and the process remains capped at 42.25 seconds
+- **AND** the process cap covers the 40-second combined request budget plus 2.25 seconds of bounded child overhead
 
 #### Scenario: Little server-attempt budget remains
 

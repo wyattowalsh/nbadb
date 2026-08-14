@@ -6425,15 +6425,23 @@ def test_discovery_seed_concurrency_tracks_network_mode_and_request_profile() ->
         "EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}" in configure
     )
     assert "SEED_REQUEST_PROFILE: ${{ inputs.concurrency }}" in configure
+    assert "DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}" in configure
     assert 'if [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then' in configure
+    assert "direct|conservative)" in configure
     assert "seed_concurrency=2" in configure
     assert "seed_rate_limit=2" in configure
-    assert "conservative)" in configure
-    assert "seed_concurrency=2" in configure
     assert "moderate)" in configure
+    assert "seed_concurrency=4" in configure
+    assert "seed_rate_limit=4" in configure
+    assert "aggressive)" in configure
+    assert "seed_concurrency=6" in configure
+    assert "seed_rate_limit=5" in configure
+    assert "turbo)" in configure
+    assert "seed_concurrency=8" in configure
+    assert "seed_rate_limit=6" in configure
+    assert "conservative)" in configure
     assert "seed_concurrency=3" in configure
     assert "seed_rate_limit=2" in configure
-    assert "aggressive)" in configure
     assert "seed_concurrency=4" in configure
     assert "seed_rate_limit=3" in configure
     assert 'echo "NBADB_RATE_LIMIT=$seed_rate_limit"' in configure
@@ -6447,8 +6455,14 @@ def test_discovery_seed_concurrency_tracks_network_mode_and_request_profile() ->
         (
             "direct",
             "aggressive",
-            "NBADB_RATE_LIMIT=2\nNBADB_DISCOVERY_CONCURRENCY=2\n"
-            "NBADB_DISCOVERY_SEED_CONCURRENCY=2\n",
+            "NBADB_RATE_LIMIT=5\nNBADB_DISCOVERY_CONCURRENCY=6\n"
+            "NBADB_DISCOVERY_SEED_CONCURRENCY=6\n",
+        ),
+        (
+            "direct",
+            "turbo",
+            "NBADB_RATE_LIMIT=6\nNBADB_DISCOVERY_CONCURRENCY=8\n"
+            "NBADB_DISCOVERY_SEED_CONCURRENCY=8\n",
         ),
         (
             "vpn",
@@ -6492,6 +6506,7 @@ def test_discovery_seed_profiles_emit_executable_rate_and_concurrency_contract(
             **os.environ,
             "EFFECTIVE_NETWORK_MODE": network_mode,
             "SEED_REQUEST_PROFILE": profile,
+            "DIRECT_REQUEST_PROFILE": profile,
             "GITHUB_ENV": str(github_env),
         },
         text=True,
