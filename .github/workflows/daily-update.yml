@@ -30,7 +30,7 @@ jobs:
         with:
           enable-cache: true
           prune-cache: true
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
       - run: uv sync
@@ -43,7 +43,7 @@ jobs:
             exit 1
           fi
       - name: Restore Kaggle publication reconciliation state
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: logs/kaggle/kaggle-publication-state.json
           key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
@@ -139,7 +139,7 @@ jobs:
           fi
       - name: Persist Kaggle publication reconciliation state
         if: ${{ always() && steps.kaggle_publication_state.outputs.exists == 'true' }}
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: logs/kaggle/kaggle-publication-state.json
           key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
