@@ -38,6 +38,7 @@ from textual.widgets import (
     Sparkline,
     Static,
 )
+from textual.widgets.data_table import CellDoesNotExist
 
 from nbadb.cli._progress_common import (
     DONE_CHAR,
@@ -676,7 +677,7 @@ class NbaDbDashboard(App):
             with self.batch_update():
                 for col, val in zip(_COLUMNS, cells, strict=True):
                     table.update_cell(key, col, val)
-        except NoMatches:
+        except (NoMatches, CellDoesNotExist):
             pass
 
     # ── actions ────────────────────────────────────────────
