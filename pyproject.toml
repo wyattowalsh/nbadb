@@ -142,7 +142,7 @@ omit = ["src/nbadb/cli/tui.py"]
 
 [dependency-groups]
 dev = [
-    "chardet>=5.2,<6",
+    "chardet>=5.2,<8",
     "pytest-cov>=7.0.0",
     "sportypy>=1.0.0",
     "sqlfluff>=4.0.4",
