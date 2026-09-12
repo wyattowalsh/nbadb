@@ -29,8 +29,14 @@ def remember_preference(
 
 
 @server.tool()
-def list_preferences() -> list[dict[str, Any]]:
-    return [record.model_dump() for record in memory_tools.list_preferences(MemoryStore())]
+def list_preferences(session_id: str) -> list[dict[str, Any]]:
+    return [
+        record.model_dump()
+        for record in memory_tools.list_preferences(
+            MemoryStore(),
+            session_id=session_id,
+        )
+    ]
 
 
 @server.tool()
@@ -51,11 +57,17 @@ def save_trajectory(
 @server.tool()
 def search_trajectories(
     query: str,
+    session_id: str,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     return [
         record.model_dump()
-        for record in memory_tools.search_trajectories(MemoryStore(), query, limit=limit)
+        for record in memory_tools.search_trajectories(
+            MemoryStore(),
+            query,
+            session_id=session_id,
+            limit=limit,
+        )
     ]
 
 

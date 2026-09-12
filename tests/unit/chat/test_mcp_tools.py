@@ -18,7 +18,7 @@ def test_mcp_memory_tools_round_trip(tmp_path) -> None:
     )
     assert preference.key == "default_metric"
     assert preference.session_id == "sess-1"
-    assert memory_tools.list_preferences(store)[0].value == "points"
+    assert memory_tools.list_preferences(store, session_id="sess-1")[0].value == "points"
 
     trajectory = memory_tools.save_trajectory(
         store,
@@ -27,7 +27,10 @@ def test_mcp_memory_tools_round_trip(tmp_path) -> None:
         session_id="sess-1",
     )
     assert trajectory.sql_hash == "abc123"
-    assert memory_tools.search_trajectories(store, "scoring")[0].sql_hash == "abc123"
+    assert (
+        memory_tools.search_trajectories(store, "scoring", session_id="sess-1")[0].sql_hash
+        == "abc123"
+    )
     assert (
         memory_tools.forget_memory(
             store,
@@ -45,6 +48,8 @@ def test_mcp_memory_mutations_require_session_scope(tmp_path) -> None:
     for call in (
         lambda: memory_tools.remember_preference(store, "metric", "points"),
         lambda: memory_tools.save_trajectory(store, "leaderboard", {"sql_hash": "abc123"}),
+        lambda: memory_tools.list_preferences(store),
+        lambda: memory_tools.search_trajectories(store, "scoring"),
         lambda: memory_tools.forget_memory(store, "metric", confirm=True),
     ):
         try:

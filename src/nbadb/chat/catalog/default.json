@@ -67,17 +67,17 @@
       "name": "clutch performance",
       "description": "Clutch-time player performance from analytics_clutch_performance.",
       "tables": ["analytics_clutch_performance", "dim_player"],
-      "aliases": ["clutch", "clutch stats", "clutch performance"],
+      "aliases": ["clutch stats", "clutch performance"],
       "metrics": ["pts", "fg_pct", "clutch_window"],
       "route": "clutch_performance",
-      "patterns": ["clutch\\s+stats?", "clutch\\s+performance", "\\bclutch\\b"]
+      "patterns": ["clutch\\s+stats?", "clutch\\s+performance"]
     },
     {
       "name": "player matchups",
       "description": "Player-vs-player matchup stats.",
       "tables": ["analytics_player_matchup", "dim_player"],
       "aliases": ["matchups", "player matchup", "vs player"],
-      "metrics": ["matchup_min", "pts", "fg_pct"],
+      "metrics": ["matchup_min", "player_pts", "fg_pct"],
       "route": "player_matchups",
       "patterns": ["player\\s+matchups?", "vs\\s+player", "matchup\\s+stats?"]
     },

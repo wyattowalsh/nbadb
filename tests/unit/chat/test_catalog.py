@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
+
 import duckdb
+import pytest
 
 from nbadb.chat.catalog import default_catalog, load_catalog
 from nbadb.transform.pipeline import _star_schema_map
@@ -117,12 +120,132 @@ def test_catalog_export_context_lines_include_grain() -> None:
     assert any("agg_player_season" in line and "player-season" in line for line in lines)
 
 
+def test_all_catalog_sql_templates_pass_readonly_guard() -> None:
+    from nbadb.chat.catalog.models import validate_catalog_sql_templates
+
+    errors = validate_catalog_sql_templates()
+    assert errors == [], errors
+
+
 def test_catalog_match_route_uses_sql_template() -> None:
     catalog = default_catalog()
     entry = catalog.match_route("show the shot chart")
     assert entry is not None
     assert entry.route == "shot_chart"
     assert "fact_shot_chart" in entry.sql_template
+
+
+def test_match_route_prefers_more_specific_team_game_log() -> None:
+    catalog = default_catalog()
+    team = catalog.match_route("team game log")
+    player = catalog.match_route("show game log")
+    assert team is not None
+    assert team.route == "team_game_log"
+    assert player is not None
+    assert player.route == "player_game_log"
+
+
+def test_match_route_specificity_is_independent_of_catalog_order() -> None:
+    catalog = default_catalog()
+    reversed_catalog = type(catalog)(entries=tuple(reversed(catalog.entries)))
+
+    match = reversed_catalog.match_route("team game log")
+
+    assert match is not None
+    assert match.route == "team_game_log"
+
+
+def test_reviewed_route_match_corpus_has_unique_expected_winners() -> None:
+    from nbadb.chat.catalog.models import validate_route_match_corpus
+
+    assert validate_route_match_corpus(default_catalog()) == []
+
+
+def test_default_catalog_fails_closed_on_invalid_route_season_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from nbadb.chat.catalog import route_meta
+
+    monkeypatch.setattr(
+        route_meta,
+        "validate_route_season_meta",
+        lambda _catalog: ["team_standings: invalid test metadata"],
+    )
+
+    with pytest.raises(ValueError, match="invalid route season metadata"):
+        default_catalog()
+
+
+def test_route_match_corpus_rejects_cross_route_co_top() -> None:
+    from nbadb.chat.catalog import CatalogEntry, SemanticCatalog
+    from nbadb.chat.catalog.models import validate_route_match_corpus
+
+    catalog = SemanticCatalog(
+        entries=(
+            CatalogEntry(
+                name="route a",
+                description="",
+                tables=("dim_game",),
+                route="route_a",
+                sql_template="SELECT 1",
+                patterns=(re.compile(r"shared\s+phrase", re.IGNORECASE),),
+            ),
+            CatalogEntry(
+                name="route b",
+                description="",
+                tables=("dim_game",),
+                route="route_b",
+                sql_template="SELECT 1",
+                patterns=(re.compile(r"shared\s+phrase", re.IGNORECASE),),
+            ),
+        )
+    )
+
+    errors = validate_route_match_corpus(
+        catalog,
+        corpus=(("shared phrase", "route_a"),),
+    )
+
+    assert len(errors) == 1
+    assert "cross-route co-top" in errors[0]
+    assert "route_a, route_b" in errors[0]
+
+
+def test_route_match_corpus_rejects_expected_route_drift() -> None:
+    from nbadb.chat.catalog.models import validate_route_match_corpus
+
+    errors = validate_route_match_corpus(
+        default_catalog(),
+        corpus=(("team game log", "player_game_log"),),
+    )
+
+    assert errors == ["'team game log': expected 'player_game_log', got 'team_game_log'"]
+
+
+def test_route_season_meta_matrix_rejects_phantom_columns() -> None:
+    import json
+    from pathlib import Path
+
+    from nbadb.chat.catalog.route_meta import ROUTE_SEASON_META
+
+    matrix_path = Path(__file__).with_name("fixtures") / "route_season_meta_matrix.json"
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    routes = matrix["routes"]
+    failures: list[str] = []
+    for route, meta in ROUTE_SEASON_META.items():
+        allowed = routes.get(route)
+        if allowed is None:
+            failures.append(f"missing matrix row for {route}")
+            continue
+        if meta.year_column:
+            bare = meta.year_column.split(".")[-1]
+            if bare not in allowed["year"]:
+                failures.append(f"{route}: year {bare} not in {allowed['year']}")
+        if meta.type_column:
+            bare = meta.type_column.split(".")[-1]
+            if bare not in allowed["type"]:
+                failures.append(f"{route}: type {bare} not in {allowed['type']}")
+    assert failures == [], failures
 
 
 def test_catalog_routed_sql_templates_bind_to_declared_tables() -> None:

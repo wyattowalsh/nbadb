@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 _DEFAULT_JSON = Path(__file__).with_name("default.json")
+_ROUTE_MATCH_CORPUS_JSON = Path(__file__).with_name("route_match_corpus.json")
 _EXPORT_JSON = (
     Path(__file__).resolve().parents[4] / "docs" / "lib" / "generated" / "agent-catalog.json"
 )
@@ -113,15 +114,96 @@ class SemanticCatalog:
         return tuple(lines)
 
     def match_route(self, question: str) -> CatalogEntry | None:
-        for entry in self.entries:
+        """Return the best matching routed entry.
+
+        When multiple patterns match, score by ``span * 2 - start`` so longer
+        matches win but left-anchored phrases (e.g. ``team season``) beat later
+        overlapping fragments (e.g. ``season stats``). Ties break on pattern
+        length then earlier catalog order.
+        """
+        best: tuple[int, int, int, CatalogEntry] | None = None
+        for idx, entry in enumerate(self.entries):
             if not entry.sql_template:
                 continue
-            if entry.patterns:
-                if any(pattern.search(question) for pattern in entry.patterns):
-                    return entry
-            elif entry.matches(question):
-                return entry
-        return None
+            semantic_rank = _entry_semantic_rank(entry, question)
+            if semantic_rank is None:
+                continue
+            rank = (*semantic_rank, -idx)
+            candidate = (*rank, entry)
+            if best is None or candidate[:3] > best[:3]:
+                best = candidate
+        return best[3] if best is not None else None
+
+
+def _entry_semantic_rank(entry: CatalogEntry, question: str) -> tuple[int, int] | None:
+    """Return the entry's best semantic rank without catalog-order tie breaking."""
+    best: tuple[int, int] | None = None
+    if entry.patterns:
+        for pattern in entry.patterns:
+            match = pattern.search(question)
+            if match is None:
+                continue
+            span = match.end() - match.start()
+            if span == 0:
+                continue
+            rank = (span * 2 - match.start(), len(pattern.pattern))
+            if best is None or rank > best:
+                best = rank
+        return best
+    if entry.matches(question):
+        return (1, 0)
+    return None
+
+
+def _load_route_match_corpus(path: Path | None = None) -> tuple[tuple[str, str], ...]:
+    corpus_path = path or _ROUTE_MATCH_CORPUS_JSON
+    payload = json.loads(corpus_path.read_text(encoding="utf-8"))
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("route match corpus must contain a rows list")
+    parsed: list[tuple[str, str]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"route match corpus row {index} must be an object")
+        question = row.get("question")
+        route = row.get("route")
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError(f"route match corpus row {index} has an invalid question")
+        if not isinstance(route, str) or not route.strip():
+            raise ValueError(f"route match corpus row {index} has an invalid route")
+        parsed.append((question, route))
+    return tuple(parsed)
+
+
+def validate_route_match_corpus(
+    catalog: SemanticCatalog,
+    *,
+    corpus: Iterable[tuple[str, str]] | None = None,
+) -> list[str]:
+    """Return cross-route co-top and expected-route errors for reviewed questions."""
+    errors: list[str] = []
+    rows = tuple(corpus) if corpus is not None else _load_route_match_corpus()
+    for question, expected_route in rows:
+        ranked: list[tuple[tuple[int, int], str]] = []
+        for entry in catalog.entries:
+            if not entry.sql_template or not entry.route:
+                continue
+            rank = _entry_semantic_rank(entry, question)
+            if rank is not None:
+                ranked.append((rank, entry.route))
+        if not ranked:
+            errors.append(f"{question!r}: expected {expected_route!r}, but no route matched")
+            continue
+        top_rank = max(rank for rank, _ in ranked)
+        top_routes = sorted({route for rank, route in ranked if rank == top_rank})
+        if len(top_routes) != 1:
+            errors.append(
+                f"{question!r}: cross-route co-top at {top_rank}: {', '.join(top_routes)}"
+            )
+            continue
+        if top_routes[0] != expected_route:
+            errors.append(f"{question!r}: expected {expected_route!r}, got {top_routes[0]!r}")
+    return errors
 
 
 def _compile_patterns(patterns: Iterable[str]) -> tuple[re.Pattern[str], ...]:
@@ -155,7 +237,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
             metrics=("total_pts",),
             route="player_season_scoring",
             sql_template=(
-                "SELECT s.player_id, p.full_name, s.total_pts "
+                "SELECT s.player_id, p.full_name, s.season_year, s.total_pts "
                 "FROM agg_player_season s "
                 "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
                 "ORDER BY s.total_pts DESC"
@@ -164,6 +246,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
                 (
                     r"who\s+led\s+(?:in\s+)?scoring",
                     r"most\s+points",
+                    r"scoring\s+leaders?",
                 )
             ),
             caveats=("dim_player is SCD2; use current rows when asking for current names.",),
@@ -176,7 +259,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
             metrics=("total_ast",),
             route="player_season_assists",
             sql_template=(
-                "SELECT s.player_id, p.full_name, s.total_ast "
+                "SELECT s.player_id, p.full_name, s.season_year, s.total_ast "
                 "FROM agg_player_season s "
                 "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
                 "ORDER BY s.total_ast DESC"
@@ -191,7 +274,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
             metrics=("total_reb",),
             route="player_season_rebounds",
             sql_template=(
-                "SELECT s.player_id, p.full_name, s.total_reb "
+                "SELECT s.player_id, p.full_name, s.season_year, s.total_reb "
                 "FROM agg_player_season s "
                 "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
                 "ORDER BY s.total_reb DESC"
@@ -202,28 +285,55 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
             name="team standings",
             description="Team win/loss standings joined to team dimensions.",
             tables=("fact_standings", "dim_team"),
-            aliases=("standings", "team record", "wins", "losses"),
+            aliases=("team standings", "team record"),
             metrics=("wins", "losses", "win_pct"),
             route="team_standings",
             sql_template=(
-                "SELECT t.full_name, s.wins, s.losses, s.win_pct "
+                "SELECT t.full_name, s.season_year, s.wins, s.losses, s.win_pct "
                 "FROM fact_standings s "
                 "JOIN dim_team t ON s.team_id = t.team_id "
                 "ORDER BY s.wins DESC"
             ),
-            patterns=_compile_patterns((r"team\s+standings", r"\bstandings\b")),
+            patterns=_compile_patterns(
+                (r"team\s+standings", r"\bstandings\b", r"what\s+are\s+the\s+standings")
+            ),
+        ),
+        CatalogEntry(
+            name="game count",
+            description="Count of games in dim_game.",
+            tables=("dim_game",),
+            aliases=("how many games", "game count", "number of games"),
+            metrics=("game_count",),
+            route="game_count",
+            sql_template="SELECT COUNT(*) AS game_count FROM dim_game",
+            patterns=_compile_patterns(
+                (r"how\s+many\s+games", r"game\s+count", r"number\s+of\s+games")
+            ),
         ),
         CatalogEntry(
             name="pipeline inventory",
             description="Pipeline table row counts and metadata inventory.",
             tables=("_pipeline_metadata",),
-            aliases=("how many games", "how many records", "row count", "records"),
+            aliases=(
+                "pipeline inventory",
+                "table row counts",
+                "how many records",
+                "warehouse inventory",
+            ),
             metrics=("row_count",),
             route="pipeline_inventory",
             sql_template=(
                 "SELECT table_name, row_count FROM _pipeline_metadata ORDER BY row_count DESC"
             ),
-            patterns=_compile_patterns((r"how\s+many\s+(?:games|records)",)),
+            patterns=_compile_patterns(
+                (
+                    r"pipeline\s+inventory",
+                    r"table\s+row\s+counts?",
+                    r"how\s+many\s+records",
+                    r"warehouse\s+inventory",
+                    r"show\s+pipeline\s+inventory",
+                )
+            ),
         ),
         CatalogEntry(
             name="team pace leaders",
@@ -339,7 +449,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
             name="clutch performance",
             description="Clutch-time player performance.",
             tables=("analytics_clutch_performance", "dim_player"),
-            aliases=("clutch", "clutch stats", "clutch performance"),
+            aliases=("clutch stats", "clutch performance"),
             metrics=("pts", "fg_pct", "clutch_window"),
             route="clutch_performance",
             sql_template=(
@@ -347,9 +457,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
                 "FROM analytics_clutch_performance c "
                 "ORDER BY c.pts DESC"
             ),
-            patterns=_compile_patterns(
-                (r"clutch\s+stats?", r"clutch\s+performance", r"\bclutch\b")
-            ),
+            patterns=_compile_patterns((r"clutch\s+stats?", r"clutch\s+performance")),
         ),
         CatalogEntry(
             name="player matchups",
@@ -468,7 +576,7 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
         CatalogEntry(
             name="game summary",
             description="Game-level summary with scores and matchup context.",
-            tables=("analytics_game_summary", "dim_game"),
+            tables=("analytics_game_summary", "dim_game", "dim_team"),
             aliases=("game summary", "final score", "box score summary"),
             metrics=("pts_home", "pts_away", "matchup"),
             route="game_summary",
@@ -519,15 +627,16 @@ def _builtin_entries() -> tuple[CatalogEntry, ...]:
         CatalogEntry(
             name="team box score",
             description="Team-level traditional box score lines.",
-            tables=("fact_box_score_team", "dim_team"),
+            tables=("fact_box_score_team", "dim_team", "dim_game"),
             aliases=("team box score", "team box", "team game stats"),
             metrics=("pts", "reb", "ast"),
             route="team_box_score",
             sql_template=(
-                "SELECT b.game_id, t.full_name, b.pts, b.reb, b.ast "
+                "SELECT b.game_id, t.full_name, b.pts, b.reb, b.ast, g.season_year "
                 "FROM fact_box_score_team b "
                 "JOIN dim_team t ON b.team_id = t.team_id "
-                "ORDER BY b.game_id DESC"
+                "JOIN dim_game g ON b.game_id = g.game_id "
+                "ORDER BY g.game_date DESC, b.game_id DESC"
             ),
             patterns=_compile_patterns((r"team\s+box\s+score", r"team\s+box")),
         ),
@@ -604,5 +713,34 @@ def load_catalog(path: Path | None = None) -> SemanticCatalog:
     return SemanticCatalog(entries=tuple(entries.values()))
 
 
+def validate_catalog_sql_templates(catalog: SemanticCatalog | None = None) -> list[str]:
+    """Return validation errors for every non-empty sql_template (G7)."""
+    from nbadb.agent.safety import ReadOnlyGuard
+
+    guard = ReadOnlyGuard()
+    errors: list[str] = []
+    target = catalog or default_catalog()
+    for entry in target.entries:
+        if not entry.sql_template:
+            continue
+        problem = guard.validate(entry.sql_template)
+        if problem:
+            errors.append(f"{entry.route or entry.name}: {problem}")
+    return errors
+
+
 def default_catalog() -> SemanticCatalog:
-    return load_catalog()
+    from nbadb.chat.catalog.entity_meta import validate_route_entity_meta
+    from nbadb.chat.catalog.route_meta import validate_route_season_meta
+
+    catalog = load_catalog()
+    match_errors = validate_route_match_corpus(catalog)
+    if match_errors:
+        raise ValueError("invalid route match corpus:\n" + "\n".join(match_errors))
+    season_errors = validate_route_season_meta(catalog)
+    if season_errors:
+        raise ValueError("invalid route season metadata:\n" + "\n".join(season_errors))
+    entity_errors = validate_route_entity_meta(catalog)
+    if entity_errors:
+        raise ValueError("invalid route entity metadata:\n" + "\n".join(entity_errors))
+    return catalog

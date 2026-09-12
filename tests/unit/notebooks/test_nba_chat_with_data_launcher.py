@@ -7,7 +7,9 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
+import duckdb
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -26,15 +28,15 @@ def _code_cells() -> list[str]:
     return cells
 
 
-def _load_cell1_namespace() -> dict[str, object]:
+def _load_cell1_namespace() -> dict[str, Any]:
     source = _code_cells()[0]
     prelude = source.split("CHAT_DIR = _require_checked_out_chat_dir()", 1)[0]
-    ns: dict[str, object] = {}
+    ns: dict[str, Any] = {}
     exec(prelude, ns)  # noqa: S102
     return ns
 
 
-def _load_cell5_namespace() -> dict[str, object]:
+def _load_cell5_namespace() -> dict[str, Any]:
     source = _code_cells()[4]
     prelude = source.split("process = _run_chainlit()", 1)[0]
     prelude = prelude.replace("import httpx\n", "")
@@ -48,7 +50,7 @@ def _load_cell5_namespace() -> dict[str, object]:
             super().__init__(message)
             self.request = request
 
-    ns: dict[str, object] = {
+    ns: dict[str, Any] = {
         "HTML": lambda content: content,
         "display": lambda *_args, **_kwargs: None,
         "httpx": SimpleNamespace(
@@ -103,7 +105,7 @@ def test_dependency_installation_is_derived_from_chat_pyproject(
                 "[project]",
                 "name = 'chat'",
                 "version = '0.1.0'",
-                "dependencies = ['alpha', 'beta']",
+                "dependencies = ['alpha', 'nbadb', 'beta']",
                 "[project.optional-dependencies]",
                 "viz = ['beta', 'gamma']",
             ]
@@ -127,14 +129,30 @@ def test_dependency_installation_is_derived_from_chat_pyproject(
     for extra in project.get("optional-dependencies", {}).values():
         expected_deps.extend(extra)
     expected_deps = list(dict.fromkeys(expected_deps))
+    expected_deps.remove("nbadb")
 
-    assert commands == [[sys.executable, "-m", "pip", "install", "-q", *expected_deps]]
+    assert commands == [
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-q",
+            "-e",
+            str(chat_dir.parent),
+            *expected_deps,
+        ]
+    ]
 
 
-def test_chainlit_launched_in_chat_dir(monkeypatch) -> None:
+def test_chainlit_launched_in_chat_dir(monkeypatch, tmp_path: Path) -> None:
     ns = _load_cell5_namespace()
     ns["CHAT_DIR"] = CHAT_DIR
-    captured: dict[str, object] = {}
+    warehouse = tmp_path / "nba.duckdb"
+    duckdb.connect(str(warehouse)).close()
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", str(warehouse))
+    monkeypatch.setenv("NBADB_DATA_DIR", str(tmp_path))
+    captured: dict[str, Any] = {}
 
     def fake_popen(*args, **kwargs):
         captured["args"] = args
@@ -146,6 +164,60 @@ def test_chainlit_launched_in_chat_dir(monkeypatch) -> None:
     ns["_run_chainlit"]()
 
     assert captured["kwargs"]["cwd"] == str(CHAT_DIR)
+    assert captured["kwargs"]["env"]["NBADB_DUCKDB_PATH"] == str(warehouse.resolve())
+    assert captured["kwargs"]["env"]["NBADB_DATA_DIR"] == str(tmp_path.resolve())
+
+
+def test_chainlit_resolves_relative_paths_from_repository_root(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    ns = _load_cell5_namespace()
+    repo_root = tmp_path / "repo"
+    chat_dir = repo_root / "chat"
+    data_dir = repo_root / "data" / "nbadb"
+    chat_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    warehouse = data_dir / "nba.duckdb"
+    duckdb.connect(str(warehouse)).close()
+    ns["CHAT_DIR"] = chat_dir
+    monkeypatch.chdir(chat_dir)
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", "data/nbadb/nba.duckdb")
+    monkeypatch.setenv("NBADB_DATA_DIR", "data/nbadb")
+    captured: dict[str, Any] = {}
+
+    def fake_popen(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return SimpleNamespace()
+
+    monkeypatch.setattr(ns["subprocess"], "Popen", fake_popen)
+
+    ns["_run_chainlit"]()
+
+    assert captured["kwargs"]["cwd"] == str(chat_dir)
+    assert captured["kwargs"]["env"]["NBADB_DUCKDB_PATH"] == str(warehouse)
+    assert captured["kwargs"]["env"]["NBADB_DATA_DIR"] == str(data_dir)
+
+
+def test_chainlit_launch_rejects_missing_warehouse(monkeypatch, tmp_path: Path) -> None:
+    ns = _load_cell5_namespace()
+    ns["CHAT_DIR"] = CHAT_DIR
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", str(tmp_path / "missing.duckdb"))
+
+    with pytest.raises(FileNotFoundError, match="existing regular DuckDB warehouse"):
+        ns["_run_chainlit"]()
+
+
+def test_chainlit_launch_rejects_corrupt_warehouse(monkeypatch, tmp_path: Path) -> None:
+    ns = _load_cell5_namespace()
+    ns["CHAT_DIR"] = CHAT_DIR
+    warehouse = tmp_path / "corrupt.duckdb"
+    warehouse.write_bytes(b"not a DuckDB database")
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", str(warehouse))
+
+    with pytest.raises(RuntimeError, match="not found or unusable"):
+        ns["_run_chainlit"]()
 
 
 def test_wait_for_chainlit_polls_until_http_ready(monkeypatch) -> None:
@@ -204,3 +276,6 @@ def test_notebook_copy_mentions_open_chat() -> None:
     assert "Open NBA Chat" in content
     assert "`chat`" in content
     assert "`apps/chat`" not in content
+    assert "switch providers" not in content
+    assert "API key error" not in content
+    assert "bar chart" not in content

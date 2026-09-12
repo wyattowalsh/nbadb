@@ -30,9 +30,11 @@ def _load_module(name: str):
 
 
 @pytest.fixture(autouse=True)
-def _close_figures() -> None:
-    yield
-    plt.close("all")
+def _close_figures(request: pytest.FixtureRequest) -> None:
+    def _close() -> None:
+        plt.close("all")
+
+    request.addfinalizer(_close)
 
 
 def test_skill_script_inventory_matches_current_surface() -> None:
@@ -139,6 +141,25 @@ def test_season_utils_round_trip_identifiers() -> None:
 
     assert season == "2025-26"
     assert mod.season_id_to_year(season_id) == "2024-25"
+
+
+@pytest.mark.parametrize(
+    "season_year",
+    ("2024-24", "2024-99", "2024/25", "2024-025", "２０２４-２５", "x2024-25"),
+)
+def test_season_utils_reject_malformed_season_years(season_year: str) -> None:
+    mod = _load_module("season_utils")
+
+    with pytest.raises(ValueError, match="season_year"):
+        mod.season_year_to_id(season_year)
+
+
+@pytest.mark.parametrize("season_id", ("2024", "2202", "220240", "x2024", "２２０２４"))
+def test_season_utils_reject_malformed_season_ids(season_id: str) -> None:
+    mod = _load_module("season_utils")
+
+    with pytest.raises(ValueError, match="season_id"):
+        mod.season_id_to_year(season_id)
 
 
 def test_similarity_finds_clone_as_top_match() -> None:

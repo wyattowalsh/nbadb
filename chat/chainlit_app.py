@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+
 import chainlit as cl
 
+from nbadb.chat.artifacts import ArtifactStoreError
 from nbadb.chat.runtime import ChatRuntime, build_runtime
 
 
@@ -17,8 +20,14 @@ async def on_chat_start() -> None:
     cl.user_session.set("runtime", runtime)
     await cl.Message(
         content=(
-            "Ask a read-only question about the local nbadb DuckDB warehouse. "
-            "I will show the answer first and keep SQL provenance attached to each result."
+            "Ask a **catalog** question about the local nbadb DuckDB warehouse.\n\n"
+            "Examples:\n"
+            "- team pace leaders\n"
+            "- team stats for 2024-25\n"
+            "- clutch stats for 2024-25\n"
+            "- franchise championships\n\n"
+            "Use `/save <title>` to store the last successful result as a finding. "
+            "SQL provenance is attached when a route matches."
         )
     ).send()
 
@@ -44,17 +53,28 @@ async def on_message(message: cl.Message) -> None:
         if prior is None:
             await cl.Message(content="No prior query result to save. Ask a question first.").send()
             return
-        record = runtime.promote_to_finding(prior, title=title, session_id=cl.context.session.id)
+        try:
+            record = runtime.promote_to_finding(
+                prior,
+                title=title,
+                session_id=cl.context.session.id,
+            )
+        except (ArtifactStoreError, ValueError) as exc:
+            await cl.Message(content=f"Finding was not saved: {exc}").send()
+            return
         await cl.Message(content=f"Saved finding: {record.title}").send()
         return
 
-    response = runtime.ask(content, limit=25)
-    cl.user_session.set("last_response", response)
+    # DuckDB work is blocking; run it off the event loop so other sessions
+    # stay responsive while this query executes.
+    response = await asyncio.to_thread(runtime.ask, content, limit=25)
+    if response.ok:
+        cl.user_session.set("last_response", response)
     elements: list[cl.Element] = []
     if response.sql:
         elements.append(cl.Text(name="SQL", content=response.sql, display="side"))
-    if response.rows:
-        table = response.render_text().splitlines()
-        elements.append(cl.Text(name="Rows", content="\n".join(table), display="inline"))
 
-    await cl.Message(content=response.render_text(verbose=True), elements=elements).send()
+    answer = response.render_text()
+    if response.warnings:
+        answer += "\n\n" + "\n".join(f"Warning: {warning}" for warning in response.warnings)
+    await cl.Message(content=answer, elements=elements).send()

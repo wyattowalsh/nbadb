@@ -150,7 +150,7 @@ class TestBuildPromptContext:
     def test_result_starts_with_header(self, populated_db: Path) -> None:
         ctx = SchemaContext(populated_db)
         result = ctx.build_prompt_context()
-        assert result.startswith("Available tables and columns:")
+        assert result.startswith("NBA rules:")
 
     def test_excludes_internal_tables_from_context(self, populated_db: Path) -> None:
         ctx = SchemaContext(populated_db)

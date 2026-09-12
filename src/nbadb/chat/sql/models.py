@@ -25,15 +25,26 @@ class QueryResponse:
 
     @property
     def ok(self) -> bool:
-        return self.error is None
+        return self.error is None and self.route not in {
+            "unsupported",
+            "needs_params",
+            "ambiguous",
+            "blocked",
+        }
 
     def render_text(self, *, verbose: bool = False) -> str:
         if self.error is not None:
             text = self.error
+        elif self.route == "needs_params" and self.schema_context is not None:
+            text = self.schema_context
         elif self.schema_context is not None:
             text = (
                 "I couldn't match your question to a known pattern.\n\n"
-                "Here is the schema context for a more specific follow-up:\n\n"
+                "Try examples like:\n"
+                "- who led scoring last season?\n"
+                "- how many games are there?\n"
+                "- show team standings\n"
+                "- pipeline inventory\n\n"
                 f"{self.schema_context}"
             )
         elif not self.rows:

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "description": "Allowed season columns per catalog route (bare names). Meta columns must be in this set.",
+  "routes": {
+    "player_season_scoring": {"year": ["season_year"], "type": ["season_type"]},
+    "player_season_assists": {"year": ["season_year"], "type": ["season_type"]},
+    "player_season_rebounds": {"year": ["season_year"], "type": ["season_type"]},
+    "team_standings": {"year": ["season_year"], "type": ["season_type"]},
+    "pipeline_inventory": {"year": [], "type": []},
+    "game_count": {"year": [], "type": []},
+    "team_pace": {"year": ["season_year"], "type": ["season_type"]},
+    "shot_chart": {"year": ["season_year"], "type": []},
+    "draft_value": {"year": [], "type": []},
+    "head_to_head": {"year": ["season_year"], "type": []},
+    "team_season": {"year": ["season_year"], "type": ["season_type"]},
+    "player_season_complete": {"year": ["season_year"], "type": ["season_type"]},
+    "player_game_log": {"year": ["season_year"], "type": ["season_type"]},
+    "clutch_performance": {"year": ["season_year"], "type": []},
+    "player_matchups": {"year": ["season_year"], "type": []},
+    "franchise_history": {"year": [], "type": []},
+    "team_game_log": {"year": ["season_year"], "type": []},
+    "player_splits": {"year": ["season_year"], "type": ["season_type"]},
+    "team_splits": {"year": ["season_year"], "type": ["season_type"]},
+    "player_impact": {"year": ["season_year"], "type": ["season_type"]},
+    "league_benchmarks": {"year": ["season_year"], "type": ["season_type"]},
+    "game_summary": {"year": ["season_year"], "type": ["season_type"]},
+    "shooting_efficiency": {"year": ["season_year"], "type": []},
+    "team_roster": {"year": ["season_year"], "type": []},
+    "team_box_score": {"year": ["season_year"], "type": []},
+    "player_box_score": {"year": ["season_year"], "type": []}
+  }
+}

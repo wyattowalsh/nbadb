@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "rows": [
+    {"question": "who led scoring last season", "route": "player_season_scoring"},
+    {"question": "most assists this season", "route": "player_season_assists"},
+    {"question": "most rebounds 2023-24", "route": "player_season_rebounds"},
+    {"question": "show team standings", "route": "team_standings"},
+    {"question": "how many games are there", "route": "game_count"},
+    {"question": "show pipeline inventory", "route": "pipeline_inventory"},
+    {"question": "team pace leaders", "route": "team_pace"},
+    {"question": "show a shot chart", "route": "shot_chart"},
+    {"question": "draft value by pick", "route": "draft_value"},
+    {"question": "head to head records", "route": "head_to_head"},
+    {"question": "team season stats", "route": "team_season"},
+    {"question": "player season profile", "route": "player_season_complete"},
+    {"question": "show game log", "route": "player_game_log"},
+    {"question": "clutch performance", "route": "clutch_performance"},
+    {"question": "player matchups", "route": "player_matchups"},
+    {"question": "franchise history", "route": "franchise_history"},
+    {"question": "team game log", "route": "team_game_log"},
+    {"question": "player home away splits", "route": "player_splits"},
+    {"question": "team home away splits", "route": "team_splits"},
+    {"question": "player impact on off", "route": "player_impact"},
+    {"question": "league benchmarks", "route": "league_benchmarks"},
+    {"question": "game summary", "route": "game_summary"},
+    {"question": "shooting efficiency", "route": "shooting_efficiency"},
+    {"question": "team roster", "route": "team_roster"},
+    {"question": "team box score", "route": "team_box_score"},
+    {"question": "player box score", "route": "player_box_score"}
+  ]
+}

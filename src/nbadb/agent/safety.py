@@ -5,6 +5,8 @@ import unicodedata
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import duckdb
 
 _WRITE_KEYWORDS: set[str] = {
@@ -15,7 +17,6 @@ _WRITE_KEYWORDS: set[str] = {
     "ALTER",
     "CREATE",
     "TRUNCATE",
-    "REPLACE",
     "MERGE",
     "UPSERT",
     "GRANT",
@@ -34,8 +35,11 @@ _WRITE_KEYWORDS: set[str] = {
     "RESET",
 }
 
+# REPLACE is allowed as a scalar function (REPLACE(col, a, b)); block statement forms only.
 _WRITE_PATTERN: re.Pattern[str] = re.compile(
-    r"\b(" + "|".join(_WRITE_KEYWORDS) + r")\b",
+    r"\b(" + "|".join(sorted(_WRITE_KEYWORDS)) + r")\b"
+    r"|\bREPLACE\s+INTO\b"
+    r"|\bCREATE\s+OR\s+REPLACE\b",
     re.IGNORECASE,
 )
 
@@ -43,6 +47,7 @@ _DANGEROUS_FUNCTIONS: re.Pattern[str] = re.compile(
     r"\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|"
     r"read_xlsx|glob|read_csv_auto|read_ndjson|http_get|http_post|"
     r"scan_csv|scan_csv_auto|scan_parquet|scan_json|"
+    r"parquet_scan|sniff_csv|iceberg_scan|delta_scan|st_read|"
     r"getenv|current_setting|query_table|sqlite_scan|postgres_scan)\s*\(",
     re.IGNORECASE,
 )
@@ -121,10 +126,18 @@ class ReadOnlyGuard:
             return stripped
         return _enforce_limit(stripped, max_rows)
 
-    def dry_run(self, conn: duckdb.DuckDBPyConnection, sql: str) -> str | None:
+    def dry_run(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        sql: str,
+        parameters: Sequence[object] = (),
+    ) -> str | None:
         """Validate that DuckDB can plan the query without executing it."""
         try:
-            conn.execute(f"EXPLAIN {sql}")
+            if parameters:
+                conn.execute(f"EXPLAIN {sql}", parameters)
+            else:
+                conn.execute(f"EXPLAIN {sql}")
         except Exception:
             return "Query could not be planned safely. Please try a different question."
         return None
