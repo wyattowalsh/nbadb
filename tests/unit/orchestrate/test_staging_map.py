@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from nbadb.contracts.staging_route_contract import staging_route_contract_bundle
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
     StagingEntry,
@@ -151,7 +152,7 @@ def _extractor_endpoint_metadata() -> dict[str, tuple[str, bool]]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        assert len(STAGING_MAP) == 416
+        assert len(STAGING_MAP) == 438
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -159,13 +160,13 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 90
+        assert len(entries) == 91
         assert all(e.param_pattern == "season" for e in entries)
         assert any(e.endpoint_name == "player_career_by_college" for e in entries)
 
     def test_get_by_pattern_game(self) -> None:
         entries = get_by_pattern("game")
-        assert len(entries) == 52
+        assert len(entries) == 67
 
     def test_get_by_pattern_live(self) -> None:
         entries = get_by_pattern("live")
@@ -237,7 +238,7 @@ class TestStagingMap:
 
     def test_get_by_pattern_player_team_season(self) -> None:
         entries = get_by_pattern("player_team_season")
-        assert len(entries) == 30
+        assert len(entries) == 34
         assert {entry.endpoint_name for entry in entries} == {
             "player_vs_player",
             "team_and_players_vs",
@@ -246,6 +247,21 @@ class TestStagingMap:
             "video_details",
             "video_details_asset",
         }
+
+    def test_team_and_players_vs_players_preserves_all_physical_alias_results(self) -> None:
+        entries = [
+            entry for entry in STAGING_MAP if entry.endpoint_name == "team_and_players_vs_players"
+        ]
+
+        assert [(entry.result_set_index, entry.staging_key) for entry in entries] == [
+            (0, "stg_team_and_players_vs_players"),
+            (1, "stg_team_and_players_vs_players_team_off"),
+            (2, "stg_team_and_players_vs_players_team_on"),
+            (3, "stg_team_and_players_vs_players_team_vs"),
+            (4, "stg_team_and_players_vs_players_team_vs_off"),
+        ]
+        assert len({entry.staging_key for entry in entries}) == 5
+        assert all(entry.use_multi for entry in entries)
 
     def test_get_by_pattern_team_season(self) -> None:
         entries = get_by_pattern("team_season")
@@ -267,7 +283,14 @@ class TestStagingMap:
         assert "team_player_on_off_summary" in names
 
     def test_get_by_pattern_static(self) -> None:
-        assert len(get_by_pattern("static")) == 33
+        entries = get_by_pattern("static")
+        assert len(entries) == 35
+        assert {
+            "static_players",
+            "static_teams",
+            "static_wnba_players",
+            "static_wnba_teams",
+        } <= {entry.endpoint_name for entry in entries}
 
     def test_get_by_pattern_date(self) -> None:
         assert len(get_by_pattern("date")) == 18
@@ -568,3 +591,26 @@ class TestStagingMap:
     def test_audited_missing_endpoints_are_now_represented(self) -> None:
         staging_names = {e.endpoint_name for e in STAGING_MAP}
         assert sorted(_AUDITED_MISSING_ENDPOINTS - staging_names) == []
+
+    def test_exact_route_contract_preserves_staging_map_order_and_identity(self) -> None:
+        routes = staging_route_contract_bundle().routes
+
+        assert tuple(
+            (
+                route.ordinal,
+                route.endpoint_name,
+                route.staging_key,
+                route.declared_result_set_index,
+                route.use_multi,
+            )
+            for route in routes
+        ) == tuple(
+            (
+                ordinal,
+                entry.endpoint_name,
+                entry.staging_key,
+                entry.result_set_index,
+                entry.use_multi,
+            )
+            for ordinal, entry in enumerate(STAGING_MAP)
+        )

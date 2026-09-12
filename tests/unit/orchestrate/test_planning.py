@@ -3,20 +3,25 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
 from nbadb.core.types import VIDEO_CONTEXT_MEASURES, SeasonType
+from nbadb.orchestrate.cume_workload_contract import CumeEntityKind, CumeWorkloadValue
 from nbadb.orchestrate.extraction_contract import (
     FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
+    POST_FOUNDATION_DEPENDENT_ENDPOINTS,
     contract_blocking_rules_for_lane,
 )
 from nbadb.orchestrate.full_extraction_control import build_default_manifest, validate_manifest
 from nbadb.orchestrate.planning import (
     PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS,
     build_extraction_plan,
+    cume_workload_execution_params,
     executable_endpoint_routes,
 )
 from nbadb.orchestrate.seasons import season_range
-from nbadb.orchestrate.staging_map import STAGING_MAP, get_by_pattern
+from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry, get_by_pattern
 
 _GET_BY_PATTERN = "nbadb.orchestrate.planning.get_by_pattern"
 _DEFAULT_SEASON_TYPES = ("Regular Season", "Playoffs")
@@ -26,7 +31,9 @@ def test_player_team_season_routes_are_plannable_or_explicitly_excluded() -> Non
     routed_endpoints = {entry.endpoint_name for entry in get_by_pattern("player_team_season")}
 
     assert routed_endpoints <= (
-        PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS | FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT.keys()
+        PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS
+        | POST_FOUNDATION_DEPENDENT_ENDPOINTS
+        | FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT.keys()
     )
 
 
@@ -61,7 +68,9 @@ def test_full_manifest_has_a_runtime_route_for_every_active_endpoint() -> None:
         player_team_season_params=workload_params,
         season_types=season_types,
     )
-    routes = {(entry.endpoint_name, item.pattern) for item in plan for entry in item.entries}
+    routes = {
+        (entry.endpoint_name, item.pattern) for item in plan for entry in item.coverage_entries
+    }
     capability_routes = executable_endpoint_routes()
     scheduled_routes = {
         (endpoint_name, pattern)
@@ -135,6 +144,110 @@ def _entry(
 
 
 class TestBuildExtractionPlan:
+    def test_isolates_cume_foundation_without_scheduling_incomplete_dependent(self) -> None:
+        ordinary = StagingEntry(
+            "player_game_log",
+            "stg_player_game_log",
+            "player_season",
+            season_type_capability="supported",
+            supported_season_types=("Regular Season",),
+        )
+        dependent = StagingEntry(
+            "cume_stats_player",
+            "stg_cume_player",
+            "player_season",
+            use_multi=True,
+            season_type_capability="supported",
+            supported_season_types=("Regular Season",),
+        )
+        foundation = StagingEntry(
+            "cume_stats_player_games",
+            "stg_cume_player_games",
+            "player_season",
+            season_type_capability="supported",
+            supported_season_types=("Regular Season",),
+        )
+
+        with patch(
+            _GET_BY_PATTERN,
+            side_effect=lambda pattern: (
+                [ordinary, dependent, foundation] if pattern == "player_season" else []
+            ),
+        ):
+            plan = build_extraction_plan(
+                seasons=["2024-25"],
+                game_ids=[],
+                player_ids=[201939],
+                team_ids=[],
+                game_dates=[],
+                season_types=["Regular Season"],
+            )
+
+        assert len(plan) == 2
+        ordinary_item = next(item for item in plan if item.cume_dependency is None)
+        cume_item = next(item for item in plan if item.cume_dependency is not None)
+        assert ordinary_item.entries == [ordinary]
+        assert cume_item.entries == [foundation]
+        assert cume_item.coverage_entries == (foundation, dependent)
+        assert cume_item.params == [
+            {
+                "player_id": 201939,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            }
+        ]
+        assert "game_ids" not in cume_item.params[0]
+        assert cume_item.task_count == 2
+
+    def test_cume_dependent_without_paired_foundation_fails_closed(self) -> None:
+        dependent = StagingEntry(
+            "cume_stats_player",
+            "stg_cume_player",
+            "player_season",
+            use_multi=True,
+            season_type_capability="supported",
+            supported_season_types=("Regular Season",),
+        )
+
+        with (
+            patch(
+                _GET_BY_PATTERN,
+                side_effect=lambda pattern: [dependent] if pattern == "player_season" else [],
+            ),
+            pytest.raises(ValueError, match="requires exactly one"),
+        ):
+            build_extraction_plan(
+                seasons=["2024-25"],
+                game_ids=[],
+                player_ids=[201939],
+                team_ids=[],
+                game_dates=[],
+                season_types=["Regular Season"],
+            )
+
+    def test_complete_cume_workload_serializes_to_journal_safe_parameters(self) -> None:
+        workload = CumeWorkloadValue.complete(
+            entity_kind=CumeEntityKind.PLAYER,
+            entity_id=201939,
+            season="2024-25",
+            season_type="Regular Season",
+            game_ids=("0022400001", "0022400002"),
+            foundation_receipt_sha256="a" * 64,
+            provider_authority_sha256="b" * 64,
+        )
+
+        params = cume_workload_execution_params(workload)
+
+        assert params == {
+            "player_id": 201939,
+            "season": "2024-25",
+            "season_type": "Regular Season",
+            "game_ids": "0022400001|0022400002",
+            "cume_workload_sha256": workload.content_sha256,
+            "foundation_receipt_sha256": "a" * 64,
+            "provider_authority_sha256": "b" * 64,
+        }
+
     def test_builds_expected_default_patterns_in_priority_order(self) -> None:
         static_entries = [_entry("franchise_history")]
         season_entries = [_entry("league_game_log"), _entry("league_standings")]

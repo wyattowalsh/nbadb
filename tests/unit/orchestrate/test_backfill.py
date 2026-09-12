@@ -430,8 +430,7 @@ class TestBackfillPlannerBuildPlan:
                     "season_type": "Regular Season",
                 }
             ],
-            seasons=["2024-25"],
-            season_types=["Regular Season"],
+            covered_pairs={("2024-25", "Regular Season")},
         )
         planner = BackfillPlanner(conn, journal, player_team_season_workloads=store)
 
@@ -898,8 +897,10 @@ class TestCompletenessSummaryUnknown:
                     "season_type": "Playoffs",
                 },
             ],
-            seasons=["2024-25"],
-            season_types=["Regular Season", "Playoffs"],
+            covered_pairs={
+                ("2024-25", "Regular Season"),
+                ("2024-25", "Playoffs"),
+            },
         )
         planner = BackfillPlanner(conn, journal, player_team_season_workloads=store)
         _seed_done(

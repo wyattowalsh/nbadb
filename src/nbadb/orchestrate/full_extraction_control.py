@@ -4,36 +4,100 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
 from contextlib import suppress
 from dataclasses import asdict, dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import duckdb
 
+from nbadb.contracts.assurance_admission import (
+    AssuranceAdmission,
+    AssuranceAdmissionError,
+    require_production_admissible,
+)
+from nbadb.core.nba_api_provenance import (
+    expected_nba_api_provider_authority,
+    normalize_nba_api_provider_authority,
+)
 from nbadb.core.types import (
     PLAY_IN_FIRST_SEASON_START_YEAR,
     VIDEO_CONTEXT_MEASURES,
     SeasonType,
     classify_season_type_availability,
 )
+from nbadb.extract.bronze import LogicalCallReceiptBinding, canonical_parameters_sha256
 from nbadb.orchestrate.checkpoint_contract import (
     CheckpointArtifactReceipt,
     CheckpointState,
     CheckpointTransaction,
+    CheckpointW2AuthorityIdentity,
+)
+from nbadb.orchestrate.dependent_workload_contract import canonical_sha256
+from nbadb.orchestrate.dependent_workload_planning import (
+    DEPENDENT_CALLS_PER_LANE,
+    DEPENDENT_LANE_KIND,
+    DependentExecutionPlan,
+    write_post_foundation_artifact,
 )
 from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extraction_contract import (
     DISCOVERY_SEED_OWNED_ENDPOINTS,
     FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
+    POST_FOUNDATION_DEPENDENT_ENDPOINTS,
     FinalLaneOutcome,
     contract_blocking_rules_for_lane,
 )
+from nbadb.orchestrate.free_execution_admission import (
+    FreeExecutionAdmissionV1,
+    FreeExecutionAuthorityBundleV1,
+    FreeExecutionMode,
+    canonical_json_bytes,
+)
+from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.orchestrate.operation_authority import (
+    ActionsRuntimeView,
+    OperationAuthorityError,
+    OperationAuthorityV1,
+    OperationKind,
+)
 from nbadb.orchestrate.planning import PATTERN_PRIORITY, executable_endpoint_routes
+from nbadb.orchestrate.public_value_authority_store import (
+    PUBLIC_VALUE_AUTHORITY_CANDIDATE_JOURNAL,
+    PUBLIC_VALUE_AUTHORITY_TABLES,
+    PublicValueAuthorityStore,
+)
+from nbadb.orchestrate.raw_publication_inventory import (
+    raw_request_authority_private_tables,
+)
+from nbadb.orchestrate.raw_request_store import (
+    RAW_REQUEST_AUTHORITY_BUNDLE_JOURNAL,
+    RAW_REQUEST_AUTHORITY_MANIFEST_JOURNAL,
+    RAW_REQUEST_AUTHORITY_TABLES,
+    RawRequestAuthorityStore,
+)
 from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.staging_batches import (
+    CANONICAL_FRAME_FORMAT,
+    FRAME_CONTENT_HASH_CONTRACT,
+    FRAME_SCHEMA_HASH_CONTRACT,
+)
 from nbadb.orchestrate.staging_map import STAGING_MAP
+from nbadb.orchestrate.w2_database_assurance import (
+    W2DatabaseAuthorityReceiptV1,
+    verify_w2_database_authority,
+)
+from nbadb.orchestrate.w2_operation_store import (
+    RAW_NBA_API_W2_OPERATION_TABLE,
+    W2OperationStore,
+)
+from nbadb.orchestrate.w2_publication_inventory import (
+    w2_public_value_authority_publication_tables,
+)
 from nbadb.orchestrate.workload_contract import (
     PlayerTeamSeasonWorkloadBaseUnit,
     PlayerTeamSeasonWorkloadStore,
@@ -49,9 +113,16 @@ from nbadb.orchestrate.workload_profile import (
 )
 
 DEFAULT_HISTORICAL_START = 1946
-MANIFEST_VERSION = 3
+MANIFEST_VERSION = 5
+FREE_EXECUTION_WORKFLOW_PATH = Path(".github/workflows/full-extraction.yml")
+FREE_EXECUTION_ADMISSION_JOB_ID = "plan"
+FREE_EXECUTION_REQUESTED_CAPACITY = 1
+FREE_EXECUTION_EVIDENCE_TTL = timedelta(minutes=5)
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
 MAX_GITHUB_MATRIX_LANES = 256
+DEPENDENT_WORKLOAD_MANIFEST_SCHEMA_VERSION = 1
+DEPENDENT_ITERATION_RESERVE = 256
+DEPENDENT_LANE_TIMEOUT_SECONDS = 7_200
 SCHEDULER_DIVERSITY_WINDOW = 6
 MAX_CUMULATIVE_LANE_RETRIES = 12
 SCHEDULER_QUEUE_SEQUENCE = (
@@ -310,6 +381,20 @@ class FullExtractionLane:
     state_artifact_run_id: str = ""
     state_artifact_name: str = ""
     state_artifact_digest: str = ""
+    state_artifact_id: str = ""
+    state_artifact_archive_digest: str = ""
+    dependent_artifact_run_id: str = ""
+    dependent_artifact_id: str = ""
+    dependent_artifact_name: str = ""
+    dependent_artifact_digest: str = ""
+    dependent_plan_sha256: str = ""
+    dependent_bundle_sha256: str = ""
+    dependent_foundation_transaction_sha256: str = ""
+    dependent_provider_authority_sha256: str = ""
+    dependent_lane_sha256: str = ""
+    dependent_lane_role: str = ""
+    dependent_call_count: int = 0
+    dependent_semantic_unit_count: int = 0
 
     def to_workflow_dict(self) -> dict[str, Any]:
         return {
@@ -345,6 +430,22 @@ class FullExtractionLane:
             "state_artifact_run_id": self.state_artifact_run_id,
             "state_artifact_name": self.state_artifact_name,
             "state_artifact_digest": self.state_artifact_digest,
+            "state_artifact_id": self.state_artifact_id,
+            "state_artifact_archive_digest": self.state_artifact_archive_digest,
+            "dependent_artifact_run_id": self.dependent_artifact_run_id,
+            "dependent_artifact_id": self.dependent_artifact_id,
+            "dependent_artifact_name": self.dependent_artifact_name,
+            "dependent_artifact_digest": self.dependent_artifact_digest,
+            "dependent_plan_sha256": self.dependent_plan_sha256,
+            "dependent_bundle_sha256": self.dependent_bundle_sha256,
+            "dependent_foundation_transaction_sha256": (
+                self.dependent_foundation_transaction_sha256
+            ),
+            "dependent_provider_authority_sha256": (self.dependent_provider_authority_sha256),
+            "dependent_lane_sha256": self.dependent_lane_sha256,
+            "dependent_lane_role": self.dependent_lane_role,
+            "dependent_call_count": self.dependent_call_count,
+            "dependent_semantic_unit_count": self.dependent_semantic_unit_count,
         }
 
 
@@ -465,10 +566,26 @@ class FullExtractionChainState:
 @dataclass(frozen=True, slots=True)
 class FullExtractionManifest:
     lanes: tuple[FullExtractionLane, ...]
+    assurance_admission: AssuranceAdmission
+    chain_id: str
+    workflow_source_sha: str
+    provider_authority: dict[str, Any]
+    dependent_workload: dict[str, Any] | None = None
     chain_state: FullExtractionChainState = field(default_factory=FullExtractionChainState)
     matrix_lane_ids: frozenset[str] = field(default_factory=frozenset)
-    chain_id: str = ""
-    workflow_source_sha: str = ""
+
+    def __post_init__(self) -> None:
+        provenance = _manifest_provenance_payload(self.chain_id, self.workflow_source_sha)
+        if not provenance:
+            raise ValueError("Full-extraction manifest requires chain_id and workflow_source_sha")
+        provider_authority = normalize_nba_api_provider_authority(self.provider_authority)
+        dependent_workload = _normalize_dependent_workload(self.dependent_workload)
+        object.__setattr__(self, "dependent_workload", dependent_workload)
+        _normalize_assurance_admission(
+            self.assurance_admission,
+            workflow_source_sha=provenance["workflow_source_sha"],
+            provider_authority=provider_authority,
+        )
 
 
 def _normalize_server_list(raw: Any) -> tuple[str, ...]:
@@ -592,6 +709,111 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
             raw_chain_state.get("pending_contract_blocked_evidence_sha256")
         ),
     )
+
+
+def _foundation_required_dependent_workload() -> dict[str, Any]:
+    return {
+        "schema_version": DEPENDENT_WORKLOAD_MANIFEST_SCHEMA_VERSION,
+        "state": "foundation_required",
+        "endpoints": sorted(POST_FOUNDATION_DEPENDENT_ENDPOINTS),
+    }
+
+
+def _normalize_dependent_workload(raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("dependent_workload must be an object")
+    base_fields = {"schema_version", "state", "endpoints"}
+    state = raw.get("state")
+    if (
+        raw.get("schema_version") != DEPENDENT_WORKLOAD_MANIFEST_SCHEMA_VERSION
+        or state not in {"foundation_required", "planned", "complete"}
+        or raw.get("endpoints") != sorted(POST_FOUNDATION_DEPENDENT_ENDPOINTS)
+    ):
+        raise ValueError("dependent_workload identity is invalid")
+    if state == "foundation_required":
+        if set(raw) != base_fields:
+            raise ValueError("foundation dependent_workload fields are invalid")
+        return _foundation_required_dependent_workload()
+
+    planned_fields = base_fields | {
+        "artifact_run_id",
+        "artifact_id",
+        "artifact_name",
+        "artifact_digest",
+        "artifact_size_bytes",
+        "bundle_content_sha256",
+        "execution_plan_content_sha256",
+        "foundation_checkpoint_transaction_sha256",
+        "foundation_checkpoint_database_sha256",
+        "provider_authority_sha256",
+        "scope_dispositions_sha256",
+        "lane_inventory_sha256",
+        "semantic_unit_count",
+        "physical_call_count",
+        "scope_disposition_count",
+        "scope_disposition_counts",
+        "execution_lane_count",
+    }
+    expected_fields = (
+        planned_fields | {"terminal_checkpoint_transaction_sha256"}
+        if state == "complete"
+        else planned_fields
+    )
+    if set(raw) != expected_fields:
+        raise ValueError("planned dependent_workload fields are invalid")
+    artifact_run_id = str(raw["artifact_run_id"])
+    artifact_id = str(raw["artifact_id"])
+    artifact_name = str(raw["artifact_name"])
+    artifact_digest = str(raw["artifact_digest"]).lower()
+    if (
+        not _is_positive_run_id(artifact_run_id)
+        or not _is_positive_run_id(artifact_id)
+        or re.fullmatch(r"[A-Za-z0-9_.-]+", artifact_name) is None
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is None
+    ):
+        raise ValueError("dependent_workload artifact receipt is invalid")
+    sha_fields = (
+        "bundle_content_sha256",
+        "execution_plan_content_sha256",
+        "foundation_checkpoint_transaction_sha256",
+        "foundation_checkpoint_database_sha256",
+        "provider_authority_sha256",
+        "scope_dispositions_sha256",
+        "lane_inventory_sha256",
+    )
+    if any(not _is_sha256(str(raw[field_name])) for field_name in sha_fields):
+        raise ValueError("dependent_workload content authority is invalid")
+    if state == "complete" and not _is_sha256(str(raw["terminal_checkpoint_transaction_sha256"])):
+        raise ValueError("dependent_workload terminal checkpoint authority is invalid")
+    count_fields = (
+        "artifact_size_bytes",
+        "semantic_unit_count",
+        "physical_call_count",
+        "scope_disposition_count",
+        "execution_lane_count",
+    )
+    if (
+        any(type(raw[field_name]) is not int or raw[field_name] < 0 for field_name in count_fields)
+        or raw["artifact_size_bytes"] < 1
+    ):
+        raise ValueError("dependent_workload counts are invalid")
+    if raw["execution_lane_count"] < 1:
+        raise ValueError("dependent_workload requires its scope-accounting lane")
+    disposition_counts = raw["scope_disposition_counts"]
+    if (
+        not isinstance(disposition_counts, dict)
+        or set(disposition_counts) != {"complete", "typed_zero", "blocked"}
+        or any(type(value) is not int or value < 0 for value in disposition_counts.values())
+        or sum(disposition_counts.values()) != raw["scope_disposition_count"]
+    ):
+        raise ValueError("dependent_workload disposition counts are invalid")
+    normalized = dict(raw)
+    normalized["artifact_run_id"] = artifact_run_id
+    normalized["artifact_id"] = artifact_id
+    normalized["artifact_digest"] = artifact_digest
+    return normalized
 
 
 def _parse_csv(raw: str | None) -> list[str] | None:
@@ -722,6 +944,7 @@ def _runnable_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         row
         for row in rows
         if str(row.get("endpoint_name", "")) not in FULL_EXTRACTION_EXCLUDED_ENDPOINTS
+        and str(row.get("endpoint_name", "")) not in POST_FOUNDATION_DEPENDENT_ENDPOINTS
         and str(row.get("endpoint_name", "")) not in DISCOVERY_SEED_OWNED_ENDPOINTS
     ]
 
@@ -1124,6 +1347,27 @@ def _profile_max_span_for_lane(lane: FullExtractionLane) -> int | None:
 
 
 def _coverage_units_for_lane(lane: FullExtractionLane) -> list[dict[str, Any]]:
+    if lane.lane_kind == DEPENDENT_LANE_KIND:
+        return [
+            {
+                "lane_kind": DEPENDENT_LANE_KIND,
+                "lane_role": lane.dependent_lane_role,
+                "lane_content_sha256": lane.dependent_lane_sha256,
+                "execution_plan_content_sha256": lane.dependent_plan_sha256,
+                "bundle_content_sha256": lane.dependent_bundle_sha256,
+                "foundation_checkpoint_transaction_sha256": (
+                    lane.dependent_foundation_transaction_sha256
+                ),
+                "provider_authority_sha256": (lane.dependent_provider_authority_sha256),
+                "artifact_run_id": lane.dependent_artifact_run_id,
+                "artifact_id": lane.dependent_artifact_id,
+                "artifact_name": lane.dependent_artifact_name,
+                "artifact_digest": lane.dependent_artifact_digest,
+                "endpoints": list(lane.endpoints),
+                "physical_call_count": lane.dependent_call_count,
+                "semantic_unit_count": lane.dependent_semantic_unit_count,
+            }
+        ]
     patterns = lane.patterns or ("",)
     endpoints = lane.endpoints or ("",)
     season_types = lane.season_types or ("",)
@@ -1420,7 +1664,12 @@ def _lane_has_state_artifact_pointer(lane: FullExtractionLane) -> bool:
     # Restore revalidates the receipt and full provenance before the VPN step.
     run_id = lane.state_artifact_run_id
     artifact_name = lane.state_artifact_name
-    if not _is_positive_run_id(run_id) or not _is_sha256(lane.state_artifact_digest):
+    if (
+        not _is_positive_run_id(run_id)
+        or not _is_sha256(lane.state_artifact_digest)
+        or not _is_positive_run_id(lane.state_artifact_id)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", lane.state_artifact_archive_digest.lower()) is None
+    ):
         return False
 
     prefix = "extraction-lane-recovery-"
@@ -1445,11 +1694,141 @@ def _validate_unique_lane_ids(lanes: list[FullExtractionLane]) -> None:
     _raise_manifest_errors(_duplicate_lane_id_errors(lanes))
 
 
-def validate_manifest(lanes: list[FullExtractionLane]) -> None:
+def _dependent_manifest_errors(
+    lanes: list[FullExtractionLane],
+    dependent_workload: dict[str, Any] | None,
+) -> list[str]:
+    errors: list[str] = []
+    dependent_lanes = [lane for lane in lanes if lane.lane_kind == DEPENDENT_LANE_KIND]
+    foundation_lanes = [lane for lane in lanes if lane.lane_kind != DEPENDENT_LANE_KIND]
+    if dependent_workload is None:
+        if dependent_lanes:
+            errors.append("dependent lanes require a dependent_workload contract")
+        return errors
+
+    state = dependent_workload["state"]
+    if state == "foundation_required":
+        if dependent_lanes:
+            errors.append("foundation_required cannot contain dependent lanes")
+        return errors
+
+    if not dependent_lanes:
+        errors.append(f"{state} dependent_workload requires dependent lanes")
+        return errors
+    if any(not lane.resume_only for lane in foundation_lanes):
+        errors.append("dependent execution requires every foundation lane to be committed")
+    if len(dependent_lanes) != dependent_workload["execution_lane_count"]:
+        errors.append("dependent lane count differs from the execution-plan inventory")
+    if (
+        sum(lane.dependent_call_count for lane in dependent_lanes)
+        != dependent_workload["physical_call_count"]
+    ):
+        errors.append("dependent physical-call count is not conserved")
+    accounting_lanes = [
+        lane for lane in dependent_lanes if lane.dependent_lane_role == "scope_accounting"
+    ]
+    if len(accounting_lanes) != 1:
+        errors.append("dependent manifest requires exactly one scope-accounting lane")
+    expected_fields = {
+        "dependent_artifact_run_id": str(dependent_workload["artifact_run_id"]),
+        "dependent_artifact_id": str(dependent_workload["artifact_id"]),
+        "dependent_artifact_name": str(dependent_workload["artifact_name"]),
+        "dependent_artifact_digest": str(dependent_workload["artifact_digest"]),
+        "dependent_plan_sha256": str(dependent_workload["execution_plan_content_sha256"]),
+        "dependent_bundle_sha256": str(dependent_workload["bundle_content_sha256"]),
+        "dependent_foundation_transaction_sha256": str(
+            dependent_workload["foundation_checkpoint_transaction_sha256"]
+        ),
+        "dependent_provider_authority_sha256": str(dependent_workload["provider_authority_sha256"]),
+    }
+    for lane in dependent_lanes:
+        mismatches = [
+            field_name
+            for field_name, expected in expected_fields.items()
+            if str(getattr(lane, field_name)) != expected
+        ]
+        if mismatches:
+            errors.append(f"{lane.lane_id}: dependent authority mismatch: {', '.join(mismatches)}")
+    if state == "complete" and any(not lane.resume_only for lane in dependent_lanes):
+        errors.append("complete dependent_workload cannot contain active dependent lanes")
+    return errors
+
+
+def validate_manifest(
+    lanes: list[FullExtractionLane],
+    *,
+    dependent_workload: dict[str, Any] | None = None,
+) -> None:
     errors = _duplicate_lane_id_errors(lanes)
+    errors.extend(_dependent_manifest_errors(lanes, dependent_workload))
     executable_routes = executable_endpoint_routes()
     executable_patterns = frozenset(PATTERN_PRIORITY)
     for lane in lanes:
+        dependent_fields_present = any(
+            (
+                lane.dependent_artifact_run_id,
+                lane.dependent_artifact_id,
+                lane.dependent_artifact_name,
+                lane.dependent_artifact_digest,
+                lane.dependent_plan_sha256,
+                lane.dependent_bundle_sha256,
+                lane.dependent_foundation_transaction_sha256,
+                lane.dependent_provider_authority_sha256,
+                lane.dependent_lane_sha256,
+                lane.dependent_lane_role,
+                lane.dependent_call_count,
+                lane.dependent_semantic_unit_count,
+            )
+        )
+        if lane.lane_kind == DEPENDENT_LANE_KIND:
+            if lane.patterns or lane.season_types or lane.context_measures:
+                errors.append(f"{lane.lane_id}: dependent lane cannot use Cartesian pattern scopes")
+            if lane.season_start is not None or lane.season_end is not None:
+                errors.append(f"{lane.lane_id}: dependent lane cannot use season bands")
+            if (
+                not _is_positive_run_id(lane.dependent_artifact_run_id)
+                or not _is_positive_run_id(lane.dependent_artifact_id)
+                or re.fullmatch(r"[A-Za-z0-9_.-]+", lane.dependent_artifact_name) is None
+                or re.fullmatch(r"sha256:[0-9a-f]{64}", lane.dependent_artifact_digest.lower())
+                is None
+                or any(
+                    not _is_sha256(value)
+                    for value in (
+                        lane.dependent_plan_sha256,
+                        lane.dependent_bundle_sha256,
+                        lane.dependent_foundation_transaction_sha256,
+                        lane.dependent_provider_authority_sha256,
+                        lane.dependent_lane_sha256,
+                    )
+                )
+            ):
+                errors.append(f"{lane.lane_id}: dependent artifact authority is invalid")
+            if lane.dependent_lane_role == "scope_accounting":
+                if (
+                    lane.endpoints
+                    or lane.dependent_call_count != 0
+                    or lane.dependent_semantic_unit_count != 0
+                ):
+                    errors.append(f"{lane.lane_id}: scope-accounting lane must contain no calls")
+            elif lane.dependent_lane_role == "execute":
+                if (
+                    len(lane.endpoints) != 1
+                    or lane.endpoints[0] not in POST_FOUNDATION_DEPENDENT_ENDPOINTS
+                    or not 1 <= lane.dependent_call_count <= DEPENDENT_CALLS_PER_LANE
+                    or not 1 <= lane.dependent_semantic_unit_count <= lane.dependent_call_count
+                ):
+                    errors.append(f"{lane.lane_id}: dependent execution lane scope is invalid")
+            else:
+                errors.append(f"{lane.lane_id}: dependent lane role is invalid")
+        else:
+            if dependent_fields_present:
+                errors.append(f"{lane.lane_id}: non-dependent lane carries dependent authority")
+            deferred_endpoints = sorted(set(lane.endpoints) & POST_FOUNDATION_DEPENDENT_ENDPOINTS)
+            if deferred_endpoints:
+                errors.append(
+                    f"{lane.lane_id}: post-foundation endpoints require dependent lanes: "
+                    f"{', '.join(deferred_endpoints)}"
+                )
         unknown_context_measures = sorted(set(lane.context_measures) - set(VIDEO_CONTEXT_MEASURES))
         if unknown_context_measures:
             errors.append(
@@ -1507,6 +1886,8 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
                 lane.state_artifact_run_id,
                 lane.state_artifact_name,
                 lane.state_artifact_digest,
+                lane.state_artifact_id,
+                lane.state_artifact_archive_digest,
             )
         )
         if state_pointer_present and not _lane_has_state_artifact_pointer(lane):
@@ -1549,6 +1930,18 @@ def _legacy_failure_class(reason: str) -> str:
     return "application"
 
 
+def _exact_manifest_bool(
+    raw: dict[str, Any],
+    field_name: str,
+    *,
+    default: bool,
+) -> bool:
+    value = raw.get(field_name, default)
+    if type(value) is not bool:
+        raise ValueError(f"lane {field_name} must be an exact boolean")
+    return value
+
+
 def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     patterns = tuple(str(pattern) for pattern in raw.get("patterns", []) if str(pattern))
     season_types = tuple(str(value) for value in raw.get("season_types", []) if str(value))
@@ -1570,8 +1963,8 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         season_types=season_types,
         context_measures=context_measures,
         endpoints=endpoints,
-        use_vpn=bool(raw.get("use_vpn", True)),
-        resume_only=bool(raw.get("resume_only", False)),
+        use_vpn=_exact_manifest_bool(raw, "use_vpn", default=True),
+        resume_only=_exact_manifest_bool(raw, "resume_only", default=False),
         timeout_seconds=int(raw.get("timeout_seconds") or 7_200),
         failure_streak=int(raw.get("failure_streak") or 0),
         last_failure_reason=last_failure_reason,
@@ -1596,6 +1989,24 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         state_artifact_run_id=str(raw.get("state_artifact_run_id") or ""),
         state_artifact_name=str(raw.get("state_artifact_name") or ""),
         state_artifact_digest=str(raw.get("state_artifact_digest") or ""),
+        state_artifact_id=str(raw.get("state_artifact_id") or ""),
+        state_artifact_archive_digest=str(raw.get("state_artifact_archive_digest") or ""),
+        dependent_artifact_run_id=str(raw.get("dependent_artifact_run_id") or ""),
+        dependent_artifact_id=str(raw.get("dependent_artifact_id") or ""),
+        dependent_artifact_name=str(raw.get("dependent_artifact_name") or ""),
+        dependent_artifact_digest=str(raw.get("dependent_artifact_digest") or ""),
+        dependent_plan_sha256=str(raw.get("dependent_plan_sha256") or ""),
+        dependent_bundle_sha256=str(raw.get("dependent_bundle_sha256") or ""),
+        dependent_foundation_transaction_sha256=str(
+            raw.get("dependent_foundation_transaction_sha256") or ""
+        ),
+        dependent_provider_authority_sha256=str(
+            raw.get("dependent_provider_authority_sha256") or ""
+        ),
+        dependent_lane_sha256=str(raw.get("dependent_lane_sha256") or ""),
+        dependent_lane_role=str(raw.get("dependent_lane_role") or ""),
+        dependent_call_count=int(raw.get("dependent_call_count") or 0),
+        dependent_semantic_unit_count=int(raw.get("dependent_semantic_unit_count") or 0),
     )
     if not lane.coverage_units_hash:
         lane = replace(lane, coverage_units_hash=_coverage_hash_for_lane(lane))
@@ -1967,40 +2378,93 @@ def build_default_manifest(
     )
 
 
-def normalize_manifest(
-    raw_manifest: dict[str, Any] | list[dict[str, Any]],
-) -> FullExtractionManifest:
-    raw_lanes = raw_manifest.get("lanes", []) if isinstance(raw_manifest, dict) else raw_manifest
-    chain_state = (
-        _normalize_chain_state(raw_manifest.get("chain_state", {}))
-        if isinstance(raw_manifest, dict)
-        else FullExtractionChainState()
+def _normalize_assurance_admission(
+    raw_admission: Any,
+    *,
+    workflow_source_sha: str | None,
+    provider_authority: dict[str, Any],
+) -> AssuranceAdmission:
+    try:
+        if isinstance(raw_admission, AssuranceAdmission):
+            admission = raw_admission
+        elif isinstance(raw_admission, dict):
+            admission = AssuranceAdmission.from_dict(raw_admission)
+        else:
+            raise AssuranceAdmissionError("assurance admission must be an object")
+        admission = require_production_admissible(admission)
+    except AssuranceAdmissionError as exc:
+        raise ValueError(f"Full-extraction assurance admission is invalid: {exc}") from exc
+
+    normalized_source_sha = str(workflow_source_sha or admission.source_sha).strip().lower()
+    if not _is_source_sha(normalized_source_sha):
+        raise ValueError("workflow_source_sha must be a 40-character hexadecimal commit SHA")
+    if admission.source_sha != normalized_source_sha:
+        raise ValueError(
+            "Full-extraction assurance admission source SHA does not match workflow_source_sha"
+        )
+    if admission.provider_authority_sha256 != provider_authority["authority_sha256"]:
+        raise ValueError(
+            "Full-extraction assurance admission provider authority digest does not match"
+        )
+    if admission.provider_evidence_sha256 != provider_authority["provider_evidence_sha256"]:
+        raise ValueError(
+            "Full-extraction assurance admission provider evidence digest does not match"
+        )
+    return admission
+
+
+def normalize_manifest(raw_manifest: dict[str, Any]) -> FullExtractionManifest:
+    if not isinstance(raw_manifest, dict):
+        raise ValueError("Full-extraction manifest must be an object")
+    if (
+        type(raw_manifest.get("manifest_version")) is not int
+        or raw_manifest.get("manifest_version") != MANIFEST_VERSION
+    ):
+        raise ValueError(f"Full-extraction manifest_version must be exactly {MANIFEST_VERSION}")
+    provenance = _manifest_provenance_payload(
+        raw_manifest.get("chain_id"),
+        raw_manifest.get("workflow_source_sha"),
     )
+    if not provenance:
+        raise ValueError("Full-extraction manifest requires chain_id and workflow_source_sha")
+    provider_authority = normalize_nba_api_provider_authority(
+        raw_manifest.get("provider_authority")
+    )
+    assurance_admission = _normalize_assurance_admission(
+        raw_manifest.get("assurance_admission"),
+        workflow_source_sha=provenance["workflow_source_sha"],
+        provider_authority=provider_authority,
+    )
+    raw_lanes = raw_manifest.get("lanes", [])
+    chain_state = _normalize_chain_state(raw_manifest.get("chain_state", {}))
     lanes = tuple(
         _normalize_lane(dict(raw_lane), lane_index) for lane_index, raw_lane in enumerate(raw_lanes)
     )
-    raw_matrix = raw_manifest.get("github_matrix", {}) if isinstance(raw_manifest, dict) else {}
+    raw_matrix = raw_manifest.get("github_matrix", {})
     raw_matrix_include = raw_matrix.get("include", []) if isinstance(raw_matrix, dict) else []
     matrix_lane_ids = frozenset(
         str(row.get("lane_id", "")).strip()
         for row in raw_matrix_include
         if isinstance(row, dict) and str(row.get("lane_id", "")).strip()
     )
-    return FullExtractionManifest(
+    dependent_workload = _normalize_dependent_workload(raw_manifest.get("dependent_workload"))
+    manifest = FullExtractionManifest(
         lanes=lanes,
+        assurance_admission=assurance_admission,
         chain_state=chain_state,
         matrix_lane_ids=matrix_lane_ids,
-        chain_id=(
-            str(raw_manifest.get("chain_id") or "").strip()
-            if isinstance(raw_manifest, dict)
-            else ""
-        ),
-        workflow_source_sha=(
-            str(raw_manifest.get("workflow_source_sha") or "").strip().lower()
-            if isinstance(raw_manifest, dict)
-            else ""
-        ),
+        chain_id=provenance["chain_id"],
+        workflow_source_sha=assurance_admission.source_sha,
+        provider_authority=provider_authority,
+        dependent_workload=dependent_workload,
     )
+    _raise_manifest_errors(
+        [
+            *_duplicate_lane_id_errors(list(manifest.lanes)),
+            *_dependent_manifest_errors(list(manifest.lanes), dependent_workload),
+        ]
+    )
+    return manifest
 
 
 def _lane_summary_key(lane: FullExtractionLane, *, dimension: str) -> str:
@@ -2094,15 +2558,117 @@ def _manifest_provenance_payload(
     }
 
 
+def _expected_vpn_slot_loads(lane_count: int, vpn_slot_count: int) -> tuple[int, ...]:
+    if isinstance(lane_count, bool) or not isinstance(lane_count, int) or lane_count < 0:
+        raise ValueError("lane_count must be a non-negative integer")
+    if (
+        isinstance(vpn_slot_count, bool)
+        or not isinstance(vpn_slot_count, int)
+        or vpn_slot_count < 0
+    ):
+        raise ValueError("vpn_slot_count must be a non-negative integer")
+    if lane_count == 0 or vpn_slot_count == 0:
+        return ()
+    used_slot_count = min(lane_count, vpn_slot_count)
+    base_load, remainder = divmod(lane_count, used_slot_count)
+    return tuple(base_load + (index < remainder) for index in range(used_slot_count))
+
+
+def _validate_vpn_slot_assignments(
+    matrix_rows: list[dict[str, Any]],
+    *,
+    expected_lane_ids: list[str],
+    lane_count: int,
+    vpn_slot_count: int,
+) -> None:
+    """Fail closed when the emitted matrix violates VPN slot postconditions."""
+
+    def fail(reason: str) -> NoReturn:
+        raise ValueError(f"Invalid VPN slot assignment: {reason}")
+
+    if isinstance(lane_count, bool) or not isinstance(lane_count, int) or lane_count < 0:
+        fail("lane_count must be a non-negative integer")
+    if (
+        isinstance(vpn_slot_count, bool)
+        or not isinstance(vpn_slot_count, int)
+        or vpn_slot_count < 0
+    ):
+        fail("vpn_slot_count must be a non-negative integer")
+    if len(expected_lane_ids) != lane_count:
+        fail("expected lane inventory does not match lane_count")
+    if len(matrix_rows) != lane_count:
+        fail("matrix row count does not match lane_count")
+    if any(not isinstance(lane_id, str) or not lane_id.strip() for lane_id in expected_lane_ids):
+        fail("expected lane IDs must be non-empty strings")
+    if len(set(expected_lane_ids)) != lane_count:
+        fail("expected lane IDs contain duplicates")
+
+    row_lane_ids: list[str] = []
+    for row in matrix_rows:
+        lane_id = row.get("lane_id")
+        if not isinstance(lane_id, str) or not lane_id.strip():
+            fail("every matrix row must contain a non-empty lane_id")
+        row_lane_ids.append(lane_id)
+    if len(set(row_lane_ids)) != len(row_lane_ids):
+        fail("matrix row lane IDs contain duplicates")
+    if row_lane_ids != expected_lane_ids:
+        fail("matrix row lane IDs do not preserve expected membership and order")
+
+    rows_with_slots = [row for row in matrix_rows if "vpn_slot" in row]
+    if vpn_slot_count == 0:
+        if rows_with_slots:
+            fail("vpn slots require a positive vpn_slot_count")
+        return
+    if lane_count == 0:
+        if rows_with_slots:
+            fail("an empty matrix cannot contain VPN slots")
+        return
+    if len(rows_with_slots) != lane_count:
+        fail("every matrix row must contain a vpn_slot when VPN slots are enabled")
+
+    expected_slot_loads = _expected_vpn_slot_loads(lane_count, vpn_slot_count)
+    used_slot_count = len(expected_slot_loads)
+    slot_counts = [0] * used_slot_count
+    round_robin_order_valid = True
+    for row_index, row in enumerate(matrix_rows):
+        slot = row["vpn_slot"]
+        if isinstance(slot, bool) or not isinstance(slot, int):
+            fail("vpn_slot values must be integers")
+        if slot < 0 or slot >= used_slot_count:
+            fail(f"vpn_slot values must be between 0 and {used_slot_count - 1}")
+        slot_counts[slot] += 1
+        if slot != row_index % used_slot_count:
+            round_robin_order_valid = False
+
+    used_slots = {index for index, count in enumerate(slot_counts) if count}
+    if used_slots != set(range(used_slot_count)):
+        fail("used vpn_slot indexes must be contiguous from zero")
+    load_errors: list[str] = []
+    if max(slot_counts) - min(slot_counts) > 1:
+        load_errors.append("vpn_slot load counts must differ by at most one")
+    maximum_slot_load = math.ceil(lane_count / vpn_slot_count)
+    if max(slot_counts) > maximum_slot_load:
+        load_errors.append(f"vpn_slot load cannot exceed ceil(N/S)={maximum_slot_load}")
+    if tuple(slot_counts) != expected_slot_loads:
+        load_errors.append("vpn_slot loads do not match deterministic round-robin assignment")
+    if not round_robin_order_valid:
+        load_errors.append("vpn_slot row order does not match deterministic round-robin assignment")
+    if load_errors:
+        fail("; ".join(load_errors))
+
+
 def manifest_payload(
     lanes: list[FullExtractionLane],
     *,
+    assurance_admission: AssuranceAdmission | dict[str, Any],
+    chain_id: str,
     chain_state: FullExtractionChainState | None = None,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
     vpn_slot_count: int = 0,
     current_iteration: int = 1,
-    chain_id: str | None = None,
     workflow_source_sha: str | None = None,
+    provider_authority: dict[str, Any] | None = None,
+    dependent_workload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if max_matrix_lanes < 1 or max_matrix_lanes > MAX_GITHUB_MATRIX_LANES:
         msg = (
@@ -2110,11 +2676,23 @@ def manifest_payload(
             f"got {max_matrix_lanes}"
         )
         raise ValueError(msg)
-    if vpn_slot_count < 0 or vpn_slot_count > MAX_GITHUB_MATRIX_LANES:
+    if (
+        isinstance(vpn_slot_count, bool)
+        or not isinstance(vpn_slot_count, int)
+        or vpn_slot_count < 0
+        or vpn_slot_count > MAX_GITHUB_MATRIX_LANES
+    ):
         msg = (
             f"vpn_slot_count must be between 0 and {MAX_GITHUB_MATRIX_LANES}, got {vpn_slot_count}"
         )
         raise ValueError(msg)
+    normalized_dependent_workload = _normalize_dependent_workload(dependent_workload)
+    _raise_manifest_errors(
+        [
+            *_duplicate_lane_id_errors(lanes),
+            *_dependent_manifest_errors(lanes, normalized_dependent_workload),
+        ]
+    )
     lane_dicts = [_lane_payload(lane) for lane in lanes]
     active_lanes = [lane for lane in lanes if not lane.resume_only]
     matrix_lanes = active_lanes[:max_matrix_lanes]
@@ -2125,6 +2703,12 @@ def manifest_payload(
         if resolved_vpn_slot_count:
             row["vpn_slot"] = matrix_index % resolved_vpn_slot_count
         matrix_include.append(row)
+    _validate_vpn_slot_assignments(
+        matrix_include,
+        expected_lane_ids=[lane.lane_id for lane in matrix_lanes],
+        lane_count=len(matrix_lanes),
+        vpn_slot_count=vpn_slot_count,
+    )
     deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
     minimum_remaining_waves = math.ceil(len(active_lanes) / max_matrix_lanes)
     remaining_dispatch_credits = sum(
@@ -2150,6 +2734,18 @@ def manifest_payload(
     pattern_summary = _lane_cost_summary(active_lanes, dimension="pattern")
     family_summary = _lane_cost_summary(active_lanes, dimension="family")
     tier_summary = _lane_cost_summary(active_lanes, dimension="tier")
+    normalized_provider_authority = normalize_nba_api_provider_authority(
+        expected_nba_api_provider_authority() if provider_authority is None else provider_authority
+    )
+    normalized_assurance_admission = _normalize_assurance_admission(
+        assurance_admission,
+        workflow_source_sha=workflow_source_sha,
+        provider_authority=normalized_provider_authority,
+    )
+    provenance = _manifest_provenance_payload(
+        chain_id,
+        normalized_assurance_admission.source_sha,
+    )
     payload = {
         "manifest_version": MANIFEST_VERSION,
         "chunk_profile": chunk_profiles[0] if len(chunk_profiles) == 1 else "mixed",
@@ -2194,9 +2790,307 @@ def manifest_payload(
         "lanes": lane_dicts,
         "chain_state": resolved_chain_state.to_payload(),
         "github_matrix": {"include": matrix_include},
+        "provider_authority": normalized_provider_authority,
+        "assurance_admission": normalized_assurance_admission.to_dict(),
     }
-    payload.update(_manifest_provenance_payload(chain_id, workflow_source_sha))
+    if normalized_dependent_workload is not None:
+        payload["dependent_workload"] = normalized_dependent_workload
+    payload.update(provenance)
     return payload
+
+
+def _required_github_observation(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ValueError(f"{name} is required to record a capacity-blocked observation")
+    return value
+
+
+def _required_github_positive_int(name: str) -> int:
+    raw = _required_github_observation(name)
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if value <= 0 or str(value) != raw:
+        raise ValueError(f"{name} must be a canonical positive integer")
+    return value
+
+
+def _load_current_operation_authority(
+    path: Path,
+    *,
+    allowed_operations: frozenset[OperationKind],
+) -> OperationAuthorityV1:
+    """Load and independently bind one exact authority to this Actions runtime."""
+
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("operation-authority-path must be one regular JSON file")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("operation authority is not readable canonical JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("operation authority must be a JSON object")
+    try:
+        authority = OperationAuthorityV1.from_dict(payload)
+    except OperationAuthorityError as exc:
+        raise ValueError(f"operation authority is invalid: {exc}") from exc
+    if authority.operation not in allowed_operations:
+        permitted = ", ".join(sorted(operation.value for operation in allowed_operations))
+        raise ValueError(
+            f"operation authority must select one of {permitted}; got {authority.operation.value}"
+        )
+    expected_workflow_path = ".github/workflows/full-extraction.yml"
+    if authority.workflow_path != expected_workflow_path:
+        raise ValueError("operation authority names the wrong workflow path")
+    repository_root = Path(__file__).resolve().parents[3]
+    workflow_path = repository_root / expected_workflow_path
+    if not workflow_path.is_file() or workflow_path.is_symlink():
+        raise ValueError("checked full-extraction workflow must be one regular file")
+    runtime = ActionsRuntimeView(
+        repository=_required_operation_environment("GITHUB_REPOSITORY"),
+        run_id=_required_operation_positive_int("GITHUB_RUN_ID"),
+        run_attempt=_required_operation_positive_int("GITHUB_RUN_ATTEMPT"),
+        event=_required_operation_environment("GITHUB_EVENT_NAME"),
+        actor=_required_operation_environment("GITHUB_ACTOR"),
+        trusted_ref=_required_operation_environment("GITHUB_REF"),
+        workflow_commit_sha=_required_operation_commit_sha("GITHUB_SHA"),
+        source_sha=_required_operation_commit_sha("WORKFLOW_SOURCE_SHA"),
+        workflow_content_sha256=hashlib.sha256(workflow_path.read_bytes()).hexdigest(),
+    )
+    try:
+        return authority.require_current_actions_runtime(runtime)
+    except OperationAuthorityError as exc:
+        raise ValueError(f"operation authority runtime mismatch: {exc}") from exc
+
+
+def _required_operation_environment(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ValueError(f"{name} is required to validate operation authority")
+    return value
+
+
+def _required_operation_positive_int(name: str) -> int:
+    raw = _required_operation_environment(name)
+    if re.fullmatch(r"[1-9][0-9]*", raw) is None:
+        raise ValueError(f"{name} must be a canonical positive integer")
+    return int(raw)
+
+
+def _required_operation_commit_sha(name: str) -> str:
+    value = _required_operation_environment(name).lower()
+    if re.fullmatch(r"[0-9a-f]{40}", value) is None:
+        raise ValueError(f"{name} must be a 40-character commit SHA")
+    return value
+
+
+def _bind_operation_authority(
+    payload: dict[str, Any],
+    authority: OperationAuthorityV1,
+    *,
+    chain_id: str,
+    source_sha: str,
+    iteration: int,
+    expected_manifest_lane_count: int,
+) -> dict[str, Any]:
+    """Join one validated operation authority to an emitted lane manifest."""
+
+    if authority.chain_id != chain_id:
+        raise ValueError("operation authority chain ID differs from the emitted manifest")
+    if authority.source_sha != source_sha:
+        raise ValueError("operation authority source SHA differs from the emitted manifest")
+    if authority.iteration != iteration:
+        raise ValueError("operation authority iteration differs from the emitted manifest")
+    if authority.manifest_lane_count != expected_manifest_lane_count:
+        raise ValueError("operation authority lane count differs from the bound manifest")
+    matrix = payload.get("github_matrix")
+    include = matrix.get("include") if isinstance(matrix, dict) else None
+    if authority.operation in {OperationKind.EXTRACT, OperationKind.TARGETED_SMOKE}:
+        if not isinstance(include, list) or not include:
+            raise ValueError(f"{authority.operation.value} requires a nonempty real matrix")
+        if len(include) != authority.manifest_lane_count:
+            raise ValueError("operation authority lane count differs from the emitted matrix")
+    expected_vpn_slots = min(authority.requested_vpn_parallelism, len(include or ()))
+    if payload.get("vpn_slot_count") != expected_vpn_slots:
+        raise ValueError("operation authority VPN parallelism differs from the emitted manifest")
+    bound = dict(payload)
+    bound.update(
+        {
+            "operation": authority.operation.value,
+            "operation_authority": authority.to_dict(),
+            "operation_authority_sha256": authority.authority_sha256,
+            "network_mode": (
+                authority.requested_network_mode.value
+                if authority.requested_network_mode is not None
+                else None
+            ),
+            "direct_slot_count": authority.requested_direct_parallelism,
+        }
+    )
+    return bound
+
+
+def _capacity_blocked_execution_manifest(
+    payload: dict[str, Any],
+    *,
+    repository: str,
+    workflow_sha256: str,
+    publish: bool,
+) -> dict[str, Any]:
+    """Project the complete active-lane identity into the frozen blocked contract.
+
+    Operation digests here are deterministic lane identities only. They cannot
+    become execution authority because the receipt is permanently blocked while
+    the authenticated operation registry and the other trusted collectors are
+    absent.
+    """
+
+    raw_lanes = payload.get("lanes")
+    if not isinstance(raw_lanes, list) or any(not isinstance(row, dict) for row in raw_lanes):
+        raise ValueError("full-extraction lanes must be an ordered object array")
+    active_rows = [row for row in raw_lanes if row.get("resume_only") is not True]
+    if len(active_rows) != payload.get("active_lane_count"):
+        raise ValueError("full-extraction active lane denominator is inconsistent")
+
+    intent_lanes: list[dict[str, Any]] = []
+    for index, row in enumerate(active_rows):
+        lane_id = row.get("lane_id")
+        endpoints = row.get("endpoints")
+        patterns = row.get("patterns")
+        if not isinstance(lane_id, str) or not lane_id:
+            raise ValueError("full-extraction lane identity is invalid")
+        if not isinstance(endpoints, (list, tuple)) or any(
+            not isinstance(item, str) for item in endpoints
+        ):
+            raise ValueError(f"full-extraction lane {lane_id} endpoint inventory is invalid")
+        if not isinstance(patterns, (list, tuple)) or any(
+            not isinstance(item, str) for item in patterns
+        ):
+            raise ValueError(f"full-extraction lane {lane_id} pattern inventory is invalid")
+        lane_sha256 = hashlib.sha256(canonical_json_bytes(row)).hexdigest()
+        operation_sha256 = hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "disposition": "capacity_deferred",
+                    "lane_id": lane_id,
+                    "logical_lane_sha256": lane_sha256,
+                }
+            )
+        ).hexdigest()
+        endpoint = ",".join(endpoints) or ",".join(patterns) or "logical_lane"
+        intent_lanes.append(
+            {
+                "lane_id": lane_id,
+                "lane_index": index,
+                "endpoint": endpoint,
+                "parameters": {"logical_lane_sha256": lane_sha256},
+                "operation_sha256s": [operation_sha256],
+            }
+        )
+
+    source_sha = str(payload.get("workflow_source_sha") or "").strip().lower()
+    return {
+        "schema_version": 1,
+        "repository": repository,
+        "source_sha": source_sha,
+        "workflow_path": FREE_EXECUTION_WORKFLOW_PATH.as_posix(),
+        "workflow_sha256": workflow_sha256,
+        "publish": publish,
+        "active_lane_count": len(intent_lanes),
+        "matrix_lane_count": 0,
+        "deferred_lane_count": len(intent_lanes),
+        "lanes": intent_lanes,
+        "github_matrix": {"include": []},
+        "resource_plan": {
+            "planned_artifact_max_bytes": 0,
+            "planned_artifact_retention_hours": 0,
+            "planned_cache_max_bytes": 0,
+        },
+    }
+
+
+def _apply_capacity_blocked_free_execution(
+    payload: dict[str, Any],
+    *,
+    publish: bool,
+    receipt_output_path: Path | None,
+) -> dict[str, Any]:
+    """Seal a non-authorizing plan while trusted free-execution collectors are absent."""
+
+    workflow_path = FREE_EXECUTION_WORKFLOW_PATH
+    if not workflow_path.is_file() or workflow_path.is_symlink():
+        raise ValueError(f"free-execution workflow must be one regular file: {workflow_path}")
+    workflow_sha256 = hashlib.sha256(workflow_path.read_bytes()).hexdigest()
+    repository = _required_github_observation("GITHUB_REPOSITORY")
+    if repository.count("/") != 1:
+        raise ValueError("GITHUB_REPOSITORY must be owner/name")
+    run_id = _required_github_positive_int("GITHUB_RUN_ID")
+    run_attempt = _required_github_positive_int("GITHUB_RUN_ATTEMPT")
+
+    intent_manifest = _capacity_blocked_execution_manifest(
+        payload,
+        repository=repository,
+        workflow_sha256=workflow_sha256,
+        publish=publish,
+    )
+    manifest_bytes = canonical_json_bytes(intent_manifest)
+    evaluated = datetime.now(UTC).replace(microsecond=0)
+    expires = evaluated + FREE_EXECUTION_EVIDENCE_TTL
+    admission_nonce = hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "admission_job_id": FREE_EXECUTION_ADMISSION_JOB_ID,
+                "intent_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+                "run_attempt": run_attempt,
+                "run_id": run_id,
+            }
+        )
+    ).hexdigest()
+    admission = FreeExecutionAdmissionV1.capacity_blocked(
+        manifest_bytes=manifest_bytes,
+        repository=repository,
+        source_sha=str(intent_manifest["source_sha"]),
+        workflow_path=str(intent_manifest["workflow_path"]),
+        workflow_sha256=workflow_sha256,
+        run_id=run_id,
+        run_attempt=run_attempt,
+        admission_job_id=FREE_EXECUTION_ADMISSION_JOB_ID,
+        mode=FreeExecutionMode.INITIAL,
+        requested_capacity=FREE_EXECUTION_REQUESTED_CAPACITY,
+        admission_nonce=admission_nonce,
+        evaluated_at=evaluated.isoformat().replace("+00:00", "Z"),
+        expires_at=expires.isoformat().replace("+00:00", "Z"),
+        blocker_codes=FreeExecutionAuthorityBundleV1.integration_blocker_codes,
+    )
+    admission.validate_manifest(manifest_bytes)
+
+    original_lanes = payload["lanes"]
+    blocked = dict(payload)
+    blocked.update(
+        {
+            "matrix_lane_count": 0,
+            "vpn_slot_count": 0,
+            "execution_slot_count": 0,
+            "deferred_lane_count": payload["active_lane_count"],
+            "github_matrix": {"include": []},
+            "execution_policy": {
+                "transport": "none",
+                "paid_fallback_allowed": False,
+                "proxy_fallback_allowed": False,
+                "vpn_fallback_allowed": False,
+            },
+            "free_execution_intent_manifest": intent_manifest,
+            "free_execution_admission": admission.to_dict(),
+        }
+    )
+    if blocked["lanes"] is not original_lanes:
+        raise AssertionError("capacity-blocked planning replaced the logical lane inventory")
+    if receipt_output_path is not None:
+        receipt_output_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_output_path.write_bytes(admission.to_bytes())
+    return blocked
 
 
 def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[str, Any]:
@@ -2259,21 +3153,68 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
             payload.pop("state_artifact_name", None)
         if not lane.state_artifact_digest:
             payload.pop("state_artifact_digest", None)
+        if not lane.state_artifact_id:
+            payload.pop("state_artifact_id", None)
+        if not lane.state_artifact_archive_digest:
+            payload.pop("state_artifact_archive_digest", None)
+        for field_name in (
+            "dependent_artifact_run_id",
+            "dependent_artifact_id",
+            "dependent_artifact_name",
+            "dependent_artifact_digest",
+            "dependent_plan_sha256",
+            "dependent_bundle_sha256",
+            "dependent_foundation_transaction_sha256",
+            "dependent_provider_authority_sha256",
+            "dependent_lane_sha256",
+            "dependent_lane_role",
+        ):
+            if not getattr(lane, field_name):
+                payload.pop(field_name, None)
+        if not lane.dependent_call_count:
+            payload.pop("dependent_call_count", None)
+        if not lane.dependent_semantic_unit_count:
+            payload.pop("dependent_semantic_unit_count", None)
     return payload
 
 
 def redispatch_manifest_payload(
     lanes: list[FullExtractionLane],
     *,
+    assurance_admission: AssuranceAdmission | dict[str, Any],
+    chain_id: str,
     chain_state: FullExtractionChainState | None = None,
-    chain_id: str | None = None,
     workflow_source_sha: str | None = None,
+    provider_authority: dict[str, Any] | None = None,
+    dependent_workload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    normalized_dependent_workload = _normalize_dependent_workload(dependent_workload)
+    _raise_manifest_errors(
+        [
+            *_duplicate_lane_id_errors(lanes),
+            *_dependent_manifest_errors(lanes, normalized_dependent_workload),
+        ]
+    )
+    normalized_provider_authority = normalize_nba_api_provider_authority(
+        expected_nba_api_provider_authority() if provider_authority is None else provider_authority
+    )
+    normalized_assurance_admission = _normalize_assurance_admission(
+        assurance_admission,
+        workflow_source_sha=workflow_source_sha,
+        provider_authority=normalized_provider_authority,
+    )
     payload = {
+        "manifest_version": MANIFEST_VERSION,
         "lanes": [_lane_payload(lane, compact=True) for lane in lanes],
         "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
+        "provider_authority": normalized_provider_authority,
+        "assurance_admission": normalized_assurance_admission.to_dict(),
     }
-    payload.update(_manifest_provenance_payload(chain_id, workflow_source_sha))
+    if normalized_dependent_workload is not None:
+        payload["dependent_workload"] = normalized_dependent_workload
+    payload.update(
+        _manifest_provenance_payload(chain_id, normalized_assurance_admission.source_sha)
+    )
     return payload
 
 
@@ -2306,6 +3247,19 @@ def _load_manifest_argument(
     if path is not None:
         return normalize_manifest(json.loads(path.read_text(encoding="utf-8")))
     return None
+
+
+def _load_assurance_admission(
+    path: Path,
+    *,
+    workflow_source_sha: str | None = None,
+) -> AssuranceAdmission:
+    raw_admission = json.loads(path.read_text(encoding="utf-8"))
+    return _normalize_assurance_admission(
+        raw_admission,
+        workflow_source_sha=workflow_source_sha,
+        provider_authority=expected_nba_api_provider_authority(),
+    )
 
 
 def _metadata_records_by_lane(
@@ -2441,6 +3395,8 @@ def _split_lane_by_segments(
                     state_artifact_run_id="",
                     state_artifact_name="",
                     state_artifact_digest="",
+                    state_artifact_id="",
+                    state_artifact_archive_digest="",
                     last_completed_calls=0,
                     last_rows_persisted=0,
                 )
@@ -2488,6 +3444,8 @@ def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullEx
                 state_artifact_run_id="",
                 state_artifact_name="",
                 state_artifact_digest="",
+                state_artifact_id="",
+                state_artifact_archive_digest="",
                 last_completed_calls=0,
                 last_rows_persisted=0,
             )
@@ -2977,13 +3935,21 @@ def _metadata_state_artifact(payload: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def _metadata_state_artifact_receipt(payload: dict[str, Any]) -> tuple[str, str]:
+    artifact = payload.get("state_artifact")
+    artifact_payload = artifact if isinstance(artifact, dict) else {}
+    return (
+        _normalize_scalar_string(artifact_payload.get("artifact_id")),
+        _normalize_scalar_string(artifact_payload.get("artifact_digest")).lower(),
+    )
+
+
 def _metadata_state_artifact_is_durable(payload: dict[str, Any]) -> bool:
     artifact = payload.get("state_artifact")
     if not isinstance(artifact, dict) or artifact.get("attested") is not True:
         return False
     run_id, name, digest = _metadata_state_artifact(payload)
-    artifact_id = _normalize_scalar_string(artifact.get("artifact_id"))
-    artifact_digest = _normalize_scalar_string(artifact.get("artifact_digest")).lower()
+    artifact_id, artifact_digest = _metadata_state_artifact_receipt(payload)
     return (
         bool(run_id)
         and bool(name)
@@ -3001,12 +3967,15 @@ def _metadata_state_artifact_is_durable_for_lane(
     if not _metadata_state_artifact_is_durable(payload):
         return False
     run_id, name, digest = _metadata_state_artifact(payload)
+    artifact_id, artifact_digest = _metadata_state_artifact_receipt(payload)
     return _lane_has_state_artifact_pointer(
         replace(
             lane,
             state_artifact_run_id=run_id,
             state_artifact_name=name,
             state_artifact_digest=digest,
+            state_artifact_id=artifact_id,
+            state_artifact_archive_digest=artifact_digest,
         )
     )
 
@@ -3051,6 +4020,7 @@ def _retry_lane_from_metadata(
     class_streak = previous_class_streak + 1 if previous_failure_class == failure_class else 1
     zero_progress_streak = 0 if durable_progress_increased else lane.zero_progress_streak + 1
     state_run_id, state_name, state_digest = _metadata_state_artifact(payload)
+    state_artifact_id, state_archive_digest = _metadata_state_artifact_receipt(payload)
     if state_artifact_durable:
         next_completed_calls = max(lane.last_completed_calls, completed_calls)
         next_rows_persisted = max(lane.last_rows_persisted, rows_persisted)
@@ -3058,10 +4028,13 @@ def _retry_lane_from_metadata(
         state_run_id = lane.state_artifact_run_id
         state_name = lane.state_artifact_name
         state_digest = lane.state_artifact_digest
+        state_artifact_id = lane.state_artifact_id
+        state_archive_digest = lane.state_artifact_archive_digest
         next_completed_calls = lane.last_completed_calls
         next_rows_persisted = lane.last_rows_persisted
     else:
         state_run_id = state_name = state_digest = ""
+        state_artifact_id = state_archive_digest = ""
         next_completed_calls = 0
         next_rows_persisted = 0
     cooldown = 1 if failure_class in {"transport_transient", "response_contract"} else 0
@@ -3078,6 +4051,8 @@ def _retry_lane_from_metadata(
         state_artifact_run_id=state_run_id,
         state_artifact_name=state_name,
         state_artifact_digest=state_digest,
+        state_artifact_id=state_artifact_id,
+        state_artifact_archive_digest=state_archive_digest,
     )
 
 
@@ -3450,6 +4425,8 @@ def build_resume_manifest(
                     state_artifact_run_id="",
                     state_artifact_name="",
                     state_artifact_digest="",
+                    state_artifact_id="",
+                    state_artifact_archive_digest="",
                     last_completed_calls=0,
                     last_rows_persisted=0,
                 )
@@ -4027,6 +5004,461 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
     }
 
 
+_EXTRACTION_JOURNAL_BASE_SCHEMA = (
+    ("endpoint", "VARCHAR"),
+    ("params", "VARCHAR"),
+    ("status", "VARCHAR"),
+    ("started_at", "TIMESTAMP"),
+    ("completed_at", "TIMESTAMP"),
+    ("rows_extracted", "BIGINT"),
+    ("error_message", "VARCHAR"),
+    ("retry_count", "INTEGER"),
+)
+_EXTRACTION_JOURNAL_RECEIPT_SCHEMA = (
+    ("logical_call_receipt_sha256", "VARCHAR"),
+    ("provider_authority_sha256", "VARCHAR"),
+    ("logical_parameters_sha256", "VARCHAR"),
+    ("result_route_ids_json", "VARCHAR"),
+)
+_EXTRACTION_JOURNAL_W2_SCHEMA = (
+    ("w2_required", "BOOLEAN"),
+    ("w2_source_call_admission_sha256", "VARCHAR"),
+    ("w2_source_call_admission_bytes", "BLOB"),
+    ("raw_authority_bundle_sha256", "VARCHAR"),
+    ("raw_authority_persistence_receipt_sha256", "VARCHAR"),
+    ("committed_staging_readback_count", "BIGINT"),
+    ("committed_staging_readback_root_sha256", "VARCHAR"),
+    ("w2_operation_key_sha256", "VARCHAR"),
+    ("w2_operation_receipt_sha256", "VARCHAR"),
+    ("w2_operation_persistence_receipt_sha256", "VARCHAR"),
+)
+_EXTRACTION_JOURNAL_CURRENT_SCHEMA = (
+    *_EXTRACTION_JOURNAL_BASE_SCHEMA,
+    *_EXTRACTION_JOURNAL_RECEIPT_SCHEMA,
+    *_EXTRACTION_JOURNAL_W2_SCHEMA,
+)
+_SUCCESSOR_EXTRACTION_JOURNAL_CURRENT_SCHEMA = (
+    ("successor_generation_sha256", "VARCHAR"),
+    *_EXTRACTION_JOURNAL_CURRENT_SCHEMA,
+)
+_STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA = (
+    ("chunk_id", "VARCHAR"),
+    ("staging_key", "VARCHAR"),
+    ("row_count", "BIGINT"),
+    ("content_hash", "VARCHAR"),
+    ("source_label", "VARCHAR"),
+    ("created_at", "TIMESTAMP"),
+)
+_STAGING_CHUNK_JOURNAL_FORMAT_COLUMNS = (
+    ("canonical_frame_format", "VARCHAR"),
+    ("frame_content_hash_contract", "VARCHAR"),
+    ("frame_schema_hash_contract", "VARCHAR"),
+)
+_STAGING_CHUNK_JOURNAL_ATTESTATION_COLUMNS = (
+    ("persisted_row_count", "BIGINT"),
+    ("persisted_content_sha256", "VARCHAR"),
+    ("persisted_schema_sha256", "VARCHAR"),
+    ("logical_call_receipt_sha256", "VARCHAR"),
+    ("provider_authority_sha256", "VARCHAR"),
+    ("logical_parameters_sha256", "VARCHAR"),
+    ("result_route_id", "VARCHAR"),
+)
+_STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA = (
+    *_STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA[:2],
+    *_STAGING_CHUNK_JOURNAL_FORMAT_COLUMNS,
+    *_STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA[2:],
+    *_STAGING_CHUNK_JOURNAL_ATTESTATION_COLUMNS,
+)
+
+_W2_EVIDENCE_COLUMN_NAMES = tuple(name for name, _data_type in _EXTRACTION_JOURNAL_W2_SCHEMA[1:])
+
+_AUTHORITY_PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
+    "_extraction_journal": ("endpoint", "params"),
+    "_successor_extraction_journal": (
+        "successor_generation_sha256",
+        "endpoint",
+        "params",
+    ),
+    RAW_REQUEST_AUTHORITY_BUNDLE_JOURNAL: ("bundle_sha256",),
+    RAW_REQUEST_AUTHORITY_MANIFEST_JOURNAL: ("manifest_sha256",),
+    RAW_REQUEST_AUTHORITY_TABLES[0]: ("object_sha256",),
+    RAW_REQUEST_AUTHORITY_TABLES[1]: ("observation_sha256",),
+    RAW_REQUEST_AUTHORITY_TABLES[2]: ("occurrence_sha256",),
+    RAW_REQUEST_AUTHORITY_TABLES[3]: ("landing_sha256",),
+    PUBLIC_VALUE_AUTHORITY_CANDIDATE_JOURNAL: ("raw_authority_bundle_sha256",),
+    PUBLIC_VALUE_AUTHORITY_TABLES[0]: ("cell_sha256",),
+    PUBLIC_VALUE_AUTHORITY_TABLES[1]: ("record_sha256",),
+    PUBLIC_VALUE_AUTHORITY_TABLES[2]: ("record_sha256",),
+    PUBLIC_VALUE_AUTHORITY_TABLES[3]: ("assignment_sha256",),
+    PUBLIC_VALUE_AUTHORITY_TABLES[4]: ("landing_field_sha256",),
+    RAW_NBA_API_W2_OPERATION_TABLE: ("operation_key_sha256",),
+}
+_AUTHORITY_UNIQUE_KEYS: dict[str, tuple[tuple[str, ...], ...]] = {
+    RAW_REQUEST_AUTHORITY_MANIFEST_JOURNAL: (("operation_sha256",),),
+    RAW_NBA_API_W2_OPERATION_TABLE: (("operation_receipt_sha256",),),
+}
+_RAW_W2_AUTHORITY_TABLES = frozenset(
+    {
+        *RAW_REQUEST_AUTHORITY_TABLES,
+        RAW_REQUEST_AUTHORITY_BUNDLE_JOURNAL,
+        RAW_REQUEST_AUTHORITY_MANIFEST_JOURNAL,
+        *PUBLIC_VALUE_AUTHORITY_TABLES,
+        PUBLIC_VALUE_AUTHORITY_CANDIDATE_JOURNAL,
+        RAW_NBA_API_W2_OPERATION_TABLE,
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _AuthorityMergeContract:
+    table_name: str
+    primary_key: tuple[str, ...]
+    unique_keys: tuple[tuple[str, ...], ...]
+    columns: tuple[tuple[int, str, str, bool, str | None, bool], ...]
+    constraints: tuple[tuple[str, tuple[str, ...]], ...]
+
+
+def _create_exact_extraction_journal(connection: duckdb.DuckDBPyConnection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE _extraction_journal (
+            endpoint VARCHAR NOT NULL,
+            params VARCHAR,
+            status VARCHAR NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            rows_extracted BIGINT,
+            error_message VARCHAR,
+            retry_count INTEGER DEFAULT 0,
+            logical_call_receipt_sha256 VARCHAR,
+            provider_authority_sha256 VARCHAR,
+            logical_parameters_sha256 VARCHAR,
+            result_route_ids_json VARCHAR,
+            w2_required BOOLEAN NOT NULL DEFAULT FALSE,
+            w2_source_call_admission_sha256 VARCHAR,
+            w2_source_call_admission_bytes BLOB,
+            raw_authority_bundle_sha256 VARCHAR,
+            raw_authority_persistence_receipt_sha256 VARCHAR,
+            committed_staging_readback_count BIGINT,
+            committed_staging_readback_root_sha256 VARCHAR,
+            w2_operation_key_sha256 VARCHAR,
+            w2_operation_receipt_sha256 VARCHAR,
+            w2_operation_persistence_receipt_sha256 VARCHAR,
+            PRIMARY KEY (endpoint, params)
+        )
+        """
+    )
+
+
+def _authority_contract_inventory() -> tuple[_AuthorityMergeContract, ...]:
+    # The exact-four raw authority relations are private-only; the merge
+    # inventories them from the private registry.
+    raw_public = raw_request_authority_private_tables()
+    w2_public = w2_public_value_authority_publication_tables()
+    if {item.table_name for item in raw_public} != set(RAW_REQUEST_AUTHORITY_TABLES):
+        raise RuntimeError("Raw Authority V2 publication registry drifted during checkpoint merge")
+    if {item.table_name for item in w2_public} != {
+        *PUBLIC_VALUE_AUTHORITY_TABLES,
+        RAW_NBA_API_W2_OPERATION_TABLE,
+    }:
+        raise RuntimeError("W2 publication registry drifted during checkpoint merge")
+    if set(_AUTHORITY_PRIMARY_KEYS) != {
+        "_extraction_journal",
+        "_successor_extraction_journal",
+        *_RAW_W2_AUTHORITY_TABLES,
+    }:
+        raise RuntimeError("Checkpoint authority primary-key registry is incomplete")
+
+    reference = duckdb.connect(":memory:")
+    try:
+        _create_exact_extraction_journal(reference)
+        PipelineJournal(reference)
+        PipelineJournal(reference, successor_generation_sha256="0" * 64)
+        raw_store = RawRequestAuthorityStore(reference)
+        for contract in raw_store._public_table_contracts():  # noqa: SLF001
+            raw_store._ensure_public_table(contract)  # noqa: SLF001
+        raw_store._ensure_journal()  # noqa: SLF001
+        raw_store._ensure_manifest_journal()  # noqa: SLF001
+        public_store = PublicValueAuthorityStore(reference)
+        from nbadb.orchestrate import public_value_authority_store as public_store_module
+
+        for contract in public_store_module._contracts():  # noqa: SLF001
+            public_store._ensure_table(contract)  # noqa: SLF001
+        public_store._ensure_journal()  # noqa: SLF001
+        W2OperationStore(reference)._ensure_table()  # noqa: SLF001
+
+        inventory: list[_AuthorityMergeContract] = []
+        for table_name, primary_key in sorted(_AUTHORITY_PRIMARY_KEYS.items()):
+            columns = tuple(
+                (
+                    int(row[0]),
+                    str(row[1]),
+                    str(row[2]).upper(),
+                    bool(row[3]),
+                    None if row[4] is None else str(row[4]),
+                    bool(row[5]),
+                )
+                for row in reference.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+            )
+            constraints = tuple(
+                sorted(
+                    (
+                        str(row[0]),
+                        tuple(str(value) for value in row[1]) if type(row[1]) is list else (),
+                    )
+                    for row in reference.execute(
+                        """
+                        SELECT constraint_type, constraint_column_names
+                        FROM duckdb_constraints()
+                        WHERE database_name = current_database()
+                          AND schema_name = current_schema()
+                          AND table_name = ?
+                        """,
+                        [table_name],
+                    ).fetchall()
+                )
+            )
+            observed_primary = tuple(
+                str(row[1])
+                for row in reference.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+                if bool(row[5])
+            )
+            unique_keys = _AUTHORITY_UNIQUE_KEYS.get(table_name, ())
+            if observed_primary != primary_key or any(
+                ("UNIQUE", key) not in constraints for key in unique_keys
+            ):
+                raise RuntimeError(
+                    f"Checkpoint authority registry disagrees with runtime table {table_name}"
+                )
+            inventory.append(
+                _AuthorityMergeContract(
+                    table_name=table_name,
+                    primary_key=primary_key,
+                    unique_keys=unique_keys,
+                    columns=columns,
+                    constraints=constraints,
+                )
+            )
+        return tuple(inventory)
+    finally:
+        reference.close()
+
+
+def _checkpoint_quote_identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _authority_table_columns(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    database: str,
+    table_name: str,
+) -> tuple[tuple[int, str, str, bool, str | None, bool], ...]:
+    return tuple(
+        (
+            int(row[0]),
+            str(row[1]),
+            str(row[2]).upper(),
+            bool(row[3]),
+            None if row[4] is None else str(row[4]),
+            bool(row[5]),
+        )
+        for row in connection.execute(f"PRAGMA table_info('{database}.{table_name}')").fetchall()
+    )
+
+
+def _authority_table_constraints(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    database: str,
+    table_name: str,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    return tuple(
+        sorted(
+            (
+                str(row[0]),
+                tuple(str(value) for value in row[1]) if type(row[1]) is list else (),
+            )
+            for row in connection.execute(
+                """
+                SELECT constraint_type, constraint_column_names
+                FROM duckdb_constraints()
+                WHERE database_name = ?
+                  AND schema_name = 'main'
+                  AND table_name = ?
+                """,
+                [database, table_name],
+            ).fetchall()
+        )
+    )
+
+
+def _require_authority_table_contract(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    database: str,
+    contract: _AuthorityMergeContract,
+    database_label: str,
+) -> None:
+    columns = _authority_table_columns(
+        connection,
+        database=database,
+        table_name=contract.table_name,
+    )
+    constraints = _authority_table_constraints(
+        connection,
+        database=database,
+        table_name=contract.table_name,
+    )
+    if columns != contract.columns or constraints != contract.constraints:
+        raise ValueError(
+            f"Authority table schema or key constraints drifted for "
+            f"{contract.table_name} in {database_label}"
+        )
+
+
+def _create_authority_table(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    contract: _AuthorityMergeContract,
+) -> None:
+    definitions: list[str] = []
+    for _ordinal, name, data_type, not_null, default, _primary in contract.columns:
+        definition = f"{_checkpoint_quote_identifier(name)} {data_type}"
+        if not_null:
+            definition += " NOT NULL"
+        if default is not None:
+            definition += f" DEFAULT {default}"
+        definitions.append(definition)
+    primary_key = ", ".join(_checkpoint_quote_identifier(value) for value in contract.primary_key)
+    definitions.append(f"PRIMARY KEY ({primary_key})")
+    definitions.extend(
+        "UNIQUE (" + ", ".join(_checkpoint_quote_identifier(value) for value in unique_key) + ")"
+        for unique_key in contract.unique_keys
+    )
+    connection.execute(
+        f"CREATE TABLE main.{_checkpoint_quote_identifier(contract.table_name)} "
+        f"({', '.join(definitions)})"
+    )
+
+
+def _database_table_names(connection: duckdb.DuckDBPyConnection) -> frozenset[str]:
+    rows = connection.execute(
+        """
+        SELECT table_name
+        FROM duckdb_tables()
+        WHERE database_name = current_database()
+          AND schema_name = current_schema()
+          AND NOT internal
+          AND NOT temporary
+        ORDER BY table_name
+        """
+    ).fetchall()
+    if any(len(row) != 1 or type(row[0]) is not str for row in rows):
+        raise ValueError("Checkpoint database table inventory is malformed")
+    return frozenset(str(row[0]) for row in rows)
+
+
+def _w2_expected_call_inventory(
+    connection: duckdb.DuckDBPyConnection,
+) -> tuple[int, str, bool]:
+    table_names = _database_table_names(connection)
+    contracts = {item.table_name: item for item in _authority_contract_inventory()}
+    entries: list[dict[str, object]] = []
+    evidence_predicate = " OR ".join(
+        f"{_checkpoint_quote_identifier(name)} IS NOT NULL" for name in _W2_EVIDENCE_COLUMN_NAMES
+    )
+    for table_name in ("_extraction_journal", "_successor_extraction_journal"):
+        if table_name not in table_names:
+            continue
+        contract = contracts[table_name]
+        current_database = connection.execute("SELECT current_database()").fetchone()
+        if current_database is None or type(current_database[0]) is not str:
+            raise ValueError("Checkpoint database identity is unavailable")
+        _require_authority_table_contract(
+            connection,
+            database=str(current_database[0]),
+            contract=contract,
+            database_label="checkpoint W2 call inventory",
+        )
+        keys = ", ".join(_checkpoint_quote_identifier(name) for name in contract.primary_key)
+        rows = connection.execute(
+            f"SELECT {keys}, status, logical_call_receipt_sha256 "
+            f"FROM {_checkpoint_quote_identifier(table_name)} "
+            f"WHERE w2_required OR {evidence_predicate} "
+            f"ORDER BY {keys}"
+        ).fetchall()
+        for row in rows:
+            key_values = row[: len(contract.primary_key)]
+            entries.append(
+                {
+                    "journal_table": table_name,
+                    "key": {
+                        name: value
+                        for name, value in zip(contract.primary_key, key_values, strict=True)
+                    },
+                    "logical_call_receipt_sha256": row[-1],
+                    "status": row[-2],
+                }
+            )
+    canonical = json.dumps(
+        {
+            "kind": "nbadb_checkpoint_w2_expected_call_inventory_v1",
+            "calls": entries,
+            "schema_version": 1,
+        },
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8", errors="strict")
+    authority_storage_present = bool(table_names & _RAW_W2_AUTHORITY_TABLES)
+    return len(entries), hashlib.sha256(canonical).hexdigest(), authority_storage_present
+
+
+def _verify_checkpoint_w2_database(
+    connection: duckdb.DuckDBPyConnection,
+) -> tuple[W2DatabaseAuthorityReceiptV1, int, str]:
+    expected_count, expected_inventory_sha256, authority_storage_present = (
+        _w2_expected_call_inventory(connection)
+    )
+    receipt = verify_w2_database_authority(
+        connection,
+        require_w2=bool(expected_count or authority_storage_present),
+    )
+    if receipt.w2_required_logical_call_count != expected_count:
+        raise ValueError("W2 expected-call inventory count differs from exact database authority")
+    return receipt, expected_count, expected_inventory_sha256
+
+
+def _validate_report_w2_database_authority(
+    *,
+    connection: duckdb.DuckDBPyConnection,
+    report: dict[str, Any],
+    label: str,
+) -> W2DatabaseAuthorityReceiptV1:
+    raw_receipt = report.get("w2_database_authority")
+    try:
+        reported = W2DatabaseAuthorityReceiptV1.from_dict(raw_receipt)
+    except Exception:
+        raise ValueError(f"{label} lacks canonical W2 database authority") from None
+    receipt_sha256 = str(report.get("w2_database_authority_sha256") or "")
+    expected_count = report.get("w2_expected_call_count")
+    expected_inventory_sha256 = str(report.get("w2_expected_call_inventory_sha256") or "")
+    actual, actual_count, actual_inventory_sha256 = _verify_checkpoint_w2_database(connection)
+    if (
+        receipt_sha256 != reported.receipt_sha256
+        or actual != reported
+        or type(expected_count) is not int
+        or expected_count != actual_count
+        or not _is_sha256(expected_inventory_sha256)
+        or expected_inventory_sha256 != actual_inventory_sha256
+        or report.get("w2_database_authority_closed") is not True
+    ):
+        raise ValueError(f"{label} W2 database authority differs from exact database bytes")
+    return actual
+
+
 def _merge_database_paths(
     *,
     db_paths: list[Path],
@@ -4040,6 +5472,40 @@ def _merge_database_paths(
     if not db_paths and base_database_path is None:
         msg = "No lane databases were available to merge"
         raise FileNotFoundError(msg)
+
+    authority_contracts = _authority_contract_inventory()
+    source_w2_authorities: list[dict[str, object]] = []
+    source_paths = [*([] if base_database_path is None else [base_database_path]), *db_paths]
+    for source_path in source_paths:
+        source_connection = duckdb.connect(str(source_path), read_only=True)
+        try:
+            source_database = source_connection.execute("SELECT current_database()").fetchone()
+            if source_database is None or type(source_database[0]) is not str:
+                raise ValueError(
+                    f"Checkpoint source database identity is unavailable: {source_path}"
+                )
+            source_table_names = _database_table_names(source_connection)
+            for contract in authority_contracts:
+                if contract.table_name in source_table_names:
+                    _require_authority_table_contract(
+                        source_connection,
+                        database=str(source_database[0]),
+                        contract=contract,
+                        database_label=str(source_path),
+                    )
+            receipt, expected_call_count, expected_call_inventory_sha256 = (
+                _verify_checkpoint_w2_database(source_connection)
+            )
+        finally:
+            source_connection.close()
+        source_w2_authorities.append(
+            {
+                "database_path": str(source_path),
+                "receipt_sha256": receipt.receipt_sha256,
+                "expected_call_count": expected_call_count,
+                "expected_call_inventory_sha256": expected_call_inventory_sha256,
+            }
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     target_path = output_dir / "nba.duckdb"
@@ -4090,6 +5556,283 @@ def _merge_database_paths(
             [database, table_name],
         ).fetchall()
 
+    def known_schema_version(
+        schema: list[tuple[str, str]],
+        *,
+        table_name: str,
+        database_label: str,
+        legacy_schema: tuple[tuple[str, str], ...],
+        current_schema: tuple[tuple[str, str], ...],
+    ) -> str:
+        normalized = tuple((str(name), str(data_type)) for name, data_type in schema)
+        if normalized == legacy_schema:
+            return "legacy"
+        if normalized == current_schema:
+            return "current"
+        msg = (
+            f"Schema mismatch while merging {table_name} from {database_label}: "
+            f"expected exact known {len(legacy_schema)}- or {len(current_schema)}-column "
+            f"schema, got {normalized}"
+        )
+        raise ValueError(msg)
+
+    def ensure_current_staging_journal(
+        conn: duckdb.DuckDBPyConnection,
+        *,
+        database: str,
+    ) -> None:
+        table_name = "_staging_chunk_journal"
+        if not table_exists(conn, database, table_name):
+            definitions = ", ".join(
+                f"{quote_identifier(column_name)} {data_type}"
+                for column_name, data_type in _STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA
+            )
+            conn.execute(f"CREATE TABLE main.{quote_identifier(table_name)} ({definitions})")
+            return
+        version = known_schema_version(
+            table_schema(conn, database, table_name),
+            table_name=table_name,
+            database_label=database,
+            legacy_schema=_STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA,
+            current_schema=_STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA,
+        )
+        if version == "legacy":
+            legacy_table = "_staging_chunk_journal_legacy_checkpoint"
+            conn.execute(
+                f"ALTER TABLE main.{quote_identifier(table_name)} "
+                f"RENAME TO {quote_identifier(legacy_table)}"
+            )
+            definitions = ", ".join(
+                f"{quote_identifier(column_name)} {data_type}"
+                for column_name, data_type in _STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA
+            )
+            conn.execute(f"CREATE TABLE main.{quote_identifier(table_name)} ({definitions})")
+            conn.execute(
+                f"INSERT INTO main.{quote_identifier(table_name)} "
+                f"SELECT {projected_staging_columns(schema_version='legacy')} "
+                f"FROM main.{quote_identifier(legacy_table)}"
+            )
+            conn.execute(f"DROP TABLE main.{quote_identifier(legacy_table)}")
+        normalized = tuple(table_schema(conn, database, table_name))
+        if normalized != _STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA:
+            msg = (
+                f"Schema mismatch while normalizing {table_name}: "
+                f"expected {_STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA}, got {normalized}"
+            )
+            raise ValueError(msg)
+
+    def projected_staging_columns(
+        *,
+        schema_version: str,
+    ) -> str:
+        if schema_version == "current":
+            return ", ".join(
+                quote_identifier(column_name)
+                for column_name, _data_type in _STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA
+            )
+        legacy_columns = {name for name, _data_type in _STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA}
+        expressions = []
+        for column_name, data_type in _STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA:
+            if column_name in legacy_columns:
+                expressions.append(quote_identifier(column_name))
+            else:
+                expressions.append(f"CAST(NULL AS {data_type}) AS {quote_identifier(column_name)}")
+        return ", ".join(expressions)
+
+    def validate_local_receipt_evidence(
+        conn: duckdb.DuckDBPyConnection,
+        *,
+        database: str,
+        database_label: str,
+    ) -> str:
+        receipt_rows: list[tuple[Any, ...]] = []
+        if table_exists(conn, database, "_extraction_journal"):
+            normalized_schema = tuple(table_schema(conn, database, "_extraction_journal"))
+            if normalized_schema != _EXTRACTION_JOURNAL_CURRENT_SCHEMA:
+                raise ValueError(
+                    "Schema mismatch while merging _extraction_journal from "
+                    f"{database_label}: expected exact current W2-aware schema, "
+                    f"got {normalized_schema}"
+                )
+            qualified_journal = (
+                f"{quote_identifier(database)}.{quote_identifier('_extraction_journal')}"
+            )
+            receipt_rows = conn.execute(
+                f"""
+                SELECT endpoint, params,
+                       logical_call_receipt_sha256,
+                       provider_authority_sha256,
+                       logical_parameters_sha256,
+                       result_route_ids_json
+                FROM {qualified_journal}
+                WHERE status = 'done'
+                ORDER BY endpoint, params
+                """
+            ).fetchall()
+        staging_version: str | None = None
+        if table_exists(conn, database, "_staging_chunk_journal"):
+            staging_version = known_schema_version(
+                table_schema(conn, database, "_staging_chunk_journal"),
+                table_name="_staging_chunk_journal",
+                database_label=database_label,
+                legacy_schema=_STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA,
+                current_schema=_STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA,
+            )
+        if not receipt_rows:
+            return "empty"
+        unbound_done_row_count = 0
+        bound_done_row_count = 0
+        for (
+            endpoint,
+            params,
+            receipt_sha256,
+            provider_sha256,
+            parameters_sha256,
+            routes_json,
+        ) in receipt_rows:
+            receipt_values = (
+                receipt_sha256,
+                provider_sha256,
+                parameters_sha256,
+                routes_json,
+            )
+            if all(value is None for value in receipt_values):
+                unbound_done_row_count += 1
+                continue
+            if not all(isinstance(value, str) for value in (endpoint, params, *receipt_values)):
+                msg = (
+                    "Done extraction journal row has incomplete receipt binding in "
+                    f"{database_label}"
+                )
+                raise ValueError(msg)
+            bound_done_row_count += 1
+        if unbound_done_row_count and bound_done_row_count:
+            msg = (
+                "Done extraction journal mixes capture-disabled and receipt-bound rows in "
+                f"{database_label}"
+            )
+            raise ValueError(msg)
+        if unbound_done_row_count:
+            # Production composition does not yet install a capture factory. Keep that
+            # mode internally coherent, while rejecting partial fields and any merge
+            # that would mix it with receipt-bound state.
+            return "capture_disabled"
+        if staging_version is None:
+            msg = (
+                f"Receipt-bound done row lacks complete local staging evidence in {database_label}"
+            )
+            raise ValueError(msg)
+        if staging_version != "current":
+            msg = (
+                f"Receipt-bound done row lacks complete local staging evidence in {database_label}"
+            )
+            raise ValueError(msg)
+        qualified_staging = (
+            f"{quote_identifier(database)}.{quote_identifier('_staging_chunk_journal')}"
+        )
+        seen_receipts: set[str] = set()
+        for (
+            endpoint,
+            params,
+            receipt_sha256,
+            provider_sha256,
+            parameters_sha256,
+            routes_json,
+        ) in receipt_rows:
+            assert isinstance(endpoint, str)
+            assert isinstance(params, str)
+            assert isinstance(receipt_sha256, str)
+            assert isinstance(provider_sha256, str)
+            assert isinstance(parameters_sha256, str)
+            assert isinstance(routes_json, str)
+            try:
+                routes = json.loads(routes_json)
+                if not isinstance(routes, list) or any(
+                    not isinstance(route, str) for route in routes
+                ):
+                    raise ValueError("result routes must be a string array")
+                binding = LogicalCallReceiptBinding(
+                    logical_call_receipt_sha256=receipt_sha256,
+                    endpoint_name=endpoint,
+                    logical_parameters_sha256=parameters_sha256,
+                    provider_authority_sha256=provider_sha256,
+                    result_route_ids=tuple(routes),
+                )
+                logical_params = json.loads(params)
+                if not isinstance(logical_params, dict):
+                    raise ValueError("journal parameters must be an object")
+                if canonical_parameters_sha256(logical_params) != parameters_sha256:
+                    raise ValueError("logical parameters digest mismatch")
+                for route in binding.result_route_ids:
+                    route_endpoint, _staging_key, raw_index = route.rsplit(":", 2)
+                    result_index = int(raw_index)
+                    if (
+                        route_endpoint != endpoint
+                        or result_index < 0
+                        or raw_index != str(result_index)
+                    ):
+                        raise ValueError("logical result route mismatch")
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                msg = f"Receipt-bound done row has invalid extraction evidence for {endpoint}"
+                raise ValueError(msg) from exc
+            if receipt_sha256 in seen_receipts:
+                raise ValueError("Receipt-bound done rows reuse one logical-call receipt root")
+            seen_receipts.add(receipt_sha256)
+            staging_rows = conn.execute(
+                f"""
+                SELECT staging_key,
+                       provider_authority_sha256,
+                       logical_parameters_sha256,
+                       result_route_id,
+                       persisted_row_count,
+                       persisted_content_sha256,
+                       persisted_schema_sha256
+                FROM {qualified_staging}
+                WHERE logical_call_receipt_sha256 = ?
+                """,
+                [receipt_sha256],
+            ).fetchall()
+            expected_routes = set(binding.result_route_ids)
+            observed_routes: set[str] = set()
+            for (
+                staging_key,
+                provider,
+                parameters,
+                route,
+                row_count_value,
+                content,
+                schema,
+            ) in staging_rows:
+                route_parts = route.rsplit(":", 2) if isinstance(route, str) else []
+                if (
+                    len(route_parts) != 3
+                    or route_parts[1] != staging_key
+                    or provider != provider_sha256
+                    or parameters != parameters_sha256
+                    or not isinstance(route, str)
+                    or route in observed_routes
+                    or isinstance(row_count_value, bool)
+                    or not isinstance(row_count_value, int)
+                    or row_count_value < 0
+                    or not isinstance(content, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", content) is None
+                    or not isinstance(schema, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", schema) is None
+                ):
+                    msg = (
+                        "Receipt-bound done row mismatches complete local staging evidence "
+                        f"in {database_label}"
+                    )
+                    raise ValueError(msg)
+                observed_routes.add(route)
+            if len(staging_rows) != len(expected_routes) or observed_routes != expected_routes:
+                msg = (
+                    "Receipt-bound done row lacks complete local staging evidence "
+                    f"in {database_label}"
+                )
+                raise ValueError(msg)
+        return "receipt_bound"
+
     def row_count(
         conn: duckdb.DuckDBPyConnection,
         sql: str,
@@ -4100,6 +5843,147 @@ def _merge_database_paths(
             msg = f"Expected COUNT(*) query to return a row: {sql}"
             raise RuntimeError(msg)
         return int(row[0])
+
+    authority_table_reports: dict[str, dict[str, Any]] = {}
+
+    def merge_immutable_authority_table(
+        conn: duckdb.DuckDBPyConnection,
+        *,
+        contract: _AuthorityMergeContract,
+        target_database: str,
+        source_aliases: list[str],
+        source_paths_by_alias: dict[str, Path],
+        source_order_by_alias: dict[str, int],
+    ) -> None:
+        table_name = contract.table_name
+        target_present = table_exists(conn, target_database, table_name)
+        present_aliases = [
+            alias for alias in source_aliases if table_exists(conn, alias, table_name)
+        ]
+        if not target_present and not present_aliases:
+            return
+        if target_present:
+            _require_authority_table_contract(
+                conn,
+                database=target_database,
+                contract=contract,
+                database_label=(
+                    str(base_database_path)
+                    if base_database_path is not None
+                    else "checkpoint candidate"
+                ),
+            )
+        for alias in present_aliases:
+            _require_authority_table_contract(
+                conn,
+                database=alias,
+                contract=contract,
+                database_label=str(source_paths_by_alias[alias]),
+            )
+        if not target_present:
+            _create_authority_table(conn, contract=contract)
+            _require_authority_table_contract(
+                conn,
+                database=target_database,
+                contract=contract,
+                database_label="new checkpoint candidate",
+            )
+
+        quoted_table = quote_identifier(table_name)
+        column_names = tuple(column[1] for column in contract.columns)
+        quoted_columns = ", ".join(quote_identifier(name) for name in column_names)
+        candidate_queries = [
+            f"SELECT {quoted_columns}, -1::INTEGER AS __source_order FROM main.{quoted_table}"
+        ]
+        candidate_queries.extend(
+            f"SELECT {quoted_columns}, {source_order_by_alias[alias]}::INTEGER "
+            f"AS __source_order FROM {quote_identifier(alias)}.{quoted_table}"
+            for alias in present_aliases
+        )
+        safe_suffix = re.sub(r"[^a-zA-Z0-9_]", "_", table_name)
+        candidates_table = f"_authority_candidates_{safe_suffix}"
+        winners_table = f"_authority_winners_{safe_suffix}"
+        conn.execute(
+            f"CREATE TEMP TABLE {quote_identifier(candidates_table)} AS "
+            "SELECT *, row_number() OVER () AS __candidate_order FROM ("
+            + " UNION ALL ".join(candidate_queries)
+            + ") AS authority_rows"
+        )
+        key_match = " AND ".join(
+            f"left_row.{quote_identifier(key)} = right_row.{quote_identifier(key)}"
+            for key in contract.primary_key
+        )
+        non_key_columns = [name for name in column_names if name not in contract.primary_key]
+        row_differs = " OR ".join(
+            f"left_row.{quote_identifier(name)} IS DISTINCT FROM right_row.{quote_identifier(name)}"
+            for name in non_key_columns
+        )
+        selected_keys = ", ".join(
+            f"left_row.{quote_identifier(key)}" for key in contract.primary_key
+        )
+        collision = conn.execute(
+            f"SELECT {selected_keys} "
+            f"FROM {quote_identifier(candidates_table)} AS left_row "
+            f"JOIN {quote_identifier(candidates_table)} AS right_row ON {key_match} "
+            "AND left_row.__candidate_order < right_row.__candidate_order "
+            f"WHERE {row_differs} LIMIT 1"
+        ).fetchone()
+        if collision is not None:
+            identity = ":".join(str(value) for value in collision)
+            raise ValueError(f"Conflicting immutable authority row for {table_name}:{identity}")
+        partition = ", ".join(quote_identifier(key) for key in contract.primary_key)
+        conn.execute(
+            f"CREATE TEMP TABLE {quote_identifier(winners_table)} AS "
+            "SELECT * EXCLUDE (__source_order, __candidate_order, __merge_rank) FROM ("
+            "SELECT *, ROW_NUMBER() OVER ("
+            f"PARTITION BY {partition} ORDER BY __source_order DESC, __candidate_order DESC"
+            ") AS __merge_rank "
+            f"FROM {quote_identifier(candidates_table)}) AS ranked_rows "
+            "WHERE __merge_rank = 1"
+        )
+        candidate_count = row_count(
+            conn,
+            f"SELECT COUNT(*) FROM {quote_identifier(candidates_table)}",
+        )
+        winner_count = row_count(
+            conn,
+            f"SELECT COUNT(*) FROM {quote_identifier(winners_table)}",
+        )
+        base_rows = row_count(conn, f"SELECT COUNT(*) FROM main.{quoted_table}")
+        conn.execute(f"DELETE FROM main.{quoted_table}")
+        conn.execute(
+            f"INSERT INTO main.{quoted_table} ({quoted_columns}) "
+            f"SELECT {quoted_columns} FROM {quote_identifier(winners_table)} "
+            f"ORDER BY {partition}"
+        )
+        _require_authority_table_contract(
+            conn,
+            database=target_database,
+            contract=contract,
+            database_label="merged checkpoint candidate",
+        )
+        report = {
+            "source_rows": candidate_count - base_rows,
+            "inserted_rows": max(winner_count - base_rows, 0),
+            "duplicate_rows": candidate_count - winner_count,
+            "base_rows": base_rows,
+            "row_count": winner_count,
+            "source_count": len(present_aliases),
+            "primary_key": list(contract.primary_key),
+            "unique_keys": [list(key) for key in contract.unique_keys],
+            "per_source": [],
+        }
+        for alias in present_aliases:
+            report["per_source"].append(
+                {
+                    "database_path": str(source_paths_by_alias[alias]),
+                    "source_rows": row_count(
+                        conn,
+                        f"SELECT COUNT(*) FROM {quote_identifier(alias)}.{quoted_table}",
+                    ),
+                }
+            )
+        authority_table_reports[table_name] = report
 
     merged_tables = 0
     table_reports: dict[str, dict[str, Any]] = {}
@@ -4113,6 +5997,14 @@ def _merge_database_paths(
         "source_count": 0,
         "per_source": [],
     }
+    staging_journal_report: dict[str, Any] = {
+        "source_rows": 0,
+        "inserted_rows": 0,
+        "duplicate_rows": 0,
+        "source_count": 0,
+        "legacy_source_count": 0,
+        "receipt_source_count": 0,
+    }
 
     summary = {
         "merged_database_count": len(db_paths) + int(base_database_path is not None),
@@ -4123,8 +6015,43 @@ def _merge_database_paths(
         "output_path": str(target_path),
         "table_reports": table_reports,
         "journal_report": journal_report,
+        "staging_journal_report": staging_journal_report,
+        "authority_table_reports": authority_table_reports,
+        "source_w2_database_authorities": source_w2_authorities,
     }
     if not db_paths:
+        try:
+            validation_conn = duckdb.connect(str(working_path), read_only=True)
+            try:
+                database_row = validation_conn.execute("SELECT current_database()").fetchone()
+                if database_row is None:
+                    raise RuntimeError(
+                        f"Could not resolve copied checkpoint database name for {working_path}"
+                    )
+                validate_local_receipt_evidence(
+                    validation_conn,
+                    database=str(database_row[0]),
+                    database_label=str(base_database_path),
+                )
+                receipt, expected_call_count, expected_call_inventory_sha256 = (
+                    _verify_checkpoint_w2_database(validation_conn)
+                )
+                summary.update(
+                    {
+                        "w2_database_authority": receipt.to_dict(),
+                        "w2_database_authority_sha256": receipt.receipt_sha256,
+                        "w2_expected_call_count": expected_call_count,
+                        "w2_expected_call_inventory_sha256": (expected_call_inventory_sha256),
+                        "w2_database_authority_closed": True,
+                    }
+                )
+            finally:
+                validation_conn.close()
+        except Exception:
+            for failed_path in (working_path, working_wal_path):
+                with suppress(FileNotFoundError):
+                    failed_path.unlink()
+            raise
         working_path.replace(target_path)
         return summary
 
@@ -4136,7 +6063,6 @@ def _merge_database_paths(
         raise RuntimeError(msg)
     target_database = str(target_database_row[0])
     attached_aliases: list[str] = []
-    journal_source_aliases: list[str] = []
     merge_failed = False
 
     try:
@@ -4144,139 +6070,317 @@ def _merge_database_paths(
             alias = f"src_{index}"
             target.execute(f"ATTACH '{db_path}' AS {alias} (READ_ONLY)")
             attached_aliases.append(alias)
+        source_order_by_alias = {alias: index for index, alias in enumerate(attached_aliases)}
 
         target.execute("BEGIN TRANSACTION")
         try:
-            for alias, db_path in zip(attached_aliases, db_paths, strict=True):
-                if not table_exists(target, alias, "_extraction_journal"):
-                    continue
-                source_schema = table_schema(target, alias, "_extraction_journal")
-                if not table_exists(target, target_database, "_extraction_journal"):
-                    target.execute(
-                        "CREATE TABLE main._extraction_journal AS "
-                        f"SELECT * FROM {alias}._extraction_journal WHERE FALSE"
-                    )
-                target_schema = table_schema(
+            source_paths_by_alias = dict(zip(attached_aliases, db_paths, strict=True))
+            for contract in authority_contracts:
+                merge_immutable_authority_table(
                     target,
-                    target_database,
-                    "_extraction_journal",
+                    contract=contract,
+                    target_database=target_database,
+                    source_aliases=attached_aliases,
+                    source_paths_by_alias=source_paths_by_alias,
+                    source_order_by_alias=source_order_by_alias,
                 )
-                if target_schema != source_schema:
-                    msg = (
-                        "Schema mismatch while merging _extraction_journal "
-                        f"from {db_path}: expected {target_schema}, got {source_schema}"
-                    )
-                    raise ValueError(msg)
-                if any(column_name == "__merge_source_order" for column_name, _ in source_schema):
-                    msg = (
-                        "Reserved merge column __merge_source_order exists in "
-                        f"_extraction_journal from {db_path}"
-                    )
-                    raise ValueError(msg)
-                journal_source_aliases.append(alias)
+            extraction_report = authority_table_reports.get("_extraction_journal")
+            if extraction_report is not None:
+                journal_report.update(
+                    {
+                        "source_rows": extraction_report["source_rows"],
+                        "inserted_rows": extraction_report["inserted_rows"],
+                        "duplicate_rows": extraction_report["duplicate_rows"],
+                        "source_count": extraction_report["source_count"],
+                        "per_source": extraction_report["per_source"],
+                        "insert_batch_count": 1,
+                        "delete_batch_count": int(base_database_path is not None),
+                        "replaced_base_rows": 0,
+                    }
+                )
 
-            if journal_source_aliases:
-                source_order_by_alias = {
-                    alias: index for index, alias in enumerate(attached_aliases)
-                }
-                journal_union = " UNION ALL ".join(
-                    (
-                        f"SELECT *, {source_order_by_alias[alias]}::INTEGER "
-                        f"AS __merge_source_order FROM {alias}._extraction_journal"
+            staging_source_versions: dict[str, str] = {}
+            staging_source_aliases: list[str] = []
+            for alias, db_path in zip(attached_aliases, db_paths, strict=True):
+                if not table_exists(target, alias, "_staging_chunk_journal"):
+                    continue
+                version = known_schema_version(
+                    table_schema(target, alias, "_staging_chunk_journal"),
+                    table_name="_staging_chunk_journal",
+                    database_label=str(db_path),
+                    legacy_schema=_STAGING_CHUNK_JOURNAL_LEGACY_SCHEMA,
+                    current_schema=_STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA,
+                )
+                staging_source_versions[alias] = version
+                staging_source_aliases.append(alias)
+                source_rows = row_count(
+                    target,
+                    f"SELECT COUNT(*) FROM {alias}._staging_chunk_journal",
+                )
+                staging_journal_report["source_rows"] += source_rows
+                staging_journal_report["source_count"] += 1
+                staging_journal_report[
+                    "legacy_source_count" if version == "legacy" else "receipt_source_count"
+                ] += 1
+
+            target_has_staging_journal = table_exists(
+                target,
+                target_database,
+                "_staging_chunk_journal",
+            )
+            if target_has_staging_journal or staging_source_aliases:
+                ensure_current_staging_journal(
+                    target,
+                    database=target_database,
+                )
+                staging_projection = projected_staging_columns(
+                    schema_version="current",
+                )
+                candidate_queries = [
+                    f"SELECT {staging_projection}, -1::INTEGER AS __source_order "
+                    "FROM main._staging_chunk_journal"
+                ]
+                candidate_queries.extend(
+                    "SELECT "
+                    + projected_staging_columns(
+                        schema_version=staging_source_versions[alias],
                     )
-                    for alias in journal_source_aliases
+                    + f", {source_order_by_alias[alias]}::INTEGER AS __source_order "
+                    + f"FROM {alias}._staging_chunk_journal"
+                    for alias in staging_source_aliases
                 )
                 target.execute(
-                    f"""
-                    CREATE TEMP TABLE _delta_journal_winners AS
-                    SELECT * EXCLUDE (__merge_rank)
+                    "CREATE TEMP TABLE _staging_journal_candidates AS "
+                    "SELECT *, row_number() OVER () AS __candidate_order FROM ("
+                    + " UNION ALL ".join(candidate_queries)
+                    + ") AS candidate_rows"
+                )
+                invalid_staging_row = target.execute(
+                    """
+                    SELECT chunk_id, staging_key
+                    FROM _staging_journal_candidates
+                    WHERE chunk_id IS NULL
+                       OR NOT regexp_full_match(chunk_id, '[0-9a-f]{64}')
+                       OR staging_key IS NULL
+                       OR NOT regexp_full_match(staging_key, '[A-Za-z_][A-Za-z0-9_]*')
+                       OR row_count IS NULL
+                       OR row_count < 0
+                       OR content_hash IS NULL
+                       OR NOT regexp_full_match(content_hash, '[0-9a-f]{64}')
+                       OR (
+                            (canonical_frame_format IS NOT NULL
+                             OR frame_content_hash_contract IS NOT NULL
+                             OR frame_schema_hash_contract IS NOT NULL)
+                            <>
+                            (canonical_frame_format IS NOT NULL
+                             AND frame_content_hash_contract IS NOT NULL
+                             AND frame_schema_hash_contract IS NOT NULL)
+                       )
+                       OR (canonical_frame_format IS NOT NULL AND (
+                            canonical_frame_format != ?
+                            OR frame_content_hash_contract != ?
+                            OR frame_schema_hash_contract != ?
+                       ))
+                       OR (
+                            (persisted_row_count IS NOT NULL
+                             OR persisted_content_sha256 IS NOT NULL
+                             OR persisted_schema_sha256 IS NOT NULL)
+                            <>
+                            (persisted_row_count IS NOT NULL
+                             AND persisted_content_sha256 IS NOT NULL
+                             AND persisted_schema_sha256 IS NOT NULL)
+                       )
+                       OR (persisted_row_count IS NOT NULL AND persisted_row_count < 0)
+                       OR (persisted_content_sha256 IS NOT NULL AND NOT regexp_full_match(
+                            persisted_content_sha256, '[0-9a-f]{64}'
+                       ))
+                       OR (persisted_schema_sha256 IS NOT NULL AND NOT regexp_full_match(
+                            persisted_schema_sha256, '[0-9a-f]{64}'
+                       ))
+                       OR (
+                            (logical_call_receipt_sha256 IS NOT NULL
+                             OR provider_authority_sha256 IS NOT NULL
+                             OR logical_parameters_sha256 IS NOT NULL
+                             OR result_route_id IS NOT NULL)
+                            <>
+                            (logical_call_receipt_sha256 IS NOT NULL
+                             AND provider_authority_sha256 IS NOT NULL
+                             AND logical_parameters_sha256 IS NOT NULL
+                             AND result_route_id IS NOT NULL)
+                       )
+                       OR (logical_call_receipt_sha256 IS NOT NULL AND (
+                            canonical_frame_format IS NULL
+                            OR persisted_row_count IS NULL
+                            OR NOT regexp_full_match(
+                                logical_call_receipt_sha256, '[0-9a-f]{64}'
+                            )
+                            OR NOT regexp_full_match(
+                                provider_authority_sha256, '[0-9a-f]{64}'
+                            )
+                            OR NOT regexp_full_match(
+                                logical_parameters_sha256, '[0-9a-f]{64}'
+                            )
+                            OR NOT regexp_full_match(
+                                result_route_id,
+                                '[A-Za-z0-9_][A-Za-z0-9_.:-]{0,199}'
+                            )
+                            OR NOT regexp_full_match(
+                                result_route_id, '.+:[^:]+:(0|[1-9][0-9]*)'
+                            )
+                            OR regexp_extract(
+                                result_route_id,
+                                '^([^:]+):([^:]+):(0|[1-9][0-9]*)$',
+                                2
+                            ) != staging_key
+                       ))
+                    LIMIT 1
+                    """,
+                    [
+                        CANONICAL_FRAME_FORMAT,
+                        FRAME_CONTENT_HASH_CONTRACT,
+                        FRAME_SCHEMA_HASH_CONTRACT,
+                    ],
+                ).fetchone()
+                if invalid_staging_row is not None:
+                    msg = (
+                        "Invalid _staging_chunk_journal attestation for "
+                        f"{invalid_staging_row[0]}:{invalid_staging_row[1]}"
+                    )
+                    raise ValueError(msg)
+
+                collision = target.execute(
+                    """
+                    SELECT left_row.chunk_id, left_row.staging_key
+                    FROM _staging_journal_candidates AS left_row
+                    JOIN _staging_journal_candidates AS right_row
+                      ON left_row.chunk_id = right_row.chunk_id
+                     AND left_row.staging_key = right_row.staging_key
+                     AND left_row.__candidate_order < right_row.__candidate_order
+                    WHERE left_row.row_count IS DISTINCT FROM right_row.row_count
+                       OR left_row.content_hash IS DISTINCT FROM right_row.content_hash
+                       OR (
+                            left_row.canonical_frame_format IS NOT NULL
+                            AND right_row.canonical_frame_format IS NOT NULL
+                            AND left_row.canonical_frame_format IS DISTINCT FROM
+                                right_row.canonical_frame_format
+                       )
+                       OR (
+                            left_row.frame_content_hash_contract IS NOT NULL
+                            AND right_row.frame_content_hash_contract IS NOT NULL
+                            AND left_row.frame_content_hash_contract IS DISTINCT FROM
+                                right_row.frame_content_hash_contract
+                       )
+                       OR (
+                            left_row.frame_schema_hash_contract IS NOT NULL
+                            AND right_row.frame_schema_hash_contract IS NOT NULL
+                            AND left_row.frame_schema_hash_contract IS DISTINCT FROM
+                                right_row.frame_schema_hash_contract
+                       )
+                       OR (
+                            left_row.persisted_row_count IS NOT NULL
+                            AND right_row.persisted_row_count IS NOT NULL
+                            AND left_row.persisted_row_count IS DISTINCT FROM
+                                right_row.persisted_row_count
+                       )
+                       OR (
+                            left_row.persisted_content_sha256 IS NOT NULL
+                            AND right_row.persisted_content_sha256 IS NOT NULL
+                            AND left_row.persisted_content_sha256 IS DISTINCT FROM
+                                right_row.persisted_content_sha256
+                       )
+                       OR (
+                            left_row.persisted_schema_sha256 IS NOT NULL
+                            AND right_row.persisted_schema_sha256 IS NOT NULL
+                            AND left_row.persisted_schema_sha256 IS DISTINCT FROM
+                                right_row.persisted_schema_sha256
+                       )
+                       OR (
+                            left_row.logical_call_receipt_sha256 IS NOT NULL
+                            AND right_row.logical_call_receipt_sha256 IS NOT NULL
+                            AND left_row.logical_call_receipt_sha256 IS DISTINCT FROM
+                                right_row.logical_call_receipt_sha256
+                       )
+                       OR (
+                            left_row.provider_authority_sha256 IS NOT NULL
+                            AND right_row.provider_authority_sha256 IS NOT NULL
+                            AND left_row.provider_authority_sha256 IS DISTINCT FROM
+                                right_row.provider_authority_sha256
+                       )
+                       OR (
+                            left_row.logical_parameters_sha256 IS NOT NULL
+                            AND right_row.logical_parameters_sha256 IS NOT NULL
+                            AND left_row.logical_parameters_sha256 IS DISTINCT FROM
+                                right_row.logical_parameters_sha256
+                       )
+                       OR (
+                            left_row.result_route_id IS NOT NULL
+                            AND right_row.result_route_id IS NOT NULL
+                            AND left_row.result_route_id IS DISTINCT FROM
+                                right_row.result_route_id
+                       )
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if collision is not None:
+                    msg = (
+                        "Conflicting _staging_chunk_journal collision for "
+                        f"{collision[0]}:{collision[1]}"
+                    )
+                    raise ValueError(msg)
+
+                target.execute(
+                    """
+                    CREATE TEMP TABLE _staging_journal_winners AS
+                    SELECT * EXCLUDE (__source_order, __candidate_order, __merge_rank)
                     FROM (
-                        SELECT
-                            *,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY endpoint, params
-                                ORDER BY __merge_source_order DESC
-                            ) AS __merge_rank
-                        FROM ({journal_union}) AS delta_rows
+                        SELECT *,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY chunk_id, staging_key
+                                   ORDER BY
+                                       (logical_call_receipt_sha256 IS NOT NULL) DESC,
+                                       (persisted_row_count IS NOT NULL) DESC,
+                                       __source_order DESC,
+                                       __candidate_order DESC
+                               ) AS __merge_rank
+                        FROM _staging_journal_candidates
                     ) AS ranked_rows
                     WHERE __merge_rank = 1
                     """
                 )
-
-                for alias, db_path in zip(attached_aliases, db_paths, strict=True):
-                    if alias not in journal_source_aliases:
-                        continue
-                    source_order = source_order_by_alias[alias]
-                    source_rows = row_count(
-                        target,
-                        f"SELECT COUNT(*) FROM {alias}._extraction_journal",
-                    )
-                    winning_rows = row_count(
-                        target,
-                        "SELECT COUNT(*) FROM _delta_journal_winners "
-                        "WHERE __merge_source_order = ?",
-                        [source_order],
-                    )
-                    duplicate_rows = max(source_rows - winning_rows, 0)
-                    journal_report["source_rows"] += source_rows
-                    journal_report["duplicate_rows"] += duplicate_rows
-                    journal_report["source_count"] += 1
-                    journal_report["per_source"].append(
-                        {
-                            "database_path": str(db_path),
-                            "source_rows": source_rows,
-                            "inserted_rows": winning_rows,
-                            "duplicate_rows": duplicate_rows,
-                        }
-                    )
-
-                if base_database_path is not None:
-                    before_rows = row_count(
-                        target,
-                        "SELECT COUNT(*) FROM main._extraction_journal",
-                    )
-                    target.execute(
-                        """
-                        DELETE FROM main._extraction_journal AS dst
-                        WHERE EXISTS (
-                            SELECT 1
-                            FROM _delta_journal_winners AS src
-                            WHERE dst.endpoint = src.endpoint
-                              AND dst.params IS NOT DISTINCT FROM src.params
-                        )
-                        """
-                    )
-                    after_rows = row_count(
-                        target,
-                        "SELECT COUNT(*) FROM main._extraction_journal",
-                    )
-                    journal_report["replaced_base_rows"] = before_rows - after_rows
-                    journal_report["delete_batch_count"] = 1
-
-                journal_columns = [
-                    column_name
-                    for column_name, _data_type in table_schema(
-                        target,
-                        target_database,
-                        "_extraction_journal",
-                    )
-                ]
-                quoted_journal_columns = ", ".join(
-                    quote_identifier(column_name) for column_name in journal_columns
-                )
-                target.execute(
-                    f"""
-                    INSERT INTO main._extraction_journal ({quoted_journal_columns})
-                    SELECT {quoted_journal_columns}
-                    FROM _delta_journal_winners
-                    ORDER BY endpoint, params, __merge_source_order
-                    """
-                )
-                journal_report["inserted_rows"] = row_count(
+                candidate_count = row_count(
                     target,
-                    "SELECT COUNT(*) FROM _delta_journal_winners",
+                    "SELECT COUNT(*) FROM _staging_journal_candidates",
                 )
-                journal_report["insert_batch_count"] = 1
+                winner_count = row_count(
+                    target,
+                    "SELECT COUNT(*) FROM _staging_journal_winners",
+                )
+                base_staging_rows = row_count(
+                    target,
+                    "SELECT COUNT(*) FROM main._staging_chunk_journal",
+                )
+                staging_columns = ", ".join(
+                    quote_identifier(column_name)
+                    for column_name, _data_type in _STAGING_CHUNK_JOURNAL_ATTESTATION_SCHEMA
+                )
+                target.execute("DELETE FROM main._staging_chunk_journal")
+                target.execute(
+                    f"INSERT INTO main._staging_chunk_journal ({staging_columns}) "
+                    f"SELECT {staging_columns} FROM _staging_journal_winners "
+                    "ORDER BY chunk_id, staging_key"
+                )
+                staging_journal_report["inserted_rows"] = max(
+                    winner_count - base_staging_rows,
+                    0,
+                )
+                staging_journal_report["duplicate_rows"] = candidate_count - winner_count
+
+            if table_exists(target, target_database, "_extraction_journal"):
+                validate_local_receipt_evidence(
+                    target,
+                    database=target_database,
+                    database_label="merged checkpoint",
+                )
 
             for alias, db_path in zip(attached_aliases, db_paths, strict=True):
                 tables = [
@@ -4356,6 +6460,28 @@ def _merge_database_paths(
                 with suppress(FileNotFoundError):
                     failed_path.unlink()
 
+    try:
+        validation_conn = duckdb.connect(str(working_path), read_only=True)
+        try:
+            receipt, expected_call_count, expected_call_inventory_sha256 = (
+                _verify_checkpoint_w2_database(validation_conn)
+            )
+        finally:
+            validation_conn.close()
+    except Exception:
+        for failed_path in (working_path, working_wal_path):
+            with suppress(FileNotFoundError):
+                failed_path.unlink()
+        raise
+    summary.update(
+        {
+            "w2_database_authority": receipt.to_dict(),
+            "w2_database_authority_sha256": receipt.receipt_sha256,
+            "w2_expected_call_count": expected_call_count,
+            "w2_expected_call_inventory_sha256": expected_call_inventory_sha256,
+            "w2_database_authority_closed": True,
+        }
+    )
     working_path.replace(target_path)
     summary["merged_table_operations"] = merged_tables
     return summary
@@ -4517,6 +6643,14 @@ def _validate_checkpoint_trust_root(
         raise ValueError("Checkpoint run_id must be a positive integer")
     if not isinstance(raw_manifest, dict):
         raise ValueError("Checkpoint manifest must be an object")
+    provider_authority = normalize_nba_api_provider_authority(
+        raw_manifest.get("provider_authority")
+    )
+    _normalize_assurance_admission(
+        raw_manifest.get("assurance_admission"),
+        workflow_source_sha=normalized_source_sha,
+        provider_authority=provider_authority,
+    )
     raw_chain_state = raw_manifest.get("chain_state", {})
     if not isinstance(raw_chain_state, dict):
         raise ValueError("Checkpoint manifest chain_state must be an object")
@@ -4625,6 +6759,8 @@ def _validate_previous_checkpoint_report(
         raise ValueError(msg)
     if previous_report_path.is_symlink():
         raise ValueError("Previous checkpoint report must be a regular file")
+    if previous_report.get("provider_authority") != expected_nba_api_provider_authority():
+        raise ValueError("Previous checkpoint report provider authority does not match")
 
     provenance_fields = (
         ("chain_id", chain_id),
@@ -4666,6 +6802,22 @@ def _validate_previous_checkpoint_report(
         actual_report_sha256 = _file_sha256(previous_report_path)
         if build.report_sha256 != actual_report_sha256:
             raise ValueError("Previous checkpoint report digest does not match its transaction")
+    previous_w2_connection = duckdb.connect(str(previous_db_path), read_only=True)
+    try:
+        _validate_report_w2_database_authority(
+            connection=previous_w2_connection,
+            report=previous_report,
+            label="Previous checkpoint report",
+        )
+    finally:
+        previous_w2_connection.close()
+    previous_w2_authority = CheckpointW2AuthorityIdentity.from_report(previous_report)
+    if (
+        pointer.transaction is not None
+        and pointer.transaction.build is not None
+        and previous_w2_authority != pointer.transaction.build.w2_authority
+    ):
+        raise ValueError("Previous checkpoint W2 authority differs from its committed transaction")
 
     raw_lane_ids = previous_report.get("included_lane_ids")
     if not isinstance(raw_lane_ids, list):
@@ -4760,7 +6912,13 @@ def _validate_previous_checkpoint_report(
                 raise ValueError("Previous checkpoint workload integrity is missing or invalid")
             if not isinstance(raw_workload_contracts, dict):
                 raise ValueError("Previous checkpoint is missing included_lane_workload_contracts")
-            unexpected_contract_ids = set(raw_workload_contracts) - included_lane_ids
+            raw_contract_lane_ids = set(raw_workload_contracts)
+            if any(not isinstance(lane_id, str) for lane_id in raw_contract_lane_ids):
+                raise ValueError("Previous checkpoint workload contract lane IDs are invalid")
+            contract_lane_ids = {
+                lane_id for lane_id in raw_contract_lane_ids if isinstance(lane_id, str)
+            }
+            unexpected_contract_ids = contract_lane_ids - included_lane_ids
             if unexpected_contract_ids:
                 raise ValueError(
                     "Previous checkpoint has workload contracts for non-included lanes: "
@@ -4897,6 +7055,12 @@ def validate_checkpoint_artifact(
         "included_lane_coverage_hashes": coverage_hashes,
         "contract_blocked_lane_count": len(contract_blocked_rows),
         "contract_blocked_evidence_sha256": contract_blocked_evidence_sha256,
+        "provider_authority": manifest.provider_authority,
+        "w2_database_authority": report["w2_database_authority"],
+        "w2_database_authority_sha256": report["w2_database_authority_sha256"],
+        "w2_expected_call_count": report["w2_expected_call_count"],
+        "w2_expected_call_inventory_sha256": (report["w2_expected_call_inventory_sha256"]),
+        "w2_database_authority_closed": True,
     }
     if pointer.transaction is not None:
         summary["checkpoint_transaction"] = pointer.transaction.to_dict()
@@ -6098,6 +8262,244 @@ def _compatible_previous_checkpoint_lane_ids(
     return compatible
 
 
+def _dependent_checkpoint_coverage(
+    *,
+    manifest: FullExtractionManifest,
+    checkpoint_db_path: Path,
+    included_lane_ids: set[str],
+    execution_plan_path: Path | None,
+) -> dict[str, Any] | None:
+    contract = manifest.dependent_workload
+    if contract is None:
+        return None
+    if contract["state"] == "foundation_required":
+        return {
+            "schema_version": 1,
+            "state": "foundation_required",
+            "green": False,
+            "accounting_complete": False,
+            "physical_call_count": 0,
+            "complete_physical_call_count": 0,
+            "zero_result_physical_call_count": 0,
+            "pending_physical_call_count": 0,
+            "failed_physical_call_count": 0,
+            "scope_disposition_counts": {
+                "complete": 0,
+                "typed_zero": 0,
+                "blocked": 0,
+            },
+            "errors": [],
+        }
+
+    errors: list[str] = []
+    if execution_plan_path is None:
+        return {
+            "schema_version": 1,
+            "state": contract["state"],
+            "green": False,
+            "accounting_complete": False,
+            "physical_call_count": contract["physical_call_count"],
+            "complete_physical_call_count": 0,
+            "zero_result_physical_call_count": 0,
+            "pending_physical_call_count": contract["physical_call_count"],
+            "failed_physical_call_count": 0,
+            "scope_disposition_counts": {
+                "complete": 0,
+                "typed_zero": 0,
+                "blocked": 0,
+            },
+            "errors": ["dependent_execution_plan_missing"],
+        }
+    try:
+        plan = DependentExecutionPlan.read(execution_plan_path)
+    except Exception as exc:
+        return {
+            "schema_version": 1,
+            "state": contract["state"],
+            "green": False,
+            "accounting_complete": False,
+            "physical_call_count": contract["physical_call_count"],
+            "complete_physical_call_count": 0,
+            "zero_result_physical_call_count": 0,
+            "pending_physical_call_count": contract["physical_call_count"],
+            "failed_physical_call_count": 0,
+            "scope_disposition_counts": {
+                "complete": 0,
+                "typed_zero": 0,
+                "blocked": 0,
+            },
+            "errors": [f"dependent_execution_plan_invalid:{type(exc).__name__}"],
+        }
+
+    authority_checks = {
+        "bundle_content_sha256": plan.bundle_content_sha256,
+        "execution_plan_content_sha256": plan.content_sha256,
+        "foundation_checkpoint_transaction_sha256": (plan.checkpoint_transaction_sha256),
+        "foundation_checkpoint_database_sha256": plan.checkpoint_database_sha256,
+        "provider_authority_sha256": plan.provider_authority_sha256,
+        "scope_dispositions_sha256": plan.scope_dispositions_sha256,
+        "lane_inventory_sha256": plan.lane_inventory_sha256,
+    }
+    for field_name, actual in authority_checks.items():
+        if contract[field_name] != actual:
+            errors.append(f"dependent_authority_mismatch:{field_name}")
+    inventory = plan.to_payload()["inventory"]
+    for field_name in (
+        "semantic_unit_count",
+        "physical_call_count",
+        "scope_disposition_count",
+        "scope_disposition_counts",
+        "execution_lane_count",
+    ):
+        if contract[field_name] != inventory[field_name]:
+            errors.append(f"dependent_inventory_mismatch:{field_name}")
+    if plan.source_sha != manifest.workflow_source_sha:
+        errors.append("dependent_authority_mismatch:source_sha")
+
+    manifest_lanes = {
+        lane.lane_id: lane for lane in manifest.lanes if lane.lane_kind == DEPENDENT_LANE_KIND
+    }
+    execution_lanes = {lane.lane_id: lane for lane in plan.execution_lanes}
+    if set(manifest_lanes) != set(execution_lanes):
+        errors.append("dependent_lane_inventory_mismatch")
+    for lane_id in sorted(set(manifest_lanes) & set(execution_lanes)):
+        manifest_lane = manifest_lanes[lane_id]
+        execution_lane = execution_lanes[lane_id]
+        if (
+            manifest_lane.dependent_lane_sha256 != execution_lane.content_sha256
+            or manifest_lane.dependent_lane_role != execution_lane.role
+            or manifest_lane.dependent_call_count != len(execution_lane.calls)
+            or manifest_lane.dependent_semantic_unit_count != execution_lane.semantic_unit_count
+            or manifest_lane.endpoints
+            != ((execution_lane.endpoint_name,) if execution_lane.endpoint_name else ())
+        ):
+            errors.append(f"dependent_lane_contract_mismatch:{lane_id}")
+
+    accounting_lane_ids = {
+        lane.lane_id for lane in plan.execution_lanes if lane.role == "scope_accounting"
+    }
+    accounting_complete = accounting_lane_ids <= included_lane_ids
+    complete_call_count = 0
+    zero_result_call_count = 0
+    pending_call_count = 0
+    failed_call_count = 0
+    conn = duckdb.connect(str(checkpoint_db_path), read_only=True)
+    try:
+        for lane in plan.execution_lanes:
+            if lane.role == "scope_accounting":
+                continue
+            if lane.lane_id not in included_lane_ids:
+                pending_call_count += len(lane.calls)
+                continue
+            for call in lane.calls:
+                params_json = json.dumps(dict(call.parameters), sort_keys=True)
+                journal_rows = conn.execute(
+                    """
+                    SELECT status, logical_call_receipt_sha256,
+                           provider_authority_sha256, logical_parameters_sha256,
+                           result_route_ids_json
+                    FROM _extraction_journal
+                    WHERE endpoint = $1 AND params = $2
+                    """,
+                    [call.endpoint_name, params_json],
+                ).fetchall()
+                call_error = False
+                receipt_sha256 = ""
+                if len(journal_rows) != 1:
+                    call_error = True
+                else:
+                    status, receipt, provider, parameters, raw_routes = journal_rows[0]
+                    receipt_sha256 = str(receipt or "")
+                    try:
+                        routes = json.loads(str(raw_routes))
+                    except json.JSONDecodeError:
+                        routes = None
+                    if (
+                        status != "done"
+                        or not _is_sha256(receipt_sha256)
+                        or provider != plan.provider_authority_sha256
+                        or parameters != call.parameters_sha256
+                        or routes != list(call.result_route_ids)
+                    ):
+                        call_error = True
+                chunk_rows: list[tuple[Any, ...]] = []
+                if not call_error:
+                    chunk_rows = conn.execute(
+                        """
+                        SELECT provider_authority_sha256,
+                               logical_parameters_sha256,
+                               result_route_id,
+                               persisted_row_count,
+                               persisted_content_sha256,
+                               persisted_schema_sha256
+                        FROM _staging_chunk_journal
+                        WHERE logical_call_receipt_sha256 = $1
+                        """,
+                        [receipt_sha256],
+                    ).fetchall()
+                    observed_routes: set[str] = set()
+                    for provider, parameters, route, row_count, content, schema in chunk_rows:
+                        if (
+                            provider != plan.provider_authority_sha256
+                            or parameters != call.parameters_sha256
+                            or not isinstance(route, str)
+                            or route in observed_routes
+                            or type(row_count) is not int
+                            or row_count < 0
+                            or not _is_sha256(str(content or ""))
+                            or not _is_sha256(str(schema or ""))
+                        ):
+                            call_error = True
+                        observed_routes.add(str(route))
+                    if observed_routes != set(call.result_route_ids):
+                        call_error = True
+                if call_error:
+                    failed_call_count += 1
+                    errors.append(
+                        f"dependent_call_receipt_invalid:{lane.lane_id}:{call.identity_sha256}"
+                    )
+                else:
+                    complete_call_count += 1
+                    if all(row[3] == 0 for row in chunk_rows):
+                        zero_result_call_count += 1
+    except Exception as exc:
+        errors.append(f"dependent_checkpoint_query_failed:{type(exc).__name__}")
+    finally:
+        conn.close()
+
+    if not accounting_complete:
+        errors.append("dependent_scope_accounting_pending")
+    expected_call_count = int(contract["physical_call_count"])
+    if complete_call_count + pending_call_count + failed_call_count != expected_call_count:
+        errors.append("dependent_physical_call_accounting_mismatch")
+    disposition_counts = (
+        dict(contract["scope_disposition_counts"])
+        if accounting_complete
+        else {"complete": 0, "typed_zero": 0, "blocked": 0}
+    )
+    return {
+        "schema_version": 1,
+        "state": contract["state"],
+        **authority_checks,
+        "semantic_unit_count": contract["semantic_unit_count"],
+        "physical_call_count": expected_call_count,
+        "complete_physical_call_count": complete_call_count,
+        "zero_result_physical_call_count": zero_result_call_count,
+        "pending_physical_call_count": pending_call_count,
+        "failed_physical_call_count": failed_call_count,
+        "accounting_complete": accounting_complete,
+        "scope_disposition_counts": disposition_counts,
+        "green": (
+            accounting_complete
+            and complete_call_count == expected_call_count
+            and pending_call_count == 0
+            and failed_call_count == 0
+            and not errors
+        ),
+        "errors": sorted(set(errors)),
+    }
+
+
 def build_checkpoint_database(
     *,
     manifest_path: Path,
@@ -6108,6 +8510,7 @@ def build_checkpoint_database(
     previous_checkpoint_dir: Path | None = None,
     previous_checkpoint_report_path: Path | None = None,
     workload_duckdb_path: Path | None = None,
+    dependent_execution_plan_path: Path | None = None,
     chain_id: str = "",
     run_id: str = "",
     source_sha: str = "",
@@ -6267,6 +8670,9 @@ def build_checkpoint_database(
         conn = duckdb.connect(str(checkpoint_db_path))
         try:
             conn.execute("CHECKPOINT")
+            empty_w2_receipt, empty_w2_call_count, empty_w2_inventory_sha256 = (
+                _verify_checkpoint_w2_database(conn)
+            )
         finally:
             conn.close()
         merge_summary = {
@@ -6275,6 +8681,11 @@ def build_checkpoint_database(
             "output_path": str(checkpoint_db_path),
             "table_reports": {},
             "journal_report": {},
+            "w2_database_authority": empty_w2_receipt.to_dict(),
+            "w2_database_authority_sha256": empty_w2_receipt.receipt_sha256,
+            "w2_expected_call_count": empty_w2_call_count,
+            "w2_expected_call_inventory_sha256": empty_w2_inventory_sha256,
+            "w2_database_authority_closed": True,
         }
         table_row_counts = {}
         journal_row_count = 0
@@ -6305,14 +8716,50 @@ def build_checkpoint_database(
         dict.fromkeys([*previous_run_ids, *sorted(current_artifact_run_ids), run_id])
     )
     database_sha256 = _file_sha256(Path(output_path)) if output_path else ""
+    dependent_coverage = _dependent_checkpoint_coverage(
+        manifest=manifest,
+        checkpoint_db_path=checkpoint_db_path,
+        included_lane_ids=effective_included_lane_ids,
+        execution_plan_path=dependent_execution_plan_path,
+    )
     manifest_lane_count = len(lanes) + len(committed_contract_blocked_lane_ids)
     complete_lane_count = len(effective_included_lane_ids)
     contract_blocked_lane_count = len(accounted_contract_blocked_lane_ids)
+    w2_database_authority = merge_summary.get("w2_database_authority")
+    w2_database_authority_sha256 = str(merge_summary.get("w2_database_authority_sha256") or "")
+    w2_expected_call_count = merge_summary.get("w2_expected_call_count")
+    w2_expected_call_inventory_sha256 = str(
+        merge_summary.get("w2_expected_call_inventory_sha256") or ""
+    )
+    w2_database_authority_closed = (
+        merge_summary.get("w2_database_authority_closed") is True
+        and isinstance(w2_database_authority, dict)
+        and _is_sha256(w2_database_authority_sha256)
+        and type(w2_expected_call_count) is int
+        and w2_expected_call_count >= 0
+        and _is_sha256(w2_expected_call_inventory_sha256)
+    )
+    base_terminal_ready = (
+        not missing_lane_ids
+        and bool(effective_included_lane_ids)
+        and bool(database_sha256)
+        and set(effective_included_lane_ids) <= set(included_lane_coverage_hashes)
+        and not workload_contract_errors
+        and manifest_lane_count == complete_lane_count + contract_blocked_lane_count
+        and w2_database_authority_closed
+    )
+    dependent_activation_required = bool(
+        base_terminal_ready
+        and dependent_coverage is not None
+        and dependent_coverage["state"] == "foundation_required"
+    )
     report = {
         "chain_id": chain_id,
         "run_id": run_id,
         "artifact_name": checkpoint_artifact_name,
         "source_sha": normalized_source_sha,
+        "provider_authority": manifest.provider_authority,
+        "provider_authority_sha256": manifest.provider_authority["authority_sha256"],
         "chunk_profile": _manifest_chunk_profile(lanes),
         "checkpoint_generation": checkpoint_generation,
         "previous_checkpoint_generation": expected_previous_generation,
@@ -6339,15 +8786,19 @@ def build_checkpoint_database(
         "database_sha256": database_sha256,
         "workload_integrity": workload_integrity,
         "workload_contract_errors": workload_contract_errors,
+        "w2_database_authority": w2_database_authority,
+        "w2_database_authority_sha256": w2_database_authority_sha256,
+        "w2_expected_call_count": w2_expected_call_count,
+        "w2_expected_call_inventory_sha256": w2_expected_call_inventory_sha256,
+        "w2_database_authority_closed": w2_database_authority_closed,
+        "dependent_activation_required": dependent_activation_required,
         "terminal_ready": (
-            not missing_lane_ids
-            and bool(effective_included_lane_ids)
-            and bool(database_sha256)
-            and set(effective_included_lane_ids) <= set(included_lane_coverage_hashes)
-            and not workload_contract_errors
-            and manifest_lane_count == complete_lane_count + contract_blocked_lane_count
+            base_terminal_ready
+            and (dependent_coverage is None or dependent_coverage["green"] is True)
         ),
     }
+    if dependent_coverage is not None:
+        report["dependent_coverage"] = dependent_coverage
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
@@ -6404,6 +8855,8 @@ def build_checkpoint_transaction(
             raise ValueError(f"Checkpoint report {field_name} does not match the transaction")
     if report.get("checkpoint_generation") != checkpoint_generation:
         raise ValueError("Checkpoint report generation does not match the transaction")
+    if report.get("provider_authority") != manifest.provider_authority:
+        raise ValueError("Checkpoint report provider authority does not match the manifest")
 
     coverage_fingerprint = str(report.get("coverage_fingerprint") or "").lower()
     if not _is_sha256(coverage_fingerprint):
@@ -6460,6 +8913,16 @@ def build_checkpoint_transaction(
     database_sha256 = _file_sha256(checkpoint_database_path)
     if database_sha256 != str(report.get("database_sha256") or "").lower():
         raise ValueError("Checkpoint database digest does not match the checkpoint report")
+    w2_connection = duckdb.connect(str(checkpoint_database_path), read_only=True)
+    try:
+        _validate_report_w2_database_authority(
+            connection=w2_connection,
+            report=report,
+            label="Checkpoint report",
+        )
+    finally:
+        w2_connection.close()
+    w2_authority = CheckpointW2AuthorityIdentity.from_report(report)
     report_sha256 = _file_sha256(checkpoint_report_path)
     transaction = CheckpointTransaction.candidate(
         chain_id=chain_id,
@@ -6471,6 +8934,7 @@ def build_checkpoint_transaction(
     ).mark_built(
         database_sha256=database_sha256,
         report_sha256=report_sha256,
+        w2_authority=w2_authority,
     )
     payload = transaction.to_dict()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -6490,6 +8954,7 @@ def commit_checkpoint_manifest(
     output_path: Path,
     chain_id: str,
     run_id: str,
+    run_attempt: str,
     source_sha: str,
     artifact_id: int,
     artifact_digest: str,
@@ -6538,20 +9003,78 @@ def commit_checkpoint_manifest(
             raise ValueError(f"Checkpoint report {field_name} does not match the commit")
     if report.get("checkpoint_generation") != transaction.identity.generation:
         raise ValueError("Checkpoint report generation does not match the commit")
+    if report.get("provider_authority") != manifest.provider_authority:
+        raise ValueError("Checkpoint report provider authority does not match the manifest")
     if transaction.build is None:
         raise ValueError("Built checkpoint transaction has no build contract")
     if _file_sha256(checkpoint_report_path) != transaction.build.report_sha256:
         raise ValueError("Checkpoint report changed after the build transaction")
     if _file_sha256(checkpoint_database_path) != transaction.build.database_sha256:
         raise ValueError("Checkpoint database changed after the build transaction")
+    w2_connection = duckdb.connect(str(checkpoint_database_path), read_only=True)
+    try:
+        _validate_report_w2_database_authority(
+            connection=w2_connection,
+            report=report,
+            label="Checkpoint commit report",
+        )
+    finally:
+        w2_connection.close()
+    report_w2_authority = CheckpointW2AuthorityIdentity.from_report(report)
+    if report_w2_authority != transaction.build.w2_authority:
+        raise ValueError("Checkpoint report W2 authority changed after the build transaction")
     if str(report.get("coverage_fingerprint") or "").lower() != (
         transaction.identity.coverage.coverage_fingerprint
     ):
         raise ValueError("Checkpoint report coverage does not match the build transaction")
+    dependent_contract = manifest.dependent_workload
+    dependent_activation_required = report.get("dependent_activation_required") is True
+    if dependent_contract is not None and dependent_contract["state"] == "foundation_required":
+        if not dependent_activation_required:
+            raise ValueError(
+                "Foundation checkpoint report lacks its dependent activation requirement"
+            )
+        if report.get("terminal_ready") is True:
+            raise ValueError("Foundation checkpoint cannot be terminal before dependent activation")
+    elif dependent_activation_required:
+        raise ValueError("Checkpoint requires dependent activation without a foundation contract")
+    if dependent_contract is not None and dependent_contract["state"] in {
+        "planned",
+        "complete",
+    }:
+        dependent_coverage = report.get("dependent_coverage")
+        if not isinstance(dependent_coverage, dict):
+            raise ValueError("Checkpoint report lacks dependent coverage accounting")
+        dependent_authority_fields = {
+            "bundle_content_sha256": "bundle_content_sha256",
+            "execution_plan_content_sha256": "execution_plan_content_sha256",
+            "foundation_checkpoint_transaction_sha256": (
+                "foundation_checkpoint_transaction_sha256"
+            ),
+            "foundation_checkpoint_database_sha256": ("foundation_checkpoint_database_sha256"),
+            "provider_authority_sha256": "provider_authority_sha256",
+            "scope_dispositions_sha256": "scope_dispositions_sha256",
+            "lane_inventory_sha256": "lane_inventory_sha256",
+            "semantic_unit_count": "semantic_unit_count",
+            "physical_call_count": "physical_call_count",
+            "scope_disposition_counts": "scope_disposition_counts",
+        }
+        mismatches = [
+            report_field
+            for report_field, contract_field in dependent_authority_fields.items()
+            if dependent_coverage.get(report_field) != dependent_contract.get(contract_field)
+        ]
+        if mismatches:
+            raise ValueError(
+                "Checkpoint dependent coverage differs from the manifest: " + ", ".join(mismatches)
+            )
+        if report.get("terminal_ready") is True and dependent_coverage.get("green") is not True:
+            raise ValueError("Terminal checkpoint dependent coverage is not green")
 
     receipt = CheckpointArtifactReceipt(
         artifact_id=artifact_id,
         artifact_run_id=int(run_id),
+        artifact_run_attempt=int(run_attempt),
         artifact_name=transaction.artifact_name,
         artifact_digest=artifact_digest,
         artifact_size_bytes=artifact_size_bytes,
@@ -6562,6 +9085,7 @@ def commit_checkpoint_manifest(
         generation=transaction.identity.generation,
         coverage_fingerprint=transaction.identity.coverage.coverage_fingerprint,
         lane_inventory_sha256=(transaction.identity.coverage.lane_inventory_sha256),
+        w2_authority_identity_sha256=(transaction.build.w2_authority.identity_sha256),
     )
     committed = transaction.mark_uploaded_verified(receipt).commit()
     committed_receipt = committed.committed_receipt
@@ -6605,6 +9129,17 @@ def commit_checkpoint_manifest(
         dict.fromkeys([*[str(value) for value in raw_run_ids], run_id])
     )
     raw_manifest["chain_state"] = state
+    if (
+        dependent_contract is not None
+        and dependent_contract["state"] == "planned"
+        and report.get("terminal_ready") is True
+    ):
+        completed_contract = dict(dependent_contract)
+        completed_contract["state"] = "complete"
+        completed_contract["terminal_checkpoint_transaction_sha256"] = canonical_sha256(
+            committed.to_dict()
+        )
+        raw_manifest["dependent_workload"] = completed_contract
 
     committed_manifest = normalize_manifest(raw_manifest)
     committed_pointer = _checkpoint_pointer(
@@ -6631,6 +9166,7 @@ def commit_checkpoint_manifest(
         "artifact_size_bytes": committed_receipt.artifact_size_bytes,
         "checkpoint_generation": committed_receipt.generation,
         "coverage_fingerprint": committed_receipt.coverage_fingerprint,
+        "provider_authority": committed_manifest.provider_authority,
         "manifest_path": str(output_path),
     }
 
@@ -6648,7 +9184,9 @@ def merge_final_database(
     checkpoint_report = _read_json_file(checkpoint_report_path)
     checkpoint_db_path = _first_database_path(checkpoint_dir)
     if checkpoint_report and checkpoint_db_path is not None:
-        if checkpoint_report.get("terminal_ready") is True:
+        if checkpoint_report.get("dependent_activation_required") is True:
+            fallback_reason = "checkpoint requires dependent workload activation"
+        elif checkpoint_report.get("terminal_ready") is True:
             reported_database_sha256 = str(checkpoint_report.get("database_sha256") or "").strip()
             actual_database_sha256 = _file_sha256(checkpoint_db_path)
             if reported_database_sha256 != actual_database_sha256:
@@ -6708,9 +9246,213 @@ def merge_final_database(
     return lane_summary
 
 
+def activate_dependent_manifest(
+    *,
+    manifest_path: Path,
+    execution_plan_path: Path,
+    artifact_run_id: int,
+    artifact_id: int,
+    artifact_name: str,
+    artifact_digest: str,
+    artifact_size_bytes: int,
+    output_path: Path,
+    current_iteration: int,
+    max_matrix_lanes: int,
+    vpn_slot_count: int,
+) -> dict[str, Any]:
+    """Activate exact observed dependent units after a committed foundation checkpoint."""
+
+    manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
+    if manifest.dependent_workload != _foundation_required_dependent_workload():
+        raise ValueError("Dependent activation requires the foundation_required contract")
+    if any(not lane.resume_only for lane in manifest.lanes):
+        raise ValueError("Dependent activation requires every foundation lane to be committed")
+    transaction_payload = manifest.chain_state.latest_checkpoint_transaction
+    if transaction_payload is None:
+        raise ValueError("Dependent activation requires a committed foundation checkpoint")
+    transaction = CheckpointTransaction.from_dict(transaction_payload)
+    if transaction.state is not CheckpointState.COMMITTED or transaction.build is None:
+        raise ValueError("Dependent activation foundation checkpoint is not committed")
+
+    plan = DependentExecutionPlan.read(execution_plan_path)
+    foundation_transaction_sha256 = canonical_sha256(transaction.to_dict())
+    if plan.checkpoint_transaction_sha256 != foundation_transaction_sha256:
+        raise ValueError("Dependent plan does not bind the committed foundation transaction")
+    if plan.checkpoint_database_sha256 != transaction.build.database_sha256:
+        raise ValueError("Dependent plan does not bind the committed foundation database")
+    if plan.source_sha != manifest.workflow_source_sha:
+        raise ValueError("Dependent plan semantic source differs from the manifest")
+    if plan.provider_authority_sha256 != manifest.provider_authority["authority_sha256"]:
+        raise ValueError("Dependent plan provider authority differs from the manifest")
+    if type(artifact_run_id) is not int or artifact_run_id <= 0:
+        raise ValueError("Dependent artifact run ID must be positive")
+    if type(artifact_id) is not int or artifact_id <= 0:
+        raise ValueError("Dependent artifact ID must be positive")
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", artifact_name) is None:
+        raise ValueError("Dependent artifact name is invalid")
+    normalized_artifact_digest = artifact_digest.strip().lower()
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", normalized_artifact_digest) is None:
+        raise ValueError("Dependent artifact digest must be a canonical archive SHA-256")
+    if type(artifact_size_bytes) is not int or artifact_size_bytes <= 0:
+        raise ValueError("Dependent artifact size must be positive")
+
+    inventory = plan.to_payload()["inventory"]
+    if not isinstance(inventory, dict):
+        raise ValueError("Dependent execution inventory is invalid")
+    dependent_workload = _normalize_dependent_workload(
+        {
+            "schema_version": DEPENDENT_WORKLOAD_MANIFEST_SCHEMA_VERSION,
+            "state": "planned",
+            "endpoints": sorted(POST_FOUNDATION_DEPENDENT_ENDPOINTS),
+            "artifact_run_id": str(artifact_run_id),
+            "artifact_id": str(artifact_id),
+            "artifact_name": artifact_name,
+            "artifact_digest": normalized_artifact_digest,
+            "artifact_size_bytes": artifact_size_bytes,
+            "bundle_content_sha256": plan.bundle_content_sha256,
+            "execution_plan_content_sha256": plan.content_sha256,
+            "foundation_checkpoint_transaction_sha256": (foundation_transaction_sha256),
+            "foundation_checkpoint_database_sha256": plan.checkpoint_database_sha256,
+            "provider_authority_sha256": plan.provider_authority_sha256,
+            "scope_dispositions_sha256": plan.scope_dispositions_sha256,
+            "lane_inventory_sha256": plan.lane_inventory_sha256,
+            "semantic_unit_count": inventory["semantic_unit_count"],
+            "physical_call_count": inventory["physical_call_count"],
+            "scope_disposition_count": inventory["scope_disposition_count"],
+            "scope_disposition_counts": inventory["scope_disposition_counts"],
+            "execution_lane_count": inventory["execution_lane_count"],
+        }
+    )
+    if dependent_workload is None:
+        raise ValueError("Dependent workload normalization unexpectedly returned no contract")
+
+    base_lanes = list(manifest.lanes)
+    dependent_lanes: list[FullExtractionLane] = []
+    for execution_lane in plan.execution_lanes:
+        lane = FullExtractionLane(
+            lane_id=execution_lane.lane_id,
+            lane_index=len(base_lanes) + len(dependent_lanes),
+            lane_name=(
+                "Dependent scope accounting"
+                if execution_lane.role == "scope_accounting"
+                else f"Dependent {execution_lane.endpoint_name}"
+            ),
+            lane_kind=DEPENDENT_LANE_KIND,
+            season_start=None,
+            season_end=None,
+            patterns=(),
+            endpoints=((execution_lane.endpoint_name,) if execution_lane.endpoint_name else ()),
+            use_vpn=True,
+            resume_only=False,
+            timeout_seconds=DEPENDENT_LANE_TIMEOUT_SECONDS,
+            chunk_profile=_manifest_chunk_profile(manifest.lanes),
+            endpoint_family="dependent_matchup",
+            throughput_tier="expensive_low_volume",
+            dependent_artifact_run_id=str(artifact_run_id),
+            dependent_artifact_id=str(artifact_id),
+            dependent_artifact_name=artifact_name,
+            dependent_artifact_digest=normalized_artifact_digest,
+            dependent_plan_sha256=plan.content_sha256,
+            dependent_bundle_sha256=plan.bundle_content_sha256,
+            dependent_foundation_transaction_sha256=(foundation_transaction_sha256),
+            dependent_provider_authority_sha256=plan.provider_authority_sha256,
+            dependent_lane_sha256=execution_lane.content_sha256,
+            dependent_lane_role=execution_lane.role,
+            dependent_call_count=len(execution_lane.calls),
+            dependent_semantic_unit_count=execution_lane.semantic_unit_count,
+        )
+        dependent_lanes.append(replace(lane, coverage_units_hash=_coverage_hash_for_lane(lane)))
+
+    lanes = _schedule_lanes(
+        [*base_lanes, *dependent_lanes],
+        chunk_profile=_manifest_chunk_profile(manifest.lanes),
+        max_matrix_lanes=max_matrix_lanes,
+        rotation_cursor=manifest.chain_state.scheduler_rotation_cursor,
+    )
+    remaining_iterations = manifest.chain_state.iteration_budget - current_iteration + 1
+    required_iterations = math.ceil(len(dependent_lanes) / max_matrix_lanes)
+    if remaining_iterations < required_iterations:
+        raise ValueError("Fixed chain iteration budget cannot execute the dependent lanes")
+    payload = manifest_payload(
+        lanes,
+        assurance_admission=manifest.assurance_admission,
+        chain_id=manifest.chain_id,
+        chain_state=manifest.chain_state,
+        max_matrix_lanes=max_matrix_lanes,
+        vpn_slot_count=vpn_slot_count,
+        current_iteration=current_iteration,
+        workflow_source_sha=manifest.workflow_source_sha,
+        provider_authority=manifest.provider_authority,
+        dependent_workload=dependent_workload,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
+def _command_prepare_dependent_workload(args: argparse.Namespace) -> int:
+    summary = write_post_foundation_artifact(
+        committed_manifest_path=args.committed_manifest_path,
+        checkpoint_report_path=args.checkpoint_report_path,
+        checkpoint_database_path=args.checkpoint_database_path,
+        discovery_root=args.discovery_root,
+        discovery_artifact_id=args.discovery_artifact_id,
+        discovery_artifact_run_id=args.discovery_artifact_run_id,
+        discovery_artifact_name=args.discovery_artifact_name,
+        discovery_artifact_digest=args.discovery_artifact_digest,
+        output_dir=args.output_dir,
+    )
+    print(json.dumps(summary))
+    return 0
+
+
+def _command_activate_dependent_manifest(args: argparse.Namespace) -> int:
+    payload = activate_dependent_manifest(
+        manifest_path=args.manifest_path,
+        execution_plan_path=args.execution_plan_path,
+        artifact_run_id=args.artifact_run_id,
+        artifact_id=args.artifact_id,
+        artifact_name=args.artifact_name,
+        artifact_digest=args.artifact_digest,
+        artifact_size_bytes=args.artifact_size_bytes,
+        output_path=args.output_path,
+        current_iteration=args.iteration,
+        max_matrix_lanes=args.max_matrix_lanes,
+        vpn_slot_count=args.vpn_slot_count,
+    )
+    print(json.dumps(payload))
+    return 0
+
+
 def _command_plan(args: argparse.Namespace) -> int:
+    if args.publish:
+        raise ValueError("extraction planning cannot publish; use the handoff publication workflow")
+    if args.free_execution_receipt_output_path is not None:
+        raise ValueError(
+            "authorized planning does not emit FreeExecution receipts; "
+            "capacity-blocked FreeExecution remains diagnostic-only"
+        )
+    authority = _load_current_operation_authority(
+        args.operation_authority_path,
+        allowed_operations=frozenset({OperationKind.EXTRACT, OperationKind.TARGETED_SMOKE}),
+    )
+    if (
+        args.vpn_slot_count is not None
+        and args.vpn_slot_count != authority.requested_vpn_parallelism
+    ):
+        raise ValueError("vpn-slot-count assertion differs from operation authority")
     manifest = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
     if manifest is None:
+        if args.assurance_admission_path is None:
+            raise ValueError(
+                "assurance-admission-path is required when no explicit lane manifest is provided"
+            )
+        if not str(args.chain_id or "").strip():
+            raise ValueError("chain-id is required when no explicit lane manifest is provided")
+        assurance_admission = _load_assurance_admission(
+            args.assurance_admission_path,
+            workflow_source_sha=args.workflow_source_sha,
+        )
         chunk_profile = args.chunk_profile or DEFAULT_CHUNK_PROFILE
         if args.support_matrix_path is None:
             msg = "support-matrix-path is required when no explicit lane manifest is provided"
@@ -6724,18 +9466,64 @@ def _command_plan(args: argparse.Namespace) -> int:
             if args.duckdb_path is not None
             else None
         )
+        selected_patterns = _parse_csv(args.backfill_patterns)
+        selected_endpoints = _parse_csv(args.backfill_endpoints)
+        selected_dependent_endpoints = sorted(
+            set(selected_endpoints or ()) & POST_FOUNDATION_DEPENDENT_ENDPOINTS
+        )
+        if selected_dependent_endpoints:
+            raise ValueError(
+                "Post-foundation dependent endpoints require an unfiltered full extraction: "
+                + ", ".join(selected_dependent_endpoints)
+            )
         lanes = build_default_manifest(
             support_matrix_rows=support_matrix_rows,
-            selected_patterns=_parse_csv(args.backfill_patterns),
-            selected_endpoints=_parse_csv(args.backfill_endpoints),
+            selected_patterns=selected_patterns,
+            selected_endpoints=selected_endpoints,
             planning_snapshot=planning_snapshot,
             chunk_profile=chunk_profile,
             max_matrix_lanes=args.max_matrix_lanes,
         )
-        chain_state = FullExtractionChainState()
-        chain_id = ""
-        workflow_source_sha = ""
+        dependent_workload = (
+            _foundation_required_dependent_workload()
+            if selected_patterns is None and selected_endpoints is None
+            else None
+        )
+        remaining_dispatch_credits = sum(
+            _remaining_dispatch_credits(lane) * _maximum_retry_leaf_count(lane) for lane in lanes
+        )
+        maximum_retry_depth = max(
+            (_remaining_dispatch_credits(lane) for lane in lanes),
+            default=0,
+        )
+        base_wave_budget = max(
+            maximum_retry_depth,
+            math.ceil(remaining_dispatch_credits / args.max_matrix_lanes),
+            1 if lanes else 0,
+        )
+        chain_state = FullExtractionChainState(
+            iteration_budget=(
+                args.iteration
+                - 1
+                + base_wave_budget
+                + (DEPENDENT_ITERATION_RESERVE if dependent_workload is not None else 0)
+            )
+        )
+        chain_id = args.chain_id
+        workflow_source_sha = assurance_admission.source_sha
+        provider_authority = expected_nba_api_provider_authority()
     else:
+        if args.assurance_admission_path is not None:
+            raise ValueError("assurance-admission-path cannot accompany an explicit lane manifest")
+        if args.chain_id is not None and str(args.chain_id).strip() != manifest.chain_id:
+            raise ValueError("chain-id assertion does not match the explicit lane manifest")
+        if (
+            args.workflow_source_sha is not None
+            and str(args.workflow_source_sha).strip().lower() != manifest.workflow_source_sha
+        ):
+            raise ValueError(
+                "workflow-source-sha assertion does not match the explicit lane manifest"
+            )
         lanes = _schedule_lanes(
             list(manifest.lanes),
             chunk_profile=args.chunk_profile or _manifest_chunk_profile(manifest.lanes),
@@ -6745,16 +9533,30 @@ def _command_plan(args: argparse.Namespace) -> int:
         chain_state = manifest.chain_state
         chain_id = manifest.chain_id
         workflow_source_sha = manifest.workflow_source_sha
+        provider_authority = manifest.provider_authority
+        assurance_admission = manifest.assurance_admission
+        dependent_workload = manifest.dependent_workload
 
-    validate_manifest(lanes)
+    validate_manifest(lanes, dependent_workload=dependent_workload)
     payload = manifest_payload(
         lanes,
+        assurance_admission=assurance_admission,
         chain_state=chain_state,
         max_matrix_lanes=args.max_matrix_lanes,
-        vpn_slot_count=args.vpn_slot_count,
+        vpn_slot_count=authority.requested_vpn_parallelism,
         current_iteration=args.iteration,
         chain_id=chain_id,
         workflow_source_sha=workflow_source_sha,
+        provider_authority=provider_authority,
+        dependent_workload=dependent_workload,
+    )
+    payload = _bind_operation_authority(
+        payload,
+        authority,
+        chain_id=chain_id,
+        source_sha=workflow_source_sha,
+        iteration=args.iteration,
+        expected_manifest_lane_count=int(payload["matrix_lane_count"]),
     )
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -6767,6 +9569,20 @@ def _command_resume(args: argparse.Namespace) -> int:
     if manifest is None:
         msg = "lane-manifest-json or lane-manifest-path is required"
         raise ValueError(msg)
+    authority = _load_current_operation_authority(
+        args.operation_authority_path,
+        allowed_operations=frozenset({OperationKind.CONTINUE}),
+    )
+    if (
+        args.vpn_slot_count is not None
+        and args.vpn_slot_count != authority.requested_vpn_parallelism
+    ):
+        raise ValueError("vpn-slot-count assertion differs from operation authority")
+    source_lane_count = len(manifest.matrix_lane_ids) or sum(
+        not lane.resume_only for lane in manifest.lanes
+    )
+    if source_lane_count < 1:
+        raise ValueError("continue requires a nonempty source manifest lane inventory")
 
     next_lanes, next_chain_state, summary = build_resume_manifest(
         list(manifest.lanes),
@@ -6782,15 +9598,26 @@ def _command_resume(args: argparse.Namespace) -> int:
         expected_chain_id=manifest.chain_id,
         expected_source_sha=manifest.workflow_source_sha,
     )
-    validate_manifest(next_lanes)
+    validate_manifest(next_lanes, dependent_workload=manifest.dependent_workload)
     payload = manifest_payload(
         next_lanes,
+        assurance_admission=manifest.assurance_admission,
         chain_state=next_chain_state,
         max_matrix_lanes=args.max_matrix_lanes,
-        vpn_slot_count=args.vpn_slot_count,
+        vpn_slot_count=authority.requested_vpn_parallelism,
         current_iteration=args.iteration,
         chain_id=manifest.chain_id,
         workflow_source_sha=manifest.workflow_source_sha,
+        provider_authority=manifest.provider_authority,
+        dependent_workload=manifest.dependent_workload,
+    )
+    payload = _bind_operation_authority(
+        payload,
+        authority,
+        chain_id=manifest.chain_id,
+        source_sha=manifest.workflow_source_sha,
+        iteration=args.iteration,
+        expected_manifest_lane_count=source_lane_count,
     )
     payload["resume_summary"] = summary
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -6822,6 +9649,7 @@ def _command_checkpoint(args: argparse.Namespace) -> int:
         previous_checkpoint_dir=args.previous_checkpoint_dir,
         previous_checkpoint_report_path=args.previous_checkpoint_report_path,
         workload_duckdb_path=args.workload_duckdb_path,
+        dependent_execution_plan_path=args.dependent_execution_plan_path,
         chain_id=args.chain_id,
         run_id=args.run_id,
         source_sha=args.source_sha,
@@ -6857,6 +9685,7 @@ def _command_commit_checkpoint_manifest(args: argparse.Namespace) -> int:
         output_path=args.output_path,
         chain_id=args.chain_id,
         run_id=args.run_id,
+        run_attempt=args.run_attempt,
         source_sha=args.source_sha,
         artifact_id=args.artifact_id,
         artifact_digest=args.artifact_digest,
@@ -6892,20 +9721,47 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     plan = subparsers.add_parser("plan", help="Build a workflow lane manifest.")
+    plan.add_argument("--operation-authority-path", type=Path, required=True)
     plan.add_argument("--support-matrix-path", type=Path, default=None)
     plan.add_argument("--lane-manifest-json", type=str, default=None)
     plan.add_argument("--lane-manifest-path", type=Path, default=None)
+    plan.add_argument(
+        "--assurance-admission-path",
+        type=Path,
+        default=None,
+        help="Required for a fresh plan; exact canonical GREEN admission JSON.",
+    )
+    plan.add_argument(
+        "--free-execution-receipt-output-path",
+        type=Path,
+        default=None,
+        help="Optional output for the exact capacity-blocked receipt created by planning.",
+    )
+    plan.add_argument("--publish", action="store_true")
+    plan.add_argument(
+        "--chain-id",
+        type=str,
+        default=None,
+        help="Required fresh-plan run identity; assertion for an embedded manifest.",
+    )
+    plan.add_argument(
+        "--workflow-source-sha",
+        type=str,
+        default=None,
+        help="Optional equality assertion; source authority remains the GREEN assurance receipt.",
+    )
     plan.add_argument("--backfill-patterns", type=str, default=None)
     plan.add_argument("--backfill-endpoints", type=str, default=None)
     plan.add_argument("--duckdb-path", type=Path, default=None)
     plan.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     plan.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
-    plan.add_argument("--vpn-slot-count", type=int, default=0)
+    plan.add_argument("--vpn-slot-count", type=int, default=None)
     plan.add_argument("--iteration", type=int, default=1)
     plan.add_argument("--output-path", type=Path, required=True)
     plan.set_defaults(func=_command_plan)
 
     resume = subparsers.add_parser("resume", help="Build the next chained manifest.")
+    resume.add_argument("--operation-authority-path", type=Path, required=True)
     resume.add_argument("--lane-manifest-json", type=str, default=None)
     resume.add_argument("--lane-manifest-path", type=Path, default=None)
     resume.add_argument("--metadata-dir", type=Path, required=True)
@@ -6914,10 +9770,42 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--allow-pipeline-failures", action="store_true")
     resume.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
-    resume.add_argument("--vpn-slot-count", type=int, default=0)
+    resume.add_argument("--vpn-slot-count", type=int, default=None)
     resume.add_argument("--iteration", type=int, default=1)
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
+
+    prepare_dependent = subparsers.add_parser(
+        "prepare-dependent-workload",
+        help="Compile exact observed dependent units from a committed foundation.",
+    )
+    prepare_dependent.add_argument("--committed-manifest-path", type=Path, required=True)
+    prepare_dependent.add_argument("--checkpoint-report-path", type=Path, required=True)
+    prepare_dependent.add_argument("--checkpoint-database-path", type=Path, required=True)
+    prepare_dependent.add_argument("--discovery-root", type=Path, required=True)
+    prepare_dependent.add_argument("--discovery-artifact-id", type=int, required=True)
+    prepare_dependent.add_argument("--discovery-artifact-run-id", type=int, required=True)
+    prepare_dependent.add_argument("--discovery-artifact-name", required=True)
+    prepare_dependent.add_argument("--discovery-artifact-digest", required=True)
+    prepare_dependent.add_argument("--output-dir", type=Path, required=True)
+    prepare_dependent.set_defaults(func=_command_prepare_dependent_workload)
+
+    activate_dependent = subparsers.add_parser(
+        "activate-dependent-manifest",
+        help="Bind a verified dependent artifact receipt into executable lanes.",
+    )
+    activate_dependent.add_argument("--manifest-path", type=Path, required=True)
+    activate_dependent.add_argument("--execution-plan-path", type=Path, required=True)
+    activate_dependent.add_argument("--artifact-run-id", type=int, required=True)
+    activate_dependent.add_argument("--artifact-id", type=int, required=True)
+    activate_dependent.add_argument("--artifact-name", required=True)
+    activate_dependent.add_argument("--artifact-digest", required=True)
+    activate_dependent.add_argument("--artifact-size-bytes", type=int, required=True)
+    activate_dependent.add_argument("--iteration", type=int, required=True)
+    activate_dependent.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
+    activate_dependent.add_argument("--vpn-slot-count", type=int, default=0)
+    activate_dependent.add_argument("--output-path", type=Path, required=True)
+    activate_dependent.set_defaults(func=_command_activate_dependent_manifest)
 
     checkpoint = subparsers.add_parser("checkpoint", help="Build a cumulative checkpoint DB.")
     checkpoint.add_argument("--lane-manifest-path", type=Path, required=True)
@@ -6926,6 +9814,7 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument("--previous-checkpoint-dir", type=Path, default=None)
     checkpoint.add_argument("--previous-checkpoint-report-path", type=Path, default=None)
     checkpoint.add_argument("--workload-duckdb-path", type=Path, default=None)
+    checkpoint.add_argument("--dependent-execution-plan-path", type=Path, default=None)
     checkpoint.add_argument("--output-dir", type=Path, required=True)
     checkpoint.add_argument("--report-path", type=Path, required=True)
     checkpoint.add_argument("--chain-id", type=str, required=True)
@@ -6965,6 +9854,7 @@ def _build_parser() -> argparse.ArgumentParser:
     commit_manifest.add_argument("--output-path", type=Path, required=True)
     commit_manifest.add_argument("--chain-id", type=str, required=True)
     commit_manifest.add_argument("--run-id", type=str, required=True)
+    commit_manifest.add_argument("--run-attempt", type=str, required=True)
     commit_manifest.add_argument("--source-sha", type=str, required=True)
     commit_manifest.add_argument("--artifact-id", type=int, required=True)
     commit_manifest.add_argument("--artifact-digest", type=str, required=True)

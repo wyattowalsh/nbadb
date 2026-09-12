@@ -93,8 +93,7 @@ def _workload_scope(tmp_path: Path, params: dict[str, object]):
     store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(anchor)
     store.upsert(
         [params],  # type: ignore[list-item]
-        seasons=["2024-25"],
-        season_types=["Regular Season"],
+        covered_pairs={("2024-25", "Regular Season")},
     )
     scope = build_player_team_season_workload_scope(
         store,
@@ -453,8 +452,7 @@ def test_validate_lane_state_binds_active_workload_generation(tmp_path: Path) ->
                 "season_type": "Regular Season",
             }
         ],
-        seasons=["2024-25"],
-        season_types=["Regular Season"],
+        covered_pairs={("2024-25", "Regular Season")},
     )
     with pytest.raises(ValueError, match="does not match the active generation"):
         module.validate_lane_state(db_path, **kwargs)
@@ -490,8 +488,7 @@ def test_validate_lane_state_accepts_append_only_workload_growth_outside_lane_sc
                 "season_type": "Regular Season",
             }
         ],
-        seasons=["2025-26"],
-        season_types=["Regular Season"],
+        covered_pairs={("2025-26", "Regular Season")},
     )
 
     report = module.validate_lane_state(

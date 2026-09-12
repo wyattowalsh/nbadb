@@ -9,11 +9,14 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from nbadb.contracts.assurance_admission import AssuranceAdmission
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionLane,
     _attested_current_lane_artifacts,
     _coverage_fingerprint,
     _coverage_hash_for_lane,
+    _create_exact_extraction_journal,
     _file_sha256,
     _metadata_lane_contract_errors,
     _metadata_records_by_lane,
@@ -31,6 +34,21 @@ FIXTURE_PATH = (
 )
 TEST_ARTIFACT_ID = "8479295867"
 TEST_ARTIFACT_DIGEST = f"sha256:{'c' * 64}"
+
+
+def _assurance_admission(source_sha: str) -> AssuranceAdmission:
+    authority = expected_nba_api_provider_authority()
+    return AssuranceAdmission(
+        source_sha=source_sha,
+        assurance_manifest_sha256="1" * 64,
+        generation_semantic_sha256="2" * 64,
+        provider_evidence_sha256=str(authority["provider_evidence_sha256"]),
+        provider_authority_sha256=str(authority["authority_sha256"]),
+        authority_semantic_diff_sha256="3" * 64,
+        authority_update_mode="full",
+        first_extraction=True,
+        model_status="GREEN",
+    )
 
 
 def _fixture() -> dict[str, Any]:
@@ -77,15 +95,21 @@ def _write_lane_database(path: Path, endpoint: str, params: str) -> None:
     try:
         connection.execute("CREATE TABLE stg_fixture (value INTEGER)")
         connection.execute("INSERT INTO stg_fixture VALUES (1)")
+        _create_exact_extraction_journal(connection)
         connection.execute(
-            "CREATE TABLE _extraction_journal ("
-            "endpoint VARCHAR, params VARCHAR, status VARCHAR, started_at TIMESTAMP, "
-            "completed_at TIMESTAMP, rows_extracted BIGINT, error_message VARCHAR, "
-            "retry_count INTEGER)"
-        )
-        connection.execute(
-            "INSERT INTO _extraction_journal VALUES "
-            "(?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, NULL, 0)",
+            """
+            INSERT INTO _extraction_journal (
+                endpoint,
+                params,
+                status,
+                started_at,
+                completed_at,
+                rows_extracted,
+                error_message,
+                retry_count
+            )
+            VALUES (?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, NULL, 0)
+            """,
             [endpoint, params],
         )
     finally:
@@ -274,8 +298,11 @@ def test_checkpoint_accepts_original_metadata_index_after_lane_reschedule(tmp_pa
     coverage_fingerprint = _coverage_fingerprint([rescheduled_lane])
     artifact_name = f"full-extraction-checkpoint-{chain_id}-iter-1"
 
-    manifest = manifest_payload([rescheduled_lane])
-    manifest.update({"chain_id": chain_id, "workflow_source_sha": source_sha})
+    manifest = manifest_payload(
+        [rescheduled_lane],
+        assurance_admission=_assurance_admission(source_sha),
+        chain_id=chain_id,
+    )
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 

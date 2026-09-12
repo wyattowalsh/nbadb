@@ -7,6 +7,11 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
 
+from nbadb.orchestrate.w2_database_assurance import (
+    W2DatabaseAuthorityError,
+    W2DatabaseAuthorityReceiptV1,
+)
+
 __all__ = [
     "CHECKPOINT_CONTRACT_SCHEMA_VERSION",
     "CheckpointArtifactReceipt",
@@ -17,10 +22,11 @@ __all__ = [
     "CheckpointState",
     "CheckpointTransaction",
     "CheckpointTransitionError",
+    "CheckpointW2AuthorityIdentity",
     "LaneCoverageIdentity",
 ]
 
-CHECKPOINT_CONTRACT_SCHEMA_VERSION = 1
+CHECKPOINT_CONTRACT_SCHEMA_VERSION = 3
 
 
 class CheckpointContractError(ValueError):
@@ -70,6 +76,12 @@ def _require_source_sha(value: object, *, field_name: str = "source_sha") -> str
 def _require_positive_int(value: object, *, field_name: str) -> int:
     if type(value) is not int or value < 1:
         raise CheckpointContractError(f"{field_name} must be a positive integer")
+    return value
+
+
+def _require_nonnegative_int(value: object, *, field_name: str) -> int:
+    if type(value) is not int or value < 0:
+        raise CheckpointContractError(f"{field_name} must be a nonnegative integer")
     return value
 
 
@@ -282,25 +294,169 @@ class CheckpointIdentity:
 
 
 @dataclass(frozen=True, slots=True)
+class CheckpointW2AuthorityIdentity:
+    """Exact closed W2 identity retained by every built checkpoint state.
+
+    Raw Request Authority V2 remains its own exact-four private-only category.
+    Its roots appear inside the canonical W2 database receipt only because W2
+    independently proves the one-to-one Raw-bundle boundary for every required
+    logical call; this contract does not reclassify those four relations as W2.
+    """
+
+    database_authority: W2DatabaseAuthorityReceiptV1
+    database_authority_sha256: str
+    expected_call_count: int
+    expected_call_inventory_sha256: str
+    database_authority_closed: bool
+    identity_sha256: str = ""
+
+    def __post_init__(self) -> None:
+        if type(self.database_authority) is not W2DatabaseAuthorityReceiptV1:
+            raise CheckpointContractError(
+                "w2_database_authority must be a W2DatabaseAuthorityReceiptV1"
+            )
+        _require_sha256(
+            self.database_authority_sha256,
+            field_name="w2_database_authority_sha256",
+        )
+        if self.database_authority_sha256 != self.database_authority.receipt_sha256:
+            raise CheckpointContractError(
+                "w2_database_authority_sha256 does not match its canonical receipt"
+            )
+        _require_nonnegative_int(
+            self.expected_call_count,
+            field_name="w2_expected_call_count",
+        )
+        if self.expected_call_count != self.database_authority.w2_required_logical_call_count:
+            raise CheckpointContractError(
+                "w2_expected_call_count does not match its canonical receipt"
+            )
+        _require_sha256(
+            self.expected_call_inventory_sha256,
+            field_name="w2_expected_call_inventory_sha256",
+        )
+        if self.database_authority_closed is not True:
+            raise CheckpointContractError("w2_database_authority_closed must be exact true")
+        expected_identity_sha256 = _canonical_sha256(self.identity_payload())
+        if self.identity_sha256 and self.identity_sha256 != expected_identity_sha256:
+            raise CheckpointContractError(
+                "w2_authority_identity_sha256 does not match its exact authority fields"
+            )
+        object.__setattr__(self, "identity_sha256", expected_identity_sha256)
+
+    def identity_payload(self) -> dict[str, object]:
+        return {
+            "w2_database_authority": self.database_authority.to_dict(),
+            "w2_database_authority_sha256": self.database_authority_sha256,
+            "w2_expected_call_count": self.expected_call_count,
+            "w2_expected_call_inventory_sha256": (self.expected_call_inventory_sha256),
+            "w2_database_authority_closed": self.database_authority_closed,
+        }
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            **self.identity_payload(),
+            "w2_authority_identity_sha256": self.identity_sha256,
+        }
+
+    @classmethod
+    def from_report(cls, report: Mapping[str, object]) -> Self:
+        """Extract the exact W2 fields from an already verified report."""
+        try:
+            database_authority = W2DatabaseAuthorityReceiptV1.from_dict(
+                report.get("w2_database_authority")
+            )
+        except W2DatabaseAuthorityError:
+            raise CheckpointContractError(
+                "checkpoint report lacks canonical w2_database_authority"
+            ) from None
+        return cls(
+            database_authority=database_authority,
+            database_authority_sha256=_require_sha256(
+                report.get("w2_database_authority_sha256"),
+                field_name="w2_database_authority_sha256",
+            ),
+            expected_call_count=_require_nonnegative_int(
+                report.get("w2_expected_call_count"),
+                field_name="w2_expected_call_count",
+            ),
+            expected_call_inventory_sha256=_require_sha256(
+                report.get("w2_expected_call_inventory_sha256"),
+                field_name="w2_expected_call_inventory_sha256",
+            ),
+            database_authority_closed=cast("bool", report.get("w2_database_authority_closed")),
+        )
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
+        _require_exact_keys(
+            payload,
+            expected=frozenset(
+                {
+                    "w2_database_authority",
+                    "w2_database_authority_sha256",
+                    "w2_expected_call_count",
+                    "w2_expected_call_inventory_sha256",
+                    "w2_database_authority_closed",
+                    "w2_authority_identity_sha256",
+                }
+            ),
+            label="checkpoint W2 authority identity",
+        )
+        try:
+            database_authority = W2DatabaseAuthorityReceiptV1.from_dict(
+                payload["w2_database_authority"]
+            )
+        except W2DatabaseAuthorityError:
+            raise CheckpointContractError(
+                "checkpoint W2 authority identity has a foreign database receipt"
+            ) from None
+        return cls(
+            database_authority=database_authority,
+            database_authority_sha256=_require_sha256(
+                payload["w2_database_authority_sha256"],
+                field_name="w2_database_authority_sha256",
+            ),
+            expected_call_count=_require_nonnegative_int(
+                payload["w2_expected_call_count"],
+                field_name="w2_expected_call_count",
+            ),
+            expected_call_inventory_sha256=_require_sha256(
+                payload["w2_expected_call_inventory_sha256"],
+                field_name="w2_expected_call_inventory_sha256",
+            ),
+            database_authority_closed=cast("bool", payload["w2_database_authority_closed"]),
+            identity_sha256=_require_sha256(
+                payload["w2_authority_identity_sha256"],
+                field_name="w2_authority_identity_sha256",
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class CheckpointBuild:
     database_sha256: str
     report_sha256: str
+    w2_authority: CheckpointW2AuthorityIdentity
 
     def __post_init__(self) -> None:
         _require_sha256(self.database_sha256, field_name="database_sha256")
         _require_sha256(self.report_sha256, field_name="report_sha256")
+        if not isinstance(self.w2_authority, CheckpointW2AuthorityIdentity):
+            raise CheckpointContractError("w2_authority must be a CheckpointW2AuthorityIdentity")
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "database_sha256": self.database_sha256,
             "report_sha256": self.report_sha256,
+            "w2_authority": self.w2_authority.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> Self:
         _require_exact_keys(
             payload,
-            expected=frozenset({"database_sha256", "report_sha256"}),
+            expected=frozenset({"database_sha256", "report_sha256", "w2_authority"}),
             label="checkpoint build",
         )
         return cls(
@@ -312,6 +468,9 @@ class CheckpointBuild:
                 payload["report_sha256"],
                 field_name="report_sha256",
             ),
+            w2_authority=CheckpointW2AuthorityIdentity.from_dict(
+                _require_mapping(payload["w2_authority"], field_name="w2_authority")
+            ),
         )
 
 
@@ -319,6 +478,7 @@ class CheckpointBuild:
 class CheckpointArtifactReceipt:
     artifact_id: int
     artifact_run_id: int
+    artifact_run_attempt: int
     artifact_name: str
     artifact_digest: str
     artifact_size_bytes: int
@@ -329,10 +489,15 @@ class CheckpointArtifactReceipt:
     generation: int
     coverage_fingerprint: str
     lane_inventory_sha256: str
+    w2_authority_identity_sha256: str
 
     def __post_init__(self) -> None:
         _require_positive_int(self.artifact_id, field_name="artifact_id")
         _require_positive_int(self.artifact_run_id, field_name="artifact_run_id")
+        _require_positive_int(
+            self.artifact_run_attempt,
+            field_name="artifact_run_attempt",
+        )
         _require_exact_text(self.artifact_name, field_name="artifact_name")
         _require_sha256(
             self.artifact_digest,
@@ -353,11 +518,16 @@ class CheckpointArtifactReceipt:
             self.lane_inventory_sha256,
             field_name="lane_inventory_sha256",
         )
+        _require_sha256(
+            self.w2_authority_identity_sha256,
+            field_name="w2_authority_identity_sha256",
+        )
 
     def to_dict(self) -> dict[str, str | int]:
         return {
             "artifact_id": self.artifact_id,
             "artifact_run_id": self.artifact_run_id,
+            "artifact_run_attempt": self.artifact_run_attempt,
             "artifact_name": self.artifact_name,
             "artifact_digest": self.artifact_digest,
             "artifact_size_bytes": self.artifact_size_bytes,
@@ -368,6 +538,7 @@ class CheckpointArtifactReceipt:
             "generation": self.generation,
             "coverage_fingerprint": self.coverage_fingerprint,
             "lane_inventory_sha256": self.lane_inventory_sha256,
+            "w2_authority_identity_sha256": (self.w2_authority_identity_sha256),
         }
 
     @classmethod
@@ -376,6 +547,7 @@ class CheckpointArtifactReceipt:
             {
                 "artifact_id",
                 "artifact_run_id",
+                "artifact_run_attempt",
                 "artifact_name",
                 "artifact_digest",
                 "artifact_size_bytes",
@@ -386,6 +558,7 @@ class CheckpointArtifactReceipt:
                 "generation",
                 "coverage_fingerprint",
                 "lane_inventory_sha256",
+                "w2_authority_identity_sha256",
             }
         )
         _require_exact_keys(payload, expected=expected, label="checkpoint artifact receipt")
@@ -394,6 +567,10 @@ class CheckpointArtifactReceipt:
             artifact_run_id=_require_positive_int(
                 payload["artifact_run_id"],
                 field_name="artifact_run_id",
+            ),
+            artifact_run_attempt=_require_positive_int(
+                payload["artifact_run_attempt"],
+                field_name="artifact_run_attempt",
             ),
             artifact_name=_require_exact_text(
                 payload["artifact_name"],
@@ -427,6 +604,10 @@ class CheckpointArtifactReceipt:
                 payload["lane_inventory_sha256"],
                 field_name="lane_inventory_sha256",
             ),
+            w2_authority_identity_sha256=_require_sha256(
+                payload["w2_authority_identity_sha256"],
+                field_name="w2_authority_identity_sha256",
+            ),
         )
 
     def validate_binding(
@@ -452,6 +633,11 @@ class CheckpointArtifactReceipt:
                 "lane_inventory_sha256",
                 self.lane_inventory_sha256,
                 identity.coverage.lane_inventory_sha256,
+            ),
+            (
+                "w2_authority_identity_sha256",
+                self.w2_authority_identity_sha256,
+                build.w2_authority.identity_sha256,
             ),
         )
         mismatches = [field_name for field_name, actual, wanted in expected if actual != wanted]
@@ -530,7 +716,13 @@ class CheckpointTransaction:
             artifact_name=artifact_name,
         )
 
-    def mark_built(self, *, database_sha256: str, report_sha256: str) -> Self:
+    def mark_built(
+        self,
+        *,
+        database_sha256: str,
+        report_sha256: str,
+        w2_authority: CheckpointW2AuthorityIdentity,
+    ) -> Self:
         self._require_state(CheckpointState.CANDIDATE, operation="mark built")
         return replace(
             self,
@@ -538,6 +730,7 @@ class CheckpointTransaction:
             build=CheckpointBuild(
                 database_sha256=database_sha256,
                 report_sha256=report_sha256,
+                w2_authority=w2_authority,
             ),
         )
 

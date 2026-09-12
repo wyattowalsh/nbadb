@@ -2,28 +2,73 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import subprocess
+import sys
+from dataclasses import replace
+from datetime import UTC, datetime
+from functools import cache
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
 
+import nbadb.orchestrate.extractor_runner as extractor_runner_module
+from nbadb.contracts.raw_request_authority import (
+    RequestObservationV2,
+    canonical_semantic_parameters,
+)
+from nbadb.contracts.w2_operation import W2OperationPersistenceReceiptV1
 from nbadb.core.config import NbaDbSettings
 from nbadb.core.errors import (
     ExtractionError,
+    ParserInputCaptureIntegrityError,
     TransientError,
 )
 from nbadb.core.errors import (
     ValidationError as NbaDbValidationError,
 )
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
+from nbadb.core.nba_api_runtime_contract import (
+    owned_contract_sha256,
+    pinned_live_contracts,
+)
 from nbadb.extract.base import BaseExtractor
+from nbadb.extract.bronze import (
+    DEFAULT_CODEC,
+    PARSER_INPUT_REPRESENTATION,
+    STATIC_INPUT_REPRESENTATION,
+    BronzeCaptureStore,
+    BronzeLimits,
+    CapturedParserInput,
+    LogicalCallReceiptBinding,
+    ParserInputContext,
+    RecordedParserInput,
+    ResultSetReceipt,
+    parent_occurrence_states_digest,
+)
+from nbadb.extract.nba_api_adapter import NbaApiCaptureContract
+from nbadb.extract.raw_request_capture import (
+    PendingRawRequestSuccessV2,
+    RawProviderCallContextV2,
+    RawRequestCaptureContextV2,
+    RawRequestCaptureContract,
+    RawRequestCaptureIssueV2,
+    RawRequestCaptureSnapshotV2,
+)
 from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extractor_runner import (
     ExtractorRunner,
+    PatternExtractionResult,
     _AdaptiveThrottle,
     _DeferredExtraction,
     _ExtractionTaskResult,
     _FailedExtraction,
+    _JournaledExtraction,
     _PendingJournalSuccess,
     _record_chunk_completion_heartbeat,
     _sync_extract,
@@ -34,6 +79,15 @@ from nbadb.orchestrate.resilience import (
     _ResponseContractCircuit,
 )
 from nbadb.orchestrate.staging_map import StagingEntry
+from nbadb.orchestrate.w2_operation_coordinator import W2SourceCallAdmissionV1
+from tests.unit.contracts.test_raw_request_finalization import (
+    _case as _raw_finalization_case,
+)
+from tests.unit.contracts.test_w2_operation_builder import _build as _build_w2_operation
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import Any
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -108,10 +162,1275 @@ def test_record_chunk_completion_heartbeat(
     assert heartbeat_path.is_file()
 
 
+def test_endpoint_coverage_and_runner_import_without_w2_cycle(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(repo_root / "src")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import nbadb.core.endpoint_coverage; import nbadb.orchestrate.extractor_runner",
+        ],
+        cwd=tmp_path,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_compatibility_persistence_helper_propagates_w2_callback_result() -> None:
+    admission = _w2_admission("a" * 64)
+
+    def persist(_frames: dict[str, pl.DataFrame]) -> tuple[W2SourceCallAdmissionV1, ...]:
+        return (admission,)
+
+    result = ExtractorRunner._persist_chunk_results(
+        persist,
+        {},
+        pattern="season",
+        chunk_index=0,
+        chunk_params=[],
+        entries=[],
+        expected_staging_keys=[],
+        source_results=[],
+    )
+
+    assert result == (admission,)
+
+
 def _make_registry(extractor_cls):
     r = MagicMock()
     r.get.return_value = extractor_cls
     return r
+
+
+_RAW_CAPTURE_SOURCE_SHA = "a" * 40
+_RAW_CAPTURE_SEMANTIC_REQUEST_SHA256 = "1" * 64
+_RAW_CAPTURE_LOGICAL_INVOCATION_SHA256 = "2" * 64
+_RAW_CAPTURE_SCOPE_SHA256 = "3" * 64
+_RAW_CAPTURE_ENDPOINT_ID = "ScoreBoard"
+_RAW_CAPTURE_ENDPOINT_CONTRACT_SHA256 = owned_contract_sha256(
+    pinned_live_contracts()[_RAW_CAPTURE_ENDPOINT_ID]
+)
+_RAW_CAPTURE_PROVIDER_AUTHORITY_SHA256 = cast(
+    "str",
+    expected_nba_api_provider_authority()["authority_sha256"],
+)
+_RAW_CAPTURE_BODY = '{"meta":{"version":1,"request":"fixture","time":"now","code":200}}'
+_RAW_CAPTURE_PLAN_SNAPSHOT_AT = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
+
+
+def _raw_capture_sha256(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+@cache
+def _w2_admission_operation():
+    return _build_w2_operation()
+
+
+def _w2_admission(logical_call_receipt_sha256: str) -> W2SourceCallAdmissionV1:
+    operation = _w2_admission_operation()
+    persistence = W2OperationPersistenceReceiptV1.build(
+        operation=operation,
+        post_commit_readback_row=operation.to_row(),
+        replayed=False,
+    )
+    return W2SourceCallAdmissionV1.build(
+        logical_call_receipt_sha256=logical_call_receipt_sha256,
+        raw_authority_persistence_receipt_sha256=_raw_capture_sha256(
+            f"runner-persistence:{logical_call_receipt_sha256}".encode()
+        ),
+        operation=operation,
+        persistence_receipt=persistence,
+    )
+
+
+def _recorded_static_attempt(
+    pending: PendingRawRequestSuccessV2,
+    *,
+    parser_input: bytes = b'[[1,"static"]]',
+) -> RecordedParserInput:
+    response_sha256 = _raw_capture_sha256(parser_input)
+    object_sha256 = _raw_capture_sha256(b"recorded-static-object")
+    captured = CapturedParserInput(
+        representation=STATIC_INPUT_REPRESENTATION,
+        response_sha256=response_sha256,
+        object_sha256=object_sha256,
+        uncompressed_bytes=len(parser_input),
+        stored_sha256=_raw_capture_sha256(b"stored-static-packet"),
+        stored_bytes=1,
+        codec=DEFAULT_CODEC,
+        relative_path=(f"blobs/sha256/{object_sha256[:2]}/{object_sha256}.payload.gz"),
+    )
+    return RecordedParserInput(
+        receipt_sha256=pending.private_receipt_sha256,
+        transport_kind="static_provider_snapshot",
+        source_family="static",
+        endpoint_id=pending.attempt.endpoint_id,
+        endpoint_slug="static-players",
+        parameters_sha256=pending.attempt.safe_parameters_sha256,
+        provider_authority_sha256=pending.attempt.provider_authority_sha256,
+        endpoint_contract_sha256=pending.attempt.endpoint_contract_sha256,
+        status_code=None,
+        outcome="success_nonempty",
+        result_sets=tuple(item.result_set for item in pending.results),
+        captured=captured,
+        parser_input=parser_input,
+    )
+
+
+def _raw_capture_result_receipt() -> ResultSetReceipt:
+    headers = ("version", "request", "time", "code")
+    return ResultSetReceipt(
+        name="meta",
+        provider_index=None,
+        canonical_index=0,
+        headers_sha256=_raw_capture_sha256(
+            json.dumps(list(headers), separators=(",", ":")).encode()
+        ),
+        row_count=1,
+        json_path="$.meta",
+        container_kind="nba_api_live_json_object",
+        container_count=1,
+        missing_count=0,
+        null_count=0,
+        parent_observation_count=1,
+        parent_occurrence_states_sha256=parent_occurrence_states_digest(("present",)),
+        observed_field_orders_sha256=_raw_capture_sha256(b"observed-meta-fields"),
+        normalized_output_sha256=_raw_capture_sha256(b"normalized-meta-output"),
+    )
+
+
+def _raw_capture_public_context(
+    *,
+    lane_id: str = "lane-1",
+) -> RawRequestCaptureContextV2:
+    _, _, provider_request_sha256 = canonical_semantic_parameters(
+        "live",
+        _RAW_CAPTURE_ENDPOINT_ID,
+        {},
+    )
+    return RawRequestCaptureContextV2(
+        provider_authority_sha256=_RAW_CAPTURE_PROVIDER_AUTHORITY_SHA256,
+        source_sha=_RAW_CAPTURE_SOURCE_SHA,
+        run_id=101,
+        run_attempt=1,
+        chain_id="chain-1",
+        lane_id=lane_id,
+        provider_calls=(
+            RawProviderCallContextV2(
+                request_ordinal=0,
+                semantic_request_sha256=_RAW_CAPTURE_SEMANTIC_REQUEST_SHA256,
+                logical_invocation_sha256=(_RAW_CAPTURE_LOGICAL_INVOCATION_SHA256),
+                provider_call_role="primary",
+                provider_call_ordinal=0,
+                source_family="live",
+                endpoint_id=_RAW_CAPTURE_ENDPOINT_ID,
+                provider_request_sha256=provider_request_sha256,
+                endpoint_contract_sha256=(_RAW_CAPTURE_ENDPOINT_CONTRACT_SHA256),
+                scope_sha256=_RAW_CAPTURE_SCOPE_SHA256,
+            ),
+        ),
+    )
+
+
+def _raw_capture_factories(
+    tmp_path: Path,
+) -> tuple[
+    Callable[[str, dict[str, object]], NbaApiCaptureContract],
+    Callable[[str, dict[str, object]], RawRequestCaptureContextV2],
+    list[BronzeCaptureStore],
+]:
+    stores: list[BronzeCaptureStore] = []
+    logical_call_ordinal = 0
+
+    def private_factory(
+        endpoint_name: str,
+        params: dict[str, object],
+    ) -> NbaApiCaptureContract:
+        nonlocal logical_call_ordinal
+        assert endpoint_name == _RAW_CAPTURE_ENDPOINT_ID
+        assert params == {}
+        logical_call_ordinal += 1
+        store = BronzeCaptureStore(
+            tmp_path / f"private-{logical_call_ordinal}" / "bronze",
+            public_roots=(tmp_path / "public",),
+            limits=BronzeLimits(
+                max_response_bytes=1_000_000,
+                max_generation_stored_bytes=2_000_000,
+                minimum_free_bytes=1,
+            ),
+        )
+        stores.append(store)
+        return NbaApiCaptureContract(
+            sink=store,
+            context=ParserInputContext(
+                attempt_id=f"runner-raw-capture-{logical_call_ordinal}",
+                workflow_run_id=101,
+                workflow_run_attempt=1,
+                chain_id="chain-1",
+                lane_id="lane-1",
+                semantic_source_sha=_RAW_CAPTURE_SOURCE_SHA,
+            ),
+            provider_authority_sha256=_RAW_CAPTURE_PROVIDER_AUTHORITY_SHA256,
+            endpoint_contract_sha256=_RAW_CAPTURE_ENDPOINT_CONTRACT_SHA256,
+        )
+
+    def public_factory(
+        endpoint_name: str,
+        params: dict[str, object],
+    ) -> RawRequestCaptureContextV2:
+        assert endpoint_name == _RAW_CAPTURE_ENDPOINT_ID
+        assert params == {}
+        return _raw_capture_public_context()
+
+    return private_factory, public_factory, stores
+
+
+def _raw_capture_extractor(
+    *,
+    failed_attempts: int = 0,
+    downstream_failure: bool = False,
+    malformed_snapshot: bool = False,
+    cross_context_snapshot: bool = False,
+    include_capture_issue: bool = False,
+):
+    state: dict[str, object] = {"attempts": 0, "orders": []}
+
+    class _RawCaptureExtractor(BaseExtractor):
+        endpoint_name = _RAW_CAPTURE_ENDPOINT_ID
+        category = "default"
+
+        def begin_extraction_attempt(self) -> None:
+            cast("list[list[str]]", state["orders"]).append(["begin"])
+            super().begin_extraction_attempt()
+
+        def set_logical_request_params(self, params) -> None:
+            cast("list[list[str]]", state["orders"])[-1].append("logical")
+            super().set_logical_request_params(params)
+
+        def set_raw_request_capture_context(self, context) -> None:
+            cast("list[list[str]]", state["orders"])[-1].append("public")
+            super().set_raw_request_capture_context(context)
+
+        def set_capture_contract(self, contract) -> None:
+            cast("list[list[str]]", state["orders"])[-1].append("private")
+            super().set_capture_contract(contract)
+
+        def _perform(self) -> list[pl.DataFrame]:
+            state["attempts"] = cast("int", state["attempts"]) + 1
+            capture = cast("RawRequestCaptureContract", self._capture_contract)
+            request = capture.begin_request()
+            if request.retry_ordinal < failed_attempts:
+                receipt = capture.sink.record_no_response_attempt(
+                    context=request,
+                    transport_kind="http_response",
+                    source_family="live",
+                    endpoint_id=_RAW_CAPTURE_ENDPOINT_ID,
+                    endpoint_slug="scoreboard",
+                    parameters={},
+                    provider_authority_sha256=(_RAW_CAPTURE_PROVIDER_AUTHORITY_SHA256),
+                    contract_sha256=_RAW_CAPTURE_ENDPOINT_CONTRACT_SHA256,
+                    outcome="transport_failure_no_response",
+                    failure_class="transport_transient",
+                    root_exception_class="ConnectionError",
+                )
+                capture.record_receipt(request, receipt, successful=False)
+                raise ConnectionError("test-only transient")
+            captured = capture.sink.store_parser_input(
+                _RAW_CAPTURE_BODY,
+                representation=PARSER_INPUT_REPRESENTATION,
+            )
+            receipt = capture.sink.record_response_attempt(
+                context=request,
+                transport_kind="http_response",
+                source_family="live",
+                endpoint_id=_RAW_CAPTURE_ENDPOINT_ID,
+                endpoint_slug="scoreboard",
+                parameters={},
+                provider_authority_sha256=_RAW_CAPTURE_PROVIDER_AUTHORITY_SHA256,
+                contract_sha256=_RAW_CAPTURE_ENDPOINT_CONTRACT_SHA256,
+                status_code=200,
+                captured=captured,
+                outcome="success_nonempty",
+                failure_class=None,
+                root_exception_class=None,
+                result_sets=(_raw_capture_result_receipt(),),
+            )
+            capture.record_receipt(request, receipt, successful=True)
+            if downstream_failure:
+                exc = ValueError("test-only downstream failure")
+                self._mark_raw_request_downstream_incomplete(
+                    exc,
+                    receipt_sha256=receipt,
+                )
+                raise exc
+            return [pl.DataFrame({"value": [1]}), pl.DataFrame({"value": [2]})]
+
+        async def extract(self, **_params: object) -> pl.DataFrame:
+            return self._perform()[0]
+
+        async def extract_all(self, **_params: object) -> list[pl.DataFrame]:
+            return self._perform()
+
+        def raw_request_capture_snapshot(self) -> RawRequestCaptureSnapshotV2:
+            snapshot = super().raw_request_capture_snapshot()
+            assert snapshot is not None
+            if malformed_snapshot:
+                return cast("RawRequestCaptureSnapshotV2", object())
+            if include_capture_issue:
+                attempts = (
+                    *(item.attempt for item in snapshot.observations),
+                    *(item.attempt for item in snapshot.pending_successes),
+                )
+                assert attempts
+                snapshot = replace(
+                    snapshot,
+                    issues=(
+                        RawRequestCaptureIssueV2(
+                            code="test_capture_issue",
+                            retry_ordinal=attempts[0].retry_ordinal,
+                            request_ordinal=attempts[0].request_ordinal,
+                            root_exception_class=None,
+                        ),
+                    ),
+                )
+            if not cross_context_snapshot or not snapshot.pending_successes:
+                return snapshot
+            pending = snapshot.pending_successes[0]
+            foreign_attempt = pending.attempt.model_copy(update={"lane_id": "foreign-lane"})
+            return replace(
+                snapshot,
+                pending_successes=(replace(pending, attempt=foreign_attempt),),
+            )
+
+    return _RawCaptureExtractor, state
+
+
+def _close_raw_capture_stores(stores: list[BronzeCaptureStore]) -> None:
+    for store in stores:
+        store.close()
+
+
+class TestPublicRawRequestCaptureCarry:
+    def test_runner_imports_only_v2_public_capture_symbols(self) -> None:
+        removed_v1_names = {
+            "ParserInputObjectV1",
+            "PendingRawRequestSuccessV1",
+            "PendingResultOccurrenceV1",
+            "RawRequestCaptureContextV1",
+            "RawRequestCaptureIssueV1",
+            "RawRequestCaptureSnapshotV1",
+            "RequestAttemptIdentityV1",
+            "RequestObservationV1",
+        }
+
+        assert removed_v1_names.isdisjoint(vars(extractor_runner_module))
+
+    def test_w2_admissions_replay_and_bind_in_pending_order(self) -> None:
+        snapshot, first_binding, _receipts = _raw_finalization_case("live")
+        second_binding = replace(
+            first_binding,
+            logical_call_receipt_sha256=_raw_capture_sha256(b"second-logical-call"),
+        )
+        pending = [
+            _PendingJournalSuccess(
+                endpoint_name=first_binding.endpoint_name,
+                params_json="{}",
+                rows=1,
+                receipt_binding=first_binding,
+                raw_request_capture_snapshot=snapshot,
+            ),
+            _PendingJournalSuccess(
+                endpoint_name=second_binding.endpoint_name,
+                params_json="{}",
+                rows=0,
+                receipt_binding=second_binding,
+                raw_request_capture_snapshot=snapshot,
+            ),
+        ]
+        supplied = (
+            _w2_admission(first_binding.logical_call_receipt_sha256),
+            _w2_admission(second_binding.logical_call_receipt_sha256),
+        )
+
+        admitted = ExtractorRunner._bind_chunk_w2_admissions(
+            pending,
+            supplied,
+            callback_invoked=True,
+            require_w2_operation=True,
+        )
+
+        assert tuple(
+            item.w2_admission.logical_call_receipt_sha256
+            for item in admitted
+            if item.w2_admission is not None
+        ) == (
+            first_binding.logical_call_receipt_sha256,
+            second_binding.logical_call_receipt_sha256,
+        )
+        assert admitted[0].w2_admission == supplied[0]
+        assert admitted[0].w2_admission is not supplied[0]
+        assert admitted[1].pending.rows == 0
+
+    @pytest.mark.parametrize("callback_result", [None, ()])
+    def test_zero_row_w2_success_requires_one_exact_admission(
+        self,
+        callback_result: tuple[W2SourceCallAdmissionV1, ...] | None,
+    ) -> None:
+        snapshot, binding, _receipts = _raw_finalization_case("live")
+        pending = _PendingJournalSuccess(
+            endpoint_name=binding.endpoint_name,
+            params_json="{}",
+            rows=0,
+            receipt_binding=binding,
+            raw_request_capture_snapshot=snapshot,
+        )
+
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="returned no|count differs",
+        ):
+            ExtractorRunner._bind_chunk_w2_admissions(
+                [pending],
+                callback_result,
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+
+    def test_w2_failure_only_callback_requires_exact_empty_tuple(self) -> None:
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="failure-only persistence",
+        ):
+            ExtractorRunner._bind_chunk_w2_admissions(
+                [],
+                None,
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+
+        assert (
+            ExtractorRunner._bind_chunk_w2_admissions(
+                [],
+                (),
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+            == ()
+        )
+
+    def test_w2_admission_rejects_reorder_alias_and_foreign_before_journal(self) -> None:
+        snapshot, first_binding, _receipts = _raw_finalization_case("live")
+        second_binding = replace(
+            first_binding,
+            logical_call_receipt_sha256=_raw_capture_sha256(b"second-logical-call"),
+        )
+        pending = [
+            _PendingJournalSuccess(
+                first_binding.endpoint_name,
+                "{}",
+                1,
+                receipt_binding=first_binding,
+                raw_request_capture_snapshot=snapshot,
+            ),
+            _PendingJournalSuccess(
+                second_binding.endpoint_name,
+                "{}",
+                1,
+                receipt_binding=second_binding,
+                raw_request_capture_snapshot=snapshot,
+            ),
+        ]
+        first = _w2_admission(first_binding.logical_call_receipt_sha256)
+        second = _w2_admission(second_binding.logical_call_receipt_sha256)
+
+        with pytest.raises(ParserInputCaptureIntegrityError, match="ordered pending"):
+            ExtractorRunner._bind_chunk_w2_admissions(
+                pending,
+                (second, first),
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+        with pytest.raises(ParserInputCaptureIntegrityError, match="aliased"):
+            ExtractorRunner._bind_chunk_w2_admissions(
+                pending,
+                (first, first),
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+        with pytest.raises(ParserInputCaptureIntegrityError, match="foreign W2"):
+            ExtractorRunner._bind_chunk_w2_admissions(
+                pending[:1],
+                cast("tuple[W2SourceCallAdmissionV1, ...]", (object(),)),
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+
+    def test_w2_admission_sanitizes_hostile_replay_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        snapshot, binding, _receipts = _raw_finalization_case("live")
+        pending = _PendingJournalSuccess(
+            binding.endpoint_name,
+            "{}",
+            1,
+            receipt_binding=binding,
+            raw_request_capture_snapshot=snapshot,
+        )
+        admission = _w2_admission(binding.logical_call_receipt_sha256)
+
+        def hostile_replay(_cls: object, _value: object) -> W2SourceCallAdmissionV1:
+            raise RuntimeError("HOSTILE_W2_SECRET_SENTINEL")
+
+        monkeypatch.setattr(
+            W2SourceCallAdmissionV1,
+            "from_canonical_bytes",
+            classmethod(hostile_replay),
+        )
+        with pytest.raises(ParserInputCaptureIntegrityError) as exc_info:
+            ExtractorRunner._bind_chunk_w2_admissions(
+                [pending],
+                (admission,),
+                callback_invoked=True,
+                require_w2_operation=True,
+            )
+
+        assert "HOSTILE_W2_SECRET_SENTINEL" not in str(exc_info.value)
+
+    def test_later_journal_failure_preserves_current_and_remaining_parser_inputs(self) -> None:
+        snapshot, first_binding, _receipts = _raw_finalization_case("live")
+        second_binding = replace(
+            first_binding,
+            logical_call_receipt_sha256=_raw_capture_sha256(b"second-logical-call"),
+        )
+        events: list[str] = []
+        pending = [
+            _PendingJournalSuccess(
+                first_binding.endpoint_name,
+                '{"call":1}',
+                1,
+                receipt_binding=first_binding,
+                raw_request_capture_snapshot=snapshot,
+                discard_parser_inputs=lambda: events.append("discard-first"),
+            ),
+            _PendingJournalSuccess(
+                second_binding.endpoint_name,
+                '{"call":2}',
+                1,
+                receipt_binding=second_binding,
+                raw_request_capture_snapshot=snapshot,
+                discard_parser_inputs=lambda: events.append("discard-second"),
+            ),
+        ]
+        admissions = ExtractorRunner._bind_chunk_w2_admissions(
+            pending,
+            (
+                _w2_admission(first_binding.logical_call_receipt_sha256),
+                _w2_admission(second_binding.logical_call_receipt_sha256),
+            ),
+            callback_invoked=True,
+            require_w2_operation=True,
+        )
+        journal = _make_journal()
+
+        def journal_success(
+            _endpoint: str,
+            params: str,
+            _rows: int,
+            **_kwargs: object,
+        ) -> None:
+            events.append(f"journal-{params}")
+            if params == '{"call":2}':
+                raise RuntimeError("journal unavailable")
+
+        journal.record_success.side_effect = journal_success
+        runner = ExtractorRunner(
+            _make_registry(_make_extractor()),
+            _make_settings(),
+            journal,
+        )
+        try:
+            with pytest.raises(RuntimeError, match="journal unavailable"):
+                runner._commit_chunk_journal_successes(
+                    admissions,
+                    PatternExtractionResult(frames={}),
+                    discard_parser_inputs=True,
+                )
+        finally:
+            runner.shutdown()
+
+        assert events == [
+            'journal-{"call":1}',
+            "discard-first",
+            'journal-{"call":2}',
+        ]
+        assert journal.record_success.call_count == 2
+        assert all(
+            type(call.kwargs["w2_admission"]) is W2SourceCallAdmissionV1
+            for call in journal.record_success.call_args_list
+        )
+
+    def test_public_capture_factory_requires_private_capture(self) -> None:
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="requires private parser-input capture",
+        ):
+            ExtractorRunner(
+                _make_registry(_make_extractor()),
+                _make_settings(),
+                _make_journal(),
+                raw_request_capture_context_factory=lambda *_args: _raw_capture_public_context(),
+            )
+
+    def test_late_public_capture_configuration_is_one_shot_and_preplanning(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, _state = _raw_capture_extractor()
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            _make_journal(),
+            capture_contract_factory=private_factory,
+        )
+        preplanned = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            _make_journal(),
+            capture_contract_factory=private_factory,
+        )
+        no_private = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            _make_journal(),
+        )
+        try:
+            runner.configure_raw_request_capture_context_factory(public_factory)
+            with pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="already configured",
+            ):
+                runner.configure_raw_request_capture_context_factory(public_factory)
+
+            preplanned.planned_calls = 1
+            with pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="before planning",
+            ):
+                preplanned.configure_raw_request_capture_context_factory(public_factory)
+
+            with pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="requires private parser-input capture",
+            ):
+                no_private.configure_raw_request_capture_context_factory(public_factory)
+        finally:
+            runner.shutdown()
+            preplanned.shutdown()
+            no_private.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_exact_snapshot_reaches_journal_task_and_source_result(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, _state = _raw_capture_extractor()
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+
+        async def invoke(extractor: BaseExtractor) -> pl.DataFrame:
+            return await extractor.extract()
+
+        try:
+            journaled = await runner._run_with_journal(
+                _RAW_CAPTURE_ENDPOINT_ID,
+                "{}",
+                params={},
+                fn=invoke,
+                result_route_ids=(f"{_RAW_CAPTURE_ENDPOINT_ID}:stg_score_board:0",),
+                defer_journal_success=True,
+                return_failures=True,
+            )
+            assert isinstance(journaled, _JournaledExtraction)
+            snapshot = journaled.raw_request_capture_snapshot
+            assert snapshot is not None
+            assert snapshot is journaled.success.raw_request_capture_snapshot
+            assert snapshot.requires_transactional_finalization
+            assert len(snapshot.objects) == len(snapshot.pending_successes) == 1
+            assert snapshot.observations == snapshot.issues == ()
+            pending = snapshot.pending_successes[0]
+            assert type(pending) is PendingRawRequestSuccessV2
+            assert pending.logical_receipt_sha256 is None
+            assert pending.aggregate_route_ids == ()
+            assert not hasattr(pending, "route_landings")
+            ExtractorRunner._validate_raw_request_capture_snapshot_shape(snapshot)
+
+            task_result = _ExtractionTaskResult(
+                frames={"stg_score_board": cast("pl.DataFrame", journaled.data)},
+                pending_success=journaled.success,
+                raw_request_capture_snapshot=snapshot,
+                source_endpoint_name=_RAW_CAPTURE_ENDPOINT_ID,
+                source_params_json="{}",
+                expected_staging_keys=("stg_score_board",),
+            )
+            source_results = runner._source_results_for_persistence(
+                [task_result],
+                plan_live_snapshot_at=_RAW_CAPTURE_PLAN_SNAPSHOT_AT,
+            )
+            assert source_results[0]["raw_request_capture_snapshot"] is snapshot
+            assert source_results[0]["recorded_static_attempts"] == ()
+            assert source_results[0]["plan_live_snapshot_at"] == _RAW_CAPTURE_PLAN_SNAPSHOT_AT
+            journal.record_success.assert_not_called()
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    def test_selected_static_packet_is_reloaded_and_carried_exactly(self) -> None:
+        snapshot, binding, _receipts = _raw_finalization_case("static")
+        pending = snapshot.pending_successes[0]
+        recorded = _recorded_static_attempt(pending)
+        contract = MagicMock()
+        contract.sink.load_recorded_attempt.return_value = recorded
+
+        reloaded = ExtractorRunner._recorded_static_attempts_for_snapshot(
+            snapshot,
+            cast("NbaApiCaptureContract", contract),
+        )
+        assert reloaded == (recorded,)
+        contract.sink.load_recorded_attempt.assert_called_once_with(pending.private_receipt_sha256)
+
+        success = _PendingJournalSuccess(
+            endpoint_name=binding.endpoint_name,
+            params_json="{}",
+            rows=recorded.result_sets[0].row_count,
+            receipt_binding=binding,
+            raw_request_capture_snapshot=snapshot,
+            recorded_static_attempts=reloaded,
+        )
+        source = ExtractorRunner._source_results_for_persistence(
+            [
+                _ExtractionTaskResult(
+                    frames={},
+                    pending_success=success,
+                    raw_request_capture_snapshot=snapshot,
+                    source_endpoint_name=binding.endpoint_name,
+                    source_params_json="{}",
+                    expected_staging_keys=(),
+                )
+            ]
+        )[0]
+        assert source["recorded_static_attempts"] is success.recorded_static_attempts
+
+    def test_selected_static_packet_rejects_mutated_exact_bytes(self) -> None:
+        snapshot, _binding, _receipts = _raw_finalization_case("static")
+        recorded = _recorded_static_attempt(snapshot.pending_successes[0])
+        contract = MagicMock()
+        contract.sink.load_recorded_attempt.return_value = replace(
+            recorded,
+            parser_input=recorded.parser_input + b" ",
+        )
+
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="differs from its exact capture authority",
+        ):
+            ExtractorRunner._recorded_static_attempts_for_snapshot(
+                snapshot,
+                cast("NbaApiCaptureContract", contract),
+            )
+
+    @pytest.mark.asyncio
+    async def test_snapshot_admission_rejects_forged_attempt_and_terminal_authority(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, _state = _raw_capture_extractor()
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            _make_journal(),
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+
+        async def invoke(extractor: BaseExtractor) -> pl.DataFrame:
+            return await extractor.extract()
+
+        try:
+            journaled = await runner._run_with_journal(
+                _RAW_CAPTURE_ENDPOINT_ID,
+                "{}",
+                params={},
+                fn=invoke,
+                result_route_ids=(f"{_RAW_CAPTURE_ENDPOINT_ID}:stg_score_board:0",),
+                defer_journal_success=True,
+                return_failures=True,
+            )
+            assert isinstance(journaled, _JournaledExtraction)
+            snapshot = journaled.raw_request_capture_snapshot
+            assert snapshot is not None
+            pending = snapshot.pending_successes[0]
+
+            forged_attempt = pending.attempt.model_copy(deep=True)
+            object.__setattr__(forged_attempt, "attempt_sha256", "f" * 64)
+            forged_snapshot = replace(
+                snapshot,
+                pending_successes=(replace(pending, attempt=forged_attempt),),
+            )
+            with pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="invalid attempt authority",
+            ):
+                ExtractorRunner._validate_raw_request_capture_snapshot_shape(forged_snapshot)
+
+            assert pending.body_object is not None
+            terminal = RequestObservationV2.build(
+                attempt=pending.attempt,
+                transport=pending.transport,
+                started_at=pending.started_at,
+                finished_at=pending.finished_at,
+                elapsed_ns=pending.elapsed_ns,
+                lifecycle="selected_terminal",
+                outcome=pending.outcome,
+                failure_class=None,
+                root_exception_class=None,
+                body_disposition=pending.body_disposition,
+                body_object_sha256=pending.body_object.object_sha256,
+                bodyless_evidence_sha256=None,
+                result_occurrence_sha256s=("a" * 64,),
+                route_landing_sha256s=("b" * 64,),
+                capture_response_receipt_sha256=pending.private_receipt_sha256,
+                logical_receipt_sha256="c" * 64,
+            )
+            terminal_snapshot = replace(
+                snapshot,
+                observations=(terminal,),
+                pending_successes=(),
+            )
+            with pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="cannot self-seal a terminal",
+            ):
+                ExtractorRunner._validate_raw_request_capture_snapshot_shape(terminal_snapshot)
+
+            with pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="exact V2 DTO",
+            ):
+                ExtractorRunner._validate_raw_request_capture_snapshot_shape(
+                    cast("RawRequestCaptureSnapshotV2", object())
+                )
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_retry_aggregates_failed_attempt_and_pending_success_before_journal(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor(failed_attempts=1)
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(extract_max_retries=1),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+        persisted: list[RawRequestCaptureSnapshotV2] = []
+
+        def persist_chunk(
+            _frames: dict[str, pl.DataFrame],
+            *,
+            source_results: list[dict[str, object]],
+        ) -> tuple[W2SourceCallAdmissionV1, ...]:
+            journal.record_success.assert_not_called()
+            assert len(source_results) == 1
+            snapshot = source_results[0]["raw_request_capture_snapshot"]
+            assert isinstance(snapshot, RawRequestCaptureSnapshotV2)
+            persisted.append(snapshot)
+            binding = source_results[0]["receipt_binding"]
+            assert type(binding) is LogicalCallReceiptBinding
+            return (_w2_admission(binding.logical_call_receipt_sha256),)
+
+        entry = StagingEntry(
+            _RAW_CAPTURE_ENDPOINT_ID,
+            "stg_score_board",
+            "live",
+        )
+        try:
+            result = await runner.run_pattern_result(
+                "live",
+                [{}],
+                [entry],
+                persist_chunk_results=persist_chunk,
+                required_route_ids=(f"{_RAW_CAPTURE_ENDPOINT_ID}:stg_score_board:0",),
+                snapshot_at=_RAW_CAPTURE_PLAN_SNAPSHOT_AT,
+            )
+
+            assert result.success_count == 1
+            assert state["attempts"] == 2
+            assert state["orders"] == [
+                ["begin", "logical", "public", "private"],
+                ["begin", "logical", "public", "private"],
+            ]
+            assert len(persisted) == 1
+            snapshot = persisted[0]
+            assert len(snapshot.objects) == 1
+            assert [item.attempt.retry_ordinal for item in snapshot.observations] == [0]
+            assert snapshot.observations[0].lifecycle == "incomplete"
+            assert snapshot.observations[0].outcome == "transport_failure_no_response"
+            assert [item.attempt.retry_ordinal for item in snapshot.pending_successes] == [1]
+            assert snapshot.pending_successes[0].logical_receipt_sha256 is None
+            assert snapshot.pending_successes[0].aggregate_route_ids == ()
+            assert all(
+                observation.lifecycle != "selected_terminal"
+                for observation in snapshot.observations
+            )
+            assert snapshot.issues == ()
+            assert result.raw_request_capture_snapshot == snapshot
+            assert runner.raw_request_capture_snapshot() == snapshot
+            journal.record_success.assert_called_once()
+            journal.record_start.assert_called_once_with(
+                _RAW_CAPTURE_ENDPOINT_ID,
+                "{}",
+                require_receipt=True,
+                require_w2_operation=True,
+            )
+            journal.was_extracted_batch.assert_called_once_with(
+                [(_RAW_CAPTURE_ENDPOINT_ID, "{}")],
+                require_receipt=True,
+                require_w2_operation=True,
+            )
+            assert (
+                type(journal.record_success.call_args.kwargs["w2_admission"])
+                is W2SourceCallAdmissionV1
+            )
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_terminal_failure_preserves_every_attempt_snapshot(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor(
+            failed_attempts=3,
+            include_capture_issue=True,
+        )
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(extract_max_retries=1),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+        entry = StagingEntry(
+            _RAW_CAPTURE_ENDPOINT_ID,
+            "stg_score_board",
+            "live",
+        )
+        try:
+            result = await runner.run_pattern_result("live", [{}], [entry])
+
+            assert result.failure_count == 1
+            assert state["attempts"] == 2
+            snapshot = result.raw_request_capture_snapshot
+            assert snapshot is not None
+            assert snapshot.objects == snapshot.pending_successes == ()
+            assert [item.attempt.retry_ordinal for item in snapshot.observations] == [0, 1]
+            assert {item.outcome for item in snapshot.observations} == {
+                "transport_failure_no_response"
+            }
+            assert all(type(item) is RequestObservationV2 for item in snapshot.observations)
+            assert all(item.lifecycle == "incomplete" for item in snapshot.observations)
+            assert all(item.route_landing_count == 0 for item in snapshot.observations)
+            assert [item.retry_ordinal for item in snapshot.issues] == [0, 1]
+            assert runner.raw_request_capture_snapshot() == snapshot
+            journal.record_success.assert_not_called()
+            journal.record_failure.assert_called_once()
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_downstream_failure_preserves_exact_incomplete_body_observation(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor(downstream_failure=True)
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            _make_journal(),
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+        entry = StagingEntry(
+            _RAW_CAPTURE_ENDPOINT_ID,
+            "stg_score_board",
+            "live",
+        )
+        try:
+            result = await runner.run_pattern_result("live", [{}], [entry])
+
+            assert state["attempts"] == 1
+            assert result.failure_count == 1
+            snapshot = result.raw_request_capture_snapshot
+            assert snapshot is not None
+            assert snapshot.pending_successes == snapshot.issues == ()
+            assert len(snapshot.objects) == len(snapshot.observations) == 1
+            observation = snapshot.observations[0]
+            assert type(observation) is RequestObservationV2
+            assert observation.lifecycle == "incomplete"
+            assert observation.outcome == "downstream_incomplete"
+            assert observation.body_disposition == "public_parser_input"
+            assert observation.body_object_sha256 == snapshot.objects[0].object_sha256
+            assert observation.result_occurrence_count == 0
+            assert observation.route_landing_count == 0
+            assert observation.logical_receipt_sha256 is None
+            ExtractorRunner._validate_raw_request_capture_snapshot_shape(snapshot)
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_terminal_failure_callback_receives_snapshot_without_frames(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor(failed_attempts=3)
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(extract_max_retries=1),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+        persisted: list[RawRequestCaptureSnapshotV2] = []
+
+        def persist_failure(
+            frames: dict[str, pl.DataFrame],
+            *,
+            failure_raw_request_capture_snapshots: tuple[
+                RawRequestCaptureSnapshotV2,
+                ...,
+            ],
+        ) -> tuple[W2SourceCallAdmissionV1, ...]:
+            assert frames == {}
+            journal.record_success.assert_not_called()
+            assert len(failure_raw_request_capture_snapshots) == 1
+            persisted.extend(failure_raw_request_capture_snapshots)
+            return ()
+
+        entry = StagingEntry(
+            _RAW_CAPTURE_ENDPOINT_ID,
+            "stg_score_board",
+            "live",
+        )
+        try:
+            result = await runner.run_pattern_result(
+                "live",
+                [{}],
+                [entry],
+                persist_chunk_results=persist_failure,
+            )
+
+            assert state["attempts"] == 2
+            assert result.failure_count == 1
+            assert len(persisted) == 1
+            assert [item.attempt.retry_ordinal for item in persisted[0].observations] == [0, 1]
+            assert persisted[0].pending_successes == ()
+            journal.record_success.assert_not_called()
+            journal.record_failure.assert_called_once()
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_multi_result_carries_one_call_snapshot_without_cross_result_copy(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor()
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+        persisted_sources: list[list[dict[str, object]]] = []
+
+        def persist_chunk(
+            _frames: dict[str, pl.DataFrame],
+            *,
+            source_results: list[dict[str, object]],
+        ) -> tuple[W2SourceCallAdmissionV1, ...]:
+            journal.record_success.assert_not_called()
+            persisted_sources.append(source_results)
+            binding = source_results[0]["receipt_binding"]
+            assert type(binding) is LogicalCallReceiptBinding
+            return (_w2_admission(binding.logical_call_receipt_sha256),)
+
+        entries = [
+            StagingEntry(
+                _RAW_CAPTURE_ENDPOINT_ID,
+                "stg_score_board",
+                "live",
+                result_set_index=0,
+                use_multi=True,
+            ),
+            StagingEntry(
+                _RAW_CAPTURE_ENDPOINT_ID,
+                "stg_score_board_extra",
+                "live",
+                result_set_index=1,
+                use_multi=True,
+            ),
+        ]
+        try:
+            with patch(
+                "nbadb.orchestrate.extractor_runner.get_multi_entries",
+                return_value={_RAW_CAPTURE_ENDPOINT_ID: entries},
+            ):
+                result = await runner.run_pattern_result(
+                    "live",
+                    [{}],
+                    entries,
+                    persist_chunk_results=persist_chunk,
+                    required_route_ids=(
+                        f"{_RAW_CAPTURE_ENDPOINT_ID}:stg_score_board:0",
+                        f"{_RAW_CAPTURE_ENDPOINT_ID}:stg_score_board_extra:1",
+                    ),
+                    snapshot_at=_RAW_CAPTURE_PLAN_SNAPSHOT_AT,
+                )
+
+            assert result.success_count == 1
+            assert state["attempts"] == 1
+            assert len(persisted_sources) == 1
+            assert len(persisted_sources[0]) == 1
+            source = persisted_sources[0][0]
+            assert source["expected_staging_keys"] == (
+                "stg_score_board",
+                "stg_score_board_extra",
+            )
+            snapshot = source["raw_request_capture_snapshot"]
+            assert isinstance(snapshot, RawRequestCaptureSnapshotV2)
+            assert len(snapshot.pending_successes) == 1
+            assert snapshot.pending_successes[0].attempt.request_ordinal == 0
+            journal.record_success.assert_called_once()
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("malformed_snapshot", "cross_context_snapshot"),
+        [(True, False), (False, True)],
+    )
+    async def test_malformed_or_cross_context_snapshot_fails_before_journal_success(
+        self,
+        tmp_path: Path,
+        malformed_snapshot: bool,
+        cross_context_snapshot: bool,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor(
+            malformed_snapshot=malformed_snapshot,
+            cross_context_snapshot=cross_context_snapshot,
+        )
+        private_factory, public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=public_factory,
+        )
+        entry = StagingEntry(
+            _RAW_CAPTURE_ENDPOINT_ID,
+            "stg_score_board",
+            "live",
+        )
+        try:
+            result = await runner.run_pattern_result("live", [{}], [entry])
+
+            assert state["attempts"] == 1
+            assert result.failure_count == 1
+            assert result.success_count == 0
+            journal.record_success.assert_not_called()
+            assert journal.record_failure.call_args.args[2] == ("ParserInputCaptureIntegrityError")
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
+
+    @pytest.mark.asyncio
+    async def test_missing_context_factory_result_blocks_provider_work(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        extractor_cls, state = _raw_capture_extractor()
+        private_factory, _public_factory, stores = _raw_capture_factories(tmp_path)
+        journal = _make_journal()
+
+        def missing_context(
+            _endpoint_name: str,
+            _params: dict[str, object],
+        ) -> RawRequestCaptureContextV2:
+            return cast("RawRequestCaptureContextV2", None)
+
+        runner = ExtractorRunner(
+            _make_registry(extractor_cls),
+            _make_settings(),
+            journal,
+            capture_contract_factory=private_factory,
+            raw_request_capture_context_factory=missing_context,
+        )
+        entry = StagingEntry(
+            _RAW_CAPTURE_ENDPOINT_ID,
+            "stg_score_board",
+            "live",
+        )
+        try:
+            result = await runner.run_pattern_result("live", [{}], [entry])
+
+            assert state["attempts"] == 0
+            assert result.failure_count == 1
+            journal.record_success.assert_not_called()
+            assert journal.record_failure.call_args.args[2] == ("ParserInputCaptureIntegrityError")
+        finally:
+            runner.shutdown()
+            _close_raw_capture_stores(stores)
 
 
 class TestSyncExtractBoundary:
@@ -174,7 +1493,7 @@ class TestExtractSingle:
 
         entry = StagingEntry("ep1", "stg_ep1", "season")
         result = await runner._extract_single(entry, {"season": "2024-25"})
-        assert result is not None
+        assert isinstance(result, dict)
         assert "stg_ep1" in result
         assert result["stg_ep1"].shape[0] == 3
         journal.record_success.assert_called_once()
@@ -274,7 +1593,7 @@ class TestExtractMulti:
             StagingEntry("ep_multi", "stg_b", "season", result_set_index=1, use_multi=True),
         ]
         result = await runner._extract_multi("ep_multi", entries, {"season": "2024-25"})
-        assert result is not None
+        assert isinstance(result, dict)
         assert result["stg_a"].shape[0] == 1
         assert result["stg_b"].shape[0] == 2
 
@@ -340,7 +1659,7 @@ class TestExtractMulti:
         with patch("nbadb.orchestrate.extractor_runner.logger.warning") as warning:
             result = await runner._extract_multi("ep_multi", entries, {})
 
-        assert result is not None
+        assert isinstance(result, dict)
         assert result["stg_a"].shape[0] == 1
         assert result["stg_optional"].is_empty()
         warning.assert_not_called()
@@ -490,8 +1809,7 @@ class TestRunPattern:
         ) -> None:
             captured_sources.append(source_results)
             assert expected_staging_keys == ["stg_ep1"]
-            source_frames = source_results[0]["frames"]
-            assert isinstance(source_frames, dict)
+            source_frames = cast("dict[str, pl.DataFrame]", source_results[0]["frames"])
             assert source_frames["stg_ep1"].equals(frames["stg_ep1"])
 
         entry = StagingEntry("ep1", "stg_ep1", "season")
@@ -506,8 +1824,7 @@ class TestRunPattern:
         assert captured_sources[0][0]["source_endpoint_name"] == "ep1"
         assert captured_sources[0][0]["source_params_json"] == '{"season": "2024-25"}'
         assert captured_sources[0][0]["expected_staging_keys"] == ("stg_ep1",)
-        source_frames = captured_sources[0][0]["frames"]
-        assert isinstance(source_frames, dict)
+        source_frames = cast("dict[str, pl.DataFrame]", captured_sources[0][0]["frames"])
         assert source_frames["stg_ep1"].equals(df)
         journal.record_success.assert_called_once()
 
@@ -552,8 +1869,7 @@ class TestRunPattern:
             "stg_schedule",
             "stg_schedule_weeks",
         )
-        source_frames = captured_sources[0][0]["frames"]
-        assert isinstance(source_frames, dict)
+        source_frames = cast("dict[str, pl.DataFrame]", captured_sources[0][0]["frames"])
         assert source_frames["stg_schedule"].equals(df0)
         assert source_frames["stg_schedule_weeks"].equals(df1)
         journal.record_success.assert_called_once()
@@ -663,7 +1979,7 @@ class TestRunPattern:
             captured_entries.append(entries)
             return {}
 
-        runner._extract_multi_result = _capture_extract_multi_result  # type: ignore[method-assign]
+        runner._extract_multi_result = cast("Any", _capture_extract_multi_result)
 
         await runner._replay_deferred_chunk(
             [
@@ -902,7 +2218,7 @@ class TestAdaptiveThrottleIntegration:
         entry = StagingEntry("ep1", "stg_ep1", "season")
         result = await runner._extract_single(entry, {"season": "2024-25"})
 
-        assert result is not None
+        assert isinstance(result, dict)
         assert result["stg_ep1"]["timeout"][0] == 45
 
     @pytest.mark.asyncio
@@ -960,8 +2276,8 @@ class TestAdaptiveThrottleIntegration:
         runner = ExtractorRunner(registry, settings, journal, rate_limit=10.0)
         global_limiter = _TrackedAsyncContext()
         endpoint_limiter = _TrackedAsyncContext()
-        runner._rate_limiter = global_limiter
-        runner._endpoint_rate_limiters["ep1"] = endpoint_limiter
+        runner._rate_limiter = cast("Any", global_limiter)
+        runner._endpoint_rate_limiters["ep1"] = cast("Any", endpoint_limiter)
 
         entry = StagingEntry("ep1", "stg_ep1", "season")
         result = await runner._extract_single(entry, {"season": "2024-25"})
@@ -1136,7 +2452,7 @@ class TestAdaptiveThrottleIntegration:
             settings,
             journal,
         )
-        runner._endpoint_rate_limiters["win_probability"] = _CountingLimiter()  # type: ignore[assignment]
+        runner._endpoint_rate_limiters["win_probability"] = cast("Any", _CountingLimiter())
         entry = StagingEntry(
             "win_probability",
             "stg_win_probability",
@@ -1440,7 +2756,7 @@ class TestAdaptiveThrottleIntegration:
         ):
             result = await runner._extract_single(entry, {"season": "2024-25"})
 
-        assert result is not None
+        assert isinstance(result, dict)
         assert result["stg_ep1"].shape[0] == 1
         mock_sleep.assert_awaited_once_with(1.0)
         journal.record_success.assert_called_once()
@@ -1598,7 +2914,7 @@ class TestCollectResults:
 
     def test_unexpected_type_logged(self):
         accum = {"k": []}
-        ExtractorRunner._collect_results(["unexpected_string"], accum, None)
+        ExtractorRunner._collect_results(cast("Any", ["unexpected_string"]), accum, None)
         assert accum["k"] == []
 
     def test_empty_df_not_added(self):
@@ -1622,7 +2938,7 @@ class TestCollectResults:
     def test_progress_not_called_on_unexpected_type(self):
         accum = {"k": []}
         progress = MagicMock()
-        ExtractorRunner._collect_results(["bad"], accum, progress)
+        ExtractorRunner._collect_results(cast("Any", ["bad"]), accum, progress)
         progress.advance_pattern.assert_not_called()
 
 
@@ -1947,6 +3263,74 @@ class TestLatencyTracker:
         for v in [1.0, 2.0, 3.0, 4.0, 5.0]:
             lt.record("ep1", v)
         # Window of 3 → only last 3 values (3.0, 4.0, 5.0)
-        assert lt.summary("ep1")["count"] == 3.0
+        summary = lt.summary("ep1")
+        assert summary is not None
+        assert summary["count"] == 3.0
         p50 = lt.percentile("ep1", 50)
         assert p50 == 4.0
+
+
+class TestSealedDispatchFanout:
+    @pytest.mark.asyncio
+    async def test_run_pattern_result_rejects_out_of_manifest_derived_fanout(self):
+        journal = _make_journal()
+        settings = _make_settings()
+        extractor_cls = _make_extractor()
+        registry = _make_registry(extractor_cls)
+        admissions: list[tuple[str, dict[str, object], tuple[str, ...]]] = []
+        runner = ExtractorRunner(
+            registry,
+            settings,
+            journal,
+            call_admission=lambda endpoint, params, routes: admissions.append(
+                (endpoint, params, routes)
+            ),
+        )
+        entry = StagingEntry("boxscore", "stg_boxscore", "game")
+        sealed = {"game_id": "0022400001"}
+        extra = {"game_id": "0022400999"}
+
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="later-derived or out-of-manifest fan-out",
+        ):
+            await runner.run_pattern_result(
+                "game",
+                [sealed, extra],
+                [entry],
+                required_route_ids=("boxscore:stg_boxscore:0",),
+            )
+
+        registry.get.assert_not_called()
+        journal.record_start.assert_not_called()
+        journal.was_extracted_batch.assert_not_called()
+        assert admissions == []
+
+    @pytest.mark.asyncio
+    async def test_successor_runner_rejects_unsealed_param_fanout(self):
+        journal = _make_journal()
+        settings = _make_settings()
+        extractor_cls = _make_extractor()
+        registry = _make_registry(extractor_cls)
+        admissions: list[object] = []
+        runner = ExtractorRunner(
+            registry,
+            settings,
+            journal,
+            call_admission=lambda *_args: admissions.append(_args),
+        )
+        entry = StagingEntry("boxscore", "stg_boxscore", "game")
+
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="later-derived or out-of-manifest fan-out",
+        ):
+            await runner.run_pattern_result(
+                "game",
+                [{"game_id": "0022400001"}, {"game_id": "0022400999"}],
+                [entry],
+            )
+
+        registry.get.assert_not_called()
+        journal.record_start.assert_not_called()
+        assert admissions == []

@@ -12,12 +12,21 @@ from dataclasses import replace
 
 import duckdb
 
+from nbadb.contracts.assurance_admission import AssuranceAdmission
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
     _coverage_hash_for_lane,
+    _create_exact_extraction_journal,
     build_checkpoint_database,
     manifest_payload,
+)
+from nbadb.orchestrate.operation_authority import (
+    ExactArtifactMemberV1,
+    NetworkMode,
+    OperationAuthorityV1,
+    OperationKind,
 )
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -26,12 +35,84 @@ _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "full-extraction.yml"
 _METADATA_SCRIPT = _REPO_ROOT / ".github" / "scripts" / "write_lane_metadata.py"
 
 
+def _assurance_admission(source_sha: str) -> AssuranceAdmission:
+    authority = expected_nba_api_provider_authority()
+    return AssuranceAdmission(
+        source_sha=source_sha,
+        assurance_manifest_sha256="1" * 64,
+        generation_semantic_sha256="2" * 64,
+        provider_evidence_sha256=str(authority["provider_evidence_sha256"]),
+        provider_authority_sha256=str(authority["authority_sha256"]),
+        authority_semantic_diff_sha256="3" * 64,
+        authority_update_mode="full",
+        first_extraction=True,
+        model_status="GREEN",
+    )
+
+
 def _sha256(path: pathlib.Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _write_operation_authority(
+    path: pathlib.Path,
+    *,
+    operation: OperationKind,
+    chain_id: str,
+    run_id: str,
+    source_sha: str,
+    manifest_lane_count: int,
+    vpn_parallelism: int = 2,
+    continuation_source: ExactArtifactMemberV1 | None = None,
+) -> OperationAuthorityV1:
+    """Bind one exact operation authority to the checked workflow and runtime."""
+
+    authority = OperationAuthorityV1(
+        repository="fixture/nbadb",
+        workflow_path=".github/workflows/full-extraction.yml",
+        workflow_content_sha256=hashlib.sha256(_WORKFLOW_PATH.read_bytes()).hexdigest(),
+        workflow_commit_sha=source_sha,
+        source_sha=source_sha,
+        trusted_ref="refs/heads/main",
+        run_id=int(run_id),
+        run_attempt=1,
+        event="workflow_dispatch",
+        actor="fixture-actor",
+        chain_id=chain_id,
+        iteration=1,
+        operation=operation,
+        requested_network_mode=NetworkMode.VPN,
+        requested_vpn_parallelism=vpn_parallelism,
+        requested_direct_parallelism=0,
+        max_iterations=64,
+        retry_pipeline_failures=True,
+        allow_re_extraction=False,
+        manifest_lane_count=manifest_lane_count,
+        continuation_source=continuation_source,
+    )
+    path.write_text(json.dumps(authority.to_dict()), encoding="utf-8")
+    return authority
+
+
+def _actions_runtime_env(
+    *,
+    run_id: str,
+    source_sha: str,
+) -> dict[str, str]:
+    return {
+        "GITHUB_REPOSITORY": "fixture/nbadb",
+        "GITHUB_RUN_ID": run_id,
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_ACTOR": "fixture-actor",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_SHA": source_sha,
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
 
 
 def _run(
@@ -74,28 +155,28 @@ def _write_synthetic_lane_database(path: pathlib.Path, fixture: dict[str, object
             "INSERT INTO stg_fixture VALUES (?, ?)",
             fixture["staging_rows"],
         )
-        connection.execute(
-            """
-            CREATE TABLE _extraction_journal (
-                endpoint VARCHAR,
-                params VARCHAR,
-                status VARCHAR,
-                started_at TIMESTAMP,
-                completed_at TIMESTAMP,
-                rows_extracted BIGINT,
-                error_message VARCHAR,
-                retry_count INTEGER
-            )
-            """
-        )
+        _create_exact_extraction_journal(connection)
         journal = fixture["journal"]
         assert isinstance(journal, dict)
+        endpoint = journal.get("endpoint")
+        params = journal.get("params")
+        if type(endpoint) is not str or type(params) is not str:
+            raise AssertionError("fixture journal must include string endpoint and params")
         connection.execute(
             """
-            INSERT INTO _extraction_journal
+            INSERT INTO _extraction_journal (
+                endpoint,
+                params,
+                status,
+                started_at,
+                completed_at,
+                rows_extracted,
+                error_message,
+                retry_count
+            )
             VALUES (?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 2, NULL, 0)
             """,
-            [journal["endpoint"], journal["params"]],
+            [endpoint, params],
         )
     finally:
         connection.close()
@@ -134,12 +215,21 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
         database_path = lane_dir / "nba.duckdb"
         connection = duckdb.connect(str(database_path))
         try:
+            _create_exact_extraction_journal(connection)
             connection.execute(
-                "CREATE TABLE _extraction_journal "
-                "(endpoint VARCHAR, params VARCHAR, status VARCHAR)"
-            )
-            connection.execute(
-                "INSERT INTO _extraction_journal VALUES (?, ?, 'done')",
+                """
+                INSERT INTO _extraction_journal (
+                    endpoint,
+                    params,
+                    status,
+                    started_at,
+                    completed_at,
+                    rows_extracted,
+                    error_message,
+                    retry_count
+                )
+                VALUES (?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, NULL, 0)
+                """,
                 ["franchise_history", json.dumps({"lane": index})],
             )
             connection.execute("CREATE TABLE stg_max_width (lane_index INTEGER, payload VARCHAR)")
@@ -210,12 +300,13 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
     manifest_path = tmp_path / "manifest.json"
     manifest = manifest_payload(
         lanes,
+        assurance_admission=_assurance_admission(source_sha),
+        chain_id=chain_id,
         chain_state=FullExtractionChainState(
             artifact_run_ids=(run_id,),
         ),
         max_matrix_lanes=lane_count,
     )
-    manifest.update({"chain_id": chain_id, "workflow_source_sha": source_sha})
     manifest_path.write_text(
         json.dumps(manifest) + "\n",
         encoding="utf-8",
@@ -237,12 +328,16 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
     checkpoint_path = checkpoint_dir / "nba.duckdb"
     connection = duckdb.connect(str(checkpoint_path), read_only=True)
     try:
-        row_count, distinct_count = connection.execute(
+        width_row = connection.execute(
             "SELECT COUNT(*), COUNT(DISTINCT lane_index) FROM stg_max_width"
         ).fetchone()
-        journal_count = connection.execute("SELECT COUNT(*) FROM _extraction_journal").fetchone()[0]
+        journal_row = connection.execute("SELECT COUNT(*) FROM _extraction_journal").fetchone()
     finally:
         connection.close()
+    if width_row is None or journal_row is None:
+        raise AssertionError("checkpoint counts must be present")
+    row_count, distinct_count = width_row
+    journal_count = journal_row[0]
 
     assert report["terminal_ready"] is True
     assert report["complete_lane_count"] == lane_count
@@ -252,43 +347,74 @@ def test_maximum_width_checkpoint_attests_and_merges_256_lanes(
     assert report["database_sha256"] == _sha256(checkpoint_path)
 
 
-def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
+def test_extract_offline_control_fixture_runs_under_exact_operation_authority(
     tmp_path: pathlib.Path,
 ) -> None:
     fixture = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert fixture["publish"] is False
     chain_id = str(fixture["chain_id"])
     terminal_replay = fixture["terminal_replay"]
     assert isinstance(terminal_replay, dict)
     source_run_id = str(terminal_replay["source_run_id"])
     source_sha = "0" * 40
+    fixture["manifest"]["provider_authority"] = expected_nba_api_provider_authority()
+    fixture["manifest"]["manifest_version"] = 5
+    fixture["manifest"]["chain_id"] = chain_id
+    fixture["manifest"]["workflow_source_sha"] = source_sha
+    fixture["manifest"]["assurance_admission"] = _assurance_admission(source_sha).to_dict()
     lane = fixture["manifest"]["lanes"][0]
     lane_id = str(lane["lane_id"])
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     commands: list[list[str]] = []
 
+    runtime_env = _actions_runtime_env(run_id=source_run_id, source_sha=source_sha)
+    extract_authority_path = workspace / "extract-operation-authority.json"
+    extract_authority = _write_operation_authority(
+        extract_authority_path,
+        operation=OperationKind.EXTRACT,
+        chain_id=chain_id,
+        run_id=source_run_id,
+        source_sha=source_sha,
+        manifest_lane_count=1,
+    )
     planned_manifest = workspace / "planned-manifest.json"
     plan_command = [
         sys.executable,
         "-m",
         "nbadb.orchestrate.full_extraction_control",
         "plan",
+        "--operation-authority-path",
+        str(extract_authority_path),
         "--lane-manifest-json",
         json.dumps(fixture["manifest"]),
+        "--chain-id",
+        chain_id,
+        "--workflow-source-sha",
+        source_sha,
         "--max-matrix-lanes",
         "1",
+        "--vpn-slot-count",
+        "2",
         "--output-path",
         str(planned_manifest),
     ]
     commands.append(plan_command)
-    _run(plan_command, cwd=workspace)
+    _run(plan_command, cwd=_REPO_ROOT, env=runtime_env)
     planned = json.loads(planned_manifest.read_text(encoding="utf-8"))
-    planned["chain_id"] = chain_id
-    planned["workflow_source_sha"] = source_sha
-    planned_manifest.write_text(json.dumps(planned) + "\n", encoding="utf-8")
     assert planned["lane_count"] == 1
     assert planned["matrix_lane_count"] == 1
+    assert planned["deferred_lane_count"] == 0
+    assert len(planned["github_matrix"]["include"]) == 1
+    assert planned["operation"] == "extract"
+    assert planned["operation_authority"] == extract_authority.to_dict()
+    assert planned["operation_authority_sha256"] == extract_authority.authority_sha256
+    # Authorized planning must not fabricate FreeExecution authority of any kind.
+    assert "free_execution_admission" not in planned
+    assert "free_execution_intent_manifest" not in planned
+    assert planned["assurance_admission"] == _assurance_admission(source_sha).to_dict()
+
+    # The remaining commands exercise offline checkpoint/merge fixtures directly. They do
+    # not model workflow reachability beyond the authority-validated plan above.
 
     lane_db = workspace / "data" / "nbadb" / "nba.duckdb"
     _write_synthetic_lane_database(lane_db, fixture)
@@ -373,11 +499,34 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
     )
 
     terminal_manifest = workspace / "terminal-manifest.json"
+    continue_authority_path = workspace / "continue-operation-authority.json"
+    _write_operation_authority(
+        continue_authority_path,
+        operation=OperationKind.CONTINUE,
+        chain_id=chain_id,
+        run_id=source_run_id,
+        source_sha=source_sha,
+        manifest_lane_count=1,
+        continuation_source=ExactArtifactMemberV1(
+            repository="fixture/nbadb",
+            run_id=202,
+            run_attempt=1,
+            artifact_id=703,
+            artifact_name=f"full-extraction-manifest-{chain_id}",
+            artifact_digest=f"sha256:{'f' * 64}",
+            artifact_size_bytes=4096,
+            member_path="manifest.json",
+            member_sha256="e" * 64,
+            member_size_bytes=128,
+        ),
+    )
     resume_command = [
         sys.executable,
         "-m",
         "nbadb.orchestrate.full_extraction_control",
         "resume",
+        "--operation-authority-path",
+        str(continue_authority_path),
         "--lane-manifest-path",
         str(planned_manifest),
         "--metadata-dir",
@@ -392,11 +541,8 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         str(terminal_manifest),
     ]
     commands.append(resume_command)
-    _run(resume_command, cwd=workspace)
+    _run(resume_command, cwd=workspace, env=runtime_env)
     terminal = json.loads(terminal_manifest.read_text(encoding="utf-8"))
-    terminal["chain_id"] = chain_id
-    terminal["workflow_source_sha"] = source_sha
-    terminal_manifest.write_text(json.dumps(terminal) + "\n", encoding="utf-8")
     assert terminal["active_lane_count"] == 0
     assert terminal["matrix_lane_count"] == 0
     assert terminal["resume_only_lane_count"] == 1
@@ -479,9 +625,55 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
         connection.close()
 
     workflow = _WORKFLOW_PATH.read_text(encoding="utf-8")
+    plan_job = _job_block(workflow, "plan")
+    blocked_job = _job_block(workflow, "free_execution_blocked")
     replay_job = _job_block(workflow, "terminal_replay")
     merge_job = _job_block(workflow, "merge")
     publish_job = _job_block(workflow, "publish")
+    # The free_execution_blocked job stops the chain for any authority or collector
+    # state other than the exact validated/admitted set, including unknown statuses.
+    assert "needs.plan.outputs.operation-authority-status != 'validated'" in blocked_job
+    assert "free-execution-collector-authenticated != 'true'" in blocked_job
+    assert "free-execution-mutations-authorized != 'true'" in blocked_job
+    assert "operation-authority-status == 'capacity_blocked'" not in blocked_job
+    assert "not authentically admitted" in blocked_job
+    assert "exit 1" in blocked_job
+    assert "enable-cache: false" in plan_job
+    assert "enable-cache: true" not in plan_job
+    assert "prune-cache:" not in plan_job
+    upload_conditions = {
+        "Upload endpoint coverage diagnostics": (
+            "steps.free_execution_collector_state.outputs.status == 'admitted'",
+            "steps.free_execution_collector_state.outputs.authenticated == 'true'",
+            "inputs.lane_manifest_json == ''",
+            "inputs.lane_manifest_run_id == ''",
+            "inputs.resume_source_run_id == ''",
+        ),
+        "Upload dependent workload bundle": (
+            "steps.dependent_phase.outputs.compile-required == 'true'",
+            "steps.operation_authority.outputs.status == 'validated'",
+        ),
+        "Upload lane manifest": (
+            "steps.manifest.outputs.operation-authority-status == 'validated'",
+        ),
+    }
+    for step_name, required_conditions in upload_conditions.items():
+        step_start = plan_job.index(f"      - name: {step_name}\n")
+        next_step = plan_job.find("\n      - ", step_start + 1)
+        step = plan_job[step_start : next_step if next_step >= 0 else None]
+        for condition in required_conditions:
+            assert condition in step, step_name
+    # Every provider or mutation job re-asserts the validated operation authority and
+    # the full authenticated collector set.
+    for job in (replay_job, merge_job, publish_job):
+        header = job.split("    runs-on:", 1)[0]
+        assert "needs.plan.outputs.operation-authority-status == 'validated'" in header
+        assert "free-execution-collector-status == 'admitted'" in header
+        assert "free-execution-collector-authenticated == 'true'" in header
+        assert "free-execution-runtime-context-status == 'authenticated'" in header
+        assert "free-execution-storage-mutations-allowed == 'true'" in header
+        assert "free-execution-provider-calls-allowed == 'true'" in header
+        assert "free-execution-mutations-authorized == 'true'" in header
     for assurance_step in (
         "Merge lane databases",
         "Transform and load",
@@ -499,10 +691,17 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
     assert "Refresh checked-in metadata" not in merge_job
     assert "Upload to Kaggle" not in merge_job
     assert "- name: Record non-publishing canary outcome" in merge_job
-    assert "if: ${{ inputs.publish == false }}" in merge_job
+    canary_start = merge_job.index("      - name: Record non-publishing canary outcome\n")
+    canary_next = merge_job.find("\n      - ", canary_start + 1)
+    canary_step = merge_job[canary_start : canary_next if canary_next >= 0 else None]
+    assert "if:" not in canary_step
+    assert "**Publish requested:** false" in canary_step
     assert "needs.plan.outputs.active-lane-count == '0'" in replay_job
     assert "needs.plan.outputs.matrix-lane-count == '0'" in replay_job
     assert "source checkpoint database SHA-256 does not match" in replay_job
+    # Publication stays delegated to the exact handoff publication workflow: the
+    # in-workflow publish job is disabled behind its legacy false gate.
+    assert "if: ${{ false && " in publish_job
     assert "needs.publication_preflight.result == 'success'" in publish_job
     assert "needs.merge.result == 'success'" in publish_job
     assert "contents: write" in publish_job

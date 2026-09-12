@@ -3,13 +3,30 @@ from __future__ import annotations
 import json
 import math
 import pathlib
+import shutil
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import duckdb
 import pytest
 
+from nbadb.contracts.assurance_admission import AssuranceAdmission, ModelStatus
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
 from nbadb.core.types import VIDEO_CONTEXT_MEASURES, SeasonType
+from nbadb.extract.bronze import canonical_parameters_sha256
+from nbadb.orchestrate.checkpoint_contract import (
+    CheckpointArtifactReceipt,
+    CheckpointTransaction,
+    CheckpointW2AuthorityIdentity,
+)
+from nbadb.orchestrate.dependent_workload_contract import (
+    DependentScopeDisposition,
+    DependentWorkloadKind,
+    ScopeDispositionRecord,
+    WorkloadScope,
+    canonical_sha256,
+)
+from nbadb.orchestrate.dependent_workload_planning import DependentExecutionPlan
 from nbadb.orchestrate.extraction_contract import (
     EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
@@ -21,34 +38,46 @@ from nbadb.orchestrate.extraction_contract import (
     EndpointSupportRule,
     contract_blocking_rules_for_lane,
 )
+from nbadb.orchestrate.free_execution_admission import (
+    FreeExecutionAdmissionError,
+    FreeExecutionAdmissionV1,
+    FreeExecutionAuthorityBundleV1,
+    canonical_json_bytes,
+)
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
+    _apply_capacity_blocked_free_execution,
     _artifact_lane_id_for_database,
     _attested_current_lane_artifacts,
     _canonical_contract_blocked_audit_row,
+    _capacity_blocked_execution_manifest,
     _compatible_previous_checkpoint_lane_ids,
     _coverage_fingerprint,
     _coverage_hash_for_lane,
     _coverage_units_for_lane,
+    _expected_vpn_slot_loads,
     _file_sha256,
+    _foundation_required_dependent_workload,
     _hash_payload,
     _merge_database_paths,
     _metadata_by_lane,
     _metadata_records_by_lane,
     _retry_budget_exhausted,
     _schedule_lanes,
+    _validate_checkpoint_trust_root,
+    _validate_vpn_slot_assignments,
+    _verify_checkpoint_w2_database,
     _workload_scope_contract,
+    activate_dependent_manifest,
     build_checkpoint_database,
     build_default_manifest,
     build_metadata_audit,
     build_resume_manifest,
     lane_outcome_from_metadata,
-    manifest_payload,
     merge_final_database,
     merge_lane_databases,
     normalize_manifest,
-    redispatch_manifest_payload,
     validate_checkpoint_artifact,
     validate_manifest,
     validate_workflow_dispatch_manifest_json,
@@ -56,16 +85,43 @@ from nbadb.orchestrate.full_extraction_control import (
 from nbadb.orchestrate.full_extraction_control import (
     main as full_extraction_main,
 )
+from nbadb.orchestrate.full_extraction_control import (
+    manifest_payload as _manifest_payload,
+)
+from nbadb.orchestrate.full_extraction_control import (
+    redispatch_manifest_payload as _redispatch_manifest_payload,
+)
+from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.orchestrate.operation_authority import (
+    ExactArtifactMemberV1,
+    NetworkMode,
+    OperationAuthorityV1,
+    OperationKind,
+)
+from nbadb.orchestrate.public_value_authority_store import PUBLIC_VALUE_AUTHORITY_TABLES
 from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.staging_batches import (
+    CANONICAL_FRAME_FORMAT,
+    FRAME_CONTENT_HASH_CONTRACT,
+    FRAME_SCHEMA_HASH_CONTRACT,
+)
+from nbadb.orchestrate.w2_database_assurance import W2DatabaseAuthorityReceiptV1
+from nbadb.orchestrate.w2_operation_store import RAW_NBA_API_W2_OPERATION_TABLE
 from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 from nbadb.orchestrate.workload_profile import (
     EndpointWorkloadProfile,
     WorkloadPlanningSnapshot,
 )
+from tests.unit.contracts.test_raw_request_authority import _stats_fallback_bundle
+from tests.unit.contracts.test_w2_operation_builder import _source_values
+from tests.unit.orchestrate.test_journal import _persist_receipt_binding
+from tests.unit.orchestrate.test_w2_operation_coordinator import _candidate, _coordinate
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
+
+    from nbadb.orchestrate.planning import PlanParams
 
 
 TEST_CHAIN_ID = "chain"
@@ -73,6 +129,152 @@ TEST_RUN_ID = "12345"
 TEST_SOURCE_SHA = "a" * 40
 TEST_ARTIFACT_ID = "987654321"
 TEST_ARTIFACT_DIGEST = f"sha256:{'c' * 64}"
+
+
+def _write_operation_authority(
+    path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    operation: OperationKind,
+    manifest_lane_count: int,
+    iteration: int = 1,
+    vpn_parallelism: int = 2,
+    continuation_source: ExactArtifactMemberV1 | None = None,
+) -> OperationAuthorityV1:
+    repository = "w4w/nbadb"
+    workflow_path = pathlib.Path(__file__).parents[3] / ".github/workflows/full-extraction.yml"
+    authority = OperationAuthorityV1(
+        repository=repository,
+        workflow_path=".github/workflows/full-extraction.yml",
+        workflow_content_sha256=_file_sha256(workflow_path),
+        workflow_commit_sha=TEST_SOURCE_SHA,
+        source_sha=TEST_SOURCE_SHA,
+        trusted_ref="refs/heads/main",
+        run_id=int(TEST_RUN_ID),
+        run_attempt=1,
+        event="workflow_dispatch",
+        actor="fixture-actor",
+        chain_id=TEST_CHAIN_ID,
+        iteration=iteration,
+        operation=operation,
+        requested_network_mode=NetworkMode.VPN,
+        requested_vpn_parallelism=vpn_parallelism,
+        requested_direct_parallelism=0,
+        max_iterations=1,
+        retry_pipeline_failures=False,
+        allow_re_extraction=False,
+        manifest_lane_count=manifest_lane_count,
+        continuation_source=continuation_source,
+    )
+    path.write_text(json.dumps(authority.to_dict()), encoding="utf-8")
+    for name, value in {
+        "GITHUB_REPOSITORY": repository,
+        "GITHUB_RUN_ID": TEST_RUN_ID,
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_ACTOR": "fixture-actor",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_SHA": TEST_SOURCE_SHA,
+        "WORKFLOW_SOURCE_SHA": TEST_SOURCE_SHA,
+    }.items():
+        monkeypatch.setenv(name, value)
+    return authority
+
+
+def _checkpoint_w2_authority() -> CheckpointW2AuthorityIdentity:
+    relation_counts = tuple(
+        sorted(
+            (table_name, 0)
+            for table_name in (*PUBLIC_VALUE_AUTHORITY_TABLES, RAW_NBA_API_W2_OPERATION_TABLE)
+        )
+    )
+    database_authority = W2DatabaseAuthorityReceiptV1.build(
+        w2_required_logical_call_count=0,
+        w2_source_call_admission_inventory_sha256="4" * 64,
+        raw_authority_v2_bundle_count=0,
+        raw_authority_v2_bundle_inventory_sha256="5" * 64,
+        raw_authority_v2_persistence_receipt_inventory_sha256="6" * 64,
+        w2_publication_receipt_count=0,
+        w2_publication_receipt_inventory_sha256="7" * 64,
+        w2_exact_six_schema_inventory_sha256="8" * 64,
+        w2_relation_row_counts=relation_counts,
+        w2_relation_row_count=0,
+        w2_relation_inventory_sha256="9" * 64,
+    )
+    return CheckpointW2AuthorityIdentity(
+        database_authority=database_authority,
+        database_authority_sha256=database_authority.receipt_sha256,
+        expected_call_count=0,
+        expected_call_inventory_sha256="0" * 64,
+        database_authority_closed=True,
+    )
+
+
+def _test_assurance_admission(
+    *,
+    source_sha: str = TEST_SOURCE_SHA,
+    model_status: ModelStatus = "GREEN",
+    provider_authority: dict[str, Any] | None = None,
+) -> AssuranceAdmission:
+    authority = provider_authority or expected_nba_api_provider_authority()
+    return AssuranceAdmission(
+        source_sha=source_sha.lower(),
+        assurance_manifest_sha256="1" * 64,
+        generation_semantic_sha256="2" * 64,
+        provider_evidence_sha256=str(authority["provider_evidence_sha256"]),
+        provider_authority_sha256=str(authority["authority_sha256"]),
+        authority_semantic_diff_sha256="3" * 64,
+        authority_update_mode="full",
+        first_extraction=True,
+        model_status=model_status,
+    )
+
+
+def manifest_payload(
+    lanes: list[FullExtractionLane],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    provider_authority = kwargs.get("provider_authority") or expected_nba_api_provider_authority()
+    source_sha = str(kwargs.get("workflow_source_sha") or TEST_SOURCE_SHA).lower()
+    kwargs.setdefault(
+        "assurance_admission",
+        _test_assurance_admission(
+            source_sha=source_sha,
+            provider_authority=provider_authority,
+        ),
+    )
+    kwargs.setdefault("chain_id", TEST_CHAIN_ID)
+    kwargs.setdefault("workflow_source_sha", source_sha)
+    return _manifest_payload(lanes, **kwargs)
+
+
+def redispatch_manifest_payload(
+    lanes: list[FullExtractionLane],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    provider_authority = kwargs.get("provider_authority") or expected_nba_api_provider_authority()
+    source_sha = str(kwargs.get("workflow_source_sha") or TEST_SOURCE_SHA).lower()
+    kwargs.setdefault(
+        "assurance_admission",
+        _test_assurance_admission(
+            source_sha=source_sha,
+            provider_authority=provider_authority,
+        ),
+    )
+    kwargs.setdefault("chain_id", TEST_CHAIN_ID)
+    kwargs.setdefault("workflow_source_sha", source_sha)
+    return _redispatch_manifest_payload(lanes, **kwargs)
+
+
+def _season_bounds(lane: FullExtractionLane) -> tuple[int, int]:
+    assert lane.season_start is not None
+    assert lane.season_end is not None
+    return lane.season_start, lane.season_end
+
+
+def _season_span(lane: FullExtractionLane) -> int:
+    start, end = _season_bounds(lane)
+    return end - start + 1
 
 
 def _support_row(
@@ -405,20 +607,19 @@ def _write_workload_contract(
     tmp_path: Path,
     *,
     lane: FullExtractionLane,
-    params: list[dict[str, object]],
+    params: list[PlanParams],
 ) -> tuple[Path, PlayerTeamSeasonWorkloadStore, dict[str, object]]:
     workload_dir = tmp_path / "workload"
     workload_dir.mkdir(exist_ok=True)
     anchor_path = workload_dir / "nba.duckdb"
     store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(anchor_path)
-    seasons = season_range(int(lane.season_start), int(lane.season_end))
+    season_start, season_end = _season_bounds(lane)
+    seasons = season_range(season_start, season_end)
     covered_pairs = {
         (season, season_type) for season in seasons for season_type in lane.season_types
     }
     store.upsert(
-        params,  # type: ignore[arg-type]
-        seasons=seasons,
-        season_types=list(lane.season_types),
+        params,
         covered_pairs=covered_pairs,
     )
     _units, contract, errors = _workload_scope_contract(lane, store)
@@ -431,10 +632,19 @@ def _build_attested_lane_checkpoint(
     *,
     lane: FullExtractionLane,
     journal_rows: list[tuple[str, str]],
-    workload_params: list[dict[str, object]] | None = None,
-) -> dict[str, object]:
+    workload_params: list[PlanParams] | None = None,
+    dependent_workload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest_payload([lane])), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(
+            manifest_payload(
+                [lane],
+                dependent_workload=dependent_workload,
+            )
+        ),
+        encoding="utf-8",
+    )
     artifact_dir = _lane_artifact_dir(tmp_path / "lanes", lane)
     artifact_dir.mkdir(parents=True)
     database_path = artifact_dir / "data/nbadb/nba.duckdb"
@@ -449,7 +659,7 @@ def _build_attested_lane_checkpoint(
     workload_contract: dict[str, object] | None = None
     if set(lane.patterns) == {"player_team_season"}:
         if workload_params is None:
-            inferred: dict[tuple[int, int, str, str], dict[str, object]] = {}
+            inferred: dict[tuple[int, int, str, str], PlanParams] = {}
             for _endpoint, params_json in journal_rows:
                 params = json.loads(params_json)
                 key = (
@@ -488,7 +698,12 @@ def _build_attested_lane_checkpoint(
 
 
 def _write_lane_db(
-    path: Path, *, alpha_rows: list[int], beta_rows: list[int], journal_rows: list[tuple[str, str]]
+    path: Path,
+    *,
+    alpha_rows: list[int],
+    beta_rows: list[int],
+    journal_rows: list[tuple[str, str]],
+    receipt_bound_done: bool = True,
 ) -> None:
     conn = duckdb.connect(str(path))
     conn.execute("CREATE TABLE stg_alpha (value INTEGER)")
@@ -498,17 +713,210 @@ def _write_lane_db(
         conn.executemany("INSERT INTO stg_beta VALUES (?)", [(row,) for row in beta_rows])
     conn.execute(
         "CREATE TABLE _extraction_journal ("
-        "endpoint VARCHAR, params VARCHAR, status VARCHAR, started_at TIMESTAMP, "
-        "completed_at TIMESTAMP, rows_extracted BIGINT, error_message VARCHAR, retry_count INTEGER"
+        "endpoint VARCHAR NOT NULL, params VARCHAR, status VARCHAR NOT NULL, "
+        "started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+        "completed_at TIMESTAMP, rows_extracted BIGINT, error_message VARCHAR, "
+        "retry_count INTEGER DEFAULT 0"
+        ", PRIMARY KEY (endpoint, params)"
         ")"
     )
-    if journal_rows:
+    PipelineJournal(conn)
+    if journal_rows and receipt_bound_done:
+        _create_test_staging_chunk_journal(conn, receipt_schema=True)
+        for endpoint, params_json in journal_rows:
+            parameters = json.loads(params_json)
+            if not isinstance(parameters, dict):
+                raise ValueError("Test journal parameters must be a JSON object")
+            parameters_sha256 = canonical_parameters_sha256(parameters)
+            receipt_sha256 = _hash_payload({"endpoint": endpoint, "parameters": parameters})
+            provider_sha256 = "b" * 64
+            staging_key = f"stg_receipt_{receipt_sha256[:16]}"
+            route_id = f"{endpoint}:{staging_key}:0"
+            conn.execute(
+                "INSERT INTO _extraction_journal "
+                "(endpoint, params, status, started_at, completed_at, rows_extracted, "
+                " error_message, retry_count, logical_call_receipt_sha256, "
+                " provider_authority_sha256, logical_parameters_sha256, "
+                " result_route_ids_json, w2_required) VALUES "
+                "(?, ?, 'done', TIMESTAMP '2026-01-01', TIMESTAMP '2026-01-01', "
+                " 1, NULL, 0, ?, ?, ?, ?, FALSE)",
+                [
+                    endpoint,
+                    params_json,
+                    receipt_sha256,
+                    provider_sha256,
+                    parameters_sha256,
+                    json.dumps([route_id]),
+                ],
+            )
+            _insert_test_staging_chunk(
+                conn,
+                chunk_id=_hash_payload(
+                    {"logical_call_receipt_sha256": receipt_sha256, "route": route_id}
+                ),
+                staging_key=staging_key,
+                content_hash=_hash_payload(
+                    {"endpoint": endpoint, "parameters": parameters, "rows": 1}
+                ),
+                receipt_sha256=receipt_sha256,
+                provider_sha256=provider_sha256,
+                parameters_sha256=parameters_sha256,
+                result_route_id=route_id,
+            )
+    elif journal_rows:
         conn.executemany(
-            "INSERT INTO _extraction_journal VALUES "
-            "(?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, NULL, 0)",
+            "INSERT INTO _extraction_journal "
+            "(endpoint, params, status, started_at, completed_at, rows_extracted, "
+            " error_message, retry_count, w2_required) VALUES "
+            "(?, ?, 'done', TIMESTAMP '2026-01-01', TIMESTAMP '2026-01-01', "
+            " 1, NULL, 0, FALSE)",
             journal_rows,
         )
     conn.close()
+
+
+def _upgrade_test_extraction_journal(conn: duckdb.DuckDBPyConnection) -> None:
+    PipelineJournal(conn)
+
+
+def _write_complete_w2_lane_database(path: Path, *, stats_variant: str | None = None) -> None:
+    _write_lane_db(path, alpha_rows=[1], beta_rows=[], journal_rows=[])
+    connection = duckdb.connect(str(path))
+    try:
+        input_changes: dict[str, object] | None = None
+        if stats_variant is not None:
+            bundle, _observation, _occurrences, _landings = _stats_fallback_bundle(stats_variant)
+            input_changes = _source_values(bundle)
+        candidate, public_store, operation_store = _candidate(
+            connection,
+            input_changes=input_changes,
+        )
+        admission = _coordinate(candidate, public_store, operation_store)
+        binding = candidate.logical_call_binding
+        bundle = cast("Any", candidate.operation_inputs.raw_bundle)
+        selected = tuple(
+            item for item in bundle.observations if item.lifecycle == "selected_terminal"
+        )
+        assert len(selected) == 1
+        params = selected[0].attempt.safe_parameters_json
+        journal = PipelineJournal(connection)
+        _persist_receipt_binding(journal, binding)
+        journal.record_start(
+            binding.endpoint_name,
+            params,
+            require_receipt=True,
+            require_w2_operation=True,
+        )
+        journal.record_success(
+            binding.endpoint_name,
+            params,
+            1,
+            receipt_binding=binding,
+            w2_admission=admission,
+        )
+        connection.execute("CHECKPOINT")
+    finally:
+        connection.close()
+
+
+def _create_test_staging_chunk_journal(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    receipt_schema: bool,
+) -> None:
+    if receipt_schema:
+        conn.execute(
+            """
+            CREATE TABLE _staging_chunk_journal (
+                chunk_id VARCHAR,
+                staging_key VARCHAR,
+                canonical_frame_format VARCHAR,
+                frame_content_hash_contract VARCHAR,
+                frame_schema_hash_contract VARCHAR,
+                row_count BIGINT,
+                content_hash VARCHAR,
+                source_label VARCHAR,
+                created_at TIMESTAMP,
+                persisted_row_count BIGINT,
+                persisted_content_sha256 VARCHAR,
+                persisted_schema_sha256 VARCHAR,
+                logical_call_receipt_sha256 VARCHAR,
+                provider_authority_sha256 VARCHAR,
+                logical_parameters_sha256 VARCHAR,
+                result_route_id VARCHAR
+            )
+            """
+        )
+        return
+    conn.execute(
+        """
+        CREATE TABLE _staging_chunk_journal (
+            chunk_id VARCHAR,
+            staging_key VARCHAR,
+            row_count BIGINT,
+            content_hash VARCHAR,
+            source_label VARCHAR,
+            created_at TIMESTAMP
+        )
+        """
+    )
+
+
+def _insert_test_staging_chunk(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    chunk_id: str,
+    staging_key: str,
+    content_hash: str,
+    receipt_sha256: str | None = None,
+    provider_sha256: str | None = None,
+    parameters_sha256: str | None = None,
+    result_route_id: str | None = None,
+) -> None:
+    column_count = len(
+        conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'main'
+              AND table_name = '_staging_chunk_journal'
+            """
+        ).fetchall()
+    )
+    if column_count == 6:
+        conn.execute(
+            "INSERT INTO _staging_chunk_journal VALUES (?, ?, 1, ?, 'lane', CURRENT_TIMESTAMP)",
+            [chunk_id, staging_key, content_hash],
+        )
+        return
+    persisted_values: tuple[object, ...]
+    if receipt_sha256 is None:
+        persisted_values = (1, "e" * 64, "f" * 64, None, None, None, None)
+    else:
+        persisted_values = (
+            1,
+            "e" * 64,
+            "f" * 64,
+            receipt_sha256,
+            provider_sha256,
+            parameters_sha256,
+            result_route_id,
+        )
+    conn.execute(
+        """
+        INSERT INTO _staging_chunk_journal
+        VALUES (?, ?, ?, ?, ?, 1, ?, 'lane', CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            chunk_id,
+            staging_key,
+            CANONICAL_FRAME_FORMAT,
+            FRAME_CONTENT_HASH_CONTRACT,
+            FRAME_SCHEMA_HASH_CONTRACT,
+            content_hash,
+            *persisted_values,
+        ],
+    )
 
 
 def _write_checkpoint_report(
@@ -527,6 +935,7 @@ def _write_checkpoint_report(
     coverage_fingerprint: str | None = None,
 ) -> None:
     lanes = lanes or []
+    provider_authority = expected_nba_api_provider_authority()
     lane_ids = included_lane_ids or [lane.lane_id for lane in lanes]
     lane_coverage_hashes = included_lane_coverage_hashes or {
         lane.lane_id: _coverage_hash_for_lane(lane) for lane in lanes
@@ -535,6 +944,13 @@ def _write_checkpoint_report(
         coverage_fingerprint = _coverage_fingerprint(
             [lane for lane in lanes if lane.lane_id in set(lane_ids)]
         )
+    connection = duckdb.connect(str(database_path), read_only=True)
+    try:
+        w2_receipt, w2_expected_call_count, w2_expected_call_inventory_sha256 = (
+            _verify_checkpoint_w2_database(connection)
+        )
+    finally:
+        connection.close()
     path.write_text(
         json.dumps(
             {
@@ -544,6 +960,8 @@ def _write_checkpoint_report(
                     f"full-extraction-checkpoint-{chain_id}-iter-{checkpoint_generation}"
                 ),
                 "source_sha": source_sha,
+                "provider_authority": provider_authority,
+                "provider_authority_sha256": provider_authority["authority_sha256"],
                 "checkpoint_generation": checkpoint_generation,
                 "coverage_fingerprint": coverage_fingerprint,
                 "included_lane_ids": lane_ids,
@@ -552,6 +970,11 @@ def _write_checkpoint_report(
                 "manifest_lane_count": len(lanes),
                 "database_sha256": _file_sha256(database_path),
                 "workload_integrity": workload_integrity,
+                "w2_database_authority": w2_receipt.to_dict(),
+                "w2_database_authority_sha256": w2_receipt.receipt_sha256,
+                "w2_expected_call_count": w2_expected_call_count,
+                "w2_expected_call_inventory_sha256": (w2_expected_call_inventory_sha256),
+                "w2_database_authority_closed": True,
             }
         )
         + "\n",
@@ -710,7 +1133,7 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
     ]
     assert "historical-game-box-score-traditional-no-season-type-1996-1999" in lanes_by_id
     assert "historical-game-box-score-traditional-no-season-type-2024-2025" in lanes_by_id
-    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in game_lanes)
+    assert all(_season_span(lane) <= 4 for lane in game_lanes)
     assert {lane.endpoints for lane in game_lanes} == {("box_score_traditional",)}
 
     season_lanes = [
@@ -731,7 +1154,7 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         for lane in season_lanes
     )
     assert {lane.endpoints for lane in season_lanes} == {("league_dash_pt_defend",)}
-    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in season_lanes)
+    assert all(_season_span(lane) <= 8 for lane in season_lanes)
 
     cross_product_lanes = [lane for lane in lanes if lane.lane_kind == "cross_product"]
     assert (
@@ -743,7 +1166,7 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         "2022-2025" in lanes_by_id
     )
     assert len(cross_product_lanes) == 20
-    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in cross_product_lanes)
+    assert all(_season_span(lane) <= 4 for lane in cross_product_lanes)
     assert {lane.endpoints for lane in cross_product_lanes} == {("player_dashboard_by_team",)}
     assert all(lane.lane_kind != "cross_product_blocked" for lane in lanes)
 
@@ -873,10 +1296,12 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "network_mode:" in workflow
     assert "vpn_parallelism:" in workflow
     assert 'default: "2"' in vpn_parallelism_block
+    assert '- "1"' in vpn_parallelism_block
+    assert '- "2"' in vpn_parallelism_block
     assert "direct_parallelism:" in workflow
     assert 'default: "2"' in direct_parallelism_block
-    assert '- "128"' in direct_parallelism_block
-    assert '- "256"' in direct_parallelism_block
+    assert '- "1"' in direct_parallelism_block
+    assert '- "2"' in direct_parallelism_block
     assert "direct_request_profile:" in workflow
     assert "turbo" in workflow
     assert "retry_pipeline_failures:" in workflow
@@ -902,7 +1327,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "dispatch_next:" in workflow
     assert "terminal_replay:" in workflow
     assert "chain:" not in workflow
-    assert 'default: "auto"' in max_iterations_block
+    assert 'default: "64"' in max_iterations_block
     matrix_batch_size_block = _workflow_input_block(workflow, "matrix_batch_size")
     assert 'default: "256"' in matrix_batch_size_block
     assert '- "64"' in matrix_batch_size_block
@@ -949,10 +1374,9 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
         "needs.plan.outputs.matrix-lane-count != '0'"
     ) in workflow
     assert "Upload endpoint coverage diagnostics" in workflow
-    assert (
-        "if: ${{ always() && inputs.lane_manifest_json == '' && "
-        "inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}"
-    ) in workflow
+    assert "needs.plan.outputs.free-execution-collector-status == 'admitted'" in workflow
+    assert "needs.plan.outputs.free-execution-collector-authenticated == 'true'" in workflow
+    assert "needs.plan.outputs.free-execution-storage-mutations-allowed == 'true'" in workflow
     assert "full-extraction-endpoint-coverage-${{ env.ACTIVE_CHAIN_ID }}" in workflow
     assert 'importlib.metadata.version("nba-api")' in workflow
     assert '--branch "$NBA_API_REF"' in workflow
@@ -965,13 +1389,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "common_resume_args=(" in lane_control_block
     assert '"${common_resume_args[@]}"' in lane_control_block
     assert "--allow-missing-attempted-metadata" in lane_control_block
-    direct_parallel_expr = (
-        "max-parallel: ${{ fromJSON("
-        "needs.preflight.outputs.effective-network-mode == 'direct' "
-        "&& inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source "
-        "== 'token' && '1' || needs.plan.outputs.matrix-lane-count)) }}"
-    )
-    assert direct_parallel_expr in workflow
+    extract_strategy = workflow.split("  extract:", 1)[1].split("    concurrency:", 1)[0]
+    assert "max-parallel: 1" in extract_strategy
     for input_name, env_name in (
         ("network_mode", "NETWORK_MODE"),
         ("direct_parallelism", "DIRECT_PARALLELISM"),
@@ -991,19 +1410,51 @@ def test_scheduled_update_workflows_publish_only_after_green_extract_and_scan() 
     monthly = (workflows_dir / "monthly-update.yml").read_text(encoding="utf-8")
 
     assert "steps.daily.outcome == 'success' && steps.scan.outcome == 'success'" in daily
+    assert "always() && !cancelled() && steps.daily.outcome == 'success'" in daily
+    assert 'if [ "$UPLOAD_OUTCOME" != "success" ]; then' in daily
     assert "steps.daily.outcome != 'skipped'" not in daily
     assert "Assert extraction and scan passed" in daily
     assert "Daily extraction did not pass" in daily
     assert "Daily scan did not pass" in daily
     assert "--verify-remote" in daily
+    assert "--full-publication" not in daily
+    assert "full-publication: true" not in daily
+    assert "successor-generation-store" not in daily
+    assert "checkpoint-report:" not in daily
     assert "group: nbadb-kaggle-publish" in daily
+    assert "Install exact verified Kaggle baseline" in daily
+    assert "uv run nbadb download --data-dir data/nbadb" in daily
+    assert "--verified-public-baseline" in daily
+    assert "--publication-ledger github-deployment" in daily
+    assert "--require-durable-reconciliation" in daily
+    assert "NBADB_KAGGLE_PUBLICATION_SOURCE_SHA: ${{ github.sha }}" in daily
+    assert 'NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD: "true"' in daily
+    assert "daily-public-baseline-receipt" in daily
+    assert "kagglehub.dataset_download" not in daily
+    assert daily.index("--verified-public-baseline") < daily.index("uv run nbadb daily")
     assert "steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'" in monthly
+    assert "always() && !cancelled() && steps.monthly.outcome == 'success'" in monthly
+    assert 'if [ "$UPLOAD_OUTCOME" != "success" ]; then' in monthly
     assert "steps.monthly.outcome != 'skipped'" not in monthly
     assert "Assert extraction and scan passed" in monthly
     assert "Monthly extraction did not pass" in monthly
     assert "Monthly scan did not pass" in monthly
     assert "--verify-remote" in monthly
+    assert "--full-publication" not in monthly
+    assert "full-publication: true" not in monthly
+    assert "successor-generation-store" not in monthly
+    assert "checkpoint-report:" not in monthly
     assert "group: nbadb-kaggle-publish" in monthly
+    assert "Install exact verified Kaggle baseline" in monthly
+    assert "uv run nbadb download --data-dir data/nbadb" in monthly
+    assert "--verified-public-baseline" in monthly
+    assert "--publication-ledger github-deployment" in monthly
+    assert "--require-durable-reconciliation" in monthly
+    assert "NBADB_KAGGLE_PUBLICATION_SOURCE_SHA: ${{ github.sha }}" in monthly
+    assert 'NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD: "true"' in monthly
+    assert "monthly-public-baseline-receipt" in monthly
+    assert "kagglehub.dataset_download" not in monthly
+    assert monthly.index("--verified-public-baseline") < monthly.index("uv run nbadb monthly")
 
 
 def test_ci_endpoint_contract_uses_installed_nba_api_version() -> None:
@@ -1121,10 +1572,13 @@ def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> N
     scoreboard_v2_lanes = [lane for lane in date_lanes if lane.endpoints == ("scoreboard_v2",)]
     assert scoreboard_v2_lanes
     assert all(
-        not any(lane.season_start <= blocked <= lane.season_end for blocked in (1950, 1954, 1956))
+        not any(
+            _season_bounds(lane)[0] <= blocked <= _season_bounds(lane)[1]
+            for blocked in (1950, 1954, 1956)
+        )
         for lane in scoreboard_v2_lanes
     )
-    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in date_lanes)
+    assert all(_season_span(lane) <= 4 for lane in date_lanes)
 
     game_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
@@ -1136,7 +1590,7 @@ def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> N
         for lane in game_lanes
     )
     assert {lane.endpoints for lane in game_lanes} == {("box_score_summary",), ("play_by_play",)}
-    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in game_lanes)
+    assert all(_season_span(lane) <= 4 for lane in game_lanes)
     assert all(len(lane.endpoints) == 1 for lane in date_lanes + game_lanes)
 
 
@@ -1175,7 +1629,7 @@ def test_build_default_manifest_routes_player_dashboard_family_to_historical_lan
 
     assert {lane.lane_kind for lane in lanes} == {"historical"}
     assert {lane.patterns for lane in lanes} == {("player_season",)}
-    assert all((lane.season_end - lane.season_start + 1) <= 16 for lane in lanes)
+    assert all(_season_span(lane) <= 16 for lane in lanes)
     assert all(len(lane.endpoints) == 1 for lane in lanes)
     historical_endpoints = {endpoint for lane in lanes for endpoint in lane.endpoints}
     assert historical_endpoints == {
@@ -1311,7 +1765,7 @@ def test_build_default_manifest_routes_player_tracking_to_historical_player_seas
     assert reference_lanes[0].endpoints == ("player_dash_game_splits",)
     assert min(lane.season_start for lane in historical_lanes) == 2013
     assert max(lane.season_end for lane in historical_lanes if lane.season_end is not None) >= 2025
-    assert all((lane.season_end - lane.season_start + 1) <= 6 for lane in historical_lanes)
+    assert all(_season_span(lane) <= 6 for lane in historical_lanes)
     assert all(len(lane.endpoints) == 1 for lane in historical_lanes)
     assert {endpoint for lane in historical_lanes for endpoint in lane.endpoints} == {
         "player_dash_pt_pass",
@@ -1373,7 +1827,7 @@ def test_build_default_manifest_isolates_team_season_endpoints() -> None:
         "team_dashboard_by_shooting_splits",
     }
     assert min(lane.season_start for lane in historical_lanes) == 1946
-    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in historical_lanes)
+    assert all(_season_span(lane) <= 8 for lane in historical_lanes)
 
 
 def test_build_default_manifest_isolates_cross_product_endpoints() -> None:
@@ -1639,11 +2093,7 @@ def test_build_default_manifest_uses_density_to_shrink_cross_product_bands() -> 
     )
 
     cross_product_spans = sorted(
-        {
-            (lane.season_start, lane.season_end)
-            for lane in lanes
-            if lane.lane_kind == "cross_product"
-        }
+        {_season_bounds(lane) for lane in lanes if lane.lane_kind == "cross_product"}
     )
     assert cross_product_spans[0] == (2004, 2004)
     assert cross_product_spans[1][0] == 2005
@@ -1799,7 +2249,10 @@ def test_build_default_manifest_allows_scoreboard_v2_with_documented_gaps() -> N
         "historical-date-scoreboard-v2-no-season-type-1955-1955",
     }.issubset({lane.lane_id for lane in lanes})
     assert all(
-        not any(lane.season_start <= blocked <= lane.season_end for blocked in (1950, 1954, 1956))
+        not any(
+            _season_bounds(lane)[0] <= blocked <= _season_bounds(lane)[1]
+            for blocked in (1950, 1954, 1956)
+        )
         for lane in lanes
     )
 
@@ -2020,6 +2473,8 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
                 "extraction-lane-recovery-chain-reference-static-run-12345-attempt-1"
             ),
             state_artifact_digest="a" * 64,
+            state_artifact_id="98765",
+            state_artifact_archive_digest="sha256:" + "b" * 64,
             last_completed_calls=7,
             last_rows_persisted=11,
         )
@@ -2258,7 +2713,7 @@ def test_build_resume_manifest_retries_vpn_pipeline_failure(
 
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
-    resume_kwargs: dict[str, object] = {}
+    resume_kwargs: dict[str, Any] = {}
     if vpn_failure_status == "vpn_auth_failure":
         payload = _auth_coordination_metadata(
             lane,
@@ -2439,6 +2894,8 @@ def test_video_timeout_split_ids_are_unique_across_season_type_and_context_axes(
         state_artifact_run_id="stale-run",
         state_artifact_name="stale-state",
         state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
         last_rows_persisted=1,
     )
     first_metadata = tmp_path / "first-metadata"
@@ -2877,6 +3334,8 @@ def test_build_resume_manifest_preserves_high_progress_transport_partial(
     assert retry_lane.state_artifact_run_id == "12345"
     assert retry_lane.state_artifact_name
     assert retry_lane.state_artifact_digest == "a" * 64
+    assert retry_lane.state_artifact_id == TEST_ARTIFACT_ID
+    assert retry_lane.state_artifact_archive_digest == TEST_ARTIFACT_DIGEST
     assert retry_lane.last_failure_class == "transport_transient"
     assert retry_lane.class_failure_streak == 1
     assert retry_lane.next_eligible_iteration == 2
@@ -2923,9 +3382,40 @@ def test_validate_manifest_accepts_oversized_lane_with_canonical_recovery_pointe
         state_artifact_run_id="12345",
         state_artifact_name=(f"extraction-lane-recovery-chain-{lane_id}-run-12345-attempt-2"),
         state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
     )
 
     validate_manifest([lane])
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    ["state_artifact_id", "state_artifact_archive_digest"],
+)
+def test_validate_manifest_rejects_recovery_pointer_without_exact_archive_receipt(
+    missing_field: str,
+) -> None:
+    lane_id = "historical-game-box-score-summary-no-season-type-2020-2023"
+    lane = FullExtractionLane(
+        lane_id=lane_id,
+        lane_index=0,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        state_artifact_run_id="12345",
+        state_artifact_name=(f"extraction-lane-recovery-chain-{lane_id}-run-12345-attempt-1"),
+        state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
+    )
+
+    with pytest.raises(ValueError, match="canonical uploaded recovery artifact"):
+        validate_manifest([replace(lane, **{missing_field: ""})])
 
 
 def test_validate_manifest_rejects_progress_without_recovery_pointer() -> None:
@@ -3081,6 +3571,8 @@ def test_failed_new_receipt_preserves_previous_durable_state(tmp_path: Path) -> 
         state_artifact_run_id="12345",
         state_artifact_name=previous_artifact_name,
         state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
         last_completed_calls=5,
         last_rows_persisted=8,
     )
@@ -3107,6 +3599,8 @@ def test_failed_new_receipt_preserves_previous_durable_state(tmp_path: Path) -> 
     assert retry_lane.state_artifact_run_id == "12345"
     assert retry_lane.state_artifact_name == previous_artifact_name
     assert retry_lane.state_artifact_digest == "a" * 64
+    assert retry_lane.state_artifact_id == "98765"
+    assert retry_lane.state_artifact_archive_digest == "sha256:" + "b" * 64
     assert retry_lane.last_completed_calls == 5
     assert retry_lane.last_rows_persisted == 8
     assert summary["durable_state_lane_count"] == 1
@@ -4491,6 +4985,8 @@ def test_build_resume_manifest_defers_auth_circuit_without_spending_retry_budget
             "29460000000-attempt-1"
         ),
         state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
@@ -4580,6 +5076,8 @@ def test_restored_auth_rejection_with_no_new_work_consumes_bounded_vpn_retry(
             "29460000000-attempt-1"
         ),
         state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
@@ -4642,6 +5140,8 @@ def test_restored_auth_rejection_with_new_progress_is_not_circuit_opening(
             "29460000000-attempt-1"
         ),
         state_artifact_digest="a" * 64,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
     )
     payload = _restored_auth_rejection_metadata(lane)
     payload["progress"][progress_field] += 1
@@ -4660,7 +5160,7 @@ def test_restored_auth_rejection_with_new_progress_is_not_circuit_opening(
         encoding="utf-8",
     )
 
-    resume_kwargs = {
+    resume_kwargs: dict[str, Any] = {
         "attempted_lane_ids": frozenset({lane.lane_id}),
         "expected_chain_id": TEST_CHAIN_ID,
         "expected_source_sha": TEST_SOURCE_SHA,
@@ -5181,7 +5681,7 @@ def test_validate_manifest_allows_explicit_direct_active_lane() -> None:
     )
 
 
-def test_validate_manifest_rejects_explicit_excluded_endpoint() -> None:
+def test_validate_manifest_rejects_dependent_endpoint_outside_dependent_lane() -> None:
     lane = FullExtractionLane(
         lane_id="cross-product-player-vs-player-2024",
         lane_index=0,
@@ -5195,7 +5695,10 @@ def test_validate_manifest_rejects_explicit_excluded_endpoint() -> None:
         timeout_seconds=7_200,
     )
 
-    with pytest.raises(ValueError, match="endpoints are excluded.*player_vs_player"):
+    with pytest.raises(
+        ValueError,
+        match="post-foundation endpoints require dependent lanes.*player_vs_player",
+    ):
         validate_manifest([lane])
 
 
@@ -5286,6 +5789,9 @@ def test_validate_manifest_rejects_duplicate_lane_ids() -> None:
     with pytest.raises(ValueError, match="duplicate lane_id values: reference-static"):
         validate_manifest([lane, replace(lane, lane_index=1)])
 
+    with pytest.raises(ValueError, match="duplicate lane_id values: reference-static"):
+        manifest_payload([lane, replace(lane, lane_index=1)])
+
 
 def test_metadata_reader_prefers_canonical_lane_metadata_over_attestation(
     tmp_path: Path,
@@ -5321,8 +5827,11 @@ def test_checkpoint_rejects_duplicate_manifest_lane_ids_before_indexing(
         timeout_seconds=1800,
     )
     manifest_path = tmp_path / "manifest.json"
+    payload = manifest_payload([lane])
+    payload["lanes"].append({**payload["lanes"][0], "lane_index": 1})
+    payload["lane_count"] = 2
     manifest_path.write_text(
-        json.dumps(manifest_payload([lane, replace(lane, lane_index=1)])),
+        json.dumps(payload),
         encoding="utf-8",
     )
 
@@ -5451,6 +5960,7 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
     assert manifest.matrix_lane_ids == frozenset({"reference-static"})
     assert manifest.chain_id == TEST_CHAIN_ID
     assert manifest.workflow_source_sha == TEST_SOURCE_SHA
+    assert manifest.provider_authority == expected_nba_api_provider_authority()
 
     redispatch = redispatch_manifest_payload(
         list(manifest.lanes),
@@ -5461,6 +5971,489 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
     redispatch_manifest = normalize_manifest(redispatch)
     assert redispatch_manifest.chain_id == TEST_CHAIN_ID
     assert redispatch_manifest.workflow_source_sha == TEST_SOURCE_SHA
+    assert redispatch_manifest.provider_authority == manifest.provider_authority
+
+
+def test_normalize_manifest_rejects_missing_or_drifted_provider_authority() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        timeout_seconds=1800,
+    )
+    payload = manifest_payload([lane])
+    missing = dict(payload)
+    missing.pop("provider_authority")
+    with pytest.raises(ValueError, match="provider_authority must be an object"):
+        normalize_manifest(missing)
+
+    drifted = json.loads(json.dumps(payload))
+    drifted["provider_authority"]["runtime_endpoint_contract_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="exact pinned contract"):
+        normalize_manifest(drifted)
+
+
+def test_manifest_assurance_admission_is_strict_and_round_trips() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        timeout_seconds=1800,
+    )
+    admission = _test_assurance_admission()
+    payload = _manifest_payload(
+        [lane],
+        assurance_admission=admission,
+        chain_id=TEST_CHAIN_ID,
+    )
+
+    assert payload["manifest_version"] == 5
+    assert payload["workflow_source_sha"] == admission.source_sha
+    assert payload["assurance_admission"] == admission.to_dict()
+    assert normalize_manifest(payload).assurance_admission == admission
+
+    redispatch = _redispatch_manifest_payload(
+        [lane],
+        assurance_admission=admission,
+        chain_id=TEST_CHAIN_ID,
+    )
+    assert redispatch["assurance_admission"] == admission.to_dict()
+    assert normalize_manifest(redispatch).assurance_admission == admission
+
+    missing = json.loads(json.dumps(payload))
+    missing.pop("assurance_admission")
+    with pytest.raises(ValueError, match="assurance admission must be an object"):
+        normalize_manifest(missing)
+
+    unknown = json.loads(json.dumps(payload))
+    unknown["assurance_admission"]["unexpected"] = True
+    with pytest.raises(ValueError, match="unexpected=unexpected"):
+        normalize_manifest(unknown)
+
+    # MODEL status is advisory: a RED model ledger must not block manifest
+    # admission when every identity field is valid (hard DATA owns the gate).
+    red = json.loads(json.dumps(payload))
+    red["assurance_admission"]["model_status"] = "RED"
+    red_admission = normalize_manifest(red).assurance_admission
+    assert red_admission is not None and red_admission.model_status == "RED"
+
+
+def test_manifest_assurance_admission_rejects_cross_binding_drift() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        timeout_seconds=1800,
+    )
+    admission = _test_assurance_admission()
+
+    with pytest.raises(ValueError, match="source SHA does not match"):
+        _manifest_payload(
+            [lane],
+            assurance_admission=admission,
+            chain_id=TEST_CHAIN_ID,
+            workflow_source_sha="b" * 40,
+        )
+
+    payload = _manifest_payload(
+        [lane],
+        assurance_admission=admission,
+        chain_id=TEST_CHAIN_ID,
+    )
+    authority_drift = json.loads(json.dumps(payload))
+    authority_drift["assurance_admission"]["provider_authority_sha256"] = "f" * 64
+    with pytest.raises(ValueError, match="provider authority digest does not match"):
+        normalize_manifest(authority_drift)
+
+    evidence_drift = json.loads(json.dumps(payload))
+    evidence_drift["assurance_admission"]["provider_evidence_sha256"] = "e" * 64
+    with pytest.raises(ValueError, match="provider evidence digest does not match"):
+        normalize_manifest(evidence_drift)
+
+
+def test_manifest_assurance_admission_does_not_change_lane_identity() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        timeout_seconds=1800,
+    )
+    first = _test_assurance_admission()
+    second = replace(first, assurance_manifest_sha256="9" * 64)
+
+    first_payload = _manifest_payload(
+        [lane],
+        assurance_admission=first,
+        chain_id=TEST_CHAIN_ID,
+    )
+    second_payload = _manifest_payload(
+        [lane],
+        assurance_admission=second,
+        chain_id=TEST_CHAIN_ID,
+    )
+
+    assert first_payload["coverage_fingerprint"] == second_payload["coverage_fingerprint"]
+    assert first_payload["lanes"] == second_payload["lanes"]
+    assert first_payload["assurance_admission"] != second_payload["assurance_admission"]
+
+
+def test_checkpoint_trust_root_requires_production_assurance_admission() -> None:
+    payload = manifest_payload([])
+    assert (
+        _validate_checkpoint_trust_root(
+            payload,
+            chain_id=TEST_CHAIN_ID,
+            source_sha=TEST_SOURCE_SHA,
+            run_id=TEST_RUN_ID,
+        )
+        is payload
+    )
+
+    # MODEL status is advisory: a RED model ledger does not block the trust
+    # root; only identity/coverage joins are hard gates here.
+    red = json.loads(json.dumps(payload))
+    red["assurance_admission"]["model_status"] = "RED"
+    assert (
+        _validate_checkpoint_trust_root(
+            red,
+            chain_id=TEST_CHAIN_ID,
+            source_sha=TEST_SOURCE_SHA,
+            run_id=TEST_RUN_ID,
+        )
+        is red
+    )
+
+
+def test_plan_cli_builds_fresh_manifest_from_assurance_admission(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    support_matrix_path = tmp_path / "support-matrix.json"
+    support_matrix_path.write_text(
+        json.dumps([_support_row("franchise_history", ["static"], None)]),
+        encoding="utf-8",
+    )
+    admission = _test_assurance_admission()
+    admission_path = tmp_path / "assurance-admission.json"
+    admission_path.write_text(json.dumps(admission.to_dict()), encoding="utf-8")
+    operation_authority_path = tmp_path / "operation-authority.json"
+    authority = _write_operation_authority(
+        operation_authority_path,
+        monkeypatch,
+        operation=OperationKind.EXTRACT,
+        manifest_lane_count=1,
+    )
+    output_path = tmp_path / "manifest.json"
+
+    assert (
+        full_extraction_main(
+            [
+                "plan",
+                "--operation-authority-path",
+                str(operation_authority_path),
+                "--support-matrix-path",
+                str(support_matrix_path),
+                "--assurance-admission-path",
+                str(admission_path),
+                "--chain-id",
+                TEST_CHAIN_ID,
+                "--workflow-source-sha",
+                TEST_SOURCE_SHA.upper(),
+                "--output-path",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    manifest = normalize_manifest(payload)
+    assert manifest.chain_id == TEST_CHAIN_ID
+    assert manifest.workflow_source_sha == admission.source_sha
+    assert manifest.assurance_admission == admission
+    assert payload["operation"] == "extract"
+    assert payload["operation_authority"] == authority.to_dict()
+    assert payload["operation_authority_sha256"] == authority.authority_sha256
+    assert payload["network_mode"] == "vpn"
+    assert payload["direct_slot_count"] == 0
+    assert payload["matrix_lane_count"] == 1
+    assert payload["vpn_slot_count"] == 1
+    assert [row["lane_id"] for row in payload["github_matrix"]["include"]]
+    assert "free_execution_admission" not in payload
+    assert "free_execution_intent_manifest" not in payload
+
+
+def _write_fresh_plan_inputs(tmp_path: Path) -> tuple[Path, Path]:
+    support_matrix_path = tmp_path / "support-matrix.json"
+    support_matrix_path.write_text(
+        json.dumps([_support_row("franchise_history", ["static"], None)]),
+        encoding="utf-8",
+    )
+    admission_path = tmp_path / "assurance-admission.json"
+    admission_path.write_text(json.dumps(_test_assurance_admission().to_dict()), encoding="utf-8")
+    return support_matrix_path, admission_path
+
+
+def test_plan_cli_rejects_legacy_free_execution_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    support_matrix_path, admission_path = _write_fresh_plan_inputs(tmp_path)
+    authority_path = tmp_path / "authority.json"
+    _write_operation_authority(
+        authority_path,
+        monkeypatch,
+        operation=OperationKind.EXTRACT,
+        manifest_lane_count=1,
+    )
+    with pytest.raises(ValueError, match="does not emit FreeExecution receipts"):
+        full_extraction_main(
+            [
+                "plan",
+                "--operation-authority-path",
+                str(authority_path),
+                "--support-matrix-path",
+                str(support_matrix_path),
+                "--assurance-admission-path",
+                str(admission_path),
+                "--free-execution-receipt-output-path",
+                str(tmp_path / "forbidden.json"),
+                "--chain-id",
+                TEST_CHAIN_ID,
+                "--output-path",
+                str(tmp_path / "manifest.json"),
+            ]
+        )
+
+    with pytest.raises(ValueError, match="extraction planning cannot publish"):
+        full_extraction_main(
+            [
+                "plan",
+                "--operation-authority-path",
+                str(authority_path),
+                "--support-matrix-path",
+                str(support_matrix_path),
+                "--assurance-admission-path",
+                str(admission_path),
+                "--publish",
+                "--chain-id",
+                TEST_CHAIN_ID,
+                "--output-path",
+                str(tmp_path / "manifest.json"),
+            ]
+        )
+
+
+def test_plan_cli_rejects_operation_authority_runtime_or_lane_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    support_matrix_path, admission_path = _write_fresh_plan_inputs(tmp_path)
+    authority_path = tmp_path / "authority.json"
+    _write_operation_authority(
+        authority_path,
+        monkeypatch,
+        operation=OperationKind.EXTRACT,
+        manifest_lane_count=2,
+    )
+    args = [
+        "plan",
+        "--operation-authority-path",
+        str(authority_path),
+        "--support-matrix-path",
+        str(support_matrix_path),
+        "--assurance-admission-path",
+        str(admission_path),
+        "--chain-id",
+        TEST_CHAIN_ID,
+        "--output-path",
+        str(tmp_path / "manifest.json"),
+    ]
+    with pytest.raises(ValueError, match="lane count differs"):
+        full_extraction_main(args)
+
+    _write_operation_authority(
+        authority_path,
+        monkeypatch,
+        operation=OperationKind.EXTRACT,
+        manifest_lane_count=1,
+    )
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
+    with pytest.raises(ValueError, match="runtime mismatch.*run_attempt"):
+        full_extraction_main(args)
+
+
+def test_targeted_smoke_plan_emits_one_real_vpn_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    support_matrix_path, admission_path = _write_fresh_plan_inputs(tmp_path)
+    authority_path = tmp_path / "authority.json"
+    authority = _write_operation_authority(
+        authority_path,
+        monkeypatch,
+        operation=OperationKind.TARGETED_SMOKE,
+        manifest_lane_count=1,
+        vpn_parallelism=1,
+    )
+    output_path = tmp_path / "manifest.json"
+    assert (
+        full_extraction_main(
+            [
+                "plan",
+                "--operation-authority-path",
+                str(authority_path),
+                "--support-matrix-path",
+                str(support_matrix_path),
+                "--assurance-admission-path",
+                str(admission_path),
+                "--chain-id",
+                TEST_CHAIN_ID,
+                "--output-path",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["operation"] == "targeted_smoke"
+    assert payload["operation_authority_sha256"] == authority.authority_sha256
+    assert payload["matrix_lane_count"] == 1
+    assert payload["vpn_slot_count"] == 1
+    assert payload["direct_slot_count"] == 0
+
+
+def test_capacity_blocked_projection_preserves_lanes_and_rejects_inventory_tamper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id="completed-static",
+            lane_index=0,
+            lane_name="Completed static",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("static",),
+            endpoints=("franchise_history",),
+            resume_only=True,
+            timeout_seconds=1800,
+        ),
+        FullExtractionLane(
+            lane_id="pending-game",
+            lane_index=1,
+            lane_name="Pending game",
+            lane_kind="historical",
+            season_start=2023,
+            season_end=2023,
+            patterns=("game",),
+            endpoints=("box_score_summary",),
+            timeout_seconds=1800,
+        ),
+        FullExtractionLane(
+            lane_id="pending-player",
+            lane_index=2,
+            lane_name="Pending player",
+            lane_kind="historical",
+            season_start=None,
+            season_end=None,
+            patterns=("player",),
+            endpoints=("common_player_info",),
+            timeout_seconds=1800,
+        ),
+    ]
+    payload = manifest_payload(lanes, max_matrix_lanes=1)
+    original_lanes = payload["lanes"]
+    original_lane_bytes = canonical_json_bytes(original_lanes)
+    receipt_path = tmp_path / "blocked.json"
+    monkeypatch.setenv("GITHUB_REPOSITORY", "fixture/nbadb")
+    monkeypatch.setenv("GITHUB_RUN_ID", "22")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "3")
+
+    blocked = _apply_capacity_blocked_free_execution(
+        payload,
+        publish=True,
+        receipt_output_path=receipt_path,
+    )
+    admission = FreeExecutionAdmissionV1.from_dict(blocked["free_execution_admission"])
+
+    assert blocked["lanes"] is original_lanes
+    assert canonical_json_bytes(blocked["lanes"]) == original_lane_bytes
+    assert [row["lane_id"] for row in blocked["lanes"]] == [
+        "completed-static",
+        "pending-game",
+        "pending-player",
+    ]
+    assert blocked["github_matrix"] == {"include": []}
+    assert blocked["matrix_lane_count"] == 0
+    assert blocked["deferred_lane_count"] == 2
+    assert admission.intent.lane_ids == ("pending-game", "pending-player")
+    assert admission.blocker_codes == FreeExecutionAuthorityBundleV1.integration_blocker_codes
+    assert admission.admitted_capacity == 0
+    assert admission.authority_sha256 is None
+    assert admission.admission_job_id == "plan"
+    assert receipt_path.read_bytes() == admission.to_bytes()
+
+    expected_intent = _capacity_blocked_execution_manifest(
+        blocked,
+        repository="fixture/nbadb",
+        workflow_sha256=admission.workflow_sha256,
+        publish=True,
+    )
+    assert blocked["free_execution_intent_manifest"] == expected_intent
+    assert expected_intent["resource_plan"] == {
+        "planned_artifact_max_bytes": 0,
+        "planned_artifact_retention_hours": 0,
+        "planned_cache_max_bytes": 0,
+    }
+    admission.validate_manifest(canonical_json_bytes(expected_intent))
+
+    tampered_intent = json.loads(json.dumps(expected_intent))
+    tampered_intent["lanes"][0]["parameters"]["logical_lane_sha256"] = "0" * 64
+    with pytest.raises(FreeExecutionAdmissionError, match="differs from admission intent"):
+        admission.validate_manifest(canonical_json_bytes(tampered_intent))
+
+
+def test_provider_authority_does_not_change_semantic_lane_identity() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        timeout_seconds=1800,
+    )
+    before_units = _coverage_units_for_lane(lane)
+    before_hash = _coverage_hash_for_lane(lane)
+    before_fingerprint = _coverage_fingerprint([lane])
+
+    payload = manifest_payload([lane])
+
+    assert payload["provider_authority"] == expected_nba_api_provider_authority()
+    assert _coverage_units_for_lane(lane) == before_units
+    assert _coverage_hash_for_lane(lane) == before_hash
+    assert payload["coverage_fingerprint"] == before_fingerprint
 
 
 def test_manifest_payload_caps_github_matrix_to_active_wave() -> None:
@@ -5513,7 +6506,7 @@ def test_manifest_payload_caps_github_matrix_to_active_wave() -> None:
 @pytest.mark.parametrize("chunk_profile", ["standard", "balanced-small"])
 def test_v3_scheduler_guarantees_weighted_queue_slots(chunk_profile: str) -> None:
     lanes: list[FullExtractionLane] = []
-    queue_specs = {
+    queue_specs: dict[str, tuple[int, dict[str, Any]]] = {
         "fresh": (20, {}),
         "partial": (10, {"attempt_count": 1, "last_completed_calls": 2}),
         "retry": (
@@ -5641,7 +6634,7 @@ def test_scheduler_rotation_persists_weighted_fairness_across_short_resume_waves
     tmp_path: Path,
 ) -> None:
     lanes: list[FullExtractionLane] = []
-    queue_specs = {
+    queue_specs: dict[str, tuple[int, dict[str, Any]]] = {
         "fresh": (20, {}),
         "partial": (12, {"attempt_count": 1, "last_completed_calls": 1}),
         "retry": (
@@ -5723,7 +6716,7 @@ def test_scheduler_rotation_persists_weighted_fairness_across_short_resume_waves
     assert first_cycle.count("infrastructure") == 1
 
 
-def test_manifest_v3_computes_capacity_iteration_budget() -> None:
+def test_manifest_v5_computes_capacity_iteration_budget() -> None:
     lanes = [
         FullExtractionLane(
             lane_id=f"lane-{index:03d}",
@@ -5740,7 +6733,7 @@ def test_manifest_v3_computes_capacity_iteration_budget() -> None:
 
     payload = manifest_payload(lanes, max_matrix_lanes=10, current_iteration=7)
 
-    assert payload["manifest_version"] == 3
+    assert payload["manifest_version"] == 5
     assert payload["minimum_remaining_wave_count"] == 10
     assert payload["suggested_remaining_wave_count"] == 80
     assert payload["iteration_budget"] == 86
@@ -5771,12 +6764,142 @@ def test_manifest_assigns_bounded_reusable_vpn_slots_to_matrix_lanes() -> None:
     matrix = payload["github_matrix"]["include"]
 
     assert payload["vpn_slot_count"] == 3
+    assert [row["lane_id"] for row in matrix] == [f"lane-{index}" for index in range(7)]
     assert [row["lane_index"] for row in matrix] == list(range(7))
     assert [row["vpn_slot"] for row in matrix] == [0, 1, 2, 0, 1, 2, 0]
     assert manifest_payload(lanes[:2], vpn_slot_count=6)["vpn_slot_count"] == 2
 
     with pytest.raises(ValueError, match="vpn_slot_count must be between"):
         manifest_payload(lanes, vpn_slot_count=-1)
+
+
+def test_manifest_vpn_slots_are_balanced_for_sixty_four_lanes() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id=f"lane-{index:03d}",
+            lane_index=index,
+            lane_name=f"Lane {index}",
+            lane_kind="historical",
+            season_start=2020,
+            season_end=2020,
+            patterns=("season",),
+            timeout_seconds=3600,
+        )
+        for index in range(64)
+    ]
+
+    payload = manifest_payload(lanes, max_matrix_lanes=64, vpn_slot_count=6)
+    counts = [0] * 6
+    for row in payload["github_matrix"]["include"]:
+        counts[row["vpn_slot"]] += 1
+
+    assert counts == [11, 11, 11, 11, 10, 10]
+
+
+def test_vpn_slot_loads_cover_all_supported_lane_and_slot_counts() -> None:
+    for lane_count in range(257):
+        for vpn_slot_count in range(1, 65):
+            loads = _expected_vpn_slot_loads(lane_count, vpn_slot_count)
+            assert len(loads) == min(lane_count, vpn_slot_count)
+            assert sum(loads) == lane_count
+            if loads:
+                assert max(loads) - min(loads) <= 1
+                assert max(loads) <= math.ceil(lane_count / vpn_slot_count)
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected_lane_ids", "lane_count", "vpn_slot_count", "match"),
+    [
+        ([], [], -1, 1, "lane_count must be a non-negative integer"),
+        ([], [], 0, 1.5, "vpn_slot_count must be a non-negative integer"),
+        ([{"lane_id": "a"}], ["a", "b"], 2, 2, "matrix row count"),
+        (
+            [{"lane_id": "a", "vpn_slot": 0}, {"lane_id": "a", "vpn_slot": 1}],
+            ["a", "b"],
+            2,
+            2,
+            "matrix row lane IDs contain duplicates",
+        ),
+        (
+            [{"lane_id": "b", "vpn_slot": 0}, {"lane_id": "a", "vpn_slot": 1}],
+            ["a", "b"],
+            2,
+            2,
+            "preserve expected membership and order",
+        ),
+        ([{"lane_id": "a", "vpn_slot": 0}], ["a"], 1, 0, "require a positive"),
+        ([{"lane_id": "a"}], ["a"], 1, 1, "every matrix row must contain"),
+        ([{"lane_id": "a", "vpn_slot": True}], ["a"], 1, 1, "must be integers"),
+        ([{"lane_id": "a", "vpn_slot": 1}], ["a"], 1, 1, "must be between"),
+        (
+            [
+                {"lane_id": "a", "vpn_slot": 0},
+                {"lane_id": "b", "vpn_slot": 2},
+                {"lane_id": "c", "vpn_slot": 0},
+                {"lane_id": "d", "vpn_slot": 2},
+            ],
+            ["a", "b", "c", "d"],
+            4,
+            3,
+            "indexes must be contiguous",
+        ),
+        (
+            [
+                {"lane_id": f"lane-{index}", "vpn_slot": slot}
+                for index, slot in enumerate([0, 0, 0, 0, 1, 2])
+            ],
+            [f"lane-{index}" for index in range(6)],
+            6,
+            3,
+            "load counts must differ",
+        ),
+        (
+            [
+                {"lane_id": f"lane-{index}", "vpn_slot": slot}
+                for index, slot in enumerate([1, 0, 1, 2, 0])
+            ],
+            [f"lane-{index}" for index in range(5)],
+            5,
+            3,
+            "deterministic round-robin",
+        ),
+    ],
+)
+def test_vpn_slot_postconditions_reject_malformed_assignments(
+    rows: list[dict[str, Any]],
+    expected_lane_ids: list[str],
+    lane_count: int,
+    vpn_slot_count: int,
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        _validate_vpn_slot_assignments(
+            rows,
+            expected_lane_ids=expected_lane_ids,
+            lane_count=lane_count,
+            vpn_slot_count=vpn_slot_count,
+        )
+
+
+def test_manifest_preserves_zero_slot_and_empty_matrix_behavior() -> None:
+    lane = FullExtractionLane(
+        lane_id="lane-0",
+        lane_index=0,
+        lane_name="Lane 0",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2020,
+        patterns=("season",),
+        timeout_seconds=3600,
+    )
+
+    direct_payload = manifest_payload([lane], vpn_slot_count=0)
+    empty_payload = manifest_payload([], vpn_slot_count=64)
+
+    assert direct_payload["vpn_slot_count"] == 0
+    assert "vpn_slot" not in direct_payload["github_matrix"]["include"][0]
+    assert empty_payload["vpn_slot_count"] == 0
+    assert empty_payload["github_matrix"] == {"include": []}
 
 
 def test_manifest_v3_never_extends_an_existing_auto_iteration_budget() -> None:
@@ -6067,6 +7190,32 @@ def test_redispatch_manifest_payload_preserves_non_default_use_vpn() -> None:
 
     assert payload["lanes"][0]["use_vpn"] is False
     assert manifest.lanes[0].use_vpn is False
+
+
+@pytest.mark.parametrize("field_name", ["resume_only", "use_vpn"])
+@pytest.mark.parametrize("invalid_value", ["false", "true", 0, 1, None])
+def test_normalize_manifest_rejects_non_boolean_lane_controls(
+    field_name: str,
+    invalid_value: object,
+) -> None:
+    payload = redispatch_manifest_payload(
+        [
+            FullExtractionLane(
+                lane_id="reference-static",
+                lane_index=0,
+                lane_name="Reference Static",
+                lane_kind="reference",
+                season_start=None,
+                season_end=None,
+                patterns=("static",),
+                timeout_seconds=1_800,
+            )
+        ]
+    )
+    payload["lanes"][0][field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=rf"lane {field_name} must be an exact boolean"):
+        normalize_manifest(payload)
 
 
 def test_redispatch_manifest_payload_is_smaller_than_full_manifest() -> None:
@@ -6428,6 +7577,144 @@ def test_checkpoint_merge_preserves_base_and_delta_duplicate_multiplicity(
     assert summary["table_reports"]["stg_alpha"]["duplicate_rows"] == 3
 
 
+def test_checkpoint_w2_authority_closes_zero_delta_and_disjoint_delta(
+    tmp_path: Path,
+) -> None:
+    base_database_path = tmp_path / "w2-base.duckdb"
+    _write_complete_w2_lane_database(base_database_path)
+
+    zero_delta = _merge_database_paths(
+        db_paths=[],
+        output_dir=tmp_path / "zero-delta",
+        base_database_path=base_database_path,
+    )
+    assert zero_delta["copy_fast_path"] is True
+    assert zero_delta["w2_expected_call_count"] == 1
+    assert zero_delta["w2_database_authority_closed"] is True
+    assert (
+        zero_delta["w2_database_authority_sha256"]
+        == zero_delta["w2_database_authority"]["receipt_sha256"]
+    )
+
+    delta_database_path = tmp_path / "disjoint-delta.duckdb"
+    _write_lane_db(
+        delta_database_path,
+        alpha_rows=[2],
+        beta_rows=[],
+        journal_rows=[("disjoint_endpoint", "{}")],
+    )
+    base_delta = _merge_database_paths(
+        db_paths=[delta_database_path],
+        output_dir=tmp_path / "base-delta",
+        base_database_path=base_database_path,
+    )
+    assert base_delta["w2_expected_call_count"] == 1
+    assert base_delta["w2_database_authority_closed"] is True
+    assert [
+        item["expected_call_count"] for item in base_delta["source_w2_database_authorities"]
+    ] == [1, 0]
+    assert {
+        "raw_nba_api_result_cell",
+        "raw_nba_api_stats_lossless_record",
+        "raw_nba_api_live_lossless_node",
+        "raw_nba_api_value_representation",
+        "raw_nba_api_route_field_landing",
+        "raw_nba_api_w2_operation",
+    } <= set(base_delta["authority_table_reports"])
+
+
+def test_checkpoint_w2_authority_deduplicates_exact_equivalent_lanes(
+    tmp_path: Path,
+) -> None:
+    base_database_path = tmp_path / "w2-base.duckdb"
+    duplicate_database_path = tmp_path / "w2-duplicate.duckdb"
+    _write_complete_w2_lane_database(base_database_path)
+    shutil.copy2(base_database_path, duplicate_database_path)
+
+    summary = _merge_database_paths(
+        db_paths=[duplicate_database_path],
+        output_dir=tmp_path / "equivalent",
+        base_database_path=base_database_path,
+    )
+
+    assert summary["w2_expected_call_count"] == 1
+    assert summary["w2_database_authority_closed"] is True
+    assert summary["authority_table_reports"]["_extraction_journal"]["duplicate_rows"] == 1
+    assert summary["authority_table_reports"]["raw_nba_api_w2_operation"]["duplicate_rows"] == 1
+
+
+def test_checkpoint_w2_authority_rejects_schema_row_and_evidence_mutations(
+    tmp_path: Path,
+) -> None:
+    source_database_path = tmp_path / "w2-source.duckdb"
+    _write_complete_w2_lane_database(source_database_path)
+    mutations = (
+        (
+            "partial-schema",
+            "ALTER TABLE raw_nba_api_value_representation DROP COLUMN representation_kind",
+        ),
+        (
+            "mutated-row",
+            "UPDATE raw_nba_api_value_representation "
+            "SET representation_kind = 'forged-representation'",
+        ),
+        (
+            "missing-evidence",
+            "UPDATE _extraction_journal SET w2_operation_receipt_sha256 = NULL WHERE w2_required",
+        ),
+    )
+    for label, mutation in mutations:
+        mutated_path = tmp_path / f"{label}.duckdb"
+        shutil.copy2(source_database_path, mutated_path)
+        connection = duckdb.connect(str(mutated_path))
+        try:
+            connection.execute(mutation)
+            connection.execute("CHECKPOINT")
+        finally:
+            connection.close()
+        output_dir = tmp_path / f"output-{label}"
+        with pytest.raises(ValueError, match="W2|[Aa]uthority"):
+            _merge_database_paths(
+                db_paths=[mutated_path],
+                output_dir=output_dir,
+            )
+        assert not (output_dir / "nba.duckdb").exists()
+
+
+def test_checkpoint_merges_exact_successor_w2_journal(tmp_path: Path) -> None:
+    successor_generation_sha256 = "7" * 64
+    successor_database_path = tmp_path / "w2-successor.duckdb"
+    _write_complete_w2_lane_database(successor_database_path)
+    connection = duckdb.connect(str(successor_database_path))
+    try:
+        PipelineJournal(
+            connection,
+            successor_generation_sha256=successor_generation_sha256,
+        )
+        connection.execute(
+            "INSERT INTO _successor_extraction_journal SELECT ?, * FROM _extraction_journal",
+            [successor_generation_sha256],
+        )
+        connection.execute("DELETE FROM _extraction_journal")
+        connection.execute("CHECKPOINT")
+    finally:
+        connection.close()
+
+    summary = _merge_database_paths(
+        db_paths=[successor_database_path],
+        output_dir=tmp_path / "successor-merge",
+    )
+    assert summary["w2_expected_call_count"] == 1
+    assert summary["w2_database_authority_closed"] is True
+    successor_report = summary["authority_table_reports"]["_successor_extraction_journal"]
+    assert successor_report["row_count"] == 1
+    assert successor_report["primary_key"] == [
+        "successor_generation_sha256",
+        "endpoint",
+        "params",
+    ]
+
+
 def test_checkpoint_merge_preserves_maximum_multiplicity_across_multiple_deltas(
     tmp_path: Path,
 ) -> None:
@@ -6469,7 +7756,7 @@ def test_checkpoint_merge_preserves_maximum_multiplicity_across_multiple_deltas(
     assert summary["table_reports"]["stg_alpha"]["duplicate_rows"] == 5
 
 
-def test_checkpoint_merge_batches_all_delta_journal_keys_once(tmp_path: Path) -> None:
+def test_checkpoint_merge_rejects_conflicting_delta_journal_authority(tmp_path: Path) -> None:
     params = '{"season": "2024-25"}'
     base_database_path = tmp_path / "base.duckdb"
     _write_lane_db(
@@ -6499,29 +7786,418 @@ def test_checkpoint_merge_batches_all_delta_journal_keys_once(tmp_path: Path) ->
         conn.close()
         delta_paths.append(delta_path)
 
-    summary = _merge_database_paths(
-        db_paths=list(reversed(delta_paths)),
-        output_dir=tmp_path / "checkpoint",
-        base_database_path=base_database_path,
+    output_dir = tmp_path / "checkpoint"
+    with pytest.raises(
+        ValueError,
+        match="Conflicting immutable authority row for _extraction_journal",
+    ):
+        _merge_database_paths(
+            db_paths=list(reversed(delta_paths)),
+            output_dir=output_dir,
+            base_database_path=base_database_path,
+        )
+    assert not (output_dir / "nba.duckdb").exists()
+
+
+def test_merge_rejects_legacy_done_in_mixed_journal_schemas(
+    tmp_path: Path,
+) -> None:
+    legacy_path = tmp_path / "legacy.duckdb"
+    current_path = tmp_path / "current.duckdb"
+    _write_lane_db(
+        legacy_path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=[("legacy_endpoint", "{}")],
+        receipt_bound_done=False,
+    )
+    legacy_conn = duckdb.connect(str(legacy_path))
+    _create_test_staging_chunk_journal(legacy_conn, receipt_schema=False)
+    _insert_test_staging_chunk(
+        legacy_conn,
+        chunk_id="1" * 64,
+        staging_key="stg_legacy",
+        content_hash="2" * 64,
+    )
+    legacy_conn.close()
+
+    _write_lane_db(
+        current_path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=[("current_endpoint", "{}")],
+        receipt_bound_done=False,
+    )
+    receipt_sha256 = "a" * 64
+    provider_sha256 = "b" * 64
+    parameters_sha256 = canonical_parameters_sha256({})
+    route_id = "current_endpoint:stg_current:0"
+    current_conn = duckdb.connect(str(current_path))
+    _upgrade_test_extraction_journal(current_conn)
+    current_conn.execute(
+        """
+        UPDATE _extraction_journal
+        SET logical_call_receipt_sha256 = ?,
+            provider_authority_sha256 = ?,
+            logical_parameters_sha256 = ?,
+            result_route_ids_json = ?
+        """,
+        [receipt_sha256, provider_sha256, parameters_sha256, json.dumps([route_id])],
+    )
+    _create_test_staging_chunk_journal(current_conn, receipt_schema=True)
+    _insert_test_staging_chunk(
+        current_conn,
+        chunk_id="3" * 64,
+        staging_key="stg_current",
+        content_hash="4" * 64,
+        receipt_sha256=receipt_sha256,
+        provider_sha256=provider_sha256,
+        parameters_sha256=parameters_sha256,
+        result_route_id=route_id,
+    )
+    current_conn.close()
+
+    output_dir = tmp_path / "merged"
+    with pytest.raises(ValueError, match="mixes capture-disabled and receipt-bound"):
+        _merge_database_paths(
+            db_paths=[legacy_path, current_path],
+            output_dir=output_dir,
+        )
+
+    assert not (output_dir / "nba.duckdb").exists()
+
+
+def test_merge_rejects_capture_mode_downgrade_for_same_journal_key(tmp_path: Path) -> None:
+    base_path = tmp_path / "base.duckdb"
+    delta_path = tmp_path / "delta.duckdb"
+    journal_rows = [("shared_endpoint", "{}")]
+    _write_lane_db(
+        base_path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=journal_rows,
+        receipt_bound_done=True,
+    )
+    _write_lane_db(
+        delta_path,
+        alpha_rows=[1],
+        beta_rows=[],
+        journal_rows=journal_rows,
+        receipt_bound_done=False,
     )
 
-    journal_report = summary["journal_report"]
-    assert journal_report["source_count"] == 12
-    assert journal_report["source_rows"] == 12
-    assert journal_report["inserted_rows"] == 1
-    assert journal_report["duplicate_rows"] == 11
-    assert journal_report["replaced_base_rows"] == 1
-    assert journal_report["delete_batch_count"] == 1
-    assert journal_report["insert_batch_count"] == 1
+    output_dir = tmp_path / "merged"
+    with pytest.raises(ValueError, match="Conflicting immutable authority row"):
+        _merge_database_paths(
+            db_paths=[delta_path],
+            output_dir=output_dir,
+            base_database_path=base_path,
+        )
 
+    assert not (output_dir / "nba.duckdb").exists()
+
+
+@pytest.mark.parametrize("schema_version", ["legacy", "current"])
+@pytest.mark.parametrize("copy_fast_path", [False, True])
+def test_merge_preserves_coherent_capture_disabled_done_rows(
+    tmp_path: Path,
+    schema_version: str,
+    copy_fast_path: bool,
+) -> None:
+    path = tmp_path / "lane.duckdb"
+    _write_lane_db(
+        path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=[("current_endpoint", "{}")],
+        receipt_bound_done=False,
+    )
+    if schema_version == "current":
+        conn = duckdb.connect(str(path))
+        _upgrade_test_extraction_journal(conn)
+        conn.close()
+
+    output_dir = tmp_path / "merged"
+    summary = _merge_database_paths(
+        db_paths=[] if copy_fast_path else [path],
+        output_dir=output_dir,
+        base_database_path=path if copy_fast_path else None,
+    )
+
+    output_path = output_dir / "nba.duckdb"
+    assert summary["output_path"] == str(output_path)
+    assert output_path.is_file()
+    conn = duckdb.connect(str(output_path), read_only=True)
+    try:
+        columns = {
+            str(row[1])
+            for row in conn.execute("PRAGMA table_info('_extraction_journal')").fetchall()
+        }
+        if "logical_call_receipt_sha256" in columns:
+            row = conn.execute(
+                """
+                SELECT status,
+                       logical_call_receipt_sha256,
+                       provider_authority_sha256,
+                       logical_parameters_sha256,
+                       result_route_ids_json
+                FROM _extraction_journal
+                """
+            ).fetchone()
+        else:
+            status_row = conn.execute("SELECT status FROM _extraction_journal").fetchone()
+            if status_row is None:
+                raise AssertionError("journal status row must be present")
+            row = (
+                *status_row,
+                None,
+                None,
+                None,
+                None,
+            )
+    finally:
+        conn.close()
+    assert row == ("done", None, None, None, None)
+
+
+def test_merge_promotes_compatible_staging_receipt_attestation(tmp_path: Path) -> None:
+    base_path = tmp_path / "base.duckdb"
+    delta_path = tmp_path / "delta.duckdb"
+    chunk_id = "1" * 64
+    content_hash = "2" * 64
+    receipt_sha256 = "a" * 64
+    provider_sha256 = "b" * 64
+    parameters_sha256 = canonical_parameters_sha256({})
+    route_id = "current_endpoint:stg_shared:0"
+
+    _write_lane_db(base_path, alpha_rows=[0], beta_rows=[], journal_rows=[])
+    base_conn = duckdb.connect(str(base_path))
+    _create_test_staging_chunk_journal(base_conn, receipt_schema=False)
+    _insert_test_staging_chunk(
+        base_conn,
+        chunk_id=chunk_id,
+        staging_key="stg_shared",
+        content_hash=content_hash,
+    )
+    base_conn.close()
+
+    _write_lane_db(
+        delta_path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=[("current_endpoint", "{}")],
+        receipt_bound_done=False,
+    )
+    delta_conn = duckdb.connect(str(delta_path))
+    _upgrade_test_extraction_journal(delta_conn)
+    delta_conn.execute(
+        """
+        UPDATE _extraction_journal
+        SET logical_call_receipt_sha256 = ?,
+            provider_authority_sha256 = ?,
+            logical_parameters_sha256 = ?,
+            result_route_ids_json = ?
+        """,
+        [receipt_sha256, provider_sha256, parameters_sha256, json.dumps([route_id])],
+    )
+    _create_test_staging_chunk_journal(delta_conn, receipt_schema=True)
+    _insert_test_staging_chunk(
+        delta_conn,
+        chunk_id=chunk_id,
+        staging_key="stg_shared",
+        content_hash=content_hash,
+        receipt_sha256=receipt_sha256,
+        provider_sha256=provider_sha256,
+        parameters_sha256=parameters_sha256,
+        result_route_id=route_id,
+    )
+    delta_conn.close()
+
+    summary = _merge_database_paths(
+        db_paths=[delta_path],
+        output_dir=tmp_path / "merged",
+        base_database_path=base_path,
+    )
     conn = duckdb.connect(summary["output_path"], read_only=True)
     try:
-        journal_rows = conn.execute(
-            "SELECT endpoint, params, status FROM _extraction_journal"
+        rows = conn.execute(
+            """
+            SELECT chunk_id, staging_key, logical_call_receipt_sha256, result_route_id
+            FROM _staging_chunk_journal
+            """
         ).fetchall()
     finally:
         conn.close()
-    assert journal_rows == [("shared_endpoint", params, "current-11")]
+
+    assert rows == [(chunk_id, "stg_shared", receipt_sha256, route_id)]
+    assert summary["staging_journal_report"]["duplicate_rows"] == 1
+
+
+@pytest.mark.parametrize("conflict_kind", ["content", "receipt"])
+def test_merge_rejects_conflicting_staging_chunk_identity(
+    tmp_path: Path,
+    conflict_kind: str,
+) -> None:
+    paths: list[Path] = []
+    for index in range(2):
+        path = tmp_path / f"lane-{index}.duckdb"
+        _write_lane_db(path, alpha_rows=[0], beta_rows=[], journal_rows=[])
+        conn = duckdb.connect(str(path))
+        _create_test_staging_chunk_journal(
+            conn,
+            receipt_schema=conflict_kind == "receipt",
+        )
+        _insert_test_staging_chunk(
+            conn,
+            chunk_id="1" * 64,
+            staging_key="stg_shared",
+            content_hash=(
+                ("2" if index == 0 else "3") * 64 if conflict_kind == "content" else "2" * 64
+            ),
+            receipt_sha256=(
+                ("a" if index == 0 else "d") * 64 if conflict_kind == "receipt" else None
+            ),
+            provider_sha256="b" * 64 if conflict_kind == "receipt" else None,
+            parameters_sha256=(
+                canonical_parameters_sha256({}) if conflict_kind == "receipt" else None
+            ),
+            result_route_id=("endpoint:stg_shared:0" if conflict_kind == "receipt" else None),
+        )
+        conn.close()
+        paths.append(path)
+
+    output_dir = tmp_path / "merged"
+    with pytest.raises(ValueError, match="Conflicting _staging_chunk_journal collision"):
+        _merge_database_paths(db_paths=paths, output_dir=output_dir)
+
+    assert not (output_dir / "nba.duckdb").exists()
+
+
+@pytest.mark.parametrize(
+    "evidence_state",
+    ["missing", "provider_mismatch", "route_key_mismatch"],
+)
+@pytest.mark.parametrize("copy_fast_path", [False, True])
+def test_merge_rejects_receipt_bound_done_without_exact_staging_evidence(
+    tmp_path: Path,
+    evidence_state: str,
+    copy_fast_path: bool,
+) -> None:
+    path = tmp_path / "lane.duckdb"
+    _write_lane_db(
+        path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=[("current_endpoint", "{}")],
+        receipt_bound_done=False,
+    )
+    receipt_sha256 = "a" * 64
+    provider_sha256 = "b" * 64
+    parameters_sha256 = canonical_parameters_sha256({})
+    route_id = "current_endpoint:stg_current:0"
+    conn = duckdb.connect(str(path))
+    _upgrade_test_extraction_journal(conn)
+    conn.execute(
+        """
+        UPDATE _extraction_journal
+        SET logical_call_receipt_sha256 = ?,
+            provider_authority_sha256 = ?,
+            logical_parameters_sha256 = ?,
+            result_route_ids_json = ?
+        """,
+        [receipt_sha256, provider_sha256, parameters_sha256, json.dumps([route_id])],
+    )
+    if evidence_state != "missing":
+        _create_test_staging_chunk_journal(conn, receipt_schema=True)
+        _insert_test_staging_chunk(
+            conn,
+            chunk_id="1" * 64,
+            staging_key=("stg_wrong" if evidence_state == "route_key_mismatch" else "stg_current"),
+            content_hash="2" * 64,
+            receipt_sha256=receipt_sha256,
+            provider_sha256=(
+                "c" * 64 if evidence_state == "provider_mismatch" else provider_sha256
+            ),
+            parameters_sha256=parameters_sha256,
+            result_route_id=route_id,
+        )
+    conn.close()
+
+    output_dir = tmp_path / "merged"
+    with pytest.raises(
+        ValueError,
+        match="Receipt-bound done row.*staging evidence|Invalid _staging_chunk_journal",
+    ):
+        _merge_database_paths(
+            db_paths=[] if copy_fast_path else [path],
+            output_dir=output_dir,
+            base_database_path=path if copy_fast_path else None,
+        )
+
+    assert not (output_dir / "nba.duckdb").exists()
+
+
+@pytest.mark.parametrize("copy_fast_path", [False, True])
+def test_merge_rejects_partially_populated_done_receipt_fields(
+    tmp_path: Path,
+    copy_fast_path: bool,
+) -> None:
+    path = tmp_path / "lane.duckdb"
+    _write_lane_db(
+        path,
+        alpha_rows=[0],
+        beta_rows=[],
+        journal_rows=[("current_endpoint", "{}")],
+        receipt_bound_done=False,
+    )
+    conn = duckdb.connect(str(path))
+    _upgrade_test_extraction_journal(conn)
+    conn.execute(
+        "UPDATE _extraction_journal SET logical_call_receipt_sha256 = ?",
+        ["a" * 64],
+    )
+    conn.close()
+
+    output_dir = tmp_path / "merged"
+    with pytest.raises(ValueError, match="incomplete receipt binding"):
+        _merge_database_paths(
+            db_paths=[] if copy_fast_path else [path],
+            output_dir=output_dir,
+            base_database_path=path if copy_fast_path else None,
+        )
+
+    assert not (output_dir / "nba.duckdb").exists()
+
+
+@pytest.mark.parametrize("table_name", ["_extraction_journal", "_staging_chunk_journal"])
+@pytest.mark.parametrize("copy_fast_path", [False, True])
+def test_merge_rejects_unknown_additive_journal_schema_drift(
+    tmp_path: Path,
+    table_name: str,
+    copy_fast_path: bool,
+) -> None:
+    path = tmp_path / "lane.duckdb"
+    _write_lane_db(path, alpha_rows=[0], beta_rows=[], journal_rows=[])
+    conn = duckdb.connect(str(path))
+    if table_name == "_staging_chunk_journal":
+        _create_test_staging_chunk_journal(conn, receipt_schema=False)
+    conn.execute(f"ALTER TABLE {table_name} ADD COLUMN unexpected_column VARCHAR")
+    conn.close()
+
+    output_dir = tmp_path / "merged"
+    expected_error = (
+        "Authority table schema or key constraints drifted"
+        if table_name == "_extraction_journal"
+        else f"Schema mismatch while merging {table_name}"
+    )
+    with pytest.raises(ValueError, match=expected_error):
+        _merge_database_paths(
+            db_paths=[] if copy_fast_path else [path],
+            output_dir=output_dir,
+            base_database_path=path if copy_fast_path else None,
+        )
+
+    assert not (output_dir / "nba.duckdb").exists()
 
 
 @pytest.mark.parametrize(
@@ -6667,6 +8343,7 @@ def test_current_lane_provenance_rejects_tampered_bindings(
         ("artifact_name", "full-extraction-checkpoint-chain-iter-2", "artifact_name"),
         ("checkpoint_generation", 2, "checkpoint_generation"),
         ("source_sha", "b" * 40, "source_sha does not match"),
+        ("provider_authority", {"schema_version": 1}, "provider authority does not match"),
         ("coverage_fingerprint", "b" * 64, "coverage_fingerprint"),
         ("database_sha256", "b" * 64, "database digest"),
         ("included_lane_coverage_hashes", {}, "hash inventory"),
@@ -7058,6 +8735,13 @@ def test_full_extraction_no_network_terminal_checkpoint_simulator(tmp_path: Path
     assert checkpoint_report["complete_lane_count"] == 2
     assert checkpoint_report["coverage_fingerprint"] == manifest["coverage_fingerprint"]
     assert checkpoint_report["database_sha256"] == _file_sha256(checkpoint_dir / "nba.duckdb")
+    assert checkpoint_report["w2_database_authority_closed"] is True
+    assert checkpoint_report["w2_expected_call_count"] == 0
+    assert len(checkpoint_report["w2_expected_call_inventory_sha256"]) == 64
+    assert (
+        checkpoint_report["w2_database_authority_sha256"]
+        == checkpoint_report["w2_database_authority"]["receipt_sha256"]
+    )
     assert checkpoint_report["included_lane_coverage_hashes"] == {
         reference_lane.lane_id: _coverage_hash_for_lane(reference_lane),
         historical_lane.lane_id: _coverage_hash_for_lane(historical_lane),
@@ -7368,8 +9052,200 @@ def test_checkpoint_accepts_schema_v3_static_reference_coverage(tmp_path: Path) 
     )
 
     assert report["terminal_ready"] is True
+    assert report["dependent_activation_required"] is False
     assert report["attested_current_lane_ids"] == [lane.lane_id]
     assert report["current_lane_attestation_failures"] == {}
+
+
+def test_checkpoint_foundation_completion_requires_dependent_activation(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+    )
+
+    report = _build_attested_lane_checkpoint(
+        tmp_path,
+        lane=lane,
+        journal_rows=[("franchise_history", "{}")],
+        dependent_workload=_foundation_required_dependent_workload(),
+    )
+
+    assert report["active_lane_count"] == 0
+    assert report["dependent_activation_required"] is True
+    assert report["dependent_coverage"] == {
+        "schema_version": 1,
+        "state": "foundation_required",
+        "green": False,
+        "accounting_complete": False,
+        "physical_call_count": 0,
+        "complete_physical_call_count": 0,
+        "zero_result_physical_call_count": 0,
+        "pending_physical_call_count": 0,
+        "failed_physical_call_count": 0,
+        "scope_disposition_counts": {
+            "complete": 0,
+            "typed_zero": 0,
+            "blocked": 0,
+        },
+        "errors": [],
+    }
+    assert report["terminal_ready"] is False
+
+
+def test_dependent_activation_uses_current_final_iteration(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        resume_only=True,
+        timeout_seconds=1800,
+    )
+    coverage_fingerprint = _coverage_fingerprint([lane])
+    artifact_name = f"full-extraction-checkpoint-{TEST_CHAIN_ID}-iter-2"
+    candidate = CheckpointTransaction.candidate(
+        chain_id=TEST_CHAIN_ID,
+        source_sha=TEST_SOURCE_SHA,
+        generation=2,
+        artifact_name=artifact_name,
+        lane_contracts=[
+            {
+                "lane_id": lane.lane_id,
+                "coverage_units_hash": _coverage_hash_for_lane(lane),
+            }
+        ],
+        coverage_fingerprint=coverage_fingerprint,
+    )
+    built = candidate.mark_built(
+        database_sha256="b" * 64,
+        report_sha256="c" * 64,
+        w2_authority=_checkpoint_w2_authority(),
+    )
+    assert built.build is not None
+    transaction = built.mark_uploaded_verified(
+        CheckpointArtifactReceipt(
+            artifact_id=303,
+            artifact_run_id=int(TEST_RUN_ID),
+            artifact_run_attempt=1,
+            artifact_name=artifact_name,
+            artifact_digest="sha256:" + "d" * 64,
+            artifact_size_bytes=1,
+            database_sha256="b" * 64,
+            report_sha256="c" * 64,
+            chain_id=TEST_CHAIN_ID,
+            source_sha=TEST_SOURCE_SHA,
+            generation=2,
+            coverage_fingerprint=coverage_fingerprint,
+            lane_inventory_sha256=built.identity.coverage.lane_inventory_sha256,
+            w2_authority_identity_sha256=built.build.w2_authority.identity_sha256,
+        )
+    ).commit()
+    chain_state = FullExtractionChainState(
+        artifact_run_ids=(TEST_RUN_ID,),
+        latest_checkpoint_run_id=TEST_RUN_ID,
+        latest_checkpoint_artifact_name=artifact_name,
+        latest_checkpoint_generation=2,
+        latest_checkpoint_coverage_hash=coverage_fingerprint,
+        latest_checkpoint_transaction=transaction.to_dict(),
+        iteration_budget=3,
+    )
+    manifest = manifest_payload(
+        [lane],
+        chain_state=chain_state,
+        current_iteration=3,
+        max_matrix_lanes=1,
+        vpn_slot_count=1,
+        dependent_workload=_foundation_required_dependent_workload(),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    scope = WorkloadScope(
+        season="2024-25",
+        season_type="Regular Season",
+        game_id="0022400001",
+        foundation_receipt_sha256="e" * 64,
+        foundation_row_ordinal=0,
+    )
+    plan = DependentExecutionPlan(
+        bundle_content_sha256="f" * 64,
+        checkpoint_transaction_sha256=canonical_sha256(transaction.to_dict()),
+        checkpoint_database_sha256="b" * 64,
+        source_sha=TEST_SOURCE_SHA,
+        provider_authority_sha256=manifest["provider_authority"]["authority_sha256"],
+        discovery_artifact_id=404,
+        discovery_artifact_run_id=int(TEST_RUN_ID),
+        discovery_artifact_name=f"full-extraction-discovery-artifacts-{TEST_CHAIN_ID}",
+        discovery_artifact_digest="1" * 64,
+        scope_dispositions=(
+            ScopeDispositionRecord(
+                scope=scope,
+                kind=DependentWorkloadKind.PLAYER_MATCHUP,
+                disposition=DependentScopeDisposition.TYPED_ZERO,
+                reason_code="observed_zero",
+                occurrence_count=0,
+                executable_unit_count=0,
+            ),
+        ),
+        calls=(),
+    )
+    plan_path = tmp_path / "dependent-execution-plan.json"
+    plan.write(plan_path)
+    output_path = tmp_path / "activated-manifest.json"
+
+    activated = activate_dependent_manifest(
+        manifest_path=manifest_path,
+        execution_plan_path=plan_path,
+        artifact_run_id=int(TEST_RUN_ID),
+        artifact_id=909,
+        artifact_name=f"dependent-workload-{TEST_CHAIN_ID}",
+        artifact_digest="sha256:" + "2" * 64,
+        artifact_size_bytes=1,
+        output_path=output_path,
+        current_iteration=3,
+        max_matrix_lanes=1,
+        vpn_slot_count=1,
+    )
+
+    assert activated["iteration_budget"] == 3
+    assert activated["active_lane_count"] == 1
+    assert activated["matrix_lane_count"] == 1
+    assert activated["dependent_workload"]["state"] == "planned"
+    assert activated["github_matrix"]["include"][0]["lane_kind"] == (
+        "post_foundation_dependent_matchup"
+    )
+    assert json.loads(output_path.read_text(encoding="utf-8")) == json.loads(json.dumps(activated))
+
+    with pytest.raises(
+        ValueError,
+        match="Fixed chain iteration budget cannot execute the dependent lanes",
+    ):
+        activate_dependent_manifest(
+            manifest_path=manifest_path,
+            execution_plan_path=plan_path,
+            artifact_run_id=int(TEST_RUN_ID),
+            artifact_id=909,
+            artifact_name=f"dependent-workload-{TEST_CHAIN_ID}",
+            artifact_digest="sha256:" + "2" * 64,
+            artifact_size_bytes=1,
+            output_path=output_path,
+            current_iteration=4,
+            max_matrix_lanes=1,
+            vpn_slot_count=1,
+        )
 
 
 def test_checkpoint_accepts_schema_v3_player_reference_coverage(
@@ -7717,8 +9593,7 @@ def test_checkpoint_carries_lane_across_append_only_workload_generation_growth(
                 "season_type": SeasonType.REGULAR.value,
             }
         ],
-        seasons=["2025-26"],
-        season_types=[SeasonType.REGULAR.value],
+        covered_pairs={("2025-26", SeasonType.REGULAR.value)},
     )
 
     next_manifest_path = tmp_path / "next-manifest.json"
@@ -8541,7 +10416,7 @@ def test_checkpoint_database_zero_delta_copies_previous_checkpoint(tmp_path: Pat
     assert output_database_path.stat().st_ino != previous_database_path.stat().st_ino
 
 
-def test_checkpoint_database_current_journal_wins_independent_of_path_sort(
+def test_checkpoint_database_rejects_conflicting_current_journal_authority(
     tmp_path: Path,
 ) -> None:
     previous_lane = FullExtractionLane(
@@ -8619,33 +10494,24 @@ def test_checkpoint_database_current_journal_wins_independent_of_path_sort(
     )
     assert previous_database_path < current_database_path
 
-    report = _build_checkpoint_database(
-        manifest_path=manifest_path,
-        metadata_dir=metadata_dir,
-        lane_artifacts_dir=lane_artifacts_dir,
-        previous_checkpoint_dir=previous_checkpoint_dir,
-        previous_checkpoint_report_path=previous_report_path,
-        output_dir=tmp_path / "checkpoint",
-        report_path=tmp_path / "checkpoint-report.json",
-        chain_id="chain",
-        run_id=current_run_id,
-    )
+    output_dir = tmp_path / "checkpoint"
+    with pytest.raises(
+        ValueError,
+        match="Conflicting immutable authority row for _extraction_journal",
+    ):
+        _build_checkpoint_database(
+            manifest_path=manifest_path,
+            metadata_dir=metadata_dir,
+            lane_artifacts_dir=lane_artifacts_dir,
+            previous_checkpoint_dir=previous_checkpoint_dir,
+            previous_checkpoint_report_path=previous_report_path,
+            output_dir=output_dir,
+            report_path=tmp_path / "checkpoint-report.json",
+            chain_id="chain",
+            run_id=current_run_id,
+        )
 
-    conn = duckdb.connect(report["output_path"], read_only=True)
-    try:
-        journal_rows = conn.execute(
-            "SELECT endpoint, params, status, rows_extracted, error_message "
-            "FROM _extraction_journal"
-        ).fetchall()
-    finally:
-        conn.close()
-
-    assert report["terminal_ready"] is True
-    assert report["journal_row_count"] == 1
-    assert report["merge_summary"]["journal_report"]["replaced_base_rows"] == 1
-    assert report["merge_summary"]["journal_report"]["delete_batch_count"] == 1
-    assert report["merge_summary"]["journal_report"]["insert_batch_count"] == 1
-    assert journal_rows == [("shared_endpoint", params, "done", 1, None)]
+    assert not (output_dir / "nba.duckdb").exists()
     assert previous_database_path.read_bytes() == previous_database_bytes
 
 
@@ -8807,6 +10673,7 @@ def test_checkpoint_database_does_not_trust_previous_lane_ids_without_previous_d
     )
     manifest_path = tmp_path / "next-manifest.json"
     manifest_path.write_text(json.dumps(manifest_payload([lane])) + "\n", encoding="utf-8")
+    provider_authority = expected_nba_api_provider_authority()
     previous_report_path = tmp_path / "previous-report.json"
     previous_report_path.write_text(
         json.dumps(
@@ -8815,6 +10682,8 @@ def test_checkpoint_database_does_not_trust_previous_lane_ids_without_previous_d
                 "run_id": TEST_RUN_ID,
                 "artifact_name": (f"full-extraction-checkpoint-{TEST_CHAIN_ID}-iter-1"),
                 "source_sha": TEST_SOURCE_SHA,
+                "provider_authority": provider_authority,
+                "provider_authority_sha256": provider_authority["authority_sha256"],
                 "checkpoint_generation": 1,
                 "coverage_fingerprint": _coverage_fingerprint([lane]),
                 "included_lane_ids": [lane.lane_id],
@@ -8993,6 +10862,7 @@ def test_checkpoint_database_does_not_map_legacy_lane_without_previous_db(
     )
     manifest_path = tmp_path / "next-manifest.json"
     manifest_path.write_text(json.dumps(manifest_payload([lane])) + "\n", encoding="utf-8")
+    provider_authority = expected_nba_api_provider_authority()
     previous_report_path = tmp_path / "previous-report.json"
     previous_report_path.write_text(
         json.dumps(
@@ -9001,6 +10871,8 @@ def test_checkpoint_database_does_not_map_legacy_lane_without_previous_db(
                 "run_id": TEST_RUN_ID,
                 "artifact_name": (f"full-extraction-checkpoint-{TEST_CHAIN_ID}-iter-1"),
                 "source_sha": TEST_SOURCE_SHA,
+                "provider_authority": provider_authority,
+                "provider_authority_sha256": provider_authority["authority_sha256"],
                 "checkpoint_generation": 1,
                 "coverage_fingerprint": _coverage_fingerprint([]),
                 "included_lane_ids": ["cross-product-regular-season-2024-2024"],
@@ -9246,24 +11118,17 @@ def test_merge_lane_databases_rejects_schema_mismatch_and_cleans_target(
         journal_rows=[("endpoint_a", "{}")],
     )
 
+    _write_lane_db(
+        lane_b / "nba.duckdb",
+        alpha_rows=[1],
+        beta_rows=[],
+        journal_rows=[],
+    )
     conn = duckdb.connect(str(lane_b / "nba.duckdb"))
     try:
+        conn.execute("DROP TABLE stg_alpha")
         conn.execute("CREATE TABLE stg_alpha (value VARCHAR)")
         conn.execute("INSERT INTO stg_alpha VALUES ('one')")
-        conn.execute(
-            """
-            CREATE TABLE _extraction_journal (
-                endpoint VARCHAR,
-                params VARCHAR,
-                status VARCHAR,
-                started_at TIMESTAMP,
-                completed_at TIMESTAMP,
-                rows_extracted BIGINT,
-                error_message VARCHAR,
-                retry_count INTEGER
-            )
-            """
-        )
     finally:
         conn.close()
 
@@ -9277,6 +11142,7 @@ def test_merge_lane_databases_rejects_schema_mismatch_and_cleans_target(
 def test_full_extraction_terminal_control_plane_handoff_e2e(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     completed_reference = FullExtractionLane(
         lane_id="reference-static",
@@ -9440,11 +11306,34 @@ def test_full_extraction_terminal_control_plane_handoff_e2e(
         encoding="utf-8",
     )
 
+    operation_authority_path = artifacts_dir / "continue-operation-authority.json"
+    continuation_member = ExactArtifactMemberV1(
+        repository="w4w/nbadb",
+        run_id=26480824507,
+        run_attempt=1,
+        artifact_id=int(TEST_ARTIFACT_ID),
+        artifact_name="committed-next-manifest-chain-iter-1",
+        artifact_digest=TEST_ARTIFACT_DIGEST,
+        artifact_size_bytes=4096,
+        member_path="manifests/next.json",
+        member_sha256="d" * 64,
+        member_size_bytes=1024,
+    )
+    _write_operation_authority(
+        operation_authority_path,
+        monkeypatch,
+        operation=OperationKind.CONTINUE,
+        manifest_lane_count=3,
+        vpn_parallelism=2,
+        continuation_source=continuation_member,
+    )
     next_manifest_path = artifacts_dir / "next-manifest.json"
     assert (
         full_extraction_main(
             [
                 "resume",
+                "--operation-authority-path",
+                str(operation_authority_path),
                 "--lane-manifest-path",
                 str(manifest_path),
                 "--metadata-dir",

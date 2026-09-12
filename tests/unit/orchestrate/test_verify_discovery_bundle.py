@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
 from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 
@@ -38,6 +39,15 @@ def _scope_row(scope: DiscoveryArtifactScope) -> dict[str, object]:
     }
 
 
+def _manifest(payload: dict[str, object]) -> dict[str, object]:
+    """Bind verifier fixtures to the same pinned provider authority as production."""
+
+    return {
+        **payload,
+        "provider_authority": expected_nba_api_provider_authority(),
+    }
+
+
 def _artifact_row(duckdb_path: Path, scope: DiscoveryArtifactScope) -> dict[str, object]:
     root = duckdb_path.with_name(f"{duckdb_path.stem}.discovery-artifacts")
     manifest_path = root / f"{scope.kind}.{scope.digest()}.json"
@@ -57,19 +67,21 @@ def _build_complete_bundle(
     duckdb_path = tmp_path / "nba.duckdb"
     summary_path = tmp_path / "discovery-seed-summary.json"
     manifest_path = tmp_path / "discovery-manifest.json"
-    manifest = {
-        "github_matrix": {
-            "include": [
-                {
-                    "patterns": "player_season,game,player_team_season",
-                    "season_start": 2024,
-                    "season_end": 2024,
-                    "season_types": "Regular Season",
-                    "resume_only": False,
-                }
-            ]
+    manifest = _manifest(
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "player_season,game,player_team_season",
+                        "season_start": 2024,
+                        "season_end": 2024,
+                        "season_types": "Regular Season",
+                        "resume_only": False,
+                    }
+                ]
+            }
         }
-    }
+    )
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     player_scope = DiscoveryArtifactScope(
@@ -107,8 +119,6 @@ def _build_complete_bundle(
                 "season_type": "Regular Season",
             }
         ],
-        seasons=["2024-25"],
-        season_types=["Regular Season"],
         covered_pairs={("2024-25", "Regular Season")},
     )
     assert workload_store.artifact_path is not None
@@ -388,7 +398,10 @@ def test_verifier_rejects_self_consistent_empty_summary_and_manifest(tmp_path: P
     summary_path, manifest_path, duckdb_path, _player_scope, _game_scope = _build_complete_bundle(
         tmp_path
     )
-    manifest_path.write_text(json.dumps({"github_matrix": {"include": []}}), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(_manifest({"github_matrix": {"include": []}})),
+        encoding="utf-8",
+    )
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     empty_counts = {
         "player_scope_count": 0,

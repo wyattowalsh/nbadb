@@ -79,11 +79,10 @@ def _write_workload(
     db_path: Path,
     params: list[dict[str, int | str]],
     *,
-    seasons: list[str],
-    season_types: list[str],
+    covered_pairs: set[tuple[str, str]],
 ) -> PlayerTeamSeasonWorkloadStore:
     store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(db_path)
-    store.upsert(params, seasons=seasons, season_types=season_types)
+    store.upsert(params, covered_pairs=covered_pairs)
     return store
 
 
@@ -172,6 +171,8 @@ def _set_restored_auth_failure_env(
         state_artifact_run_id=run_id,
         state_artifact_name=artifact_name,
         state_artifact_digest=database_sha256,
+        state_artifact_id="98765",
+        state_artifact_archive_digest="sha256:" + "b" * 64,
     )
 
 
@@ -955,8 +956,10 @@ def test_player_team_season_workload_contract_binds_exact_base_units(
                 "team_id": 10,
             },
         ],
-        seasons=["2020-21", "2021-22"],
-        season_types=["Regular Season"],
+        covered_pairs={
+            ("2020-21", "Regular Season"),
+            ("2021-22", "Regular Season"),
+        },
     )
     expected_units = [
         [2020, "Regular Season", 1, 10],
@@ -1014,8 +1017,7 @@ def test_player_team_season_contract_uses_explicit_workload_source(
                 "team_id": 10,
             }
         ],
-        seasons=["2020-21"],
-        season_types=["Regular Season"],
+        covered_pairs={("2020-21", "Regular Season")},
     )
     monkeypatch.setenv("WORKLOAD_DUCKDB_PATH", str(workload_db_path))
 
@@ -1062,8 +1064,7 @@ def test_attested_empty_workload_allows_complete_snapshot_without_journal(
     store = _write_workload(
         db_path,
         [],
-        seasons=["2020-21"],
-        season_types=["Regular Season"],
+        covered_pairs={("2020-21", "Regular Season")},
     )
     empty_digest = hashlib.sha256(b"[]").hexdigest()
 
@@ -1118,8 +1119,7 @@ def test_player_team_season_workload_contract_fails_closed_on_missing_scope(
     _write_workload(
         db_path,
         [],
-        seasons=["2019-20"],
-        season_types=["Regular Season"],
+        covered_pairs={("2019-20", "Regular Season")},
     )
 
     with pytest.raises(ValueError, match="does not cover requested pairs"):
@@ -1143,8 +1143,7 @@ def test_player_team_season_workload_contract_rejects_unattested_sidecars(
         store = _write_workload(
             db_path,
             [],
-            seasons=["2020-21"],
-            season_types=["Regular Season"],
+            covered_pairs={("2020-21", "Regular Season")},
         )
         generation_path = store.artifact_path
         assert generation_path is not None

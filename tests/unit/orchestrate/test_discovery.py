@@ -3,27 +3,115 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from collections import Counter
 from threading import Barrier, Event, Lock
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
 
-from nbadb.core.errors import ExtractionError, TransientError, ValidationError
+from nbadb.core.errors import (
+    ExtractionError,
+    ParserInputCaptureIntegrityError,
+    TransientError,
+    ValidationError,
+)
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
 from nbadb.core.types import PLAY_IN_UPSTREAM_UNAVAILABLE_REASON, SeasonType
+from nbadb.extract.bronze import ParserInputContext, canonical_parameters_sha256
+from nbadb.extract.nba_api_adapter import NbaApiCaptureContract
+
+if TYPE_CHECKING:
+    from nbadb.core.config import NbaDbSettings
+    from nbadb.extract.bronze import ParserInputCaptureSink
+
 from nbadb.orchestrate.discovery import (
     _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
     _CONCURRENT_DISCOVERY_TIMEOUT,
     _RECOVERY_DISCOVERY_TIMEOUT,
+    DiscoveryCaptureCompletion,
+    DiscoveryCaptureScopeKey,
     EntityDiscovery,
     GameDiscoveryResult,
     PlayerIdDiscoveryResult,
     PlayerTeamSeasonDiscoveryResult,
     _extract_with_retry,
 )
+
+
+def _as_settings(value: object) -> NbaDbSettings:
+    """Type a deliberately minimal settings double at the constructor boundary."""
+
+    return cast("NbaDbSettings", value)
+
+
+class _DiscoveryCaptureSink:
+    def __init__(self) -> None:
+        self.logical_calls: list[dict[str, object]] = []
+
+    def record_logical_call(self, **kwargs: object) -> str:
+        self.logical_calls.append(dict(kwargs))
+        payload = repr((len(self.logical_calls), sorted(kwargs.items()))).encode()
+        return hashlib.sha256(payload).hexdigest()
+
+
+class _CaptureAwareExtractor:
+    def __init__(self) -> None:
+        self.capture_contract: NbaApiCaptureContract | None = None
+
+    def set_capture_contract(self, contract: NbaApiCaptureContract | None) -> None:
+        self.capture_contract = contract
+
+    def capture_receipt_snapshot(self):
+        assert self.capture_contract is not None
+        return self.capture_contract.receipt_snapshot()
+
+
+class _DiscoveryCaptureHarness:
+    def __init__(self) -> None:
+        self.sink = _DiscoveryCaptureSink()
+        self.factory_calls: list[tuple[str, dict[str, object]]] = []
+        self.contracts: list[NbaApiCaptureContract] = []
+        self.completions: list[DiscoveryCaptureCompletion] = []
+
+    def contract_for(
+        self,
+        endpoint_name: str,
+        params: dict[str, object],
+    ) -> NbaApiCaptureContract:
+        self.factory_calls.append((endpoint_name, dict(params)))
+        contract = NbaApiCaptureContract(
+            sink=cast("ParserInputCaptureSink", self.sink),
+            context=ParserInputContext(
+                attempt_id=f"discovery-call-{len(self.contracts):04d}",
+            ),
+            provider_authority_sha256=expected_nba_api_provider_authority()["authority_sha256"],
+            endpoint_contract_sha256="b" * 64,
+        )
+        self.contracts.append(contract)
+        return contract
+
+    def complete(self, completion: DiscoveryCaptureCompletion) -> None:
+        self.completions.append(completion)
+
+
+def _record_capture_attempt(
+    extractor: _CaptureAwareExtractor,
+    *,
+    successful: bool,
+) -> ParserInputContext:
+    contract = extractor.capture_contract
+    assert contract is not None
+    context = contract.begin_request()
+    receipt = hashlib.sha256(
+        f"{context.attempt_id}:{context.retry_ordinal}:{context.request_ordinal}".encode()
+    ).hexdigest()
+    contract.record_receipt(context, receipt, successful=successful)
+    return context
 
 
 @pytest.fixture(autouse=True)
@@ -379,7 +467,7 @@ class TestDiscoverAllPlayerIds:
             "nbadb.orchestrate.discovery._sync_extract",
             side_effect=responses,
         ) as sync_extract:
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_all_player_ids_result(season="1946-47")
 
         assert isinstance(result, PlayerIdDiscoveryResult)
@@ -702,7 +790,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             patch("nba_api.stats.library.http.NBAStatsHTTP.set_session") as set_session,
             patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
         ):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
@@ -797,7 +885,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
@@ -849,7 +937,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             patch("nba_api.stats.library.http.NBAStatsHTTP.set_session") as set_session,
             patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
         ):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
@@ -905,7 +993,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             patch("nba_api.stats.library.http.NBAStatsHTTP.set_session") as set_session,
             patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
         ):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params_result(
                 seasons,
                 season_types=["Regular Season", "Playoffs"],
@@ -953,7 +1041,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params_result(seasons)
 
         assert Counter(calls) == Counter(
@@ -996,7 +1084,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params_result(seasons)
 
         assert calls == Counter(
@@ -1030,7 +1118,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             "nbadb.orchestrate.discovery._sync_extract",
             side_effect=ExtractionError("permanent"),
         ) as sync_extract:
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params_result(seasons)
 
         assert result.requested_pairs == {
@@ -1062,7 +1150,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params_result(["2024-25"])
 
         assert result.requested_pairs == {("2024-25", "Regular Season")}
@@ -1100,7 +1188,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         ) as sync_extract:
             result = await EntityDiscovery(
                 reg,
-                settings=settings,
+                settings=_as_settings(settings),
             ).discover_player_team_season_params_result([season])
 
         assert result.covered_pairs == {(season, "Regular Season")}
@@ -1141,7 +1229,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         ) as sync_extract:
             result = await EntityDiscovery(
                 reg,
-                settings=settings,
+                settings=_as_settings(settings),
             ).discover_player_team_season_params_result([season])
 
         assert result.covered_pairs == frozenset()
@@ -1169,7 +1257,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_player_team_season_params(["2024-25"])
 
         assert result == [
@@ -1492,7 +1580,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             ids, combined = await disc.discover_game_ids(["2024-25"])
         assert ids == ["001"]
         assert combined.shape[0] == 1
@@ -1563,7 +1651,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             ids, combined = await disc.discover_game_ids(
                 ["2024-25"],
                 on_progress=progress,
@@ -1608,7 +1696,7 @@ class TestDiscoverGameIds:
             patch("nba_api.stats.library.http.NBAStatsHTTP.set_session") as set_session,
             patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
         ):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             ids, combined = await disc.discover_game_ids(
                 ["2024-25"],
                 on_progress=progress,
@@ -1654,7 +1742,7 @@ class TestDiscoverGameIds:
             patch("nba_api.stats.library.http.NBAStatsHTTP.set_session") as set_session,
             patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
         ):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(
                 ["2024-25"],
                 on_progress=progress,
@@ -1704,7 +1792,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             task = asyncio.create_task(
                 disc.discover_game_ids_result(
                     ["2024-25"],
@@ -1768,7 +1856,7 @@ class TestDiscoverGameIds:
             patch("nba_api.stats.library.http.NBAStatsHTTP.set_session") as set_session,
             patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
         ):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(
                 seasons,
                 season_types=season_types,
@@ -1810,7 +1898,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(
                 seasons,
                 season_types=season_types,
@@ -1856,7 +1944,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(
                 seasons,
                 season_types=season_types,
@@ -1903,7 +1991,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(
                 [combo[0] for combo in combos],
                 season_types=["Regular Season"],
@@ -1944,7 +2032,7 @@ class TestDiscoverGameIds:
             "nbadb.orchestrate.discovery._sync_extract",
             side_effect=ExtractionError("permanent"),
         ) as sync_extract:
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(
                 ["2024-25"],
                 season_types=["Regular Season", "Playoffs"],
@@ -1974,7 +2062,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             result = await disc.discover_game_ids_result(["2024-25"])
 
         assert result.requested_combos == {("2024-25", "Regular Season")}
@@ -2008,7 +2096,7 @@ class TestDiscoverGameIds:
             extract_retry_base_delay=0.0,
         )
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
-            disc = EntityDiscovery(reg, settings=settings)
+            disc = EntityDiscovery(reg, settings=_as_settings(settings))
             ids, combined = await disc.discover_game_ids(
                 ["2024-25"],
                 season_types=["Regular Season"],
@@ -2057,3 +2145,486 @@ class TestDiscoverGameIds:
             await disc.discover_game_ids(["2024-25"], on_progress=progress)
         progress.start_pattern.assert_called_once()
         progress.advance_pattern.assert_called_once_with(success=True)
+
+
+class TestEntityDiscoveryCapture:
+    def _registry(self) -> MagicMock:
+        registry = MagicMock()
+        registry.get.return_value = _CaptureAwareExtractor
+        return registry
+
+    def _settings(self, *, retries: int = 0) -> SimpleNamespace:
+        return SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=retries,
+            extract_retry_base_delay=0.0,
+        )
+
+    def test_capture_requires_paired_factory_and_durable_completion_sink(self):
+        harness = _DiscoveryCaptureHarness()
+
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="requires both a contract factory and a durable completion sink",
+        ):
+            EntityDiscovery(
+                self._registry(),
+                capture_contract_factory=harness.contract_for,
+            )
+        with pytest.raises(
+            ParserInputCaptureIntegrityError,
+            match="requires both a contract factory and a durable completion sink",
+        ):
+            EntityDiscovery(
+                self._registry(),
+                capture_completion_sink=harness.complete,
+            )
+
+    async def test_call_admission_precedes_registry_capture_extractor_and_provider(self):
+        harness = _DiscoveryCaptureHarness()
+        events: list[str] = []
+
+        class _OrderedCaptureExtractor(_CaptureAwareExtractor):
+            def __init__(self) -> None:
+                events.append("extractor")
+                super().__init__()
+
+        registry = MagicMock()
+
+        def registry_get(endpoint_name: str) -> type[_OrderedCaptureExtractor]:
+            events.append("registry")
+            assert endpoint_name == "common_team_years"
+            return _OrderedCaptureExtractor
+
+        def admit(
+            endpoint_name: str,
+            params: dict[str, object],
+            result_route_ids: tuple[str, ...],
+        ) -> None:
+            events.append("admission")
+            assert (endpoint_name, params, result_route_ids) == (
+                "common_team_years",
+                {},
+                ("common_team_years:stg_team_years:0",),
+            )
+
+        def capture_factory(
+            endpoint_name: str,
+            params: dict[str, object],
+        ) -> NbaApiCaptureContract:
+            events.append("capture")
+            return harness.contract_for(endpoint_name, params)
+
+        def provider(extractor: _OrderedCaptureExtractor, **_kwargs: object) -> pl.DataFrame:
+            events.append("provider")
+            _record_capture_attempt(extractor, successful=True)
+            return pl.DataFrame({"team_id": [10]})
+
+        registry.get.side_effect = registry_get
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=provider):
+            result = await EntityDiscovery(
+                registry,
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=capture_factory,
+                capture_completion_sink=harness.complete,
+                call_admission=admit,
+            ).discover_team_ids()
+
+        assert result == [10]
+        assert events == [
+            "admission",
+            "registry",
+            "capture",
+            "extractor",
+            "provider",
+        ]
+
+    async def test_rejected_call_has_no_discovery_side_effects(self):
+        events: list[str] = []
+        registry = MagicMock()
+        capture_factory = MagicMock()
+        completion_sink = MagicMock()
+
+        def reject(
+            endpoint_name: str,
+            params: dict[str, object],
+            result_route_ids: tuple[str, ...],
+        ) -> None:
+            events.append("admission")
+            assert (endpoint_name, params, result_route_ids) == (
+                "common_team_years",
+                {},
+                ("common_team_years:stg_team_years:0",),
+            )
+            raise RuntimeError("outside intent")
+
+        with (
+            patch("nbadb.orchestrate.discovery._sync_extract") as provider,
+            pytest.raises(RuntimeError, match="outside intent"),
+        ):
+            await EntityDiscovery(
+                registry,
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=capture_factory,
+                capture_completion_sink=completion_sink,
+                call_admission=reject,
+            ).discover_team_ids()
+
+        assert events == ["admission"]
+        registry.get.assert_not_called()
+        capture_factory.assert_not_called()
+        provider.assert_not_called()
+        completion_sink.assert_not_called()
+
+    async def test_success_records_exact_team_params_route_and_completion(self):
+        harness = _DiscoveryCaptureHarness()
+        frame = pl.DataFrame({"team_id": [20, 10]})
+
+        def _success(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            context = _record_capture_attempt(extractor, successful=True)
+            assert (context.retry_ordinal, context.request_ordinal) == (0, 0)
+            return frame
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_success):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_team_ids()
+
+        assert result == [10, 20]
+        assert harness.factory_calls == [("common_team_years", {})]
+        assert len(harness.completions) == 1
+        completion = harness.completions[0]
+        assert completion.endpoint_name == "common_team_years"
+        assert completion.parameters == {}
+        assert completion.frame.equals(frame)
+        assert completion.scope_key == DiscoveryCaptureScopeKey(
+            "common_team_years",
+            canonical_parameters_sha256({}),
+        )
+        assert completion.receipt_binding.result_route_ids == (
+            "common_team_years:stg_team_years:0",
+        )
+        assert harness.sink.logical_calls[0]["logical_parameters"] == {}
+        assert harness.sink.logical_calls[0]["result_route_ids"] == (
+            "common_team_years:stg_team_years:0",
+        )
+
+    async def test_retry_reuses_one_logical_call_with_exact_retry_ordinals(self):
+        harness = _DiscoveryCaptureHarness()
+        frame = pl.DataFrame({"person_id": [2, 1], "roster_status": [1, 1]})
+        observed_contexts: list[tuple[int, int]] = []
+
+        def _retry_then_success(
+            extractor: _CaptureAwareExtractor,
+            **_kwargs: object,
+        ) -> pl.DataFrame:
+            successful = len(observed_contexts) == 1
+            context = _record_capture_attempt(extractor, successful=successful)
+            observed_contexts.append((context.retry_ordinal, context.request_ordinal))
+            if not successful:
+                raise ConnectionError("retry")
+            return frame
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=_retry_then_success,
+        ):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings(retries=1)),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_player_ids("2024-25")
+
+        assert result == [1, 2]
+        assert harness.factory_calls == [("common_all_players", {"season": "2024-25"})]
+        assert observed_contexts == [(0, 0), (1, 0)]
+        assert len(harness.completions) == 1
+        logical_call = harness.sink.logical_calls[0]
+        assert logical_call["logical_parameters"] == {"season": "2024-25"}
+        assert logical_call["successful_response_ordinals"] == (1,)
+        assert logical_call["result_route_ids"] == ("common_all_players:stg_common_all_players:0",)
+
+    async def test_terminal_failure_seals_attempts_without_completion(self):
+        harness = _DiscoveryCaptureHarness()
+        observed_retry_ordinals: list[int] = []
+
+        def _failure(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            context = _record_capture_attempt(extractor, successful=False)
+            observed_retry_ordinals.append(context.retry_ordinal)
+            raise ConnectionError("offline")
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_failure):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings(retries=1)),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_team_ids()
+
+        assert result == []
+        assert observed_retry_ordinals == [0, 1]
+        assert harness.completions == []
+        assert harness.sink.logical_calls == []
+        snapshot = harness.contracts[0].receipt_snapshot()
+        assert snapshot.successful_response_ordinals == ()
+        assert len(snapshot.entries) == 2
+
+    async def test_cancellation_propagates_without_completion(self):
+        harness = _DiscoveryCaptureHarness()
+
+        def _cancel(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            _record_capture_attempt(extractor, successful=False)
+            raise asyncio.CancelledError
+
+        with (
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_cancel),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_team_ids()
+
+        assert harness.completions == []
+        assert harness.sink.logical_calls == []
+        assert harness.contracts[0].receipt_snapshot().successful_response_ordinals == ()
+
+    async def test_success_without_parser_receipt_fails_closed(self):
+        harness = _DiscoveryCaptureHarness()
+        frame = pl.DataFrame({"team_id": [10]})
+
+        with (
+            patch("nbadb.orchestrate.discovery._sync_extract", return_value=frame),
+            pytest.raises(
+                ParserInputCaptureIntegrityError,
+                match="cannot seal without requests",
+            ),
+        ):
+            await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_team_ids()
+
+        assert harness.completions == []
+        assert harness.sink.logical_calls == []
+
+    async def test_direct_league_path_persists_before_completion_and_exposes_binding(self):
+        harness = _DiscoveryCaptureHarness()
+        frame = pl.DataFrame({"game_id": ["0022400001"], "game_date": ["2024-10-22"]})
+        events: list[str] = []
+
+        def _success(extractor: _CaptureAwareExtractor, **kwargs: object) -> pl.DataFrame:
+            assert kwargs == {
+                "season": "2024-25",
+                "season_type": "Playoffs",
+                "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
+            }
+            _record_capture_attempt(extractor, successful=True)
+            return frame
+
+        def _persist(
+            combo: tuple[str, str],
+            persisted_frame: pl.DataFrame,
+        ) -> None:
+            assert combo == ("2024-25", "Playoffs")
+            assert persisted_frame.equals(frame)
+            events.append("persisted")
+
+        def _complete(completion: DiscoveryCaptureCompletion) -> None:
+            assert events == ["persisted"]
+            events.append("completed")
+            harness.complete(completion)
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_success):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=_complete,
+            ).discover_game_ids_result(
+                ["2024-25"],
+                season_types=["Playoffs"],
+                on_combo_covered=_persist,
+            )
+
+        logical_params: dict[str, object] = {
+            "season": "2024-25",
+            "season_type": "Playoffs",
+        }
+        scope_key = DiscoveryCaptureScopeKey.from_parameters(
+            "league_game_log",
+            logical_params,
+        )
+        assert events == ["persisted", "completed"]
+        assert harness.factory_calls == [("league_game_log", logical_params)]
+        assert result.frames_by_combo[("2024-25", "Playoffs")].equals(frame)
+        assert result.capture_bindings_by_scope == {
+            scope_key: harness.completions[0].receipt_binding
+        }
+        assert harness.completions[0].parameters == logical_params
+        assert harness.completions[0].receipt_binding.result_route_ids == (
+            "league_game_log:stg_league_game_log:0",
+        )
+
+    async def test_league_persistence_failure_prevents_completion(self):
+        harness = _DiscoveryCaptureHarness()
+        frame = pl.DataFrame({"game_id": ["0022400001"], "game_date": ["2024-10-22"]})
+
+        def _success(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            _record_capture_attempt(extractor, successful=True)
+            return frame
+
+        def _persist_failure(
+            _combo: tuple[str, str],
+            _frame: pl.DataFrame,
+        ) -> None:
+            raise RuntimeError("durable discovery write failed")
+
+        with (
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_success),
+            pytest.raises(RuntimeError, match="durable discovery write failed"),
+        ):
+            await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_game_ids_result(
+                ["2024-25"],
+                on_combo_covered=_persist_failure,
+            )
+
+        assert harness.completions == []
+        assert len(harness.sink.logical_calls) == 1
+
+    async def test_player_team_result_exposes_canonical_binding_inventory(self):
+        harness = _DiscoveryCaptureHarness()
+        source_frame = pl.DataFrame({"player_id": [2, 1], "team_id": [20, 10]})
+
+        def _success(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            _record_capture_attempt(extractor, successful=True)
+            return source_frame
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_success):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_player_team_season_params_result(
+                ["2024-25"],
+                season_types=["Regular Season"],
+            )
+
+        params: dict[str, object] = {
+            "season": "2024-25",
+            "season_type": "Regular Season",
+        }
+        scope_key = DiscoveryCaptureScopeKey.from_parameters("player_game_logs", params)
+        assert harness.factory_calls == [("player_game_logs", params)]
+        assert result.capture_bindings_by_scope == {
+            scope_key: harness.completions[0].receipt_binding
+        }
+        assert harness.completions[0].frame.to_dicts() == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+        ]
+        assert harness.completions[0].receipt_binding.result_route_ids == (
+            "player_game_logs:stg_player_game_logs:0",
+        )
+
+    async def test_player_fallback_merges_canonical_binding_inventory_and_exact_params(self):
+        harness = _DiscoveryCaptureHarness()
+        responses = [
+            pl.DataFrame(
+                {
+                    "person_id": [1],
+                    "from_year": [None],
+                    "to_year": [None],
+                }
+            ),
+            pl.DataFrame(
+                {
+                    "person_id": [2],
+                    "from_year": ["1946"],
+                    "to_year": ["1946"],
+                }
+            ),
+        ]
+
+        def _success(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            _record_capture_attempt(extractor, successful=True)
+            return responses.pop(0)
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_success):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_all_player_ids_result("1946-47")
+
+        assert result.ids == [2]
+        assert harness.factory_calls == [
+            ("common_all_players", {}),
+            ("player_index", {"season": "1946-47"}),
+        ]
+        expected_scopes = {
+            DiscoveryCaptureScopeKey.from_parameters("common_all_players", {}),
+            DiscoveryCaptureScopeKey.from_parameters(
+                "player_index",
+                {"season": "1946-47"},
+            ),
+        }
+        assert set(result.capture_bindings_by_scope) == expected_scopes
+        assert [
+            completion.receipt_binding.result_route_ids for completion in harness.completions
+        ] == [
+            ("common_all_players:stg_common_all_players:0",),
+            ("player_index:stg_player_index:0",),
+        ]
+
+    async def test_bulk_player_directory_call_uses_exact_empty_logical_params(self):
+        harness = _DiscoveryCaptureHarness()
+        frame = pl.DataFrame(
+            {
+                "person_id": [2],
+                "from_year": ["1946"],
+                "to_year": ["1947"],
+            }
+        )
+
+        def _success(extractor: _CaptureAwareExtractor, **_kwargs: object) -> pl.DataFrame:
+            _record_capture_attempt(extractor, successful=True)
+            return frame
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_success):
+            result = await EntityDiscovery(
+                self._registry(),
+                settings=_as_settings(self._settings()),
+                capture_contract_factory=harness.contract_for,
+                capture_completion_sink=harness.complete,
+            ).discover_all_player_ids_by_season(["1946-47", "1947-48"])
+
+        assert result == {"1946-47": [2], "1947-48": [2]}
+        assert harness.factory_calls == [("common_all_players", {})]
+        assert harness.completions[0].parameters == {}

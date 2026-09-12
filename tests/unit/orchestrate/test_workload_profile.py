@@ -98,8 +98,7 @@ def test_build_workload_planning_snapshot_reads_metrics_and_cross_product_densit
                 "season_type": "Regular Season",
             },
         ],
-        seasons=["2024-25"],
-        season_types=["Regular Season"],
+        covered_pairs={("2024-25", "Regular Season")},
     )
 
     snapshot = build_workload_planning_snapshot(

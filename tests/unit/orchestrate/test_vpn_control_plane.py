@@ -776,6 +776,7 @@ def test_verify_auth_cli_reports_an_absent_timeout(
         (_marker_archive({}, filename="../auth-circuit-marker.json"), "path or size"),
         (_marker_archive({}, filename="wrong.json"), "path or size"),
     ],
+    ids=["not-zip", "traversal-member", "wrong-member"],
 )
 def test_load_auth_marker_artifact_rejects_untrusted_archives(
     module,
