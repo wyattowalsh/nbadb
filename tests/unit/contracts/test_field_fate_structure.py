@@ -1113,6 +1113,9 @@ def test_selected_unknown_stats_route_binds_legacy_results_and_response_nodes(
     assert validated.source_family == "stats"
     assert len(validated.result_occurrence_sha256s) == 2
     assert len(validated.body_object_sha256s) == 1
+    assert validated.source_parameters_sha256s == (validated.committed_logical_parameters_sha256,)
+    assert validated.staging_parameters_sha256 is not None
+    assert validated.staging_parameters_sha256 != validated.committed_logical_parameters_sha256
     assert len(validated.stats_bindings) == frame.height
     result_bound = tuple(
         item for item in validated.stats_bindings if item.binding_kind == "selected_result_bound"
@@ -1370,8 +1373,9 @@ def test_zero_occurrence_video_terminal_route_remains_body_node_bound(
     assert authority.source_shape == "body_node_bound"
     assert authority.result_occurrence_sha256s == ()
     assert len(authority.body_object_sha256s) == 1
-    assert authority.staging_parameters_sha256 == authority.source_parameters_sha256s[0]
-    assert authority.staging_parameters_sha256 == authority.committed_logical_parameters_sha256
+    assert authority.source_parameters_sha256s == (authority.committed_logical_parameters_sha256,)
+    assert authority.staging_parameters_sha256 is not None
+    assert authority.staging_parameters_sha256 != authority.source_parameters_sha256s[0]
     assert len(authority.stats_bindings) == frame.height
     assert all(
         item.binding_kind == "body_node_bound"

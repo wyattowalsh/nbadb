@@ -213,22 +213,111 @@ jobs:
         working-directory: docs
         run: pnpm build
 
-  test:
+  unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [workflow-lint, lint, metadata, typecheck]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: contracts-a-l
+            paths: tests/unit/contracts/test_[a-l]*.py
+          - id: contracts-m-r
+            paths: tests/unit/contracts/test_[m-r]*.py
+          - id: contracts-s-z
+            paths: tests/unit/contracts/test_[s-z]*.py
+          - id: orchestrate-a-p
+            paths: tests/unit/orchestrate/test_[a-p]*.py
+          - id: orchestrate-r
+            paths: tests/unit/orchestrate/test_r*.py
+          - id: orchestrate-successor
+            paths: tests/unit/orchestrate/test_successor_*.py
+          - id: orchestrate-s-z
+            paths: >-
+              tests/unit/orchestrate/test_scanner*.py
+              tests/unit/orchestrate/test_seasons*.py
+              tests/unit/orchestrate/test_staging*.py
+              tests/unit/orchestrate/test_temporal*.py
+              tests/unit/orchestrate/test_transformers*.py
+              tests/unit/orchestrate/test_terminal*.py
+              tests/unit/orchestrate/test_validate*.py
+              tests/unit/orchestrate/test_verify*.py
+              tests/unit/orchestrate/test_video*.py
+              tests/unit/orchestrate/test_vpn*.py
+              tests/unit/orchestrate/test_w2*.py
+              tests/unit/orchestrate/test_work*.py
+              tests/unit/orchestrate/test_write*.py
+          - id: kaggle
+            paths: tests/unit/kaggle
+          - id: core
+            paths: tests/unit/core
+          - id: extract
+            paths: tests/unit/extract
+          - id: transform
+            paths: tests/unit/transform
+          - id: application
+            paths: tests/unit/agent tests/unit/chat tests/unit/cli
+          - id: supporting
+            paths: >-
+              tests/unit/schemas
+              tests/unit/load
+              tests/unit/docs_gen
+              tests/unit/notebooks
+              tests/unit/workflows
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
           prune-cache: true
-          cache-suffix: test
+          cache-suffix: test-${{ matrix.id }}
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --locked --extra dev
-      - run: uv run pytest tests/unit --cov=src/nbadb --cov-report=term-missing
+      - name: Run unit shard
+        env:
+          COVERAGE_FILE: .coverage.${{ matrix.id }}
+          UNIT_PATHS: ${{ matrix.paths }}
+        run: |
+          read -r -a unit_paths <<< "$UNIT_PATHS"
+          uv run pytest \
+            -o addopts="--import-mode=importlib" \
+            "${unit_paths[@]}" \
+            --cov=src/nbadb \
+            --cov-report=
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: coverage-${{ matrix.id }}
+          path: .coverage.${{ matrix.id }}
+          if-no-files-found: error
+          include-hidden-files: true
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [unit]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+          cache-suffix: test-final
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --extra dev
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: coverage-*
+          path: coverage-data
+          merge-multiple: true
+      - name: Combine unit coverage
+        run: |
+          uv run coverage combine coverage-data
+          uv run coverage report --show-missing
       - name: Fetch nba_api endpoint-analysis docs
         run: |
           NBA_API_VERSION="$(uv run python -c 'import importlib.metadata; print(importlib.metadata.version("nba-api"))')"

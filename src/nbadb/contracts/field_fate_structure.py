@@ -1836,7 +1836,7 @@ def _validate_selected_stats_frame_values(
             expected = build_unknown_stats_lossless_fallback(
                 unknown,
                 expected_response_receipt_sha256=response_receipt_sha256,
-                expected_parameters_sha256=observation.attempt.safe_parameters_sha256,
+                expected_parameters_sha256=unknown.parameters_sha256,
                 expected_parser_input_sha256=body.response_sha256,
             )
             if expected is None:
@@ -2534,10 +2534,6 @@ def derive_conditional_route_occurrence_authority(
             raise FieldFateStructureError(
                 "conditional body-node response receipt differs from raw capture"
             )
-        if staging_parameters_sha256 != observation.attempt.safe_parameters_sha256:
-            raise FieldFateStructureError(
-                "conditional body-node parameters differ from raw request authority"
-            )
         if (
             observation.logical_receipt_sha256 != receipt.logical_call_receipt_sha256
             or observation.attempt.safe_parameters_sha256 != receipt.logical_parameters_sha256
@@ -2554,6 +2550,10 @@ def derive_conditional_route_occurrence_authority(
                 provider_authority_sha256=observation.attempt.provider_authority_sha256,
                 endpoint_contract_sha256_value=(observation.attempt.endpoint_contract_sha256),
             )
+            if staging_parameters_sha256 != unknown.parameters_sha256:
+                raise FieldFateStructureError(
+                    "conditional body-node parameters differ from raw request authority"
+                )
             if unknown.occurrences:
                 raise FieldFateStructureError(
                     "conditional body-node raw observation hides named result occurrences"
@@ -2561,7 +2561,7 @@ def derive_conditional_route_occurrence_authority(
             expected = build_unknown_stats_lossless_fallback(
                 unknown.bind_response_receipt(response_receipt_sha256),
                 expected_response_receipt_sha256=response_receipt_sha256,
-                expected_parameters_sha256=observation.attempt.safe_parameters_sha256,
+                expected_parameters_sha256=unknown.parameters_sha256,
                 expected_parser_input_sha256=body.response_sha256,
             )
             if expected is None:
