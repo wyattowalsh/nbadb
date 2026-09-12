@@ -65,6 +65,7 @@ jobs:
             tests/ \
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
+            .github/scripts/full_extraction_handoffs.py \
             .github/scripts/probe_discovery_transport.py \
             .github/scripts/resolve_legacy_manifest_handoff.py \
             .github/scripts/run_extract_lane.py \
@@ -80,6 +81,7 @@ jobs:
             tests/ \
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
+            .github/scripts/full_extraction_handoffs.py \
             .github/scripts/probe_discovery_transport.py \
             .github/scripts/resolve_legacy_manifest_handoff.py \
             .github/scripts/run_extract_lane.py \
@@ -135,6 +137,7 @@ jobs:
             src/ \
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
+            .github/scripts/full_extraction_handoffs.py \
             .github/scripts/probe_discovery_transport.py \
             .github/scripts/resolve_legacy_manifest_handoff.py \
             .github/scripts/run_extract_lane.py \

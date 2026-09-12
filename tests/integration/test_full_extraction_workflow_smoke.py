@@ -32,6 +32,7 @@ from nbadb.orchestrate.operation_authority import (
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _FIXTURE_PATH = _REPO_ROOT / "tests" / "fixtures" / "full-extraction" / "smoke.json"
 _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "full-extraction.yml"
+_HANDOFFS_PATH = _REPO_ROOT / ".github" / "scripts" / "full_extraction_handoffs.py"
 _METADATA_SCRIPT = _REPO_ROOT / ".github" / "scripts" / "write_lane_metadata.py"
 
 
@@ -698,7 +699,13 @@ def test_extract_offline_control_fixture_runs_under_exact_operation_authority(
     assert "**Publish requested:** false" in canary_step
     assert "needs.plan.outputs.active-lane-count == '0'" in replay_job
     assert "needs.plan.outputs.matrix-lane-count == '0'" in replay_job
-    assert "source checkpoint database SHA-256 does not match" in replay_job
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py attest-terminal-replay-inputs"
+        in replay_job
+    )
+    assert "source checkpoint database SHA-256 does not match" in _HANDOFFS_PATH.read_text(
+        encoding="utf-8"
+    )
     # Publication stays delegated to the exact handoff publication workflow: the
     # in-workflow publish job is disabled behind its legacy false gate.
     assert "if: ${{ false && " in publish_job

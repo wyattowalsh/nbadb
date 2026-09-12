@@ -56,10 +56,12 @@ _DISCOVERY_SEED_PATH = _REPO_ROOT / ".github" / "scripts" / "seed_discovery_arti
 _FULL_EXTRACTION_ATTEMPT_GATE_PATH = (
     _REPO_ROOT / ".github" / "scripts" / "validate_full_extraction_attempt.py"
 )
+_FULL_EXTRACTION_HANDOFFS_PATH = _REPO_ROOT / ".github" / "scripts" / "full_extraction_handoffs.py"
 _LEGACY_MANIFEST_HANDOFF_PATH = (
     _REPO_ROOT / ".github" / "scripts" / "resolve_legacy_manifest_handoff.py"
 )
 _REQUIRED_EXTRACTION_SCRIPTS = (
+    _FULL_EXTRACTION_HANDOFFS_PATH,
     _REPO_ROOT / ".github" / "scripts" / "probe_discovery_transport.py",
     _LEGACY_MANIFEST_HANDOFF_PATH,
     _REPO_ROOT / ".github" / "scripts" / "verify_discovery_bundle.py",
@@ -205,6 +207,13 @@ def _embedded_python_after(workflow_block: str, anchor: str) -> str:
     )
     assert match is not None
     return textwrap.dedent(match.group("body"))
+
+
+def _helper_embedded_python(marker: str) -> str:
+    return _embedded_python(
+        _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8"),
+        marker,
+    )
 
 
 def _run_python(
@@ -468,6 +477,12 @@ def test_workflow_definition_guards_use_the_pinned_source_checkout() -> None:
     assert dispatch.index("Verify redispatch workflow definition") < dispatch.index(
         "/actions/workflows/full-extraction.yml/dispatches"
     )
+
+
+def test_workflow_file_fits_github_hosted_limit_with_margin() -> None:
+    size = _WORKFLOW_PATH.stat().st_size
+    assert size <= 495_000
+    assert size <= 500_000
 
 
 def test_workflow_run_blocks_fit_github_expression_limit() -> None:
@@ -1413,7 +1428,7 @@ def test_inline_project_imports_run_in_uv_environment() -> None:
 
 def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> None:
     workflow = _workflow_text()
-    plan = _job_block(workflow, "plan")
+    helper = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
     extract = _job_block(workflow, "extract")
     lane_control = _job_block(workflow, "lane_control")
     checkpoint = _job_block(workflow, "checkpoint")
@@ -1429,11 +1444,11 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     assert "needs.extract.result != 'skipped'" in lane_control_header
     assert "needs.extract.result == 'success'" not in lane_control_header
     assert "--allow-missing-attempted-metadata" in lane_control
-    assert "metadata-artifact-receipts.json" in plan
-    assert "resolve-artifacts-by-prefix" in plan
-    assert "download-artifact-bundle" in plan
-    assert '--artifact-name-prefix "extraction-lane-metadata-${CHAIN_ID}-"' in plan
-    assert "has no lane metadata artifacts" in plan
+    assert "metadata-artifact-receipts.json" in helper
+    assert "resolve-artifacts-by-prefix" in helper
+    assert "download-artifact-bundle" in helper
+    assert '--artifact-name-prefix "extraction-lane-metadata-${CHAIN_ID}-"' in helper
+    assert "has no lane metadata artifacts" in helper
 
     # Matrix failures still produce metadata/checkpoints and may dispatch a child.
     assert "needs.lane_control.result == 'success'" in checkpoint
@@ -1443,18 +1458,17 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
 
 def test_resume_source_downloads_each_lane_metadata_artifact_to_a_unique_directory() -> None:
     plan = _job_block(_workflow_text(), "plan")
+    helper = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
 
     resolver = _step_block(plan, "Resolve resume source committed manifest")
     download = _step_block(plan, "Download exact resume source manifest")
     prepare = _step_block(plan, "Prepare resume source manifest")
     upload = _step_block(plan, "Upload lane manifest")
-    assert "RESUME_SOURCE_COMMITTED_MANIFEST_RESOLVER" in resolver
-    assert 'resolution = "canonical"' in resolver
-    assert "ambiguous immutable committed next-manifest" in resolver
-    assert "artifacts for attempt" in resolver
-    assert "did not stabilize across " in resolver
-    assert "count does not match total_count" in resolver
-    assert "selected resume source manifest changed before exact-ID download" in resolver
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py "
+        "resolve-resume-source-committed-manifest"
+    ) in resolver
+    assert "OWNER_RECHECK_PATH: ${{ runner.temp }}/workflow-provenance/" in resolver
     assert "artifact-ids: ${{ steps.resume_source_manifest.outputs.artifact_id }}" in (download)
     assert "digest-mismatch: error" in download
     assert 'gh run download "$RESUME_SOURCE_RUN_ID"' not in prepare
@@ -1473,14 +1487,15 @@ def test_resume_source_downloads_each_lane_metadata_artifact_to_a_unique_directo
     assert (
         "plan-manifest-artifact-digest: ${{ steps.plan_manifest_receipt.outputs.artifact_digest }}"
     ) in plan
-    assert '--output-dir "$RUNNER_TEMP/resume-source/metadata"' in plan
-    assert 'metadata_count="$(python -c' in plan
-    assert '--receipt-bundle "$metadata_receipts"' in plan
+    assert '--output-dir "$RUNNER_TEMP/resume-source/metadata"' in helper
+    assert 'metadata_count="$(python -c' in helper
+    assert '--receipt-bundle "$metadata_receipts"' in helper
     assert "gh run download" not in prepare
 
 
 def test_every_plan_generates_and_only_authentically_archives_exact_green_assurance() -> None:
     plan = _job_block(_workflow_text(), "plan")
+    helper = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
     fetch = _step_block(plan, "Fetch nba_api upstream docs and tools")
     generate = _step_block(
         plan,
@@ -1505,9 +1520,10 @@ def test_every_plan_generates_and_only_authentically_archives_exact_green_assura
     assert "require_production_admissible(generation.admission)" in generate
     assert "admission.source_sha != expected_source_sha" in generate
     assert "generation/assurance-admission.json" in generate
-    assert '--chain-id "$CHAIN_ID"' in build
-    assert '--workflow-source-sha "$WORKFLOW_SOURCE_SHA"' in build
-    assert "--assurance-admission-path" in build
+    assert ("python .github/scripts/full_extraction_handoffs.py build-lane-manifest") in build
+    assert (
+        "ASSURANCE_ADMISSION_PATH: ${{ steps.contract_assurance.outputs.admission-path }}"
+    ) in build
     assert (
         "artifacts/contract-assurance/pre-extraction/generation/assurance-admission.json"
         in generate
@@ -1515,8 +1531,8 @@ def test_every_plan_generates_and_only_authentically_archives_exact_green_assura
     assert (
         "ASSURANCE_ADMISSION_PATH: ${{ steps.contract_assurance.outputs.admission-path }}"
     ) in build
-    assert '[ ! -f "$ASSURANCE_ADMISSION_PATH" ]' in build
-    assert '[ -L "$ASSURANCE_ADMISSION_PATH" ]' in build
+    assert '[ ! -f "$ASSURANCE_ADMISSION_PATH" ]' in helper
+    assert '[ -L "$ASSURANCE_ADMISSION_PATH" ]' in helper
     assert (
         "CONTRACT_ASSURANCE_ADMISSION_PATH: ${{ steps.contract_assurance.outputs.admission-path }}"
     ) in finalize
@@ -1542,6 +1558,7 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
         "Verify immutable workflow definition",
     )
     plan = _job_block(workflow, "plan")
+    helper = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
     collector_state = _step_block(
         plan,
         "Establish fail-closed free-execution collector state",
@@ -1623,9 +1640,9 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
 
     # Planning runs only under the exact operation authority; the retired
     # FreeExecution receipt output stays forbidden.
-    assert '--operation-authority-path "$OPERATION_AUTHORITY_PATH"' in build
-    assert '--vpn-slot-count "$VPN_PARALLELISM"' in build
-    assert "--free-execution-receipt-output-path" not in build
+    assert '--operation-authority-path "$OPERATION_AUTHORITY_PATH"' in helper
+    assert '--vpn-slot-count "$VPN_PARALLELISM"' in helper
+    assert "--free-execution-receipt-output-path" not in helper
     for forbidden_argument in (
         "--free-execution-admission-path",
         "--free-execution-repository",
@@ -1633,8 +1650,8 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
         "--free-execution-run-id",
         "--free-execution-job",
     ):
-        assert forbidden_argument not in build
-    assert 'effective_matrix_batch_size="$MATRIX_BATCH_SIZE"' in build
+        assert forbidden_argument not in helper
+    assert 'effective_matrix_batch_size="$MATRIX_BATCH_SIZE"' in helper
     assert "OPERATION_AUTHORITY_PATH: ${{ steps.operation_authority.outputs.path }}" in build
 
     upload_conditions = {
@@ -2602,25 +2619,9 @@ def test_manifest_handoff_uses_an_exact_immutable_receipt() -> None:
     assert "artifact-ids: ${{ inputs.lane_manifest_artifact_id }}" in download
     assert "run-id: ${{ inputs.lane_manifest_run_id }}" in download
     assert "digest-mismatch: error" in download
-    legacy_gate = (
-        'if [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] && [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then'
-    )
-    assert legacy_gate in build
-    legacy_resolver = "python .github/scripts/resolve_legacy_manifest_handoff.py resolve"
-    legacy_download = '"/repos/${GITHUB_REPOSITORY}/actions/artifacts/${legacy_artifact_id}/zip"'
-    legacy_extractor = "python .github/scripts/resolve_legacy_manifest_handoff.py extract"
-    assert build.index(legacy_gate) < build.index(legacy_resolver)
-    assert build.index(legacy_resolver) < build.index(legacy_download)
-    assert build.index(legacy_download) < build.index(legacy_extractor)
-    assert (
-        'gh run download "$LANE_MANIFEST_RUN_ID"'
-        not in build[: build.index('elif [ -n "$RESUME_SOURCE_RUN_ID" ]; then')]
-    )
-    assert "-print -quit" not in build
-    assert '"${#manifest_candidates[@]}" -ne 1' in build
-    assert (
-        'elif [ -z "$LANE_MANIFEST_ARTIFACT_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_DIGEST" ]; then'
-    ) in build
+    assert ("python .github/scripts/full_extraction_handoffs.py build-lane-manifest") in build
+    assert "LANE_MANIFEST_ARTIFACT_ID: ${{ inputs.lane_manifest_artifact_id }}" in build
+    assert "LANE_MANIFEST_ARTIFACT_DIGEST: ${{ inputs.lane_manifest_artifact_digest }}" in build
 
     lane_control = _job_block(workflow, "lane_control")
     next_manifest = _step_block(lane_control, "Build next manifest")
@@ -2651,6 +2652,7 @@ def test_manifest_handoff_uses_an_exact_immutable_receipt() -> None:
 
 def test_cross_run_boundaries_use_shared_semantic_source_provenance_gate() -> None:
     workflow = _workflow_text()
+    handoffs = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
     plan = _job_block(workflow, "plan")
     discovery = _job_block(workflow, "discovery_seed")
     terminal = _job_block(workflow, "terminal_replay")
@@ -2667,42 +2669,44 @@ def test_cross_run_boundaries_use_shared_semantic_source_provenance_gate() -> No
         checkpoint,
         "Attest previous checkpoint owner provenance",
     )
-    for block in (
-        exact_handoff,
-        resume_source,
-        discovery_source,
-        terminal_source,
-        previous_source,
-    ):
+    for block in (exact_handoff, terminal_source, previous_source):
         assert helper in block
         assert '--source-sha "$WORKFLOW_SOURCE_SHA"' in block
         assert '--trusted-branch "$WORKFLOW_SOURCE_REF"' in block
         assert "--workflow-path .github/workflows/full-extraction.yml" in block
 
-    legacy_resolver = "python .github/scripts/resolve_legacy_manifest_handoff.py resolve"
-    assert build_manifest.index(helper) < build_manifest.index(legacy_resolver)
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py "
+        "resolve-resume-source-committed-manifest"
+    ) in resume_source
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py "
+        "resolve-prior-discovery-artifact-receipt"
+    ) in discovery_source
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py build-lane-manifest"
+    ) in build_manifest
     assert "--required-state active-or-completed" in exact_handoff
-    assert "--required-state active-or-completed" in build_manifest
     assert "--required-state active-or-completed" in previous_source
-    assert "--required-state completed" in resume_source
     assert "--required-state completed" in dependent_foundation
-    assert "--required-state completed" in discovery_source
     assert "--required-state completed" in terminal_source
-    assert workflow.count(helper) >= 6
-    assert workflow.count("workflow_source_provenance.py recheck-run") >= 5
-    for owner_stem in (
-        "lane-manifest",
-        "resume-source",
-        "discovery-source",
-        "terminal-source",
-        "previous-checkpoint",
-    ):
+    assert workflow.count(helper) >= 3
+    assert workflow.count("workflow_source_provenance.py recheck-run") >= 3
+    for owner_stem in ("lane-manifest", "terminal-source", "previous-checkpoint"):
         assert (
             f'--attestation "$RUNNER_TEMP/workflow-provenance/{owner_stem}-owner.json"' in workflow
         )
         assert (
             f'--output "$RUNNER_TEMP/workflow-provenance/{owner_stem}-owner-recheck.json"'
             in workflow
+        )
+    for owner_stem in ("resume-source", "discovery-source"):
+        assert (
+            f'--attestation "$RUNNER_TEMP/workflow-provenance/{owner_stem}-owner.json"' in handoffs
+        )
+        assert (
+            f'--output "$RUNNER_TEMP/workflow-provenance/{owner_stem}-owner-recheck.json"'
+            in handoffs
         )
 
     ci = _CI_PATH.read_text(encoding="utf-8")
@@ -3216,16 +3220,17 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
     tmp_path: pathlib.Path,
 ) -> None:
     plan = _job_block(_workflow_text(), "plan")
+    helper = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
     missing_chain_error = (
         "lane_manifest_run_id requires chain_id so workflow concurrency and discovery artifacts "
         "retain the original chain identity"
     )
-    assert missing_chain_error in plan
-    assert plan.index(missing_chain_error) < plan.index(
+    assert missing_chain_error in helper
+    assert helper.index(missing_chain_error) < helper.index(
         "python .github/scripts/resolve_legacy_manifest_handoff.py resolve"
     )
 
-    verifier = _embedded_python(plan, "MANUAL_HANDOFF_CHAIN_VERIFIER")
+    verifier = _helper_embedded_python("MANUAL_HANDOFF_CHAIN_VERIFIER")
     manifest_path = tmp_path / "manifest.json"
     source_sha = "a" * 40
     manifest_path.write_text(
@@ -3299,11 +3304,14 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
     assert mismatched_source.returncode == 1
     assert "Manifest source SHA does not match" in mismatched_source.stdout
 
-    assert 'manifest["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()' not in plan
+    assert 'manifest["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()' not in (
+        helper
+    )
     build = _step_block(plan, "Build lane manifest")
-    assert '--chain-id "$CHAIN_ID"' in build
-    assert '--workflow-source-sha "$WORKFLOW_SOURCE_SHA"' in build
-    assert "--assurance-admission-path" in build
+    assert ("python .github/scripts/full_extraction_handoffs.py build-lane-manifest") in build
+    assert (
+        "ASSURANCE_ADMISSION_PATH: ${{ steps.contract_assurance.outputs.admission-path }}"
+    ) in build
     lane_control = _job_block(_workflow_text(), "lane_control")
     assert 'payload["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()' not in (
         lane_control
@@ -3742,8 +3750,7 @@ def test_legacy_manifest_archive_extraction_is_digest_and_layout_bound(
 def test_resume_source_prefers_exact_committed_manifest_and_falls_back_only_when_absent(
     tmp_path: pathlib.Path,
 ) -> None:
-    plan = _job_block(_workflow_text(), "plan")
-    resolver = _embedded_python(plan, "RESUME_SOURCE_COMMITTED_MANIFEST_RESOLVER")
+    resolver = _helper_embedded_python("RESUME_SOURCE_COMMITTED_MANIFEST_RESOLVER")
     chain_id = "12345"
     source_run_id = "987654"
     owner_head_sha = "a" * 40
@@ -4388,11 +4395,7 @@ def test_checkpoint_result_validator_rejects_generation_and_suffix_drift(
 def test_resume_source_creates_validated_pending_contract_blocked_commitment(
     tmp_path: pathlib.Path,
 ) -> None:
-    plan = _job_block(_workflow_text(), "plan")
-    builder = _embedded_python(
-        plan,
-        "RESUME_SOURCE_PENDING_CONTRACT_BLOCKED_EVIDENCE",
-    )
+    builder = _helper_embedded_python("RESUME_SOURCE_PENDING_CONTRACT_BLOCKED_EVIDENCE")
     lane, expected_row, manifest_lane = _contract_blocked_fixture(
         "blocked-pending",
         1946,
@@ -6255,16 +6258,16 @@ def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
     assert publish.index("Upload final database") < publish.index("Refresh checked-in metadata")
 
 
-def test_all_inline_owner_consumers_validate_complete_schema_v1_snapshot() -> None:
-    workflow = _workflow_text()
+def test_all_owner_consumers_validate_complete_schema_v1_snapshot() -> None:
+    control_plane = _workflow_text() + _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
 
-    assert workflow.count('type(owner_snapshot.get("schema_version")) is not int') == 6
-    assert workflow.count('workflow_claim.get("blob_sha")') == 6
-    assert workflow.count('workflow_claim.get("sha256")') == 6
-    assert workflow.count('type(workflow_claim.get("size_in_bytes")) is not int') == 6
-    assert workflow.count('semantic_source.get("relation")') == 12
-    assert workflow.count('(semantic_source.get("relation") == "identical")') == 6
-    assert workflow.count('== str(owner_claim.get("head_sha") or "").lower()') == 6
+    assert control_plane.count('type(owner_snapshot.get("schema_version")) is not int') == 6
+    assert control_plane.count('workflow_claim.get("blob_sha")') == 6
+    assert control_plane.count('workflow_claim.get("sha256")') == 6
+    assert control_plane.count('type(workflow_claim.get("size_in_bytes")) is not int') == 6
+    assert control_plane.count('semantic_source.get("relation")') == 12
+    assert control_plane.count('(semantic_source.get("relation") == "identical")') == 6
+    assert control_plane.count('== str(owner_claim.get("head_sha") or "").lower()') == 6
 
 
 def test_assured_artifact_archive_verifier_rejects_digest_and_identity_mismatch(
@@ -6783,12 +6786,9 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
     assert "resume-source-input-manifest.json" in source_selection
     assert "REST identity changed after planning" in source_selection
     assert "source-committed-manifest" not in replay
-    assert "latest_checkpoint_transaction" in source_resolver
-    assert "zero-active replay requires a committed checkpoint transaction" in source_resolver
-    assert "source checkpoint REST identity does not match its committed receipt" in (
-        source_resolver
-    )
-    assert "rebuilding from attested complete-lane artifacts" in source_resolver
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py resolve-exact-source-checkpoint-receipt"
+    ) in source_resolver
     assert "steps.source_selection.outputs.artifact_id != ''" in source_resolver
     assert "steps.source_selection.outputs.source_run_id" in source_resolver
     assert 'gh run download "$SOURCE_RUN_ID"' not in replay
@@ -6796,24 +6796,10 @@ def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() ->
     assert "run-id: ${{ steps.source_checkpoint.outputs.source_run_id }}" in source_download
     assert "digest-mismatch: error" in source_download
     assert "steps.source_checkpoint.outputs.artifact_id != ''" in replay
-    assert "CHECKPOINT_TRANSACTION_PATH" in replay_attestation
-    assert "TRUST_MANIFEST_PATH" in replay_attestation
-    assert "zero-active replay trust manifest identity does not match" in (replay_attestation)
-    assert "source checkpoint built transaction does not match the committed trust root" in (
-        replay_attestation
-    )
-    assert "latest_checkpoint_run_id" not in replay_attestation
-    assert "latest_checkpoint_artifact_name" not in replay_attestation
-    assert "latest_checkpoint_generation" not in replay_attestation
-    assert "latest_checkpoint_coverage_hash" not in replay_attestation
-    assert "source checkpoint lane coverage hashes do not match" in replay
-    assert "source checkpoint database SHA-256 does not match" in replay
-    assert "source checkpoint report SHA-256 does not match" in replay
-    assert "source checkpoint artifact identity does not match" in replay
-    assert "source checkpoint source SHA does not match" in replay
-    assert "checkpoint-manifest.json" in replay
-    assert 'cp "$checkpoint_manifest" terminal-replay-inputs/terminal-manifest.json' in replay
-    assert 'cp "$plan_manifest_path" terminal-replay-inputs/terminal-manifest.json' not in replay
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py attest-terminal-replay-inputs"
+    ) in replay_attestation
+    assert "steps.source_checkpoint.outputs.artifact_id != ''" in replay_attestation
     assert "needs.terminal_replay.outputs.artifact-name == ''" in completed_manifest_download
     assert "needs.terminal_replay.outputs.artifact-name == ''" in completed_checkpoint_download
     assert "needs.terminal_replay.outputs.artifact-name != ''" in replay_download
@@ -7203,9 +7189,8 @@ def test_terminal_replay_binds_plan_and_selected_source_receipts(
 def test_terminal_replay_uses_committed_transaction_and_rejects_tampering(
     tmp_path: pathlib.Path,
 ) -> None:
-    replay = _job_block(_workflow_text(), "terminal_replay")
-    resolver = _embedded_python(replay, "TERMINAL_REPLAY_ARTIFACT_RESOLVER")
-    attestation = _embedded_python(replay, "TERMINAL_REPLAY_ATTESTATION")
+    resolver = _helper_embedded_python("TERMINAL_REPLAY_ARTIFACT_RESOLVER")
+    attestation = _helper_embedded_python("TERMINAL_REPLAY_ATTESTATION")
     assert 'transaction["schema_version"] != 3' in resolver
     assert "w2_authority_identity_sha256" in resolver
     assert "w2_database_authority_sha256" in resolver
@@ -8603,12 +8588,13 @@ def test_capacity_blocked_plan_exposes_no_direct_matrix_lane() -> None:
     plan = _job_block(workflow, "plan")
     lane_control = _job_block(workflow, "lane_control")
     build_manifest = _step_block(plan, "Build lane manifest")
+    helper = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
     finalize = _step_block(plan, "Finalize operation-authority-bound lane manifest")
 
-    assert 'effective_matrix_batch_size="$MATRIX_BATCH_SIZE"' in build_manifest
-    assert '--max-matrix-lanes "$effective_matrix_batch_size"' in build_manifest
-    assert '--vpn-slot-count "$VPN_PARALLELISM"' in build_manifest
-    assert "vpn_matrix_cap" not in build_manifest
+    assert 'effective_matrix_batch_size="$MATRIX_BATCH_SIZE"' in helper
+    assert '--max-matrix-lanes "$effective_matrix_batch_size"' in helper
+    assert '--vpn-slot-count "$VPN_PARALLELISM"' in helper
+    assert "vpn_matrix_cap" not in helper
     assert "OPERATION_AUTHORITY_PATH: ${{ steps.operation_authority.outputs.path }}" in (
         build_manifest
     )
@@ -8999,14 +8985,11 @@ def test_chained_discovery_seed_restores_exact_prior_run_artifact() -> None:
         "if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' }}"
     ) in resolver
     assert "github.run_attempt > 1" not in seed
-    assert "DISCOVERY_ARTIFACT_RECEIPT_RESOLVER" in resolver
-    assert "prior attempts of the current run are not a recovery boundary" in resolver
-    assert "current-attempt recovery artifact" in resolver
-    assert "ambiguous unexpired canonical artifacts" in resolver
-    assert "did not stabilize across " in resolver
-    assert "the final two observations" in resolver
-    assert "/actions/artifacts/{artifact_id}" in resolver
-    assert "selected discovery artifact changed before exact-ID download" in resolver
+    assert (
+        "python .github/scripts/full_extraction_handoffs.py "
+        "resolve-prior-discovery-artifact-receipt"
+    ) in resolver
+    assert "OWNER_RECHECK_PATH: ${{ runner.temp }}/workflow-provenance/" in resolver
     assert "artifact-ids: ${{ steps.prior_discovery.outputs.artifact_id }}" in download
     assert "run-id: ${{ steps.prior_discovery.outputs.source_run_id }}" in download
     assert "digest-mismatch: error" in download
@@ -9740,8 +9723,7 @@ def test_duplicate_admission_rejects_malformed_or_duplicate_run_ids(
 
 
 def _discovery_receipt_resolver() -> str:
-    seed = _job_block(_workflow_text(), "discovery_seed")
-    return _embedded_python(seed, "DISCOVERY_ARTIFACT_RECEIPT_RESOLVER")
+    return _helper_embedded_python("DISCOVERY_ARTIFACT_RECEIPT_RESOLVER")
 
 
 def _discovery_artifact(
