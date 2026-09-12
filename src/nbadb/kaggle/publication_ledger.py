@@ -18,6 +18,12 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
+    from nbadb.contracts.actions_artifact import ArtifactMemberIdentityV1
+    from nbadb.contracts.publication_recovery import (
+        PendingTakeoverReceiptV1,
+        PendingTakeoverStatusReceiptV1,
+    )
+
 GITHUB_API_VERSION = "2026-03-10"
 PUBLICATION_DEPLOYMENT_TASK = "nbadb:kaggle-publication"
 _INTENT_KIND = "nbadb_kaggle_publication_intent"
@@ -28,6 +34,7 @@ _HEX_64_RE = re.compile(r"[0-9a-f]{64}")
 _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _JOB_RE = re.compile(r"[A-Za-z0-9_.-]+")
 _POSITIVE_INTEGER_RE = re.compile(r"[1-9][0-9]*")
+_TAKEOVER_DESCRIPTION_RE = re.compile(r"nbadb takeover t=([A-Za-z0-9_-]{43}) job=([A-Za-z0-9_.-]+)")
 _IN_PROGRESS_DESCRIPTION_RE = re.compile(
     r"nbadb ip intent=([0-9a-f]{64}) nonce=([0-9a-f]{32}) job=([A-Za-z0-9_.-]+)"
 )
@@ -40,7 +47,7 @@ _UNRESOLVED_STATES = frozenset({"pending", "in_progress"})
 _ACTIVE_RUN_STATES = frozenset({"in_progress", "pending"})
 _ACTIVE_JOB_STATES = frozenset({"in_progress", "pending", "queued", "requested", "waiting"})
 _HEAD_DEPLOYMENT_LIMIT = 2
-_STATUS_RECEIPT_LIMIT = 3
+_STATUS_RECEIPT_LIMIT = 4
 _WORKFLOW_CONTENT_MAX_BYTES = 2 * 1024 * 1024
 _WORKFLOW_JOB_INVENTORY_LIMIT = 1_000
 _PUBLICATION_MUTEX_GROUP = "nbadb-kaggle-publish"
@@ -606,7 +613,10 @@ class DeploymentStatusReceipt:
     log_url: str
     url: str
     executor: ExecutorReceipt
+    creator_login: str
+    creator_id: int
     nonce: str | None = None
+    takeover_sha256: str | None = None
     bound_claim_digest: str | None = None
     resolved_version: int | None = None
     resolution_digest: str | None = None
@@ -635,7 +645,10 @@ class DeploymentStatusReceipt:
             "log_url": self.log_url,
             "url": self.url,
             "executor": self.executor.to_dict(),
+            "creator_login": self.creator_login,
+            "creator_id": self.creator_id,
             "nonce": self.nonce,
+            "takeover_sha256": self.takeover_sha256,
             "bound_claim_digest": self.bound_claim_digest,
             "resolved_version": self.resolved_version,
             "resolution_digest": self.resolution_digest,
@@ -687,6 +700,7 @@ class ExecutionReceipt:
     run_attempt: int
     job: str
     url: str
+    takeover_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -701,6 +715,7 @@ class ExecutionReceipt:
             "run_attempt": self.run_attempt,
             "job": self.job,
             "url": self.url,
+            "takeover_sha256": self.takeover_sha256,
         }
 
 
@@ -754,6 +769,20 @@ class PublicationLedger(Protocol):
     def prepare(self, intent: PublicationIntent) -> DeploymentReceipt: ...
 
     def claim_pending(self, receipt: DeploymentReceipt) -> ExecutionReceipt: ...
+
+    def record_pending_takeover(
+        self,
+        receipt: DeploymentReceipt,
+        takeover: PendingTakeoverReceiptV1,
+        takeover_member: ArtifactMemberIdentityV1,
+    ) -> PendingTakeoverStatusReceiptV1: ...
+
+    def claim_pending_takeover(
+        self,
+        receipt: DeploymentReceipt,
+        takeover: PendingTakeoverReceiptV1,
+        durable_status: PendingTakeoverStatusReceiptV1,
+    ) -> ExecutionReceipt: ...
 
     def find_remote_match(
         self,
@@ -842,6 +871,62 @@ class GitHubDeploymentPublicationLedger:
     @property
     def source_sha(self) -> str:
         return self._attempt.source_sha
+
+    def _require_originating_workflow_run(self, receipt: DeploymentReceipt) -> None:
+        """Permit pending-intent recovery only within its original workflow run."""
+        origin = receipt.attempt
+        current = self._attempt
+        if (
+            origin.repository != current.repository
+            or origin.run_id != current.run_id
+            or origin.workflow_ref != current.workflow_ref
+            or origin.workflow_sha != current.workflow_sha
+            or origin.source_sha != current.source_sha
+            or origin.job != current.job
+        ):
+            raise PublicationLedgerPendingError(
+                "Kaggle publication intent is reconciliation-only in its original workflow run"
+            )
+
+    def _require_cross_run_origin_terminal(self, receipt: DeploymentReceipt) -> None:
+        """Require a foreign claiming executor to be durably terminal."""
+
+        origin = receipt.attempt
+        current = self._attempt
+        if (
+            origin.repository == current.repository
+            and origin.run_id == current.run_id
+            and origin.run_attempt == current.run_attempt
+            and origin.job == current.job
+        ):
+            return
+        run_url = (
+            f"{self._repository_api_url}/actions/runs/{origin.run_id}/attempts/{origin.run_attempt}"
+        )
+        run = self._require_object(
+            self._request("GET", run_url),
+            operation="reconciliation origin terminal receipt",
+        )
+        if run.get("status") != "completed" or run.get("conclusion") not in _COMPLETED_CONCLUSIONS:
+            raise PublicationLedgerPendingError(
+                "Kaggle publication origin publisher is not terminal"
+            )
+
+    @staticmethod
+    def _require_execution_owner(
+        execution: ExecutionReceipt,
+        executor: ExecutorReceipt,
+    ) -> None:
+        """Require direct resolution to remain owned by its claiming executor."""
+        if (
+            execution.run_id != executor.run_id
+            or execution.run_attempt != executor.run_attempt
+            or execution.job != executor.job
+            or execution.executor_admission_digest != executor.admission_digest
+        ):
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution is no longer owned by the current executor"
+            )
 
     @staticmethod
     def environment_for_dataset(dataset: str) -> str:
@@ -1401,11 +1486,20 @@ class GitHubDeploymentPublicationLedger:
         _parse_github_timestamp(created_at, field="status created_at")
         log_url, run_id, run_attempt = self._trusted_log_url(raw.get("log_url"))
         nonce: str | None = None
+        takeover_sha256: str | None = None
         bound_claim_digest: str | None = None
         resolved_version: int | None = None
         resolution_digest: str | None = None
         job: str
-        if state == "in_progress":
+        if state == "pending":
+            match = _TAKEOVER_DESCRIPTION_RE.fullmatch(description)
+            if match is None:
+                raise PublicationLedgerError(
+                    "GitHub publication takeover status description is invalid"
+                )
+            takeover_sha256 = _parse_digest_token(match.group(1), field="takeover digest")
+            job = match.group(2)
+        elif state == "in_progress":
             match = _IN_PROGRESS_DESCRIPTION_RE.fullmatch(description)
             if match is None or match.group(1) != intent_id:
                 raise PublicationLedgerError(
@@ -1451,7 +1545,10 @@ class GitHubDeploymentPublicationLedger:
             log_url=log_url,
             url=expected_url,
             executor=executor,
+            creator_login=cast("str", creator["login"]),
+            creator_id=cast("int", creator["id"]),
             nonce=nonce,
+            takeover_sha256=takeover_sha256,
             bound_claim_digest=bound_claim_digest,
             resolved_version=resolved_version,
             resolution_digest=resolution_digest,
@@ -1536,19 +1633,34 @@ class GitHubDeploymentPublicationLedger:
                 field="status created_at",
             )
         )
-        if statuses:
-            first = statuses[0]
-            if first.state not in {"in_progress", "success"}:
+        state_sequence = tuple(status.state for status in statuses)
+        allowed_sequences = {
+            (),
+            ("pending",),
+            ("in_progress",),
+            ("success",),
+            ("pending", "in_progress"),
+            ("in_progress", "success"),
+            ("pending", "in_progress", "success"),
+        }
+        if state_sequence not in allowed_sequences:
+            raise PublicationLedgerError(
+                "GitHub publication status history is not terminally ordered"
+            )
+        claims = tuple(status for status in statuses if status.state == "in_progress")
+        successes = tuple(status for status in statuses if status.state == "success")
+        if successes:
+            if len(successes) != 1:
                 raise PublicationLedgerError(
-                    "GitHub publication status history has an invalid first state"
+                    "GitHub publication status history is not terminally ordered"
                 )
-        if len(statuses) == 2:
-            claim, success = statuses
-            if (
-                claim.state != "in_progress"
-                or success.state != "success"
-                or success.resolved_version is None
-                or success.claim_digest != claim.claim_digest
+            success = successes[0]
+            if success.resolved_version is None:
+                raise PublicationLedgerError(
+                    "GitHub publication status history is not terminally ordered"
+                )
+            if state_sequence != ("success",) and (
+                len(claims) != 1 or success.claim_digest != claims[0].claim_digest
             ):
                 raise PublicationLedgerError(
                     "GitHub publication status history is not terminally ordered"
@@ -1789,6 +1901,7 @@ class GitHubDeploymentPublicationLedger:
                 raise PublicationLedgerPendingError(
                     "The exact Kaggle publication intent is reconciliation-only"
                 )
+            self._require_originating_workflow_run(current)
             return current
         if current is not None and current.intent_id == intent.intent_id:
             raise PublicationLedgerPendingError(
@@ -1882,6 +1995,7 @@ class GitHubDeploymentPublicationLedger:
         *,
         state: str,
         nonce: str | None,
+        takeover_sha256: str | None = None,
         resolved_version: int | None = None,
         resolution_digest: str | None = None,
     ) -> DeploymentStatusReceipt:
@@ -1892,6 +2006,7 @@ class GitHubDeploymentPublicationLedger:
                 and any(
                     status.state == state
                     and status.nonce == nonce
+                    and status.takeover_sha256 == takeover_sha256
                     and status.resolved_version == resolved_version
                     and status.resolution_digest == resolution_digest
                     for status in record.statuses
@@ -1904,6 +2019,7 @@ class GitHubDeploymentPublicationLedger:
             for status in recovered.statuses
             if status.state == state
             and status.nonce == nonce
+            and status.takeover_sha256 == takeover_sha256
             and status.resolved_version == resolved_version
             and status.resolution_digest == resolution_digest
         ]
@@ -1912,6 +2028,230 @@ class GitHubDeploymentPublicationLedger:
                 f"GitHub publication ledger {state} status is unresolved"
             )
         return matching[0]
+
+    def record_pending_takeover(
+        self,
+        receipt: DeploymentReceipt,
+        takeover: PendingTakeoverReceiptV1,
+        takeover_member: ArtifactMemberIdentityV1,
+    ) -> PendingTakeoverStatusReceiptV1:
+        """Durably bind an uploaded takeover receipt before any recovery claim."""
+
+        from nbadb.contracts.actions_artifact import ArtifactMemberIdentityV1
+        from nbadb.contracts.publication_recovery import (
+            PendingTakeoverReceiptV1,
+            PendingTakeoverStatusReceiptV1,
+        )
+
+        if not isinstance(takeover, PendingTakeoverReceiptV1):
+            raise PublicationLedgerError("pending takeover receipt is invalid")
+        if not isinstance(takeover_member, ArtifactMemberIdentityV1):
+            raise PublicationLedgerError("pending takeover artifact member is invalid")
+        takeover.verify()
+        executor = self._verify_current_executor()
+        if takeover.recovery_executor != executor:
+            raise PublicationLedgerPendingError(
+                "pending takeover recovery executor is no longer current"
+            )
+        if (
+            takeover.repository != self._attempt.repository
+            or takeover.dataset != receipt.intent.dataset
+            or takeover.intent_id != receipt.intent_id
+            or takeover.deployment_id != receipt.deployment_id
+            or takeover_member.artifact.repository != self._attempt.repository
+            or takeover_member.artifact.run_id != executor.run_id
+            or takeover_member.artifact.run_attempt != executor.run_attempt
+            or takeover_member.member_sha256 != takeover.takeover_sha256
+        ):
+            raise PublicationLedgerError("pending takeover provenance is inconsistent")
+
+        inventory = self.scan_dataset(receipt.intent.dataset)
+        current = inventory.current
+        if (
+            current is None
+            or current.intent_id != receipt.intent_id
+            or current.deployment_id != receipt.deployment_id
+            or current.state != "pending"
+            or current.statuses
+            or inventory.unresolved != (current,)
+        ):
+            raise PublicationLedgerPendingError(
+                "Kaggle publication intent is no longer takeover-eligible"
+            )
+        inventory_sha256 = self._inventory_identity(inventory)
+        stable = takeover.stable_inventory
+        if (
+            stable.repository != self._attempt.repository
+            or stable.dataset != receipt.intent.dataset
+            or stable.first_ledger_inventory_sha256 != inventory_sha256
+            or stable.second_ledger_inventory_sha256 != inventory_sha256
+        ):
+            raise PublicationLedgerPendingError(
+                "pending takeover stable ledger evidence differs from the current head"
+            )
+
+        original = self._verify_executor(
+            run_id=current.attempt.run_id,
+            run_attempt=current.attempt.run_attempt,
+            job=current.attempt.job,
+            require_active=False,
+        )
+        if original != takeover.original_executor:
+            raise PublicationLedgerPendingError(
+                "pending takeover original executor evidence differs"
+            )
+        origin_run = self._require_object(
+            self._request(
+                "GET",
+                f"{self._repository_api_url}/actions/runs/{original.run_id}"
+                f"/attempts/{original.run_attempt}",
+            ),
+            operation="takeover origin terminal receipt",
+        )
+        if (
+            origin_run.get("status") != "completed"
+            or origin_run.get("conclusion") != takeover.origin_terminal_conclusion
+        ):
+            raise PublicationLedgerPendingError("pending takeover origin publisher is not terminal")
+
+        token = _digest_token(takeover.takeover_sha256)
+        description = f"nbadb takeover t={token} job={executor.job}"
+        try:
+            pending = self._post_status(
+                current,
+                state="pending",
+                description=description,
+            )
+        except Exception:
+            pending = self._recover_status(
+                current,
+                state="pending",
+                nonce=None,
+                takeover_sha256=takeover.takeover_sha256,
+            )
+        stable_after = self.scan_dataset(receipt.intent.dataset)
+        stable_current = stable_after.current
+        if (
+            stable_current is None
+            or stable_current.deployment_id != receipt.deployment_id
+            or stable_current.intent_id != receipt.intent_id
+            or stable_current.state != "pending"
+            or stable_current.latest_status != pending
+            or pending.takeover_sha256 != takeover.takeover_sha256
+            or pending.executor != executor
+        ):
+            raise PublicationLedgerPendingError("pending takeover status was not durably re-read")
+        return PendingTakeoverStatusReceiptV1.build(
+            deployment_id=receipt.deployment_id,
+            status_id=pending.status_id,
+            state="pending",
+            creator_login=pending.creator_login,
+            creator_id=pending.creator_id,
+            description_token=token,
+            takeover_member=takeover_member,
+            takeover_sha256=takeover.takeover_sha256,
+            recovery_executor=executor,
+        )
+
+    def claim_pending_takeover(
+        self,
+        receipt: DeploymentReceipt,
+        takeover: PendingTakeoverReceiptV1,
+        durable_status: PendingTakeoverStatusReceiptV1,
+    ) -> ExecutionReceipt:
+        """Claim a durably recorded pending takeover exactly once."""
+
+        from nbadb.contracts.publication_recovery import (
+            PendingTakeoverReceiptV1,
+            PendingTakeoverStatusReceiptV1,
+        )
+
+        if not isinstance(takeover, PendingTakeoverReceiptV1) or not isinstance(
+            durable_status, PendingTakeoverStatusReceiptV1
+        ):
+            raise PublicationLedgerError("pending takeover claim evidence is invalid")
+        takeover.verify()
+        durable_status.verify()
+        executor = self._verify_current_executor()
+        if takeover.recovery_executor != executor or durable_status.recovery_executor != executor:
+            raise PublicationLedgerPendingError(
+                "pending takeover recovery executor is no longer current"
+            )
+        if (
+            takeover.deployment_id != receipt.deployment_id
+            or takeover.intent_id != receipt.intent_id
+            or durable_status.deployment_id != receipt.deployment_id
+            or durable_status.takeover_sha256 != takeover.takeover_sha256
+            or durable_status.takeover_member.member_sha256 != takeover.takeover_sha256
+        ):
+            raise PublicationLedgerError("pending takeover claim provenance is inconsistent")
+
+        inventory = self.scan_dataset(receipt.intent.dataset)
+        current = inventory.current
+        latest = current.latest_status if current is not None else None
+        if (
+            current is None
+            or current.deployment_id != receipt.deployment_id
+            or current.intent_id != receipt.intent_id
+            or current.state != "pending"
+            or inventory.unresolved != (current,)
+        ):
+            raise PublicationLedgerPendingError(
+                "Kaggle publication intent is no longer safely pending"
+            )
+        if (
+            latest is None
+            or latest.status_id != durable_status.status_id
+            or latest.takeover_sha256 != takeover.takeover_sha256
+            or latest.executor != executor
+        ):
+            raise PublicationLedgerPendingError(
+                "pending takeover status is no longer the durable ledger head"
+            )
+
+        nonce = self._nonce_factory()
+        if _HEX_32_RE.fullmatch(nonce) is None:
+            raise PublicationLedgerError("GitHub publication claim nonce is invalid")
+        description = f"nbadb ip intent={receipt.intent_id} nonce={nonce} job={executor.job}"
+        try:
+            in_progress = self._post_status(
+                current,
+                state="in_progress",
+                description=description,
+            )
+        except Exception:
+            in_progress = self._recover_status(
+                current,
+                state="in_progress",
+                nonce=nonce,
+            )
+        stable_after = self.scan_dataset(receipt.intent.dataset)
+        stable_current = stable_after.current
+        if (
+            stable_current is None
+            or stable_current.deployment_id != receipt.deployment_id
+            or stable_current.intent_id != receipt.intent_id
+            or stable_current.state != "in_progress"
+            or stable_current.latest_status != in_progress
+            or in_progress.executor != executor
+        ):
+            raise PublicationLedgerPendingError(
+                "pending takeover claim was not durably verified as in-progress"
+            )
+        return ExecutionReceipt(
+            deployment_id=receipt.deployment_id,
+            status_id=in_progress.status_id,
+            intent_id=receipt.intent_id,
+            dataset=receipt.intent.dataset,
+            nonce=nonce,
+            claim_digest=in_progress.claim_digest,
+            executor_admission_digest=executor.admission_digest,
+            run_id=executor.run_id,
+            run_attempt=executor.run_attempt,
+            job=executor.job,
+            url=in_progress.url,
+            takeover_sha256=takeover.takeover_sha256,
+        )
 
     def claim_pending(self, receipt: DeploymentReceipt) -> ExecutionReceipt:
         executor = self._verify_current_executor()
@@ -1927,6 +2267,12 @@ class GitHubDeploymentPublicationLedger:
             raise PublicationLedgerPendingError(
                 "Kaggle publication intent is no longer safely pending"
             )
+        if current.latest_status is not None and current.latest_status.takeover_sha256 is not None:
+            raise PublicationLedgerPendingError(
+                "Kaggle publication intent has a durable takeover and requires takeover claim"
+            )
+        self._require_originating_workflow_run(receipt)
+        self._require_originating_workflow_run(current)
         nonce = self._nonce_factory()
         if _HEX_32_RE.fullmatch(nonce) is None:
             raise PublicationLedgerError("GitHub publication claim nonce is invalid")
@@ -2038,6 +2384,7 @@ class GitHubDeploymentPublicationLedger:
         resolved_version: int,
         publication_marker_sha256: str,
         readback_fingerprint: str,
+        expected_executor: ExecutorReceipt | None = None,
     ) -> ResolutionReceipt:
         if type(resolved_version) is not int or resolved_version <= 0:
             raise ValueError("Kaggle resolved version must be positive")
@@ -2058,16 +2405,23 @@ class GitHubDeploymentPublicationLedger:
             raise PublicationLedgerError(
                 "GitHub publication resolution is missing its verified claim"
             )
-        if receipt.state != "success" and receipt.statuses[0].state != "in_progress":
+        if receipt.state == "success":
+            claim_source = receipt.latest_status
+        else:
+            claim_source = next(
+                (status for status in receipt.statuses if status.state == "in_progress"),
+                None,
+            )
+        if claim_source is None:
             raise PublicationLedgerError(
                 "GitHub publication resolution is missing its verified claim"
             )
-        claim_digest = (
-            receipt.latest_status.claim_digest
-            if receipt.state == "success" and receipt.latest_status is not None
-            else receipt.statuses[0].claim_digest
-        )
+        claim_digest = claim_source.claim_digest
         current_executor = self._verify_current_executor()
+        if expected_executor is not None and current_executor != expected_executor:
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution executor changed before resolution"
+            )
         resolver = (
             receipt.latest_status.executor
             if receipt.state == "success" and receipt.latest_status is not None
@@ -2110,6 +2464,61 @@ class GitHubDeploymentPublicationLedger:
         if len(description) > 140:
             raise PublicationLedgerError(
                 "GitHub publication success status description exceeds 140 characters"
+            )
+        try:
+            stable_before_post = self.scan_dataset(receipt.intent.dataset)
+        except PublicationLedgerError as exc:
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution claim changed before success publication"
+            ) from exc
+        stable_current = stable_before_post.current
+        if (
+            stable_current != receipt
+            or stable_current is None
+            or stable_before_post.unresolved != (stable_current,)
+        ):
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution claim changed before success publication"
+            )
+        posting_executor = self._verify_current_executor()
+        if posting_executor != current_executor or (
+            expected_executor is not None and posting_executor != expected_executor
+        ):
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution executor changed before success publication"
+            )
+        # A competing status can be published while the final executor receipt
+        # is being fetched. Re-read the exact bounded head once after that
+        # executor check so such drift is still rejected before our POST. The
+        # preceding three-observation scan established the stable baseline;
+        # this adjacent snapshot proves it remained unchanged through the
+        # executor check without widening the final mutation window.
+        try:
+            final_before_post = self._snapshot_inventory(receipt.intent.dataset)
+        except PublicationLedgerError as exc:
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution claim changed before success publication"
+            ) from exc
+        final_current = final_before_post.current
+        if (
+            final_current != stable_current
+            or final_current is None
+            or final_before_post.unresolved != (final_current,)
+        ):
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution claim changed before success publication"
+            )
+        try:
+            final_executor = self._verify_current_executor()
+        except PublicationLedgerPendingError as exc:
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution executor changed before success publication"
+            ) from exc
+        if final_executor != posting_executor or (
+            expected_executor is not None and final_executor != expected_executor
+        ):
+            raise PublicationLedgerPendingError(
+                "GitHub publication execution executor changed before success publication"
             )
         try:
             success = self._post_status(
@@ -2158,6 +2567,9 @@ class GitHubDeploymentPublicationLedger:
         publication_marker_sha256: str,
         readback_fingerprint: str,
     ) -> ResolutionReceipt:
+        # Reconciliation is intentionally cross-run and readback-only: the
+        # current resolver is directly verified, while the immutable intent,
+        # marker digest, version, and readback fingerprint bind the result.
         self._verify_current_executor()
         inventory = self.scan_dataset(receipt.intent.dataset)
         current = inventory.current
@@ -2169,6 +2581,7 @@ class GitHubDeploymentPublicationLedger:
             raise PublicationLedgerError(
                 "GitHub publication reconciliation receipt is no longer current"
             )
+        self._require_cross_run_origin_terminal(current)
         return self._mark_success(
             current,
             resolved_version=resolved_version,
@@ -2184,21 +2597,32 @@ class GitHubDeploymentPublicationLedger:
         publication_marker_sha256: str,
         readback_fingerprint: str,
     ) -> ResolutionReceipt:
-        self._verify_current_executor()
+        executor = self._verify_current_executor()
+        self._require_execution_owner(execution, executor)
         inventory = self.scan_dataset(execution.dataset)
         receipt = inventory.current
         if receipt is None or receipt.intent_id != execution.intent_id:
             raise PublicationLedgerError(
                 "GitHub publication execution intent did not resolve uniquely"
             )
+        if execution.takeover_sha256 is None:
+            self._require_originating_workflow_run(receipt)
+        else:
+            # A takeover execution resolves in a different run than the intent's
+            # origin; the origin's terminal state was durably proven at takeover
+            # record time and is re-verified live here before resolution.
+            self._require_cross_run_origin_terminal(receipt)
         latest = receipt.latest_status
         if (
             receipt.deployment_id != execution.deployment_id
             or receipt.state != "in_progress"
             or latest is None
+            or latest.state != "in_progress"
             or latest.status_id != execution.status_id
             or latest.nonce != execution.nonce
             or latest.claim_digest != execution.claim_digest
+            or latest.url != execution.url
+            or latest.executor != executor
             or latest.executor.admission_digest != execution.executor_admission_digest
             or latest.executor.run_id != execution.run_id
             or latest.executor.run_attempt != execution.run_attempt
@@ -2212,4 +2636,5 @@ class GitHubDeploymentPublicationLedger:
             resolved_version=resolved_version,
             publication_marker_sha256=publication_marker_sha256,
             readback_fingerprint=readback_fingerprint,
+            expected_executor=executor,
         )
