@@ -16,7 +16,7 @@ def daily(
         False, "--quality-check", help="Run quality checks after pipeline"
     ),
 ) -> None:
-    """Incremental update with recent games."""
+    """Update recent NBA data from the current local/Kaggle baseline."""
     settings = _build_settings(data_dir)
     _run_pipeline(
         "daily",
@@ -25,4 +25,5 @@ def daily(
         verbose,
         quality_check,
         orchestrator_cls=Orchestrator,
+        require_complete_result=True,
     )

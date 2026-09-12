@@ -9,6 +9,16 @@ DataDirOption = Annotated[
     Path | None,
     typer.Option("--data-dir", "-d", help="Data output directory"),
 ]
+SuccessorGenerationStoreOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--successor-generation-store",
+        help=(
+            "Successor generation store whose current pointer must own "
+            "schema-v7 admission and publication"
+        ),
+    ),
+]
 FormatOption = Annotated[
     list[str] | None,
     typer.Option("--format", "-f", help="Output formats"),

@@ -8,6 +8,8 @@ import pytest
 from typer.testing import CliRunner
 
 from nbadb.cli.app import app
+from nbadb.core.nba_api_contract import NbaApiContractDiscoveryError
+from nbadb.core.provider_boundary import ProviderBoundaryError, ProviderBoundaryIssue
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -15,6 +17,17 @@ if TYPE_CHECKING:
 runner = CliRunner()
 
 _GENERATOR_PATH = "nbadb.cli.commands.extract_completeness.EndpointCoverageGenerator"
+_RUNTIME_DISCOVERY_PATH = (
+    "nbadb.cli.commands.extract_completeness.discover_runtime_endpoint_contracts"
+)
+_PROVIDER_BOUNDARY_PATH = "nbadb.cli.commands.extract_completeness.require_provider_boundary"
+
+
+@pytest.fixture(autouse=True)
+def _stable_runtime_discovery(request: pytest.FixtureRequest) -> None:
+    patcher = patch(_RUNTIME_DISCOVERY_PATH, return_value={"PinnedEndpoint": object()})
+    patcher.start()
+    request.addfinalizer(patcher.stop)
 
 
 def _artifact_paths(tmp_path: Path, coverage: dict[str, int]) -> dict[str, Path]:
@@ -141,6 +154,7 @@ def test_extract_completeness_require_full_exits_when_noncovered(tmp_path: Path)
     with patch(_GENERATOR_PATH) as mock_generator:
         mock_generator.return_value.build_artifacts.return_value = {
             "summary": {
+                "runtime_endpoint_class_count": 1,
                 "coverage": {
                     "covered": 4,
                     "runtime_gap": 1,
@@ -164,6 +178,28 @@ def test_extract_completeness_require_full_exits_when_noncovered(tmp_path: Path)
 
     assert result.exit_code == 1
     assert "require-full check failed" in result.output
+
+
+def test_extract_completeness_require_full_fails_before_generation_on_boundary_issue() -> None:
+    error = ProviderBoundaryError(
+        (
+            ProviderBoundaryIssue(
+                relative_path="orchestrate/leak.py",
+                line=1,
+                rule="provider_import_outside_boundary",
+                symbol="nba_api.fixture",
+            ),
+        )
+    )
+    with (
+        patch(_GENERATOR_PATH) as mock_generator,
+        patch(_PROVIDER_BOUNDARY_PATH, side_effect=error),
+    ):
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert "orchestrate/leak.py:1" in result.output
+    mock_generator.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -201,7 +237,8 @@ def test_extract_completeness_require_full_exits_for_contract_gap_counters(
             "source_only": 0,
         },
     )
-    summary_payload = {
+    summary_payload: dict[str, object] = {
+        "runtime_endpoint_class_count": 1,
         "coverage": {
             "covered": 5,
             "runtime_gap": 0,
@@ -235,6 +272,8 @@ def test_extract_completeness_require_full_exits_for_contract_gap_counters(
         "temporal_coverage": {"required_temporal_missing_count": 0},
         "endpoint_analysis_docs": {
             "enabled": True,
+            "provider_provenance": {"verified": True},
+            "provider_evidence": {"verified": True},
             "docs_contract_count": 1,
             "runtime_endpoint_missing_docs_count": 0,
             "docs_endpoint_missing_runtime_count": 0,
@@ -248,10 +287,20 @@ def test_extract_completeness_require_full_exits_for_contract_gap_counters(
             "docs_missing_input_schema_count": 0,
             "docs_contract_discovery_failure_count": 0,
         },
+        "player_directory_snapshot": {
+            "status": "blocked_pending_evidence",
+            "integrity_verified": True,
+            "authority_eligible": False,
+        },
     }
-    summary_payload[summary_section][counter_name] = 1
+    section = summary_payload[summary_section]
+    if not isinstance(section, dict):
+        raise AssertionError(f"{summary_section} must be an object")
+    counters: dict[str, object] = {str(key): value for key, value in section.items()}
+    counters[counter_name] = 1
     if counter_name == "blocking_contract_unknown_result_set_count":
-        summary_payload["upstream_contract"]["contract_unknown_result_set_count"] = 1
+        counters["contract_unknown_result_set_count"] = 1
+    summary_payload[summary_section] = counters
 
     with patch(_GENERATOR_PATH) as mock_generator:
         mock_generator.return_value.build_artifacts.return_value = {
@@ -278,6 +327,7 @@ def test_extract_completeness_require_full_exits_for_docs_field_drift(
         },
     )
     summary_payload = {
+        "runtime_endpoint_class_count": 1,
         "coverage": {
             "covered": 5,
             "runtime_gap": 0,
@@ -311,6 +361,8 @@ def test_extract_completeness_require_full_exits_for_docs_field_drift(
         "temporal_coverage": {"required_temporal_missing_count": 0},
         "endpoint_analysis_docs": {
             "enabled": True,
+            "provider_provenance": {"verified": True},
+            "provider_evidence": {"verified": True},
             "docs_contract_count": 1,
             "runtime_endpoint_missing_docs_count": 1,
             "docs_endpoint_missing_runtime_count": 0,
@@ -324,6 +376,7 @@ def test_extract_completeness_require_full_exits_for_docs_field_drift(
             "docs_missing_input_schema_count": 0,
             "docs_contract_discovery_failure_count": 0,
         },
+        "player_directory_snapshot": {"status": "verified", "integrity_verified": True},
     }
 
     with patch(_GENERATOR_PATH) as mock_generator:
@@ -353,6 +406,7 @@ def test_extract_completeness_require_full_exits_for_docs_tools_metadata_warning
         },
     )
     summary_payload = {
+        "runtime_endpoint_class_count": 1,
         "coverage": {
             "covered": 5,
             "runtime_gap": 0,
@@ -386,6 +440,8 @@ def test_extract_completeness_require_full_exits_for_docs_tools_metadata_warning
         "temporal_coverage": {"required_temporal_missing_count": 0},
         "endpoint_analysis_docs": {
             "enabled": True,
+            "provider_provenance": {"verified": True},
+            "provider_evidence": {"verified": True},
             "docs_contract_count": 1,
             "runtime_endpoint_missing_docs_count": 0,
             "docs_endpoint_missing_runtime_count": 0,
@@ -400,6 +456,7 @@ def test_extract_completeness_require_full_exits_for_docs_tools_metadata_warning
             "docs_contract_discovery_failure_count": 0,
             "metadata_ledger": {"metadata_ingestion_warning_count": 1},
         },
+        "player_directory_snapshot": {"status": "verified", "integrity_verified": True},
     }
 
     with patch(_GENERATOR_PATH) as mock_generator:
@@ -457,6 +514,7 @@ def test_extract_completeness_require_full_exits_for_docs_tools_bronze_gates(
         },
     )
     summary_payload = {
+        "runtime_endpoint_class_count": 1,
         "coverage": {
             "covered": 5,
             "runtime_gap": 0,
@@ -536,6 +594,7 @@ def test_extract_completeness_require_full_allows_classified_docs_tools_bronze_d
         },
     )
     summary_payload = {
+        "runtime_endpoint_class_count": 1,
         "coverage": {
             "covered": 5,
             "runtime_gap": 0,
@@ -569,6 +628,8 @@ def test_extract_completeness_require_full_allows_classified_docs_tools_bronze_d
         "temporal_coverage": {"required_temporal_missing_count": 0},
         "endpoint_analysis_docs": {
             "enabled": True,
+            "provider_provenance": {"verified": True},
+            "provider_evidence": {"verified": True},
             "docs_contract_count": 1,
             "runtime_endpoint_missing_docs_count": 0,
             "docs_endpoint_missing_runtime_count": 0,
@@ -593,6 +654,7 @@ def test_extract_completeness_require_full_allows_classified_docs_tools_bronze_d
                 "blocking_zero_column_table_count": 0,
             },
         },
+        "player_directory_snapshot": {"status": "verified", "integrity_verified": True},
     }
 
     with patch(_GENERATOR_PATH) as mock_generator:
@@ -623,6 +685,7 @@ def test_extract_completeness_require_full_allows_classified_contract_unknowns(
         },
     )
     summary_payload = {
+        "runtime_endpoint_class_count": 1,
         "coverage": {
             "covered": 5,
             "runtime_gap": 0,
@@ -654,6 +717,16 @@ def test_extract_completeness_require_full_allows_classified_contract_unknowns(
             "unmodeled_unclassified_count": 0,
         },
         "temporal_coverage": {"required_temporal_missing_count": 0},
+        "endpoint_analysis_docs": {
+            "enabled": True,
+            "provider_provenance": {"verified": True},
+            "provider_evidence": {"verified": True},
+        },
+        "player_directory_snapshot": {
+            "status": "blocked_pending_evidence",
+            "integrity_verified": True,
+            "authority_eligible": False,
+        },
     }
 
     with patch(_GENERATOR_PATH) as mock_generator:
@@ -666,6 +739,103 @@ def test_extract_completeness_require_full_allows_classified_contract_unknowns(
     assert result.exit_code == 0, result.output
     assert "contract_unknown_result_sets=1" in result.output
     assert "blocking_contract_unknown_result_sets=0" in result.output
+
+
+@pytest.mark.parametrize(
+    "endpoint_analysis_docs",
+    [
+        {},
+        {
+            "enabled": True,
+            "provider_provenance": {"verified": False},
+            "provider_evidence": {"verified": False},
+        },
+        {
+            "enabled": True,
+            "provider_provenance": {"verified": True},
+            "provider_evidence": {"verified": False},
+        },
+    ],
+)
+def test_extract_completeness_require_full_requires_exact_provider_authority(
+    tmp_path: Path,
+    endpoint_analysis_docs: dict[str, object],
+) -> None:
+    written = _artifact_paths(tmp_path, {"covered": 1})
+    summary_payload = {
+        "runtime_endpoint_class_count": 1,
+        "extraction_contract": {
+            "in_scope_endpoint_count": 1,
+            "extractable_endpoint_count": 1,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {},
+        "upstream_field_fate": {},
+        "temporal_coverage": {},
+        "endpoint_analysis_docs": endpoint_analysis_docs,
+    }
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {"summary": summary_payload}
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert "exact provider provenance" in result.output
+
+
+def test_extract_completeness_require_full_fails_closed_on_runtime_import_error() -> None:
+    secret = "upstream response must not escape"
+    error = NbaApiContractDiscoveryError(
+        "stats_runtime_module_import",
+        "nba_api.stats.endpoints.broken",
+        "ImportError",
+    )
+    error.__cause__ = ImportError(secret)
+
+    with (
+        patch(_RUNTIME_DISCOVERY_PATH, side_effect=error),
+        patch(_GENERATOR_PATH) as mock_generator,
+    ):
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert (
+        "nba_api contract discovery failed: stage=stats_runtime_module_import "
+        'source="nba_api.stats.endpoints.broken" error_type=ImportError'
+    ) in result.output
+    assert secret not in result.output
+    mock_generator.assert_not_called()
+
+
+def test_extract_completeness_require_full_rejects_partial_runtime_inventory(
+    tmp_path: Path,
+) -> None:
+    written = _artifact_paths(tmp_path, {"covered": 1})
+    summary_payload = {"runtime_endpoint_class_count": 1}
+
+    with (
+        patch(
+            _RUNTIME_DISCOVERY_PATH,
+            return_value={"FirstEndpoint": object(), "SecondEndpoint": object()},
+        ),
+        patch(_GENERATOR_PATH) as mock_generator,
+    ):
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert (
+        "nba_api contract discovery failed: stage=runtime_inventory_reconciliation "
+        'source="endpoint_coverage_summary" error_type=PartialDiscovery'
+    ) in result.output
+    mock_generator.return_value.write_artifacts.assert_not_called()
 
 
 def test_extract_completeness_require_model_contract_exits_when_unowned(tmp_path: Path) -> None:

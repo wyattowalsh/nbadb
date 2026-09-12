@@ -10,6 +10,10 @@ import duckdb
 from typer.testing import CliRunner
 
 from nbadb.cli.app import app
+from nbadb.core.db import (
+    TransformOutputAuthorityPersistenceClassification,
+    TransformOutputAuthorityPersistenceState,
+)
 
 runner = CliRunner()
 
@@ -79,14 +83,14 @@ def _mock_transformer(output_table: str, depends_on: list[str] | None = None) ->
 
 
 class TestStatusCommand:
-    def test_status_no_db_file(self, tmp_path: object) -> None:
+    def test_status_no_db_file(self, tmp_path: Path) -> None:
         """--data-dir pointing to nonexistent subdir exits 1 with 'Database not found'."""
         missing = tmp_path / "nonexistent_xyz"
         result = runner.invoke(app, ["status", "--data-dir", str(missing)])
         assert result.exit_code == 1
         assert "Database not found" in result.output
 
-    def test_status_empty_watermarks(self, tmp_path: object) -> None:
+    def test_status_empty_watermarks(self, tmp_path: Path) -> None:
         """Empty _pipeline_watermarks table shows '(empty)'."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -94,7 +98,7 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "(empty)" in result.output
 
-    def test_status_empty_journal(self, tmp_path: object) -> None:
+    def test_status_empty_journal(self, tmp_path: Path) -> None:
         """Empty _extraction_journal table shows '(empty)'."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -103,7 +107,7 @@ class TestStatusCommand:
         assert "Extraction Journal" in result.output
         assert "(empty)" in result.output
 
-    def test_status_populated_watermarks(self, tmp_path: object) -> None:
+    def test_status_populated_watermarks(self, tmp_path: Path) -> None:
         """A watermark row is displayed in the status output."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -117,7 +121,7 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "stg_game_log" in result.output
 
-    def test_status_missing_tables(self, tmp_path: object) -> None:
+    def test_status_missing_tables(self, tmp_path: Path) -> None:
         """DuckDB file without pipeline tables shows fallback '(no watermark data)'."""
         db_path = tmp_path / "nba.duckdb"
         # Create an empty DuckDB file (no pipeline tables)
@@ -127,7 +131,7 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "(no watermark data)" in result.output
 
-    def test_status_json_output_structure(self, tmp_path: object) -> None:
+    def test_status_json_output_structure(self, tmp_path: Path) -> None:
         """--output-format json produces valid JSON with expected keys."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -140,7 +144,7 @@ class TestStatusCommand:
         assert "journal" in data
         assert "metadata" in data
 
-    def test_status_json_output_watermarks_is_list(self, tmp_path: object) -> None:
+    def test_status_json_output_watermarks_is_list(self, tmp_path: Path) -> None:
         """JSON output 'watermarks' is a list."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -151,7 +155,7 @@ class TestStatusCommand:
         data = json.loads(result.output)
         assert isinstance(data["watermarks"], list)
 
-    def test_status_json_populated_watermark_entry(self, tmp_path: object) -> None:
+    def test_status_json_populated_watermark_entry(self, tmp_path: Path) -> None:
         """JSON output 'watermarks' contains row data with expected keys."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -171,7 +175,7 @@ class TestStatusCommand:
         assert entry["table"] == "dim_date"
         assert entry["value"] == "2025-26"
 
-    def test_journal_summary_json_output_structure(self, tmp_path: object) -> None:
+    def test_journal_summary_json_output_structure(self, tmp_path: Path) -> None:
         """journal-summary JSON includes observability fields used by docs admin."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -187,7 +191,7 @@ class TestStatusCommand:
         assert "failureHotspots" in data
         assert "totals" in data
 
-    def test_journal_summary_populated_rollups(self, tmp_path: object) -> None:
+    def test_journal_summary_populated_rollups(self, tmp_path: Path) -> None:
         """journal-summary aggregates metrics and current failures into telemetry."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -227,7 +231,7 @@ class TestStatusCommand:
         assert data["failureHotspots"][0]["endpoint"] == "playbyplay"
         assert any("timeout" in line for line in data["recentErrors"])
 
-    def test_journal_summary_writes_output_file(self, tmp_path: object) -> None:
+    def test_journal_summary_writes_output_file(self, tmp_path: Path) -> None:
         """journal-summary can write the telemetry snapshot directly to disk."""
         db_path = tmp_path / "nba.duckdb"
         _make_db_with_tables(db_path)
@@ -312,7 +316,7 @@ class TestSchemaCommand:
 
 
 class TestDocsAutogenCommand:
-    def test_docs_autogen_invokes_generator(self, tmp_path: object) -> None:
+    def test_docs_autogen_invokes_generator(self, tmp_path: Path) -> None:
         docs_root = Path(str(tmp_path))
         updated = [docs_root / "schema" / "star-reference.mdx"]
         unchanged = [docs_root / "lineage" / "lineage.json"]
@@ -326,7 +330,7 @@ class TestDocsAutogenCommand:
         assert "unchanged: " in result.output
         assert "Docs autogen complete (1 updated, 1 unchanged)." in result.output
 
-    def test_docs_autogen_check_passes_without_writes(self, tmp_path: object) -> None:
+    def test_docs_autogen_check_passes_without_writes(self, tmp_path: Path) -> None:
         docs_root = Path(str(tmp_path))
 
         with patch(_DOCS_AUTOGEN_CHECK_PATH, return_value=[]) as mock_check:
@@ -336,7 +340,7 @@ class TestDocsAutogenCommand:
         mock_check.assert_called_once_with(docs_root)
         assert "Docs autogen check passed." in result.output
 
-    def test_docs_autogen_check_fails_on_stale_artifacts(self, tmp_path: object) -> None:
+    def test_docs_autogen_check_fails_on_stale_artifacts(self, tmp_path: Path) -> None:
         docs_root = Path(str(tmp_path))
         stale = [docs_root / "schema" / "star-reference.mdx"]
 
@@ -354,18 +358,37 @@ class TestDocsAutogenCommand:
 _DB_MANAGER_PATH = "nbadb.core.db.DBManager"
 
 
+def _authority_persistence_classification(
+    state: TransformOutputAuthorityPersistenceState = (
+        TransformOutputAuthorityPersistenceState.ALREADY_CURRENT
+    ),
+    *,
+    reason_code: str = "all_exact",
+    row_count: int = 0,
+) -> TransformOutputAuthorityPersistenceClassification:
+    return TransformOutputAuthorityPersistenceClassification(
+        state=state,
+        reason_code=reason_code,
+        table_row_counts=(("_transform_output_disposition_authority", row_count),),
+    )
+
+
 class TestMigrateCommand:
-    def test_migrate_runs_successfully(self, tmp_path: object) -> None:
-        """migrate calls DBManager.init() and exits 0."""
+    def test_migrate_runs_successfully(self, tmp_path: Path) -> None:
+        """migrate initializes and explicitly installs the strict authority schema."""
         mock_db = MagicMock()
+        mock_db.install_transform_output_authority_persistence.return_value = (
+            _authority_persistence_classification()
+        )
         with patch(_DB_MANAGER_PATH, return_value=mock_db):
             result = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
         assert result.exit_code == 0, result.output
         mock_db.init.assert_called_once()
+        mock_db.install_transform_output_authority_persistence.assert_called_once_with()
         mock_db.close.assert_called_once()
         assert "Migration complete" in result.output
 
-    def test_migrate_failure_exits_nonzero(self, tmp_path: object) -> None:
+    def test_migrate_failure_exits_nonzero(self, tmp_path: Path) -> None:
         """When DBManager.init() raises, exit 1 with error output."""
         mock_db = MagicMock()
         mock_db.init.side_effect = RuntimeError("disk full")
@@ -375,15 +398,35 @@ class TestMigrateCommand:
         mock_db.close.assert_called_once()
         assert "Migration failed" in result.output or "RuntimeError" in result.output
 
-    def test_migrate_idempotent(self, tmp_path: object) -> None:
-        """Calling migrate twice on the same db does not raise (init is idempotent)."""
+    def test_migrate_idempotent(self, tmp_path: Path) -> None:
+        """Calling migrate twice accepts the exact current authority schema."""
         mock_db = MagicMock()
+        mock_db.install_transform_output_authority_persistence.return_value = (
+            _authority_persistence_classification(row_count=3)
+        )
         with patch(_DB_MANAGER_PATH, return_value=mock_db):
             result1 = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
             result2 = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
         assert result1.exit_code == 0, result1.output
         assert result2.exit_code == 0, result2.output
         assert mock_db.init.call_count == 2
+        assert mock_db.install_transform_output_authority_persistence.call_count == 2
+
+    def test_migrate_repair_required_exits_nonzero(self, tmp_path: Path) -> None:
+        mock_db = MagicMock()
+        mock_db.install_transform_output_authority_persistence.return_value = (
+            _authority_persistence_classification(
+                TransformOutputAuthorityPersistenceState.REPAIR_REQUIRED,
+                reason_code="partial_table_set",
+            )
+        )
+        with patch(_DB_MANAGER_PATH, return_value=mock_db):
+            result = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 1
+        mock_db.init.assert_called_once_with()
+        mock_db.install_transform_output_authority_persistence.assert_called_once_with()
+        mock_db.close.assert_called_once_with()
+        assert "Migration failed: RuntimeError" in result.output
 
     def test_migrate_no_sqlite_path_exits_1(self) -> None:
         """When settings.sqlite_path is None, migrate exits 1."""
@@ -414,7 +457,7 @@ _GENERATE_METADATA_PATH = "nbadb.kaggle.metadata.generate_metadata"
 
 
 class TestMetadataCommand:
-    def test_metadata_success(self, tmp_path: object) -> None:
+    def test_metadata_success(self, tmp_path: Path) -> None:
         """metadata command calls generate_metadata and exits 0."""
         output = Path(str(tmp_path)) / "dataset-metadata.json"
         with patch(_GENERATE_METADATA_PATH) as mock_gen:
@@ -423,7 +466,7 @@ class TestMetadataCommand:
         mock_gen.assert_called_once_with(output)
         assert "Generated" in result.output
 
-    def test_metadata_passes_data_dir_when_provided(self, tmp_path: object) -> None:
+    def test_metadata_passes_data_dir_when_provided(self, tmp_path: Path) -> None:
         """metadata forwards --data-dir only when explicitly set."""
         output = Path(str(tmp_path)) / "dataset-metadata.json"
         data_dir = Path(str(tmp_path)) / "export"

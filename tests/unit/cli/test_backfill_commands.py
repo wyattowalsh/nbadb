@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import duckdb
+import pytest
 from typer.testing import CliRunner
 
 from nbadb.cli.app import app
@@ -17,6 +18,12 @@ if TYPE_CHECKING:
 runner = CliRunner()
 
 _SETTINGS_PATH = "nbadb.cli.commands.backfill._build_settings"
+_RECEIPT_COLUMNS = {
+    "logical_call_receipt_sha256",
+    "provider_authority_sha256",
+    "logical_parameters_sha256",
+    "result_route_ids_json",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +98,75 @@ def _settings_mock(db_path: Path) -> MagicMock:
     return MagicMock(duckdb_path=db_path)
 
 
+def _journal_columns(path: Path) -> set[str]:
+    conn = duckdb.connect(str(path), read_only=True)
+    try:
+        rows = conn.execute("PRAGMA table_info('_extraction_journal')").fetchall()
+        if rows is None:
+            raise AssertionError("journal pragma query must return rows")
+        return {row[1] for row in rows}
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["backfill", "run", "--dry-run"],
+        [
+            "backfill",
+            "gaps",
+            "--pattern",
+            "static",
+            "--endpoint",
+            "franchise_history",
+        ],
+        ["backfill", "completeness", "--endpoint", "franchise_history"],
+        ["backfill", "journal", "--action", "count"],
+        ["backfill", "journal", "--action", "show"],
+    ],
+)
+def test_read_only_backfill_commands_do_not_migrate_journal(
+    tmp_path: Path,
+    command: list[str],
+) -> None:
+    db_path = tmp_path / "nba.duckdb"
+    _make_db(db_path)
+    original_columns = _journal_columns(db_path)
+    assert not (_RECEIPT_COLUMNS & original_columns)
+
+    with patch(_SETTINGS_PATH, return_value=_settings_mock(db_path)):
+        result = runner.invoke(app, command)
+
+    assert result.exit_code == 0, result.output
+    assert _journal_columns(db_path) == original_columns
+
+
+@pytest.mark.parametrize("action", ["reset", "clear"])
+def test_journal_write_actions_migrate_receipt_schema(tmp_path: Path, action: str) -> None:
+    db_path = tmp_path / "nba.duckdb"
+    _make_db(db_path)
+    _insert_journal_entries(db_path)
+    assert not (_RECEIPT_COLUMNS & _journal_columns(db_path))
+
+    with patch(_SETTINGS_PATH, return_value=_settings_mock(db_path)):
+        result = runner.invoke(
+            app,
+            [
+                "backfill",
+                "journal",
+                "--action",
+                action,
+                "--endpoint",
+                "box_score_traditional",
+                "--yes",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert _journal_columns(db_path) >= _RECEIPT_COLUMNS
+
+
 # ---------------------------------------------------------------------------
 # backfill run
 # ---------------------------------------------------------------------------
@@ -144,16 +220,22 @@ class TestBackfillRun:
 
         conn = duckdb.connect(str(db_path), read_only=True)
         try:
-            status = conn.execute(
+            query = conn.execute(
                 """
                 SELECT status
                 FROM _extraction_journal
                 WHERE endpoint = 'box_score_traditional'
                   AND params = '{"season": "2024-25", "season_type": "Regular Season"}'
                 """
-            ).fetchone()[0]
+            )
+            if query is None:
+                raise AssertionError("dry-run journal query must return a relation")
+            journal_row = query.fetchone()
         finally:
             conn.close()
+        if journal_row is None:
+            raise AssertionError("dry-run journal row must be present")
+        status = journal_row[0]
 
         assert status == "done"
 
@@ -366,11 +448,17 @@ class TestBackfillJournal:
         assert data == []
 
     def test_journal_invalid_action(self, tmp_path: Path) -> None:
-        """An unknown --action value must exit 1 with 'Unknown action'."""
+        """An unknown action must fail before opening or migrating the journal."""
         db_path = tmp_path / "nba.duckdb"
         _make_db(db_path)
+        original_columns = _journal_columns(db_path)
+        assert not (_RECEIPT_COLUMNS & original_columns)
 
-        with patch(_SETTINGS_PATH, return_value=_settings_mock(db_path)):
+        with (
+            patch(_SETTINGS_PATH, return_value=_settings_mock(db_path)),
+            patch("duckdb.connect") as connect,
+            patch("nbadb.cli.commands.backfill._open_db_readonly") as open_readonly,
+        ):
             result = runner.invoke(
                 app,
                 ["backfill", "journal", "--action", "bogus"],
@@ -378,6 +466,9 @@ class TestBackfillJournal:
 
         assert result.exit_code == 1
         assert "Unknown action" in result.output
+        connect.assert_not_called()
+        open_readonly.assert_not_called()
+        assert _journal_columns(db_path) == original_columns
 
     def test_journal_invalid_status(self, tmp_path: Path) -> None:
         """An invalid --status value must exit 1 with validation message (HR-S-005)."""
@@ -387,7 +478,12 @@ class TestBackfillJournal:
         with patch(_SETTINGS_PATH, return_value=_settings_mock(db_path)):
             result = runner.invoke(
                 app,
-                ["backfill", "journal", "--status", "pending"],
+                [
+                    "backfill",
+                    "journal",
+                    "--status",
+                    "pending",
+                ],
             )
 
         assert result.exit_code == 1

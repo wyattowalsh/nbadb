@@ -226,7 +226,7 @@ def _dry_run(
 
     conn = _open_db_readonly(db_path)
     try:
-        journal = PipelineJournal(conn)
+        journal = PipelineJournal(conn, migrate_schema=False)
         planner = BackfillPlanner(conn, journal)
         plan = planner.build_plan(
             seasons=seasons,
@@ -264,7 +264,7 @@ def gaps(
 
     conn = _open_db_readonly(db_path)
     try:
-        journal = PipelineJournal(conn)
+        journal = PipelineJournal(conn, migrate_schema=False)
         planner = BackfillPlanner(conn, journal)
         report = planner.detect_gaps(
             seasons=parsed_seasons,
@@ -344,7 +344,7 @@ def completeness(
 
     conn = _open_db_readonly(db_path)
     try:
-        journal = PipelineJournal(conn)
+        journal = PipelineJournal(conn, migrate_schema=False)
         planner = BackfillPlanner(conn, journal)
         report = planner.detect_gaps(
             seasons=parsed_seasons,
@@ -423,6 +423,10 @@ def journal_cmd(
         )
         raise typer.Exit(1)
 
+    if action not in {"show", "count", "reset", "clear"}:
+        typer.echo(f"Unknown action: {action}. Use show/count/reset/clear.", err=True)
+        raise typer.Exit(1)
+
     if action in ("show", "count"):
         conn = _open_db_readonly(db_path)
     else:
@@ -431,7 +435,7 @@ def journal_cmd(
     try:
         from nbadb.orchestrate.journal import PipelineJournal
 
-        journal = PipelineJournal(conn)
+        journal = PipelineJournal(conn, migrate_schema=action in {"reset", "clear"})
 
         if action == "count":
             _journal_count(journal, output_format)
@@ -441,9 +445,6 @@ def journal_cmd(
             _journal_reset(journal, parsed_endpoints, parsed_seasons, status_filter, yes)
         elif action == "clear":
             _journal_clear(journal, parsed_endpoints, parsed_seasons, status_filter, yes)
-        else:
-            typer.echo(f"Unknown action: {action}. Use show/count/reset/clear.", err=True)
-            raise typer.Exit(1)
     finally:
         conn.close()
 

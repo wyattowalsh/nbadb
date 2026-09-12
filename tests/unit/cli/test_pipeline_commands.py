@@ -23,16 +23,21 @@ _MONTHLY_PATH = "nbadb.cli.commands.monthly.Orchestrator"
 _FULL_PATH = "nbadb.cli.commands.full.Orchestrator"
 
 
-def _make_result(**kwargs: object) -> PipelineResult:
-    defaults: dict[str, object] = dict(
-        tables_updated=3,
-        rows_total=500,
-        duration_seconds=1.0,
-        failed_extractions=0,
-        errors=[],
+def _make_result(
+    *,
+    tables_updated: int = 3,
+    rows_total: int = 500,
+    duration_seconds: float = 1.0,
+    failed_extractions: int = 0,
+    errors: list[str] | None = None,
+) -> PipelineResult:
+    return PipelineResult(
+        tables_updated=tables_updated,
+        rows_total=rows_total,
+        duration_seconds=duration_seconds,
+        failed_extractions=failed_extractions,
+        errors=[] if errors is None else errors,
     )
-    defaults.update(kwargs)
-    return PipelineResult(**defaults)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +138,23 @@ def test_daily_data_dir_option() -> None:
     assert result.exit_code == 0
 
 
+def test_daily_incomplete_result_exits_nonzero() -> None:
+    with patch(_DAILY_PATH) as mock_cls:
+        mock_cls.return_value.run_daily = AsyncMock(return_value=_make_result(failed_extractions=1))
+        result = runner.invoke(app, ["daily"])
+    assert result.exit_code == 1
+
+
+def test_daily_constructs_public_orchestrator_without_successor_injection() -> None:
+    with patch(_DAILY_PATH) as mock_cls:
+        mock_cls.return_value.run_daily = AsyncMock(return_value=_make_result())
+        result = runner.invoke(app, ["daily"])
+
+    assert result.exit_code == 0
+    constructor_kwargs = mock_cls.call_args.kwargs
+    assert set(constructor_kwargs) == {"settings", "progress"}
+
+
 # ---------------------------------------------------------------------------
 # monthly
 # ---------------------------------------------------------------------------
@@ -159,6 +181,25 @@ def test_monthly_data_dir_option() -> None:
         mock_cls.return_value.run_monthly = AsyncMock(return_value=_make_result())
         result = runner.invoke(app, ["monthly", "--data-dir", "/tmp/testdata"])
     assert result.exit_code == 0
+
+
+def test_monthly_incomplete_result_exits_nonzero() -> None:
+    with patch(_MONTHLY_PATH) as mock_cls:
+        mock_cls.return_value.run_monthly = AsyncMock(
+            return_value=_make_result(failed_extractions=1)
+        )
+        result = runner.invoke(app, ["monthly"])
+    assert result.exit_code == 1
+
+
+def test_monthly_constructs_public_orchestrator_without_successor_injection() -> None:
+    with patch(_MONTHLY_PATH) as mock_cls:
+        mock_cls.return_value.run_monthly = AsyncMock(return_value=_make_result())
+        result = runner.invoke(app, ["monthly"])
+
+    assert result.exit_code == 0
+    constructor_kwargs = mock_cls.call_args.kwargs
+    assert set(constructor_kwargs) == {"settings", "progress"}
 
 
 # ---------------------------------------------------------------------------

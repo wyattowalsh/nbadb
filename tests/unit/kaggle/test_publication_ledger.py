@@ -2,24 +2,39 @@ from __future__ import annotations
 
 import base64
 import re
-from dataclasses import replace
+from dataclasses import fields, replace
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 
+from nbadb.contracts.actions_artifact import (
+    ActionsArtifactIdentityV1,
+    ArtifactMemberIdentityV1,
+)
+from nbadb.contracts.publication_recovery import (
+    PendingTakeoverReceiptV1,
+    PendingTakeoverStatusReceiptV1,
+    StablePublicationInventoryReceiptV1,
+)
 from nbadb.kaggle.publication_ledger import (
     _DEPLOYMENT_HEAD_QUERY,
     GITHUB_API_VERSION,
     PUBLICATION_DEPLOYMENT_TASK,
+    DeploymentReceipt,
+    ExecutorReceipt,
     GitHubDeploymentPublicationLedger,
     GitHubResponse,
+    LedgerInventory,
     PublicationAttempt,
     PublicationIntent,
     PublicationLedgerError,
     PublicationLedgerPendingError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _SOURCE_SHA = "a" * 40
 _REPOSITORY_API = "https://api.github.com/repos/wyattowalsh/nbadb"
@@ -66,7 +81,7 @@ def _intent(**updates: object) -> PublicationIntent:
         "full_publication": False,
     }
     values.update(updates)
-    return PublicationIntent(**values)  # type: ignore[arg-type]
+    return PublicationIntent(**cast("Any", values))
 
 
 class FakeGitHubTransport:
@@ -205,14 +220,21 @@ jobs:
         method: str,
         url: str,
         *,
-        headers: dict[str, str],
-        json_body: dict[str, Any] | None = None,
+        headers: Mapping[str, str],
+        json_body: Mapping[str, Any] | None = None,
         timeout_seconds: float,
     ) -> GitHubResponse:
         assert timeout_seconds == 30.0
         assert headers["X-GitHub-Api-Version"] == GITHUB_API_VERSION
         assert headers["Authorization"] == "Bearer token"
-        self.calls.append((method, url, json_body, headers))
+        self.calls.append(
+            (
+                method,
+                url,
+                dict(json_body) if json_body is not None else None,
+                dict(headers),
+            )
+        )
         parsed = urlsplit(url)
         query = parse_qs(parsed.query)
         path = parsed.path
@@ -329,7 +351,7 @@ jobs:
             assert json_body is not None
             deployment_id = self.next_deployment_id
             self.next_deployment_id += 1
-            deployment = self._deployment(deployment_id, json_body)
+            deployment = self._deployment(deployment_id, dict(json_body))
             self.deployments[deployment_id] = deployment
             self.statuses[deployment_id] = {}
             if self.raise_deployment == "after":
@@ -338,17 +360,15 @@ jobs:
 
         if method == "POST" and path == "/graphql":
             assert json_body is not None
-            assert json_body == {
-                "query": _DEPLOYMENT_HEAD_QUERY,
-                "variables": {
-                    "owner": "wyattowalsh",
-                    "repository": "nbadb",
-                    "environment": GitHubDeploymentPublicationLedger.environment_for_dataset(
-                        _DATASET
-                    ),
-                },
-            }
-            environment = str(json_body["variables"]["environment"])
+            assert set(json_body) == {"query", "variables"}
+            assert json_body["query"] == _DEPLOYMENT_HEAD_QUERY
+            variables = json_body["variables"]
+            assert isinstance(variables, dict)
+            assert set(variables) == {"owner", "repository", "environment"}
+            assert variables["owner"] == "wyattowalsh"
+            assert variables["repository"] == "nbadb"
+            environment = str(variables["environment"])
+            assert re.fullmatch(r"nbadb-kaggle-[0-9a-f]{16}", environment)
             records = [
                 record
                 for record in self.deployments.values()
@@ -403,7 +423,7 @@ jobs:
                     status = self._status(
                         deployment_id,
                         status_id,
-                        json_body,
+                        dict(json_body),
                     )
                     self.statuses[deployment_id][status_id] = status
                     if mode == f"{state}:after":
@@ -445,6 +465,16 @@ def _post_count(transport: FakeGitHubTransport, suffix: str) -> int:
     return sum(
         method == "POST" and urlsplit(url).path.endswith(suffix)
         for method, url, _body, _headers in transport.calls
+    )
+
+
+def _status_post_count(transport: FakeGitHubTransport, state: str) -> int:
+    return sum(
+        method == "POST"
+        and urlsplit(url).path.endswith("/statuses")
+        and body is not None
+        and body.get("state") == state
+        for method, url, body, _headers in transport.calls
     )
 
 
@@ -707,7 +737,221 @@ def test_mark_resolved_requires_current_execution_and_direct_gets_success() -> N
     )
     assert f"r={resolution_token}" in success_status["description"]
     assert len(success_status["description"]) <= 140
+    assert _status_post_count(transport, "success") == 1
     assert ledger.scan_dataset(_DATASET).records[0].state == "success"
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "deployment_id",
+        "status_id",
+        "intent_id",
+        "dataset",
+        "nonce",
+        "claim_digest",
+        "executor_admission_digest",
+        "run_id",
+        "run_attempt",
+        "job",
+        "url",
+    ),
+)
+def test_mark_resolved_rejects_each_forged_execution_field(field: str) -> None:
+    transport = FakeGitHubTransport()
+    ledger = _ledger(transport)
+    execution = ledger.claim_pending(ledger.prepare(_intent()))
+    forged_values: dict[str, object] = {
+        "deployment_id": execution.deployment_id + 1,
+        "status_id": execution.status_id + 1,
+        "intent_id": "f" * 64,
+        "dataset": "wyattowalsh/other",
+        "nonce": "7" * 32,
+        "claim_digest": "7" * 64,
+        "executor_admission_digest": "7" * 64,
+        "run_id": execution.run_id + 1,
+        "run_attempt": execution.run_attempt + 1,
+        "job": "monthly",
+        "url": f"{execution.url}/forged",
+    }
+    forged = replace(execution, **{field: forged_values[field]})
+
+    with pytest.raises(PublicationLedgerError):
+        ledger.mark_resolved(
+            forged,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+    assert _status_post_count(transport, "success") == 0
+
+
+def test_mark_resolved_rejects_a_later_attempt_without_success_post() -> None:
+    transport = FakeGitHubTransport()
+    first_attempt = _attempt(run_id=123, run_attempt=1)
+    first = _ledger(transport, attempt=first_attempt)
+    execution = first.claim_pending(first.prepare(_intent()))
+    transport.runs[(123, 1)]["status"] = "completed"
+    transport.runs[(123, 1)]["conclusion"] = "failure"
+    transport.jobs[(123, 1)][0]["status"] = "completed"
+    transport.jobs[(123, 1)][0]["conclusion"] = "failure"
+    takeover_attempt = _attempt(run_id=123, run_attempt=2)
+    transport.add_run(takeover_attempt)
+    takeover = _ledger(transport, attempt=takeover_attempt)
+
+    with pytest.raises(PublicationLedgerPendingError, match="current executor"):
+        takeover.mark_resolved(
+            execution,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+    assert _status_post_count(transport, "success") == 0
+
+
+def test_mark_resolved_rejects_a_different_originating_workflow_run() -> None:
+    transport = FakeGitHubTransport()
+    first_attempt = _attempt(run_id=123, run_attempt=1)
+    first = _ledger(transport, attempt=first_attempt)
+    execution = first.claim_pending(first.prepare(_intent()))
+    transport.runs[(123, 1)]["status"] = "completed"
+    transport.runs[(123, 1)]["conclusion"] = "failure"
+    transport.jobs[(123, 1)][0]["status"] = "completed"
+    transport.jobs[(123, 1)][0]["conclusion"] = "failure"
+    takeover_attempt = _attempt(run_id=456, run_attempt=1)
+    transport.add_run(takeover_attempt)
+    takeover = _ledger(transport, attempt=takeover_attempt)
+    takeover_executor = takeover._verify_current_executor()
+    forged_execution = replace(
+        execution,
+        run_id=takeover_executor.run_id,
+        run_attempt=takeover_executor.run_attempt,
+        job=takeover_executor.job,
+        executor_admission_digest=takeover_executor.admission_digest,
+    )
+
+    with pytest.raises(PublicationLedgerPendingError, match="original workflow run"):
+        takeover.mark_resolved(
+            forged_execution,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+    assert _status_post_count(transport, "success") == 0
+
+
+def test_mark_resolved_rechecks_executor_immediately_before_success_post(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FakeGitHubTransport()
+    ledger = _ledger(transport)
+    execution = ledger.claim_pending(ledger.prepare(_intent()))
+    original_verify = ledger._verify_current_executor
+    verification_count = 0
+
+    def verify_with_final_drift() -> ExecutorReceipt:
+        nonlocal verification_count
+        executor = original_verify()
+        verification_count += 1
+        if verification_count == 3:
+            return replace(executor, admission_digest="7" * 64)
+        return executor
+
+    monkeypatch.setattr(ledger, "_verify_current_executor", verify_with_final_drift)
+
+    with pytest.raises(PublicationLedgerPendingError, match="before success publication"):
+        ledger.mark_resolved(
+            execution,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+    assert verification_count == 3
+    assert _status_post_count(transport, "success") == 0
+
+
+def test_mark_resolved_rejects_claim_drift_during_final_executor_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FakeGitHubTransport()
+    ledger = _ledger(transport)
+    execution = ledger.claim_pending(ledger.prepare(_intent()))
+    original_verify = ledger._verify_current_executor
+    verification_count = 0
+
+    def verify_with_competing_claim() -> ExecutorReceipt:
+        nonlocal verification_count
+        executor = original_verify()
+        verification_count += 1
+        if verification_count == 3:
+            status_id = transport.next_status_id
+            transport.next_status_id += 1
+            transport.statuses[execution.deployment_id][status_id] = transport._status(
+                execution.deployment_id,
+                status_id,
+                {
+                    "state": "in_progress",
+                    "description": (
+                        f"nbadb ip intent={execution.intent_id} "
+                        f"nonce={'7' * 32} job={execution.job}"
+                    ),
+                    "environment": ledger.environment_for_dataset(execution.dataset),
+                    "log_url": ledger._attempt.log_url,
+                },
+            )
+        return executor
+
+    monkeypatch.setattr(ledger, "_verify_current_executor", verify_with_competing_claim)
+
+    with pytest.raises(PublicationLedgerPendingError, match="claim changed"):
+        ledger.mark_resolved(
+            execution,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+    assert verification_count == 3
+    assert _status_post_count(transport, "success") == 0
+
+
+def test_mark_resolved_rejects_executor_drift_during_final_claim_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FakeGitHubTransport()
+    ledger = _ledger(transport)
+    execution = ledger.claim_pending(ledger.prepare(_intent()))
+    original_snapshot = ledger._snapshot_inventory
+    snapshot_count = 0
+
+    def snapshot_with_executor_drift(dataset: str) -> LedgerInventory:
+        nonlocal snapshot_count
+        inventory = original_snapshot(dataset)
+        snapshot_count += 1
+        if snapshot_count == 7:
+            transport.runs[(execution.run_id, execution.run_attempt)]["status"] = "completed"
+            transport.runs[(execution.run_id, execution.run_attempt)]["conclusion"] = "cancelled"
+            job = transport.jobs[(execution.run_id, execution.run_attempt)][0]
+            job["status"] = "completed"
+            job["conclusion"] = "cancelled"
+        return inventory
+
+    monkeypatch.setattr(ledger, "_snapshot_inventory", snapshot_with_executor_drift)
+
+    with pytest.raises(PublicationLedgerPendingError, match="executor changed"):
+        ledger.mark_resolved(
+            execution,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+    assert snapshot_count == 7
+    assert _status_post_count(transport, "success") == 0
 
 
 def test_remote_match_rejects_pending_but_reconciles_in_progress() -> None:
@@ -735,6 +979,106 @@ def test_remote_match_rejects_pending_but_reconciles_in_progress() -> None:
         readback_fingerprint="3" * 64,
     )
     assert resolution.resolved_version == 42
+
+
+def test_remote_reconciliation_allows_a_later_attempt_of_the_same_run() -> None:
+    transport = FakeGitHubTransport()
+    first_attempt = _attempt(run_id=123, run_attempt=1)
+    first = _ledger(transport, attempt=first_attempt)
+    first.claim_pending(first.prepare(_intent()))
+    marker = {
+        "dataset": _DATASET,
+        "publish_key": "1" * 20,
+        "bundle_fingerprint": "2" * 64,
+        "data_tree_fingerprint": "a" * 64,
+        "metadata_sha256": "5" * 64,
+    }
+    transport.runs[(123, 1)]["status"] = "completed"
+    transport.runs[(123, 1)]["conclusion"] = "failure"
+    transport.jobs[(123, 1)][0]["status"] = "completed"
+    transport.jobs[(123, 1)][0]["conclusion"] = "failure"
+    takeover_attempt = _attempt(run_id=123, run_attempt=2)
+    transport.add_run(takeover_attempt)
+    takeover = _ledger(transport, attempt=takeover_attempt)
+
+    receipt = takeover.find_remote_match(marker, marker_sha256="4" * 64)
+
+    assert receipt is not None
+    resolution = takeover.mark_reconciled(
+        receipt,
+        resolved_version=42,
+        publication_marker_sha256="4" * 64,
+        readback_fingerprint="3" * 64,
+    )
+    assert resolution.resolved_version == 42
+
+
+@pytest.mark.parametrize("resolved", (False, True))
+def test_remote_reconciliation_rejects_active_origin_from_different_run(
+    resolved: bool,
+) -> None:
+    transport = FakeGitHubTransport()
+    first = _ledger(transport, attempt=_attempt(run_id=123, run_attempt=1))
+    execution = first.claim_pending(first.prepare(_intent()))
+    if resolved:
+        first.mark_resolved(
+            execution,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+    receipt = first.scan_dataset(_DATASET).current
+    assert receipt is not None
+    marker = {
+        "dataset": _DATASET,
+        "publish_key": "1" * 20,
+        "bundle_fingerprint": "2" * 64,
+        "data_tree_fingerprint": "a" * 64,
+        "metadata_sha256": "5" * 64,
+    }
+    takeover_attempt = _attempt(run_id=456, run_attempt=1)
+    transport.add_run(takeover_attempt)
+    takeover = _ledger(transport, attempt=takeover_attempt)
+
+    remote_match = takeover.find_remote_match(marker, marker_sha256="4" * 64)
+    assert remote_match == receipt
+    assert remote_match is not None
+    with pytest.raises(PublicationLedgerPendingError, match="origin publisher is not terminal"):
+        takeover.mark_reconciled(
+            remote_match,
+            resolved_version=42,
+            publication_marker_sha256="4" * 64,
+            readback_fingerprint="3" * 64,
+        )
+
+
+def test_remote_reconciliation_allows_terminal_origin_from_different_run() -> None:
+    transport = FakeGitHubTransport()
+    origin_attempt = _attempt(run_id=123, run_attempt=1)
+    origin = _ledger(transport, attempt=origin_attempt)
+    origin.claim_pending(origin.prepare(_intent()))
+    transport.runs[(123, 1)]["status"] = "completed"
+    transport.runs[(123, 1)]["conclusion"] = "failure"
+    transport.jobs[(123, 1)][0]["status"] = "completed"
+    transport.jobs[(123, 1)][0]["conclusion"] = "failure"
+    receipt = origin.scan_dataset(_DATASET).current
+    assert receipt is not None
+
+    recovery_attempt = _attempt(run_id=456, run_attempt=1)
+    transport.add_run(recovery_attempt)
+    recovery = _ledger(transport, attempt=recovery_attempt)
+    resolution = recovery.mark_reconciled(
+        receipt,
+        resolved_version=42,
+        publication_marker_sha256="4" * 64,
+        readback_fingerprint="3" * 64,
+    )
+
+    assert resolution.resolved_version == 42
+    current = recovery.scan_dataset(_DATASET).current
+    assert current is not None and current.state == "success"
+    assert current.latest_status is not None
+    assert current.latest_status.executor.run_id == 456
 
 
 def test_resolution_rejects_readback_identity_outside_durable_intent() -> None:
@@ -779,7 +1123,25 @@ def test_pending_takeover_binds_and_verifies_current_executor_attempt() -> None:
     assert execution.run_attempt == 2
     assert execution.job == "daily"
     assert transport.statuses[1][1]["log_url"].endswith("/runs/123/attempts/2")
-    assert takeover.scan_dataset(_DATASET).current.latest_status.executor.run_attempt == 2
+    current = takeover.scan_dataset(_DATASET).current
+    assert current is not None
+    latest_status = current.latest_status
+    assert latest_status is not None
+    assert latest_status.executor.run_attempt == 2
+
+
+def test_pending_takeover_rejects_a_different_workflow_run() -> None:
+    transport = FakeGitHubTransport()
+    first = _ledger(transport, attempt=_attempt(run_id=123, run_attempt=1))
+    pending = first.prepare(_intent())
+    takeover_attempt = _attempt(run_id=456, run_attempt=1)
+    transport.add_run(takeover_attempt)
+    takeover = _ledger(transport, attempt=takeover_attempt)
+
+    with pytest.raises(PublicationLedgerPendingError, match="original workflow run"):
+        takeover.prepare(_intent())
+    with pytest.raises(PublicationLedgerPendingError, match="original workflow run"):
+        takeover.claim_pending(pending)
 
 
 def test_existing_success_requires_exact_resolution_digest() -> None:
@@ -888,7 +1250,7 @@ def test_scan_request_budget_is_constant_with_more_than_100_historical_versions(
     ]
     assert list_queries
     assert all(query["page"] == ["1"] for query in list_queries)
-    assert {query["per_page"][0] for query in list_queries} == {"3", "100"}
+    assert {query["per_page"][0] for query in list_queries} == {"4", "100"}
     graph_queries = [
         body
         for method, url, body, _headers in transport.calls
@@ -1108,24 +1470,27 @@ def test_claim_rechecks_default_branch_after_claim_before_upload_admission() -> 
         ledger.claim_pending(pending)
 
     assert _post_count(transport, "/statuses") == 1
-    assert ledger.scan_dataset(_DATASET).current.state == "in_progress"
+    current = ledger.scan_dataset(_DATASET).current
+    assert current is not None
+    assert current.state == "in_progress"
 
 
-def test_scan_rejects_more_than_two_status_receipts() -> None:
+def test_scan_rejects_more_than_three_status_receipts() -> None:
     transport = FakeGitHubTransport()
     ledger = _ledger(transport)
     _resolve(ledger, _intent(), version=42)
     deployment = transport.deployments[1]
-    transport.statuses[1][3] = transport._status(
-        1,
-        3,
-        {
-            "state": "success",
-            "description": transport.statuses[1][2]["description"],
-            "environment": deployment["environment"],
-            "log_url": transport.statuses[1][2]["log_url"],
-        },
-    )
+    for status_id in (3, 4):
+        transport.statuses[1][status_id] = transport._status(
+            1,
+            status_id,
+            {
+                "state": "success",
+                "description": transport.statuses[1][2]["description"],
+                "environment": deployment["environment"],
+                "log_url": transport.statuses[1][2]["log_url"],
+            },
+        )
 
     with pytest.raises(PublicationLedgerError, match="more statuses"):
         ledger.scan_dataset(_DATASET)
@@ -1145,3 +1510,183 @@ def test_terminal_success_remains_verifiable_after_claim_status_retention() -> N
     assert len(inventory.current.statuses) == 1
     assert inventory.current.latest_status is not None
     assert inventory.current.latest_status.claim_digest
+
+
+def _takeover_member(
+    ledger: GitHubDeploymentPublicationLedger,
+    takeover_sha256: str,
+) -> ArtifactMemberIdentityV1:
+    executor = ledger._verify_current_executor()
+    artifact = ActionsArtifactIdentityV1(
+        repository="wyattowalsh/nbadb",
+        run_id=executor.run_id,
+        run_attempt=executor.run_attempt,
+        artifact_id=91,
+        artifact_name="publication-takeover-receipt",
+        artifact_digest=f"sha256:{'7' * 64}",
+        artifact_size_bytes=512,
+    )
+    return ArtifactMemberIdentityV1(
+        artifact=artifact,
+        member_path="recovery/pending-takeover.json",
+        member_sha256=takeover_sha256,
+        member_size_bytes=256,
+    )
+
+
+def _takeover_receipt(
+    ledger: GitHubDeploymentPublicationLedger,
+    receipt: DeploymentReceipt,
+    *,
+    origin_executor: ExecutorReceipt,
+) -> PendingTakeoverReceiptV1:
+    inventory = ledger.scan_dataset(_DATASET)
+    ledger_digest = ledger._inventory_identity(inventory)
+    stable = StablePublicationInventoryReceiptV1.build(
+        repository="wyattowalsh/nbadb",
+        dataset=_DATASET,
+        first_sampled_at="2026-09-11T00:00:00Z",
+        second_sampled_at="2026-09-11T00:00:01Z",
+        first_writer_inventory_sha256="e" * 64,
+        second_writer_inventory_sha256="e" * 64,
+        first_ledger_inventory_sha256=ledger_digest,
+        second_ledger_inventory_sha256=ledger_digest,
+        first_remote_inventory_sha256="f" * 64,
+        second_remote_inventory_sha256="f" * 64,
+        first_active_writer_count=0,
+        second_active_writer_count=0,
+        first_resolving_marker_present=False,
+        second_resolving_marker_present=False,
+        first_competing_publisher_present=False,
+        second_competing_publisher_present=False,
+    )
+    return PendingTakeoverReceiptV1.build(
+        repository="wyattowalsh/nbadb",
+        dataset=_DATASET,
+        intent_id=receipt.intent_id,
+        deployment_id=receipt.deployment_id,
+        original_executor=origin_executor,
+        origin_terminal_conclusion="failure",
+        recovery_executor=ledger._verify_current_executor(),
+        terminal_handoff_sha256="9" * 64,
+        stable_inventory=stable,
+        nonce="6" * 32,
+    )
+
+
+def _terminal_origin(transport: FakeGitHubTransport) -> ExecutorReceipt:
+    transport.runs[(123, 1)]["status"] = "completed"
+    transport.runs[(123, 1)]["conclusion"] = "failure"
+    transport.jobs[(123, 1)][0]["status"] = "completed"
+    transport.jobs[(123, 1)][0]["conclusion"] = "failure"
+    recovery_probe = _ledger(transport)
+    return recovery_probe._verify_executor(
+        run_id=123,
+        run_attempt=1,
+        job="daily",
+        require_active=False,
+    )
+
+
+def test_pending_takeover_records_claims_and_resolves_exactly_once() -> None:
+    transport = FakeGitHubTransport()
+    origin = _ledger(transport, attempt=_attempt(run_id=123))
+    pending = origin.prepare(_intent())
+    origin_executor = _terminal_origin(transport)
+
+    recovery_attempt = _attempt(run_id=456)
+    transport.add_run(recovery_attempt)
+    recovery = _ledger(transport, attempt=recovery_attempt)
+    takeover = _takeover_receipt(recovery, pending, origin_executor=origin_executor)
+    member = _takeover_member(recovery, takeover.takeover_sha256)
+
+    durable_status = recovery.record_pending_takeover(pending, takeover, member)
+    assert durable_status.state == "pending"
+    assert durable_status.takeover_member == member
+
+    execution = recovery.claim_pending_takeover(pending, takeover, durable_status)
+    assert execution.run_id == 456
+    assert execution.takeover_sha256 == takeover.takeover_sha256
+
+    resolution = recovery.mark_resolved(
+        execution,
+        resolved_version=42,
+        publication_marker_sha256="4" * 64,
+        readback_fingerprint="3" * 64,
+    )
+    assert resolution.resolved_version == 42
+    current = recovery.scan_dataset(_DATASET).current
+    assert current is not None
+    assert current.state == "success"
+    assert [status.state for status in current.statuses] == [
+        "pending",
+        "in_progress",
+        "success",
+    ]
+
+    with pytest.raises(PublicationLedgerPendingError, match="no longer safely pending"):
+        recovery.claim_pending_takeover(pending, takeover, durable_status)
+
+
+def test_pending_takeover_rejects_active_origin_publisher() -> None:
+    transport = FakeGitHubTransport()
+    origin = _ledger(transport, attempt=_attempt(run_id=123))
+    pending = origin.prepare(_intent())
+    origin_executor = origin._verify_current_executor()
+
+    recovery_attempt = _attempt(run_id=456)
+    transport.add_run(recovery_attempt)
+    recovery = _ledger(transport, attempt=recovery_attempt)
+    takeover = _takeover_receipt(recovery, pending, origin_executor=origin_executor)
+
+    with pytest.raises(PublicationLedgerPendingError, match="not terminal"):
+        recovery.record_pending_takeover(
+            pending, takeover, _takeover_member(recovery, takeover.takeover_sha256)
+        )
+
+
+def test_pending_takeover_claim_requires_durable_recorded_status() -> None:
+    transport = FakeGitHubTransport()
+    origin = _ledger(transport, attempt=_attempt(run_id=123))
+    pending = origin.prepare(_intent())
+    origin_executor = _terminal_origin(transport)
+
+    recovery_attempt = _attempt(run_id=456)
+    transport.add_run(recovery_attempt)
+    recovery = _ledger(transport, attempt=recovery_attempt)
+    takeover = _takeover_receipt(recovery, pending, origin_executor=origin_executor)
+    member = _takeover_member(recovery, takeover.takeover_sha256)
+    durable_status = recovery.record_pending_takeover(pending, takeover, member)
+
+    unrecorded_values = {
+        field.name: getattr(durable_status, field.name)
+        for field in fields(durable_status)
+        if field.name != "status_sha256"
+    }
+    unrecorded_values["status_id"] = durable_status.status_id + 100
+    unrecorded = PendingTakeoverStatusReceiptV1.build(**unrecorded_values)
+    unrecorded.verify()
+    with pytest.raises(PublicationLedgerPendingError, match="durable ledger head"):
+        recovery.claim_pending_takeover(pending, takeover, unrecorded)
+
+    stale_takeover = _takeover_receipt(recovery, pending, origin_executor=origin_executor)
+    with pytest.raises(PublicationLedgerError, match="provenance is inconsistent"):
+        recovery.claim_pending_takeover(pending, stale_takeover, durable_status)
+
+
+def test_normal_pending_claim_rejected_after_durable_takeover_status() -> None:
+    transport = FakeGitHubTransport()
+    origin = _ledger(transport, attempt=_attempt(run_id=123))
+    pending = origin.prepare(_intent())
+    origin_executor = _terminal_origin(transport)
+
+    recovery_attempt = _attempt(run_id=456)
+    transport.add_run(recovery_attempt)
+    recovery = _ledger(transport, attempt=recovery_attempt)
+    takeover = _takeover_receipt(recovery, pending, origin_executor=origin_executor)
+    recovery.record_pending_takeover(
+        pending, takeover, _takeover_member(recovery, takeover.takeover_sha256)
+    )
+
+    with pytest.raises(PublicationLedgerPendingError, match="durable takeover"):
+        recovery.claim_pending(pending)

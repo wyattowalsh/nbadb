@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -11,6 +11,9 @@ import pytest
 from typer.testing import CliRunner
 
 from nbadb.cli.app import app
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 runner = CliRunner()
 
@@ -26,6 +29,25 @@ _KAGGLE_CLIENT = "nbadb.kaggle.client.KaggleClient"
 _GET_SETTINGS = "nbadb.core.config.get_settings"
 _QUERY_AGENT = "nbadb.agent.query.QueryAgent"
 _GENERATE_METADATA = "nbadb.kaggle.metadata.generate_metadata"
+
+
+@pytest.fixture(autouse=True)
+def _simulate_separately_reviewed_publication_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise CLI mechanics behind the independently tested rights gate."""
+    monkeypatch.setattr(
+        "nbadb.kaggle.publication_rights.assert_public_kaggle_publication_admitted",
+        lambda: None,
+    )
+
+
+def _mock_settings_with_warehouse(tmp_path: Path) -> MagicMock:
+    warehouse = tmp_path / "nba.duckdb"
+    duckdb.connect(str(warehouse)).close()
+    settings = MagicMock()
+    settings.duckdb_path = warehouse
+    return settings
 
 
 def _write_upload_manifest(tmp_path: Path, *, status: str) -> Path:
@@ -176,11 +198,113 @@ def test_download_success() -> None:
 def test_download_failure() -> None:
     """Exit 1 and print 'Download failed' when KaggleClient.download raises."""
     with patch(_KAGGLE_CLIENT) as mock_cls:
-        mock_cls.return_value.download.side_effect = RuntimeError("no api key")
+        secret_adjacent_message = "no api key: super-secret-value"
+        mock_cls.return_value.download.side_effect = RuntimeError(secret_adjacent_message)
         result = runner.invoke(app, ["download"])
     assert result.exit_code == 1
     # CliRunner mixes stdout and stderr into output by default
-    assert "Download failed" in result.output
+    assert "Download failed: RuntimeError" in result.output
+    assert secret_adjacent_message not in result.output
+
+
+def test_download_verified_public_baseline_uses_durable_ledger_and_exact_receipt(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "public"
+    receipt = tmp_path / "artifacts" / "baseline.json"
+    ledger = MagicMock()
+    with (
+        patch(_KAGGLE_CLIENT) as mock_cls,
+        patch(
+            "nbadb.kaggle.publication_ledger.GitHubDeploymentPublicationLedger.from_actions_env",
+            return_value=ledger,
+        ) as ledger_factory,
+    ):
+        client = mock_cls.return_value
+        client.download_verified_public_baseline.return_value = (target, receipt)
+        result = runner.invoke(
+            app,
+            [
+                "download",
+                "--data-dir",
+                str(target),
+                "--verified-public-baseline",
+                "--dataset-version",
+                "238",
+                "--publication-ledger",
+                "github-deployment",
+                "--require-durable-reconciliation",
+                "--receipt-path",
+                str(receipt),
+                "--remote-timeout",
+                "120",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    ledger_factory.assert_called_once_with()
+    client.download.assert_not_called()
+    client.download_verified_public_baseline.assert_called_once_with(
+        target,
+        dataset_version=238,
+        receipt_path=receipt,
+        remote_timeout_seconds=120.0,
+        publication_ledger=ledger,
+        require_durable_reconciliation=True,
+    )
+    assert f"Verified public baseline installed at {target}" in result.output
+    assert f"Baseline receipt: {receipt}" in result.output
+
+
+def test_verified_download_requires_dataset_version() -> None:
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(app, ["download", "--verified-public-baseline"])
+
+    assert result.exit_code == 1
+    assert "requires --dataset-version" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_generic_download_rejects_dataset_version() -> None:
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(app, ["download", "--dataset-version", "238"])
+
+    assert result.exit_code == 1
+    assert "dataset-version options require --verified-public-baseline" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_download_rejects_durable_ledger_on_generic_latest_path() -> None:
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(
+            app,
+            ["download", "--publication-ledger", "github-deployment"],
+        )
+
+    assert result.exit_code == 1
+    assert "require --verified-public-baseline" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_download_rejects_invalid_ledger_without_echoing_caller_value() -> None:
+    secret_adjacent_ledger = "secret-token-value"
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(
+            app,
+            [
+                "download",
+                "--verified-public-baseline",
+                "--dataset-version",
+                "238",
+                "--publication-ledger",
+                secret_adjacent_ledger,
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "expected local or github-deployment" in result.output
+    assert secret_adjacent_ledger not in result.output
+    mock_cls.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -296,6 +420,7 @@ def test_upload_passes_data_dir_message_and_orders_metadata(tmp_path: Path) -> N
         remote_poll_interval_seconds=15.0,
         publication_ledger=None,
         require_durable_intent=False,
+        successor_generation_store=None,
     )
     assert client.method_calls[0].args == (tmp_path,)
     assert client.method_calls[0].kwargs == {"include_assurance_resources": False}
@@ -340,6 +465,7 @@ def test_upload_passes_verify_remote_flag(tmp_path: Path) -> None:
         remote_poll_interval_seconds=2.0,
         publication_ledger=None,
         require_durable_intent=False,
+        successor_generation_store=None,
     )
     assert "Upload complete" in result.output
 
@@ -369,6 +495,7 @@ def test_upload_passes_full_publication_mode(tmp_path: Path) -> None:
         remote_poll_interval_seconds=15.0,
         publication_ledger=None,
         require_durable_intent=False,
+        successor_generation_store=None,
     )
     assert "Upload complete" in result.output
 
@@ -410,6 +537,7 @@ def test_upload_uses_github_deployment_ledger_when_required(tmp_path: Path) -> N
         remote_poll_interval_seconds=15.0,
         publication_ledger=ledger,
         require_durable_intent=True,
+        successor_generation_store=None,
     )
 
 
@@ -428,6 +556,165 @@ def test_upload_required_durable_intent_fails_before_metadata(tmp_path: Path) ->
     assert result.exit_code == 1
     assert "--publication-ledger github-deployment" in result.output
     mock_cls.assert_not_called()
+
+
+def test_upload_successor_without_durable_intent_fails_before_metadata(
+    tmp_path: Path,
+) -> None:
+    from nbadb.core.artifact_identity import SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+    from tests.unit.orchestrate.test_successor_assurance import _report
+
+    (tmp_path / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME).write_bytes(_report().canonical_bytes)
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(
+            app,
+            ["upload", "--data-dir", str(tmp_path), "--full-publication"],
+        )
+
+    assert result.exit_code == 1
+    assert "durable intent" in result.output
+    assert "exact version/inventory/hash readback" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_upload_successor_generic_byte_upload_fails_before_metadata(tmp_path: Path) -> None:
+    from nbadb.core.artifact_identity import SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+    from tests.unit.orchestrate.test_successor_assurance import _report
+
+    (tmp_path / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME).write_bytes(_report().canonical_bytes)
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(app, ["upload", "--data-dir", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "durable intent" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_upload_leftover_schema_v3_fails_when_successor_store_requested(
+    tmp_path: Path,
+) -> None:
+    from nbadb.core.artifact_identity import SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+    from nbadb.orchestrate.successor_generation_store import SuccessorGenerationStore
+
+    store_root = tmp_path / "successor-store"
+    store_root.mkdir()
+    store = SuccessorGenerationStore(store_root)
+    (tmp_path / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME).write_text(
+        json.dumps({"schema_version": 3, "chain_id": "full-baseline"}) + "\n",
+        encoding="utf-8",
+    )
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        result = runner.invoke(
+            app,
+            [
+                "upload",
+                "--data-dir",
+                str(tmp_path),
+                "--successor-generation-store",
+                str(store.root),
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "cannot substitute" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_upload_schema_v3_report_does_not_force_successor_durable_path(
+    tmp_path: Path,
+) -> None:
+    from nbadb.core.artifact_identity import SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+
+    (tmp_path / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME).write_text(
+        json.dumps({"schema_version": 3, "chain_id": "full-baseline"}) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = _write_upload_manifest(tmp_path, status="uploaded_unverified")
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        client = mock_cls.return_value
+        client.upload.return_value = manifest_path
+        result = runner.invoke(app, ["upload", "--data-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    client.upload.assert_called_once()
+    assert client.upload.call_args.kwargs["require_durable_intent"] is False
+    assert client.upload.call_args.kwargs["full_publication"] is False
+
+
+def test_upload_successor_durable_path_requires_generation_store(
+    tmp_path: Path,
+) -> None:
+    from nbadb.core.artifact_identity import SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+    from tests.unit.orchestrate.test_successor_assurance import _report
+
+    (tmp_path / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME).write_bytes(_report().canonical_bytes)
+    ledger = MagicMock()
+    with (
+        patch(_KAGGLE_CLIENT) as mock_cls,
+        patch(
+            "nbadb.kaggle.publication_ledger.GitHubDeploymentPublicationLedger.from_actions_env",
+            return_value=ledger,
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "upload",
+                "--data-dir",
+                str(tmp_path),
+                "--full-publication",
+                "--verify-remote",
+                "--publication-ledger",
+                "github-deployment",
+                "--require-durable-intent",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "explicit current generation store" in result.output
+    mock_cls.assert_not_called()
+
+
+def test_upload_successor_durable_path_reaches_client(tmp_path: Path) -> None:
+    from tests.unit.orchestrate.test_successor_publication_authority import (
+        _promoted_current_authority,
+    )
+
+    store, public_root, _promoted = _promoted_current_authority(tmp_path)
+    manifest_path = _write_upload_manifest(tmp_path, status="uploaded_remote_verified")
+    ledger = MagicMock()
+    with (
+        patch(_KAGGLE_CLIENT) as mock_cls,
+        patch(
+            "nbadb.kaggle.publication_ledger.GitHubDeploymentPublicationLedger.from_actions_env",
+            return_value=ledger,
+        ),
+    ):
+        client = mock_cls.return_value
+        client.upload.return_value = manifest_path
+        result = runner.invoke(
+            app,
+            [
+                "upload",
+                "--data-dir",
+                str(public_root),
+                "--successor-generation-store",
+                str(store.root),
+                "--full-publication",
+                "--verify-remote",
+                "--publication-ledger",
+                "github-deployment",
+                "--require-durable-intent",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    client.upload.assert_called_once()
+    kwargs = client.upload.call_args.kwargs
+    assert kwargs["full_publication"] is True
+    assert kwargs["require_durable_intent"] is True
+    assert kwargs["publication_ledger"] is ledger
+    assert kwargs["successor_generation_store"].root == store.root
 
 
 # ---------------------------------------------------------------------------
@@ -454,10 +741,9 @@ def test_metadata_success(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_ask_success() -> None:
+def test_ask_success(tmp_path: Path) -> None:
     """Exit 0 and print QueryAgent answer when duckdb_path is configured."""
-    mock_settings = MagicMock()
-    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
 
     with (
         patch(_GET_SETTINGS, return_value=mock_settings),
@@ -483,10 +769,40 @@ def test_ask_no_duckdb_path() -> None:
     assert result.exit_code == 1
 
 
-def test_ask_handles_empty_result() -> None:
-    """When QueryAgent.ask returns empty string, output contains '(no results)'."""
+def test_ask_missing_warehouse_fails_closed(tmp_path: Path) -> None:
     mock_settings = MagicMock()
-    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+    mock_settings.duckdb_path = tmp_path / "missing.duckdb"
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        result = runner.invoke(app, ["ask", "What is the answer?"])
+
+    assert result.exit_code == 1
+    assert "warehouse not found" in result.output.casefold()
+    mock_agent_cls.assert_not_called()
+
+
+def test_ask_corrupt_warehouse_fails_closed(tmp_path: Path) -> None:
+    warehouse = tmp_path / "corrupt.duckdb"
+    warehouse.write_bytes(b"not a DuckDB database")
+    mock_settings = MagicMock(duckdb_path=warehouse)
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        result = runner.invoke(app, ["ask", "What is the answer?"])
+
+    assert result.exit_code == 1
+    assert "not found or unusable" in result.output
+    mock_agent_cls.assert_not_called()
+
+
+def test_ask_handles_empty_result(tmp_path: Path) -> None:
+    """When QueryAgent.ask returns empty string, output contains '(no results)'."""
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
 
     with (
         patch(_GET_SETTINGS, return_value=mock_settings),
@@ -499,10 +815,9 @@ def test_ask_handles_empty_result() -> None:
     assert "(no results)" in result.output
 
 
-def test_ask_passes_limit_flag() -> None:
+def test_ask_passes_limit_flag(tmp_path: Path) -> None:
     """--limit 20 is forwarded to QueryAgent.ask as the limit argument."""
-    mock_settings = MagicMock()
-    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
 
     with (
         patch(_GET_SETTINGS, return_value=mock_settings),
@@ -515,10 +830,9 @@ def test_ask_passes_limit_flag() -> None:
     mock_agent_cls.return_value.ask_result.assert_called_once_with("Who scored the most?", limit=20)
 
 
-def test_ask_verbose_renders_query_details() -> None:
+def test_ask_verbose_renders_query_details(tmp_path: Path) -> None:
     """--verbose is forwarded to QueryResponse.render_text."""
-    mock_settings = MagicMock()
-    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
 
     with (
         patch(_GET_SETTINGS, return_value=mock_settings),
@@ -533,10 +847,9 @@ def test_ask_verbose_renders_query_details() -> None:
     assert "Query details" in result.output
 
 
-def test_ask_with_results_prints_output() -> None:
+def test_ask_with_results_prints_output(tmp_path: Path) -> None:
     """Non-empty QueryAgent response produces non-empty stdout."""
-    mock_settings = MagicMock()
-    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
 
     with (
         patch(_GET_SETTINGS, return_value=mock_settings),
@@ -549,3 +862,35 @@ def test_ask_with_results_prints_output() -> None:
 
     assert result.exit_code == 0, result.output
     assert "LeBron" in result.output
+
+
+def test_ask_strict_exits_nonzero_when_not_ok(tmp_path: Path) -> None:
+    """--strict exits 1 when QueryResponse.ok is False (unsupported/error)."""
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        mock_response = mock_agent_cls.return_value.ask_result.return_value
+        mock_response.render_text.return_value = "I couldn't match your question"
+        mock_response.ok = False
+        result = runner.invoke(app, ["ask", "--strict", "xyzzy unknown"])
+
+    assert result.exit_code == 1, result.output
+    assert "couldn't match" in result.output
+
+
+def test_ask_strict_exits_zero_when_ok(tmp_path: Path) -> None:
+    mock_settings = _mock_settings_with_warehouse(tmp_path)
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        mock_response = mock_agent_cls.return_value.ask_result.return_value
+        mock_response.render_text.return_value = "ok rows"
+        mock_response.ok = True
+        result = runner.invoke(app, ["ask", "--strict", "who led scoring?"])
+
+    assert result.exit_code == 0, result.output

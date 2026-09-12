@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import ctypes
 import errno
 import hashlib
 import importlib
@@ -8,7 +9,10 @@ import json
 import math
 import os
 import re
+import secrets
 import shutil
+import stat
+import sys
 import tempfile
 import threading
 import time
@@ -25,6 +29,11 @@ if TYPE_CHECKING:
     from nbadb.kaggle.publication_ledger import (
         ExecutionReceipt,
         PublicationLedger,
+    )
+    from nbadb.orchestrate.successor_generation_store import SuccessorGenerationStore
+    from nbadb.orchestrate.successor_update_contract import (
+        BaselineAssuranceIdentity,
+        SuccessorAssuranceIdentity,
     )
 
     class _FcntlModule(Protocol):
@@ -45,15 +54,23 @@ from loguru import logger
 
 from nbadb.core.artifact_identity import (
     ASSURED_ARTIFACT_MANIFEST_NAME,
+    assert_no_private_capture_sentinels,
     verify_assured_artifact_manifest,
 )
 from nbadb.core.config import get_settings
+from nbadb.core.nba_api_provenance import normalize_nba_api_provider_authority
 from nbadb.core.types import validate_sql_identifier
 from nbadb.kaggle.publication_ledger import PublicationIntent
+from nbadb.kaggle.publication_rights import assert_public_kaggle_publication_admitted
+from nbadb.orchestrate.successor_inventory import (
+    InstalledPublicTreeInventory,
+    measure_installed_public_tree,
+)
 
 PUBLICATION_MARKER_NAME = "nbadb-publication.json"
 PUBLICATION_STATE_NAME = "kaggle-publication-state.json"
 TERMINAL_ASSURANCE_REPORT_NAME = "terminal-assurance-report.json"
+PUBLIC_BASELINE_RECEIPT_NAME = "nbadb-public-baseline-receipt.json"
 UPLOAD_SERIALIZATION_CONTRACT = {
     "mechanism": "process_mutex_and_advisory_file_lock",
     "scope": "same_process_and_same_host_shared_log_directory",
@@ -63,6 +80,24 @@ UPLOAD_SERIALIZATION_CONTRACT = {
 _PUBLICATION_RECORD_STATES = frozenset({"failed", "resolved", "unresolved"})
 _REMOTE_FILE_LIST_PAGE_SIZE = 1000
 _DISK_SAFETY_RESERVE_BYTES = 1024 * 1024 * 1024
+_MAX_SIGNED_63 = (1 << 63) - 1
+_LINUX_RENAME_NOREPLACE = 1
+_DARWIN_RENAME_EXCL = 0x00000004
+_DIRECTORY_OPEN_FLAGS = (
+    os.O_RDONLY
+    | getattr(os, "O_DIRECTORY", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_CLOEXEC", 0)
+    | getattr(os, "O_NONBLOCK", 0)
+)
+_FILE_READ_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+_FILE_CREATE_FLAGS = (
+    os.O_WRONLY
+    | os.O_CREAT
+    | os.O_EXCL
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_CLOEXEC", 0)
+)
 
 _PROCESS_UPLOAD_LOCK = threading.Lock()
 _AUTHORIZATION_BEARER_RE = re.compile(
@@ -83,6 +118,565 @@ class KagglePublicationPendingError(RuntimeError):
     def __init__(self, message: str, publication: dict[str, Any]) -> None:
         self.publication = publication
         super().__init__(message)
+
+
+def _directory_identity(value: os.stat_result) -> tuple[int, int]:
+    return value.st_dev, value.st_ino
+
+
+def _open_stable_directory(path: Path, *, label: str) -> int:
+    before = os.stat(path, follow_symlinks=False)
+    if not stat.S_ISDIR(before.st_mode):
+        raise RuntimeError(f"{label} must be a regular directory")
+    descriptor = os.open(path, _DIRECTORY_OPEN_FLAGS)
+    try:
+        opened = os.fstat(descriptor)
+        after = os.stat(path, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or _directory_identity(opened) != _directory_identity(before)
+            or _directory_identity(after) != _directory_identity(before)
+        ):
+            raise RuntimeError(f"{label} changed while opening")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_stable_named_directory(
+    parent_descriptor: int,
+    name: str,
+    *,
+    label: str,
+) -> int:
+    before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+    if not stat.S_ISDIR(before.st_mode):
+        raise RuntimeError(f"{label} must be a regular directory")
+    descriptor = os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=parent_descriptor)
+    try:
+        opened = os.fstat(descriptor)
+        after = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or _directory_identity(opened) != _directory_identity(before)
+            or _directory_identity(after) != _directory_identity(before)
+        ):
+            raise RuntimeError(f"{label} changed while opening")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _require_named_directory_authority(
+    parent_descriptor: int,
+    name: str,
+    retained_descriptor: int,
+    *,
+    expected_identity: tuple[int, int],
+    label: str,
+) -> None:
+    observed_descriptor = -1
+    try:
+        retained = os.fstat(retained_descriptor)
+        named_before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        observed_descriptor = os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=parent_descriptor)
+        opened = os.fstat(observed_descriptor)
+        named_after = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+    except OSError as exc:
+        raise RuntimeError(f"{label} is missing or unsafe") from exc
+    finally:
+        if observed_descriptor >= 0:
+            os.close(observed_descriptor)
+    if (
+        not stat.S_ISDIR(retained.st_mode)
+        or not stat.S_ISDIR(opened.st_mode)
+        or not stat.S_ISDIR(named_before.st_mode)
+        or not stat.S_ISDIR(named_after.st_mode)
+        or _directory_identity(retained) != expected_identity
+        or _directory_identity(opened) != expected_identity
+        or _directory_identity(named_before) != expected_identity
+        or _directory_identity(named_after) != expected_identity
+    ):
+        raise RuntimeError(f"{label} differs from the admitted directory authority")
+
+
+def _fsync_directory_tree(directory_descriptor: int, *, label: str) -> None:
+    """Durably flush every directory entry in one already-open safe tree."""
+
+    visited: set[tuple[int, int]] = set()
+
+    def visit(descriptor: int, relative_label: str) -> None:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISDIR(opened.st_mode):
+            raise RuntimeError(f"{relative_label} must be a regular directory")
+        identity = _directory_identity(opened)
+        if identity in visited:
+            raise RuntimeError(f"{relative_label} contains a directory cycle")
+        visited.add(identity)
+
+        for name in sorted(os.listdir(descriptor)):
+            before = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if stat.S_ISREG(before.st_mode):
+                continue
+            if not stat.S_ISDIR(before.st_mode):
+                raise RuntimeError(f"{relative_label} contains a non-regular entry")
+            child_descriptor = os.open(name, _DIRECTORY_OPEN_FLAGS, dir_fd=descriptor)
+            try:
+                child_opened = os.fstat(child_descriptor)
+                after = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                if (
+                    not stat.S_ISDIR(child_opened.st_mode)
+                    or _directory_identity(child_opened) != _directory_identity(before)
+                    or _directory_identity(after) != _directory_identity(before)
+                ):
+                    raise RuntimeError(f"{relative_label}/{name} changed while opening")
+                visit(child_descriptor, f"{relative_label}/{name}")
+            finally:
+                os.close(child_descriptor)
+        os.fsync(descriptor)
+
+    visit(directory_descriptor, label)
+
+
+def _require_named_regular_file_authority(
+    parent_descriptor: int,
+    name: str,
+    *,
+    expected_identity: tuple[int, int],
+    label: str,
+) -> None:
+    """Require one named regular file to retain the admitted inode."""
+
+    observed_descriptor = -1
+    try:
+        before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or _directory_identity(before) != expected_identity:
+            raise RuntimeError(f"{label} differs from the admitted file authority")
+        observed_descriptor = os.open(
+            name,
+            _FILE_READ_FLAGS | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=parent_descriptor,
+        )
+        opened = os.fstat(observed_descriptor)
+        after = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or _directory_identity(opened) != expected_identity
+            or _directory_identity(after) != expected_identity
+        ):
+            raise RuntimeError(f"{label} changed while opening")
+    finally:
+        if observed_descriptor >= 0:
+            os.close(observed_descriptor)
+
+
+def _unlink_named_regular_file_authority(
+    parent_descriptor: int,
+    name: str,
+    *,
+    expected_identity: tuple[int, int],
+    label: str,
+) -> None:
+    """Retire only the exact regular-file inode published by this process."""
+
+    quarantine_name, quarantine_descriptor, quarantine_identity = _create_rollback_quarantine(
+        parent_descriptor,
+        target_name=name,
+    )
+    quarantine_entry = "receipt"
+    moved_descriptor = -1
+    preserve_quarantine = False
+
+    def restore_substituted_entry() -> None:
+        nonlocal preserve_quarantine
+        try:
+            _rename_directory_no_replace(
+                quarantine_descriptor,
+                quarantine_entry,
+                parent_descriptor,
+                name,
+            )
+        except OSError as exc:
+            preserve_quarantine = True
+            os.fsync(quarantine_descriptor)
+            os.fsync(parent_descriptor)
+            raise RuntimeError(
+                f"{label} cleanup retained a substituted file in owner-only quarantine"
+            ) from exc
+        os.fsync(quarantine_descriptor)
+        os.fsync(parent_descriptor)
+        raise RuntimeError(f"{label} cleanup restored a substituted file")
+
+    try:
+        _rename_directory_no_replace(
+            parent_descriptor,
+            name,
+            quarantine_descriptor,
+            quarantine_entry,
+        )
+        os.fsync(parent_descriptor)
+        os.fsync(quarantine_descriptor)
+        moved_before = os.stat(
+            quarantine_entry,
+            dir_fd=quarantine_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(moved_before.st_mode)
+            or _directory_identity(moved_before) != expected_identity
+        ):
+            restore_substituted_entry()
+        try:
+            moved_descriptor = os.open(
+                quarantine_entry,
+                _FILE_READ_FLAGS | getattr(os, "O_NONBLOCK", 0),
+                dir_fd=quarantine_descriptor,
+            )
+        except OSError:
+            restore_substituted_entry()
+        moved = os.fstat(moved_descriptor)
+        moved_after = os.stat(
+            quarantine_entry,
+            dir_fd=quarantine_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(moved.st_mode)
+            or _directory_identity(moved) != expected_identity
+            or not stat.S_ISREG(moved_after.st_mode)
+            or _directory_identity(moved_after) != expected_identity
+        ):
+            restore_substituted_entry()
+
+        os.unlink(quarantine_entry, dir_fd=quarantine_descriptor)
+        os.fsync(quarantine_descriptor)
+        try:
+            os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise RuntimeError(f"{label} cleanup observed a foreign replacement")
+    finally:
+        if moved_descriptor >= 0:
+            os.close(moved_descriptor)
+        if not preserve_quarantine:
+            _remove_empty_rollback_quarantine(
+                parent_descriptor,
+                quarantine_name,
+                quarantine_descriptor,
+                expected_identity=quarantine_identity,
+            )
+        os.close(quarantine_descriptor)
+
+
+@contextmanager
+def _public_baseline_workspace(*, prefix: str, parent: Path) -> Iterator[Path]:
+    """Keep temporary cleanup outside the baseline transaction outcome."""
+
+    workspace = tempfile.TemporaryDirectory(
+        prefix=prefix,
+        dir=parent,
+        ignore_cleanup_errors=True,
+    )
+    try:
+        yield Path(workspace.name)
+    finally:
+        try:
+            workspace.cleanup()
+        except OSError as exc:
+            logger.warning(
+                "Verified public baseline workspace cleanup failed after transaction outcome: {}",
+                type(exc).__name__,
+            )
+
+
+def _rename_directory_no_replace(
+    source_descriptor: int,
+    source_name: str,
+    target_descriptor: int,
+    target_name: str,
+) -> None:
+    """Move one name without replacing a destination on supported local POSIX hosts."""
+
+    library = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename = library.renameatx_np
+        rename.argtypes = (
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        )
+        rename.restype = ctypes.c_int
+        arguments = (
+            source_descriptor,
+            os.fsencode(source_name),
+            target_descriptor,
+            os.fsencode(target_name),
+            _DARWIN_RENAME_EXCL,
+        )
+    elif sys.platform.startswith("linux"):
+        try:
+            rename = library.renameat2
+        except AttributeError as exc:
+            raise RuntimeError("successor baseline no-replace rename requires renameat2") from exc
+        rename.argtypes = (
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        )
+        rename.restype = ctypes.c_int
+        arguments = (
+            source_descriptor,
+            os.fsencode(source_name),
+            target_descriptor,
+            os.fsencode(target_name),
+            _LINUX_RENAME_NOREPLACE,
+        )
+    else:
+        raise RuntimeError("successor baseline no-replace rename requires macOS or Linux")
+    ctypes.set_errno(0)
+    if rename(*arguments) != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number), source_name, target_name)
+
+
+def _create_rollback_quarantine(
+    parent_descriptor: int,
+    *,
+    target_name: str,
+) -> tuple[str, int, tuple[int, int]]:
+    for _attempt in range(16):
+        name = f".{target_name}.successor-baseline-rollback-{secrets.token_hex(16)}"
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_descriptor)
+        except FileExistsError:
+            continue
+        descriptor = _open_stable_named_directory(
+            parent_descriptor,
+            name,
+            label="successor baseline rollback quarantine",
+        )
+        observed = os.fstat(descriptor)
+        if stat.S_IMODE(observed.st_mode) != 0o700 or (
+            os.name == "posix" and observed.st_uid != os.geteuid()
+        ):
+            os.close(descriptor)
+            raise RuntimeError("successor baseline rollback quarantine is not owner-only")
+        os.fsync(parent_descriptor)
+        return name, descriptor, _directory_identity(observed)
+    raise RuntimeError("successor baseline rollback quarantine name allocation failed")
+
+
+def _remove_empty_rollback_quarantine(
+    parent_descriptor: int,
+    name: str,
+    descriptor: int,
+    *,
+    expected_identity: tuple[int, int],
+) -> None:
+    with os.scandir(descriptor) as iterator:
+        if next(iterator, None) is not None:
+            raise RuntimeError("successor baseline rollback quarantine is not empty")
+    _require_named_directory_authority(
+        parent_descriptor,
+        name,
+        descriptor,
+        expected_identity=expected_identity,
+        label="successor baseline rollback quarantine",
+    )
+    retired_name = ""
+    for _attempt in range(16):
+        candidate = f".{name}.retired-{secrets.token_hex(16)}"
+        try:
+            _rename_directory_no_replace(
+                parent_descriptor,
+                name,
+                parent_descriptor,
+                candidate,
+            )
+        except FileExistsError:
+            continue
+        retired_name = candidate
+        break
+    if not retired_name:
+        raise RuntimeError("successor baseline rollback retirement name allocation failed")
+    os.fsync(parent_descriptor)
+
+    moved_descriptor = -1
+    try:
+        moved_descriptor = _open_stable_named_directory(
+            parent_descriptor,
+            retired_name,
+            label="retired successor baseline rollback quarantine",
+        )
+        moved_identity = _directory_identity(os.fstat(moved_descriptor))
+        if moved_identity != expected_identity:
+            try:
+                _rename_directory_no_replace(
+                    parent_descriptor,
+                    retired_name,
+                    parent_descriptor,
+                    name,
+                )
+            except OSError as exc:
+                os.fsync(parent_descriptor)
+                raise RuntimeError(
+                    "successor baseline rollback retained a substituted quarantine as "
+                    f"{retired_name}"
+                ) from exc
+            os.fsync(parent_descriptor)
+            _require_named_directory_authority(
+                parent_descriptor,
+                name,
+                moved_descriptor,
+                expected_identity=moved_identity,
+                label="restored substituted successor baseline rollback quarantine",
+            )
+            raise RuntimeError(
+                "successor baseline rollback observed and restored a substituted quarantine"
+            )
+
+        with os.scandir(moved_descriptor) as iterator:
+            if next(iterator, None) is not None:
+                raise RuntimeError("retired successor baseline rollback quarantine is not empty")
+        os.rmdir(retired_name, dir_fd=parent_descriptor)
+        os.fsync(parent_descriptor)
+    finally:
+        if moved_descriptor >= 0:
+            os.close(moved_descriptor)
+
+
+def _rollback_renamed_successor_baseline(
+    *,
+    target_parent_descriptor: int,
+    target_name: str,
+    staging_parent_descriptor: int,
+    staged_name: str,
+    staged_descriptor: int,
+    admitted_identity: tuple[int, int],
+) -> None:
+    """Retire only the directory inode actually moved from the target name.
+
+    Native no-replace rename prevents destination clobbering, and the private
+    quarantine lets us inspect the inode moved at the syscall boundary.  POSIX
+    rename is not an inode compare-and-swap: this protects cooperative local
+    writers, while a same-UID actor that keeps racing names can force a
+    fail-closed retained quarantine instead of data deletion.
+    """
+
+    quarantine_name, quarantine_descriptor, quarantine_identity = _create_rollback_quarantine(
+        target_parent_descriptor,
+        target_name=target_name,
+    )
+    moved_descriptor = -1
+    preserve_quarantine = False
+    quarantine_entry = "renamed-target"
+    try:
+        _require_named_directory_authority(
+            target_parent_descriptor,
+            target_name,
+            staged_descriptor,
+            expected_identity=admitted_identity,
+            label="installed successor baseline rollback target",
+        )
+        _rename_directory_no_replace(
+            target_parent_descriptor,
+            target_name,
+            quarantine_descriptor,
+            quarantine_entry,
+        )
+        os.fsync(target_parent_descriptor)
+        os.fsync(quarantine_descriptor)
+        moved_descriptor = _open_stable_named_directory(
+            quarantine_descriptor,
+            quarantine_entry,
+            label="quarantined successor baseline rollback target",
+        )
+        moved_identity = _directory_identity(os.fstat(moved_descriptor))
+        if moved_identity != admitted_identity:
+            try:
+                _rename_directory_no_replace(
+                    quarantine_descriptor,
+                    quarantine_entry,
+                    target_parent_descriptor,
+                    target_name,
+                )
+            except OSError as exc:
+                preserve_quarantine = True
+                os.fsync(quarantine_descriptor)
+                os.fsync(target_parent_descriptor)
+                raise RuntimeError(
+                    "successor baseline rollback retained a substituted target in "
+                    f"owner-only quarantine {quarantine_name}"
+                ) from exc
+            os.fsync(quarantine_descriptor)
+            os.fsync(target_parent_descriptor)
+            _require_named_directory_authority(
+                target_parent_descriptor,
+                target_name,
+                moved_descriptor,
+                expected_identity=moved_identity,
+                label="restored substituted successor baseline target",
+            )
+            raise RuntimeError(
+                "successor baseline rollback observed and restored a substituted target"
+            )
+
+        try:
+            os.stat(staged_name, dir_fd=staging_parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            preserve_quarantine = True
+            raise RuntimeError("successor baseline rollback staging name is unexpectedly occupied")
+        _rename_directory_no_replace(
+            quarantine_descriptor,
+            quarantine_entry,
+            staging_parent_descriptor,
+            staged_name,
+        )
+        os.fsync(quarantine_descriptor)
+        os.fsync(staging_parent_descriptor)
+        try:
+            _require_named_directory_authority(
+                staging_parent_descriptor,
+                staged_name,
+                staged_descriptor,
+                expected_identity=admitted_identity,
+                label="rolled-back successor baseline staging directory",
+            )
+        except BaseException:
+            try:
+                _rename_directory_no_replace(
+                    staging_parent_descriptor,
+                    staged_name,
+                    quarantine_descriptor,
+                    quarantine_entry,
+                )
+            except BaseException:
+                preserve_quarantine = True
+                raise
+            preserve_quarantine = True
+            os.fsync(staging_parent_descriptor)
+            os.fsync(quarantine_descriptor)
+            raise
+    finally:
+        if moved_descriptor >= 0:
+            os.close(moved_descriptor)
+        if not preserve_quarantine:
+            _remove_empty_rollback_quarantine(
+                target_parent_descriptor,
+                quarantine_name,
+                quarantine_descriptor,
+                expected_identity=quarantine_identity,
+            )
+        os.close(quarantine_descriptor)
 
 
 class _PosixAdvisoryFileLock:
@@ -171,6 +765,508 @@ class KaggleClient:
         self._sync_duckdb_after_download(dest, copied_names=copied_names)
 
         return dest
+
+    def download_verified_public_baseline(
+        self,
+        target_dir: Path | None = None,
+        *,
+        dataset_version: int,
+        receipt_path: Path | None = None,
+        remote_timeout_seconds: float = 3600.0,
+        publication_ledger: PublicationLedger | None = None,
+        require_durable_reconciliation: bool = False,
+    ) -> tuple[Path, Path]:
+        """Install one exact caller-selected, fully assured Kaggle publication.
+
+        This is the authority path for recurring updates.  It resolves one
+        caller-supplied positive dataset version, downloads the complete API
+        inventory from that immutable version, verifies every byte against the public publication
+        marker and the strict full-publication validators, reconciles an
+        unresolved durable publication intent when present, binds the exact
+        versioned dataset handle into the receipt, and only then publishes the
+        isolated candidate with a no-replace directory rename.
+
+        The generic :meth:`download` helper remains available for interactive
+        convenience, but does not provide this assurance contract.
+        """
+        from kagglehub.handle import parse_dataset_handle
+
+        from nbadb.kaggle.publication_ledger import PublicationLedgerPendingError
+
+        exact_version = self._require_exact_dataset_version(
+            dataset_version,
+            source="caller-supplied verified baseline",
+        )
+        base_handle = parse_dataset_handle(self._dataset)
+        if base_handle.is_versioned():
+            raise ValueError(
+                "verified public baseline dataset configuration must not contain a version"
+            )
+        exact_dataset_handle = str(base_handle.with_version(exact_version))
+        if not math.isfinite(remote_timeout_seconds) or remote_timeout_seconds <= 0:
+            raise ValueError("remote_timeout_seconds must be > 0")
+        if require_durable_reconciliation and publication_ledger is None:
+            raise ValueError(
+                "Verified public baseline requires the GitHub Deployment publication ledger"
+            )
+
+        target = Path(target_dir) if target_dir is not None else self._settings.data_dir
+        if target.exists() or target.is_symlink():
+            raise FileExistsError("verified public baseline target must not already exist")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.parent.is_symlink():
+            raise ValueError("verified public baseline target parent must not be a symlink")
+
+        receipt = (
+            Path(receipt_path)
+            if receipt_path is not None
+            else target.parent / PUBLIC_BASELINE_RECEIPT_NAME
+        )
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        if receipt.exists() or receipt.is_symlink():
+            raise FileExistsError("verified public baseline receipt must not already exist")
+        if receipt.parent.is_symlink():
+            raise ValueError("verified public baseline receipt parent must not be a symlink")
+        try:
+            receipt.absolute().relative_to(target.absolute())
+        except ValueError:
+            pass
+        else:
+            raise ValueError("verified public baseline receipt must be outside the data root")
+
+        unresolved_before: tuple[object, ...] = ()
+        if publication_ledger is not None:
+            ledger_inventory = publication_ledger.scan_dataset(self._dataset)
+            unresolved_before = tuple(ledger_inventory.unresolved)
+
+        deadline = self._monotonic() + remote_timeout_seconds
+        self._require_verification_deadline(deadline, operation="baseline inventory listing")
+        api_inventory = self._list_remote_dataset_files(exact_version)
+        self._require_verification_deadline(deadline, operation="baseline inventory listing")
+        required_bytes = self._validate_verified_download_inventory(api_inventory)
+        if required_bytes > (_MAX_SIGNED_63 - _DISK_SAFETY_RESERVE_BYTES) // 2:
+            raise OverflowError("verified public baseline capacity requirement exceeds int64")
+        self._require_disk_capacity(
+            target.parent,
+            required_bytes=(required_bytes * 2) + _DISK_SAFETY_RESERVE_BYTES,
+            operation="verified public baseline download",
+        )
+
+        with _public_baseline_workspace(
+            prefix=f".{target.name}.verified-public-baseline-",
+            parent=target.parent,
+        ) as temporary_root:
+            scratch = temporary_root / "kagglehub-scratch"
+            scratch.mkdir(mode=0o700)
+            staged = temporary_root / "public"
+            staged.mkdir(mode=0o700)
+            for remote_file in api_inventory:
+                relative_path = str(remote_file["path"])
+                self._require_verification_deadline(
+                    deadline,
+                    operation="verified public baseline file download",
+                )
+                downloaded, resolved_version = self._download_remote_dataset_file(
+                    scratch,
+                    exact_version,
+                    relative_path,
+                )
+                if resolved_version != exact_version:
+                    raise RuntimeError(
+                        "Kaggle verified public baseline file resolved the wrong version: "
+                        f"expected={exact_version}, resolved={resolved_version}, "
+                        f"path={relative_path}"
+                    )
+                expected_path = (scratch / relative_path).resolve()
+                if downloaded != expected_path:
+                    raise ValueError(
+                        "Kaggle verified public baseline file resolved the wrong path: "
+                        f"{relative_path}"
+                    )
+                candidate_path = staged / relative_path
+                self._copy_verified_download_file(downloaded, candidate_path)
+                byte_count = candidate_path.stat().st_size
+                if byte_count != remote_file["bytes"]:
+                    raise ValueError(
+                        f"Kaggle verified public baseline file has the wrong size: {relative_path}"
+                    )
+                self._require_verification_deadline(
+                    deadline,
+                    operation="verified public baseline file hashing",
+                )
+
+            remote_tree = self._snapshot_tree(staged)
+            self._require_verification_deadline(
+                deadline,
+                operation="verified public baseline tree hashing",
+            )
+            self._assert_remote_file_inventory_matches(
+                remote_tree["files"],
+                api_inventory,
+                compare_sha256=False,
+            )
+            marker_path = staged / PUBLICATION_MARKER_NAME
+            if not marker_path.is_file() or marker_path.is_symlink():
+                raise FileNotFoundError(
+                    "verified public baseline publication marker is missing or unsafe"
+                )
+            if marker_path.stat().st_size > 16 * 1024 * 1024:
+                raise ValueError("verified public baseline publication marker exceeds safe size")
+            try:
+                marker = json.loads(marker_path.read_bytes())
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError(
+                    "verified public baseline publication marker is invalid JSON"
+                ) from exc
+            if not isinstance(marker, dict):
+                raise ValueError("verified public baseline publication marker must be an object")
+            marker = cast("dict[str, Any]", marker)
+            self._validate_publication_marker(marker)
+            self._assert_remote_marker_inventory_matches(
+                marker,
+                remote_tree["files"],
+                compare_sha256=True,
+            )
+            snapshot = self._snapshot_upload_bundle(
+                staged,
+                require_assured=True,
+                require_terminal_assurance=True,
+            )
+            self._require_verification_deadline(
+                deadline,
+                operation="verified public baseline assurance validation",
+            )
+
+            durable_resolution: dict[str, Any] | None = None
+            if unresolved_before:
+                self._require_verification_deadline(
+                    deadline,
+                    operation="durable baseline reconciliation",
+                )
+                durable_resolution = self._reconcile_durable_publication(
+                    publication_ledger=publication_ledger,
+                    marker=marker,
+                    resolved_version=exact_version,
+                    resource_verification={"fingerprint": remote_tree["fingerprint"]},
+                )
+                if durable_resolution is None:
+                    raise PublicationLedgerPendingError(
+                        "The unresolved Kaggle publication intent does not match the exact "
+                        "verified public baseline"
+                    )
+                if publication_ledger is None:
+                    raise AssertionError("durable reconciliation lost its publication ledger")
+                if publication_ledger.scan_dataset(self._dataset).unresolved:
+                    raise PublicationLedgerPendingError(
+                        "The Kaggle publication intent remains unresolved after reconciliation"
+                    )
+                self._require_verification_deadline(
+                    deadline,
+                    operation="durable baseline reconciliation",
+                )
+
+            self._require_verification_deadline(
+                deadline,
+                operation="verified public baseline promotion",
+            )
+
+            staging_parent_descriptor = _open_stable_directory(
+                staged.parent,
+                label="verified public baseline staging parent",
+            )
+            target_parent_descriptor = _open_stable_directory(
+                target.parent,
+                label="verified public baseline target parent",
+            )
+            staged_descriptor = -1
+            try:
+                staged_descriptor = _open_stable_named_directory(
+                    staging_parent_descriptor,
+                    staged.name,
+                    label="verified public baseline staged directory",
+                )
+                admitted_identity = _directory_identity(os.fstat(staged_descriptor))
+                _require_named_directory_authority(
+                    staging_parent_descriptor,
+                    staged.name,
+                    staged_descriptor,
+                    expected_identity=admitted_identity,
+                    label="verified public baseline staged directory",
+                )
+                _fsync_directory_tree(
+                    staged_descriptor,
+                    label="verified public baseline staged directory",
+                )
+                _rename_directory_no_replace(
+                    staging_parent_descriptor,
+                    staged.name,
+                    target_parent_descriptor,
+                    target.name,
+                )
+                try:
+                    _require_named_directory_authority(
+                        target_parent_descriptor,
+                        target.name,
+                        staged_descriptor,
+                        expected_identity=admitted_identity,
+                        label="installed verified public baseline directory",
+                    )
+                    os.fsync(staging_parent_descriptor)
+                    os.fsync(target_parent_descriptor)
+                    installed_tree = measure_installed_public_tree(
+                        target,
+                        expected_root_identity=admitted_identity,
+                    )
+                    if (
+                        installed_tree.installed_public_tree_sha256
+                        != snapshot["installed_public_tree_sha256"]
+                        or installed_tree.byte_count != snapshot["installed_public_tree_bytes"]
+                    ):
+                        raise RuntimeError(
+                            "verified public baseline changed during atomic installation"
+                        )
+                    shutil.rmtree(scratch)
+                    os.fsync(staging_parent_descriptor)
+                    _require_named_directory_authority(
+                        target_parent_descriptor,
+                        target.name,
+                        staged_descriptor,
+                        expected_identity=admitted_identity,
+                        label="admitted verified public baseline directory",
+                    )
+                    receipt_payload = self._public_baseline_receipt_payload(
+                        exact_version=exact_version,
+                        exact_dataset_handle=exact_dataset_handle,
+                        marker=marker,
+                        remote_tree=remote_tree,
+                        snapshot=snapshot,
+                        installed_tree=installed_tree,
+                        durable_ledger_checked=publication_ledger is not None,
+                        durable_resolution=durable_resolution,
+                    )
+                    self._atomic_write_canonical_json_no_replace(receipt, receipt_payload)
+                except BaseException:
+                    try:
+                        _rollback_renamed_successor_baseline(
+                            target_parent_descriptor=target_parent_descriptor,
+                            target_name=target.name,
+                            staging_parent_descriptor=staging_parent_descriptor,
+                            staged_name=staged.name,
+                            staged_descriptor=staged_descriptor,
+                            admitted_identity=admitted_identity,
+                        )
+                    except BaseException as rollback_error:
+                        raise RuntimeError(
+                            "verified public baseline finalization failed and exact rollback "
+                            "could not complete without replacing another target"
+                        ) from rollback_error
+                    raise
+            finally:
+                if staged_descriptor >= 0:
+                    os.close(staged_descriptor)
+                os.close(target_parent_descriptor)
+                os.close(staging_parent_descriptor)
+
+        return target, receipt
+
+    def _download_successor_baseline_compat(
+        self,
+        target_dir: Path,
+        *,
+        remote_dataset_version: int,
+        private_baseline_receipt_sha256: str,
+    ) -> BaselineAssuranceIdentity:
+        """Compatibility-only private-receipt baseline admission.
+
+        Every file is fetched from the explicitly versioned Kaggle handle,
+        verified against the marker and strict full-publication contract, and
+        staged on the destination filesystem.  ``target_dir`` appears only
+        after all validation and a final remote-head recheck succeed.
+
+        Recurring and public callers must use
+        :meth:`download_verified_public_baseline`; this private helper remains
+        only for the isolated successor-contract compatibility tests.
+        """
+        from nbadb.orchestrate.successor_baseline import (
+            baseline_identity_from_verified_publication,
+        )
+
+        expected_version = self._require_exact_dataset_version(
+            remote_dataset_version,
+            source="successor baseline",
+        )
+        if not self._is_lowercase_hex(private_baseline_receipt_sha256, length=64):
+            raise ValueError("private_baseline_receipt_sha256 must be lowercase hex")
+        target = Path(target_dir)
+        if target.exists() or target.is_symlink():
+            raise FileExistsError("successor baseline target must not already exist")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.parent.is_symlink():
+            raise ValueError("successor baseline target parent must not be a symlink")
+
+        before_version = self._resolve_remote_dataset_version()
+        if before_version != expected_version:
+            msg = (
+                "Successor baseline remote version changed before download: "
+                f"expected={expected_version}, observed={before_version}"
+            )
+            raise RuntimeError(msg)
+        api_inventory = self._list_remote_dataset_files(expected_version)
+        required_bytes = sum(int(item["bytes"]) for item in api_inventory)
+        self._require_disk_capacity(
+            target.parent,
+            required_bytes=required_bytes + _DISK_SAFETY_RESERVE_BYTES,
+            operation="successor baseline download",
+        )
+
+        with tempfile.TemporaryDirectory(
+            prefix=f".{target.name}.successor-baseline-",
+            dir=target.parent,
+        ) as temporary_root:
+            staged = Path(temporary_root) / "public"
+            staged.mkdir()
+            observed_files: list[dict[str, Any]] = []
+            for remote_file in api_inventory:
+                relative_path = str(remote_file["path"])
+                downloaded, _resolved_version = self._download_remote_dataset_file(
+                    staged,
+                    expected_version,
+                    relative_path,
+                )
+                byte_count = downloaded.stat().st_size
+                if byte_count != remote_file["bytes"]:
+                    raise ValueError(
+                        "Kaggle downloaded successor baseline file has the wrong size: "
+                        f"{relative_path}"
+                    )
+                observed_files.append(
+                    {
+                        "path": relative_path,
+                        "bytes": byte_count,
+                        "sha256": self._file_sha256(downloaded),
+                    }
+                )
+            observed_files.sort(key=lambda item: item["path"])
+
+            marker_path = staged / PUBLICATION_MARKER_NAME
+            if not marker_path.is_file() or marker_path.is_symlink():
+                raise FileNotFoundError(
+                    "successor baseline publication marker is missing or unsafe"
+                )
+            if marker_path.stat().st_size > 16 * 1024 * 1024:
+                raise ValueError("successor baseline publication marker exceeds safe size")
+            try:
+                marker = json.loads(marker_path.read_bytes())
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError("successor baseline publication marker is invalid JSON") from exc
+            if not isinstance(marker, dict):
+                raise ValueError("successor baseline publication marker must be an object")
+            marker = cast("dict[str, Any]", marker)
+            self._validate_publication_marker(marker)
+            self._assert_remote_marker_inventory_matches(
+                marker,
+                observed_files,
+                compare_sha256=True,
+            )
+            snapshot = self._snapshot_upload_bundle(
+                staged,
+                require_assured=True,
+                require_terminal_assurance=True,
+            )
+            after_version = self._resolve_remote_dataset_version()
+            if after_version != expected_version:
+                msg = (
+                    "Successor baseline remote version changed during download: "
+                    f"expected={expected_version}, observed={after_version}"
+                )
+                raise RuntimeError(msg)
+            staging_parent_descriptor = _open_stable_directory(
+                staged.parent,
+                label="successor baseline staging parent",
+            )
+            target_parent_descriptor = _open_stable_directory(
+                target.parent,
+                label="successor baseline target parent",
+            )
+            staged_descriptor = -1
+            try:
+                staged_descriptor = _open_stable_named_directory(
+                    staging_parent_descriptor,
+                    staged.name,
+                    label="successor baseline staged directory",
+                )
+                admitted_identity = _directory_identity(os.fstat(staged_descriptor))
+                _require_named_directory_authority(
+                    staging_parent_descriptor,
+                    staged.name,
+                    staged_descriptor,
+                    expected_identity=admitted_identity,
+                    label="successor baseline staged directory",
+                )
+                _rename_directory_no_replace(
+                    staging_parent_descriptor,
+                    staged.name,
+                    target_parent_descriptor,
+                    target.name,
+                )
+                try:
+                    _require_named_directory_authority(
+                        target_parent_descriptor,
+                        target.name,
+                        staged_descriptor,
+                        expected_identity=admitted_identity,
+                        label="installed successor baseline directory",
+                    )
+                    os.fsync(staging_parent_descriptor)
+                    os.fsync(target_parent_descriptor)
+                    installed_tree = measure_installed_public_tree(
+                        target,
+                        expected_root_identity=admitted_identity,
+                    )
+                    if installed_tree.installed_public_tree_sha256 != snapshot[
+                        "installed_public_tree_sha256"
+                    ] or installed_tree.byte_count != snapshot.get("installed_public_tree_bytes"):
+                        raise RuntimeError(
+                            "successor baseline installed public tree changed during atomic staging"
+                        )
+                    snapshot["installed_public_tree_sha256"] = (
+                        installed_tree.installed_public_tree_sha256
+                    )
+                    snapshot["installed_public_tree_bytes"] = installed_tree.byte_count
+                    identity = baseline_identity_from_verified_publication(
+                        snapshot,
+                        remote_dataset_version=expected_version,
+                        private_baseline_receipt_sha256=private_baseline_receipt_sha256,
+                    )
+                    _require_named_directory_authority(
+                        target_parent_descriptor,
+                        target.name,
+                        staged_descriptor,
+                        expected_identity=admitted_identity,
+                        label="admitted successor baseline directory",
+                    )
+                except BaseException:
+                    try:
+                        _rollback_renamed_successor_baseline(
+                            target_parent_descriptor=target_parent_descriptor,
+                            target_name=target.name,
+                            staging_parent_descriptor=staging_parent_descriptor,
+                            staged_name=staged.name,
+                            staged_descriptor=staged_descriptor,
+                            admitted_identity=admitted_identity,
+                        )
+                    except BaseException as rollback_error:
+                        raise RuntimeError(
+                            "successor baseline post-rename finalization failed and exact "
+                            "rollback could not complete without replacing another target"
+                        ) from rollback_error
+                    raise
+            finally:
+                if staged_descriptor >= 0:
+                    os.close(staged_descriptor)
+                os.close(target_parent_descriptor)
+                os.close(staging_parent_descriptor)
+        return identity
 
     def publication_preflight(self) -> dict[str, Any]:
         """Read and classify exact remote publication evidence without uploading."""
@@ -267,6 +1363,7 @@ class KaggleClient:
         remote_poll_interval_seconds: float = 15.0,
         publication_ledger: PublicationLedger | None = None,
         require_durable_intent: bool = False,
+        successor_generation_store: SuccessorGenerationStore | None = None,
     ) -> Path:
         """Upload with local serialization and optional crash-durable intent.
 
@@ -274,7 +1371,10 @@ class KaggleClient:
         log directory. Durable mode additionally records a verified GitHub Deployment
         intent before entering Kaggle's non-idempotent upload call.
         Full-publication mode additionally requires assured terminal extraction evidence.
+        A schema-v7 successor publication additionally requires the explicit generation
+        store whose current frozen public directory is supplied as ``data_dir``.
         """
+        assert_public_kaggle_publication_admitted()
         with self._local_upload_claim():
             return self._upload_claimed(
                 data_dir=data_dir,
@@ -286,6 +1386,7 @@ class KaggleClient:
                 remote_poll_interval_seconds=remote_poll_interval_seconds,
                 publication_ledger=publication_ledger,
                 require_durable_intent=require_durable_intent,
+                successor_generation_store=successor_generation_store,
             )
 
     def _upload_claimed(
@@ -299,8 +1400,10 @@ class KaggleClient:
         remote_poll_interval_seconds: float = 15.0,
         publication_ledger: PublicationLedger | None = None,
         require_durable_intent: bool = False,
+        successor_generation_store: SuccessorGenerationStore | None = None,
     ) -> Path:
         """Validate and upload a bundle while the local upload claim is held."""
+        assert_public_kaggle_publication_admitted()
         import kagglehub
 
         upload_dir = data_dir or self._settings.data_dir
@@ -328,10 +1431,29 @@ class KaggleClient:
         if publication_ledger is not None and not verify_remote:
             msg = "Durable Kaggle publication requires exact remote verification"
             raise ValueError(msg)
+        from nbadb.orchestrate.successor_publication_authority import (
+            require_successor_durable_publication,
+            successor_publication_requested,
+        )
+
+        if successor_publication_requested(
+            upload_dir,
+            successor_generation_store=successor_generation_store,
+        ):
+            require_successor_durable_publication(
+                upload_dir,
+                full_publication=full_publication,
+                verify_remote=verify_remote,
+                require_durable_intent=require_durable_intent,
+                publication_ledger=publication_ledger,
+                successor_generation_store=successor_generation_store,
+            )
         preflight = self._snapshot_upload_bundle(
             upload_dir,
             require_assured=require_assured,
             require_terminal_assurance=full_publication,
+            successor_generation_store=successor_generation_store,
+            require_successor_current_authority=full_publication,
         )
         with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-upload-") as temp_dir:
             staged_dir = Path(temp_dir) / "dataset"
@@ -396,6 +1518,8 @@ class KaggleClient:
                     upload_dir,
                     require_assured=require_assured,
                     require_terminal_assurance=full_publication,
+                    successor_generation_store=successor_generation_store,
+                    require_successor_current_authority=full_publication,
                 )
             except Exception as exc:
                 self._write_upload_manifest(
@@ -1558,7 +2682,10 @@ class KaggleClient:
         *,
         require_assured: bool = False,
         require_terminal_assurance: bool = False,
+        successor_generation_store: SuccessorGenerationStore | None = None,
+        require_successor_current_authority: bool = False,
     ) -> dict[str, Any]:
+        assert_no_private_capture_sentinels(data_dir)
         metadata_path = data_dir / "dataset-metadata.json"
         if not metadata_path.is_file():
             msg = f"Kaggle metadata file does not exist: {metadata_path}"
@@ -1721,6 +2848,7 @@ class KaggleClient:
                 "data_tree_fingerprint": assured_manifest["data_tree_fingerprint"],
             }
         terminal_assurance: dict[str, Any] | None = None
+        prevalidation_installed_public_tree_sha256: str | None = None
         if require_terminal_assurance:
             if TERMINAL_ASSURANCE_REPORT_NAME not in seen_paths:
                 msg = (
@@ -1731,13 +2859,21 @@ class KaggleClient:
             if assured_manifest is None:
                 msg = "Full Kaggle publication requires a valid assured artifact manifest"
                 raise ValueError(msg)
+            prevalidation_installed_public_tree_sha256 = measure_installed_public_tree(
+                data_root
+            ).installed_public_tree_sha256
             terminal_assurance = self._validate_terminal_assurance_report(
                 data_root / TERMINAL_ASSURANCE_REPORT_NAME,
                 assured_manifest=assured_manifest,
+                resource_inventory=resource_inventory,
+                installed_public_tree_sha256=(prevalidation_installed_public_tree_sha256),
+                successor_generation_store=successor_generation_store,
+                successor_data_root=data_root,
+                require_successor_current_authority=(require_successor_current_authority),
             )
             from nbadb.kaggle.metadata import expected_full_publication_resource_contract
 
-            expected_contract = expected_full_publication_resource_contract()
+            expected_contract = expected_full_publication_resource_contract(data_root)
             expected_paths = set(expected_contract)
             missing_paths = sorted(expected_paths - seen_paths)
             unexpected_paths = sorted(seen_paths - expected_paths)
@@ -1761,7 +2897,22 @@ class KaggleClient:
                     f"{kind_mismatches}"
                 )
                 raise ValueError(msg)
-            self._validate_full_publication_format_parity(resource_inventory)
+            self._validate_full_publication_format_parity(
+                resource_inventory,
+                require_authoritative_values=True,
+            )
+        installed_public_tree = measure_installed_public_tree(data_root)
+        installed_public_tree_sha256 = installed_public_tree.installed_public_tree_sha256
+        if (
+            prevalidation_installed_public_tree_sha256 is not None
+            and installed_public_tree_sha256 != prevalidation_installed_public_tree_sha256
+        ):
+            raise ValueError("Kaggle public tree changed during full publication validation")
+        self._assert_snapshot_resources_match_installed_tree(
+            installed_public_tree,
+            metadata_bytes=metadata_bytes,
+            resource_inventory=resource_inventory,
+        )
         identity_resources = [
             {
                 "path": resource["path"],
@@ -1788,18 +2939,90 @@ class KaggleClient:
             sort_keys=True,
             separators=(",", ":"),
         )
+        resource_bytes = 0
+        for resource in resource_inventory:
+            byte_count = resource["bytes"]
+            if type(byte_count) is not int or byte_count < 0:
+                raise ValueError("Kaggle declared resource byte count is invalid")
+            if byte_count > _MAX_SIGNED_63 - resource_bytes:
+                raise ValueError("Kaggle declared resource bytes exceed signed-63-bit range")
+            resource_bytes += byte_count
         return {
             "dataset": self._dataset,
             "metadata_path": str(metadata_path),
             "metadata_bytes": len(metadata_bytes),
             "metadata_sha256": fingerprint_payload["metadata_sha256"],
             "resource_count": len(resource_inventory),
-            "resource_bytes": sum(resource["bytes"] for resource in resource_inventory),
+            "resource_bytes": resource_bytes,
             "resources": sorted(resource_inventory, key=lambda resource: resource["path"]),
             "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
+            "installed_public_tree_sha256": installed_public_tree_sha256,
+            "installed_public_tree_bytes": installed_public_tree.byte_count,
             "provenance": provenance,
             "terminal_assurance": terminal_assurance,
         }
+
+    @staticmethod
+    def _assert_snapshot_resources_match_installed_tree(
+        installed_public_tree: InstalledPublicTreeInventory,
+        *,
+        metadata_bytes: bytes,
+        resource_inventory: list[dict[str, Any]],
+    ) -> None:
+        """Bind declared resource evidence to the same final tree inventory.
+
+        Resource validators intentionally run before the final complete-tree
+        measurement.  This exact subset comparison prevents a same-length
+        mutation between those phases from pairing stale resource evidence
+        with a newer installed-tree digest.
+        """
+
+        installed_files = {
+            str(item["path"]): {
+                "bytes": int(item["bytes"]),
+                "sha256": str(item["sha256"]),
+            }
+            for item in installed_public_tree.to_inventory()
+        }
+        expected_metadata = {
+            "bytes": len(metadata_bytes),
+            "sha256": hashlib.sha256(metadata_bytes).hexdigest(),
+        }
+        if installed_files.get("dataset-metadata.json") != expected_metadata:
+            raise ValueError("Kaggle metadata changed before the final installed-tree inventory")
+
+        for resource in resource_inventory:
+            resource_path = str(resource["path"])
+            if resource["kind"] == "file":
+                expected_file = {
+                    "bytes": int(resource["bytes"]),
+                    "sha256": str(resource["sha256"]),
+                }
+                if installed_files.get(resource_path) != expected_file:
+                    raise ValueError(
+                        "Kaggle declared resource changed before the final installed-tree "
+                        f"inventory: {resource_path}"
+                    )
+                continue
+
+            prefix = f"{resource_path}/"
+            expected_children = {
+                f"{resource_path}/{child['path']}": {
+                    "bytes": int(child["bytes"]),
+                    "sha256": str(child["sha256"]),
+                }
+                for child in resource["files"]
+            }
+            observed_children = {
+                path: evidence
+                for path, evidence in installed_files.items()
+                if path.startswith(prefix)
+            }
+            if observed_children != expected_children:
+                raise ValueError(
+                    "Kaggle declared directory resource changed before the final "
+                    f"installed-tree inventory: {resource_path}"
+                )
 
     @classmethod
     def _validate_terminal_assurance_report(
@@ -1807,9 +3030,15 @@ class KaggleClient:
         report_path: Path,
         *,
         assured_manifest: dict[str, Any],
+        resource_inventory: list[dict[str, Any]] | None = None,
+        installed_public_tree_sha256: str | None = None,
+        successor_generation_store: SuccessorGenerationStore | None = None,
+        successor_data_root: Path | None = None,
+        require_successor_current_authority: bool = False,
     ) -> dict[str, Any]:
         try:
-            report = json.loads(report_path.read_bytes())
+            report_bytes = report_path.read_bytes()
+            report = json.loads(report_bytes)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             msg = "Terminal assurance report is not valid JSON"
             raise ValueError(msg) from exc
@@ -1817,8 +3046,47 @@ class KaggleClient:
             msg = "Terminal assurance report has an unsupported schema"
             raise ValueError(msg)
         report = cast("dict[str, Any]", report)
-        if report["schema_version"] != 2:
+        if successor_generation_store is not None and report["schema_version"] != 7:
+            msg = (
+                "Schema-v7 successor authority is required when a successor "
+                "generation store is supplied; leftover full-extraction terminal "
+                "report cannot substitute"
+            )
+            raise ValueError(msg)
+        if report["schema_version"] == 7:
+            if require_successor_current_authority and successor_generation_store is None:
+                msg = (
+                    "Schema-v7 successor publication requires an explicit current generation store"
+                )
+                raise ValueError(msg)
+            if not cls._is_lowercase_hex(installed_public_tree_sha256, length=64):
+                msg = (
+                    "Successor terminal assurance requires an external installed public tree "
+                    "SHA-256"
+                )
+                raise ValueError(msg)
+            return cls._validate_successor_terminal_assurance_report(
+                report_bytes,
+                assured_manifest=assured_manifest,
+                resource_inventory=resource_inventory,
+                installed_public_tree_sha256=cast("str", installed_public_tree_sha256),
+                successor_generation_store=successor_generation_store,
+                successor_data_root=successor_data_root,
+                require_successor_current_authority=(require_successor_current_authority),
+            )
+        if report["schema_version"] != 3:
             msg = "Terminal assurance report has an unsupported schema"
+            raise ValueError(msg)
+
+        try:
+            provider_authority = normalize_nba_api_provider_authority(
+                report.get("provider_authority")
+            )
+        except ValueError as exc:
+            msg = f"Terminal assurance report provider authority is invalid: {exc}"
+            raise ValueError(msg) from exc
+        if report.get("provider_authority_sha256") != provider_authority["authority_sha256"]:
+            msg = "Terminal assurance report provider authority digest does not match"
             raise ValueError(msg)
 
         chain_id = report.get("chain_id")
@@ -1849,6 +3117,15 @@ class KaggleClient:
             msg = "Terminal assurance report checkpoint_report is invalid"
             raise ValueError(msg)
         checkpoint_report = cast("dict[str, Any]", checkpoint_report)
+        if checkpoint_report.get("provider_authority") != provider_authority:
+            msg = "Terminal assurance checkpoint provider authority does not match"
+            raise ValueError(msg)
+        if (
+            checkpoint_report.get("provider_authority_sha256")
+            != provider_authority["authority_sha256"]
+        ):
+            msg = "Terminal assurance checkpoint provider authority digest does not match"
+            raise ValueError(msg)
         checkpoint_report_sha256 = hashlib.sha256(
             json.dumps(
                 checkpoint_report,
@@ -1883,6 +3160,8 @@ class KaggleClient:
             "contract_blocked_lane_count": blocked_lane_count,
             "contract_blocked_evidence": blocked_evidence,
             "contract_blocked_evidence_sha256": evidence_sha256,
+            "provider_authority": provider_authority,
+            "provider_authority_sha256": provider_authority["authority_sha256"],
         }
         for field, expected in checkpoint_bindings.items():
             if checkpoint_report.get(field) != expected:
@@ -2021,7 +3300,241 @@ class KaggleClient:
             "included_run_count": len(included_run_ids),
             "contract_blocked_lane_count": blocked_lane_count,
             "contract_blocked_evidence_sha256": evidence_sha256,
+            "provider_authority_sha256": provider_authority["authority_sha256"],
         }
+
+    @classmethod
+    def _validate_successor_terminal_assurance_report(
+        cls,
+        report_bytes: bytes,
+        *,
+        assured_manifest: dict[str, Any],
+        resource_inventory: list[dict[str, Any]] | None,
+        installed_public_tree_sha256: str,
+        successor_generation_store: SuccessorGenerationStore | None,
+        successor_data_root: Path | None,
+        require_successor_current_authority: bool,
+    ) -> dict[str, Any]:
+        """Bind one canonical successor report to its exact public controls."""
+        from nbadb.orchestrate.successor_assurance import (
+            SuccessorAssuranceContractError,
+            validate_successor_terminal_assurance_report,
+        )
+
+        if resource_inventory is None:
+            msg = "Successor terminal assurance requires the strict resource inventory"
+            raise ValueError(msg)
+        try:
+            report = validate_successor_terminal_assurance_report(report_bytes)
+        except SuccessorAssuranceContractError as exc:
+            msg = f"Successor terminal assurance report is invalid: {exc}"
+            raise ValueError(msg) from exc
+
+        for field in ("chain_id", "source_sha", "coverage_fingerprint"):
+            if getattr(report, field) != assured_manifest.get(field):
+                msg = f"Successor terminal assurance report {field} does not match assured manifest"
+                raise ValueError(msg)
+        assured_data_tree_fingerprint = assured_manifest.get("data_tree_fingerprint")
+        if not cls._is_lowercase_hex(assured_data_tree_fingerprint, length=64):
+            msg = "Successor assured manifest data_tree_fingerprint is invalid"
+            raise ValueError(msg)
+
+        normalized_resources: list[dict[str, Any]] = []
+        seen_paths: set[str] = set()
+        for index, resource in enumerate(resource_inventory):
+            path = resource.get("path")
+            kind = resource.get("kind")
+            byte_count = resource.get("bytes")
+            sha256 = resource.get("sha256")
+            if not isinstance(path, str) or not path:
+                msg = f"Successor strict resource {index} path is invalid"
+                raise ValueError(msg)
+            if path in seen_paths:
+                msg = f"Successor strict resource inventory contains duplicate path: {path}"
+                raise ValueError(msg)
+            seen_paths.add(path)
+            if not isinstance(kind, str) or not kind:
+                msg = f"Successor strict resource {path} kind is invalid"
+                raise ValueError(msg)
+            if type(byte_count) is not int or cast("int", byte_count) < 0:
+                msg = f"Successor strict resource {path} byte count is invalid"
+                raise ValueError(msg)
+            if not cls._is_lowercase_hex(sha256, length=64):
+                msg = f"Successor strict resource {path} SHA-256 is invalid"
+                raise ValueError(msg)
+            normalized_resources.append(
+                {
+                    "path": path,
+                    "kind": kind,
+                    "bytes": byte_count,
+                    "sha256": sha256,
+                }
+            )
+        normalized_resources.sort(key=lambda item: item["path"])
+
+        control_paths = {
+            ASSURED_ARTIFACT_MANIFEST_NAME,
+            TERMINAL_ASSURANCE_REPORT_NAME,
+        }
+        controls = {
+            str(resource["path"]): resource
+            for resource in normalized_resources
+            if resource["path"] in control_paths
+        }
+        if set(controls) != control_paths:
+            msg = "Successor strict resource inventory lacks the exact assurance controls"
+            raise ValueError(msg)
+        if any(control["kind"] != "file" for control in controls.values()):
+            msg = "Successor assurance controls must both be regular file resources"
+            raise ValueError(msg)
+
+        actual_data_resources = [
+            resource for resource in normalized_resources if resource["path"] not in control_paths
+        ]
+        expected_data_resources = [
+            {
+                "path": resource.resource_id,
+                "kind": resource.kind,
+                "bytes": resource.bytes,
+                "sha256": resource.sha256,
+            }
+            for resource in report.public_evidence.resources
+        ]
+        if actual_data_resources != expected_data_resources:
+            msg = (
+                "Successor terminal assurance data resources do not exactly match "
+                "the strict Kaggle inventory"
+            )
+            raise ValueError(msg)
+
+        try:
+            flattened_resources = cls._flatten_resource_file_inventory(resource_inventory)
+        except (KeyError, TypeError, ValueError) as exc:
+            msg = "Successor strict resource inventory cannot be flattened safely"
+            raise ValueError(msg) from exc
+        if flattened_resources != assured_manifest.get("files"):
+            msg = (
+                "Successor assured manifest file hashes do not exactly match "
+                "the strict Kaggle inventory"
+            )
+            raise ValueError(msg)
+
+        report_resource = controls[TERMINAL_ASSURANCE_REPORT_NAME]
+        report_sha256 = hashlib.sha256(report_bytes).hexdigest()
+        if (
+            report_resource["bytes"] != len(report_bytes)
+            or report_resource["sha256"] != report_sha256
+            or report.content_sha256 != report_sha256
+        ):
+            msg = "Successor terminal assurance report resource hash does not match its bytes"
+            raise ValueError(msg)
+        manifest_report_entries = [
+            item
+            for item in cast("list[dict[str, Any]]", assured_manifest["files"])
+            if item.get("path") == TERMINAL_ASSURANCE_REPORT_NAME
+        ]
+        expected_report_entry = {
+            "path": TERMINAL_ASSURANCE_REPORT_NAME,
+            "bytes": report_resource["bytes"],
+            "sha256": report_resource["sha256"],
+        }
+        if manifest_report_entries != [expected_report_entry]:
+            msg = "Successor assured manifest does not bind the exact terminal report resource"
+            raise ValueError(msg)
+
+        manifest_resource = controls[ASSURED_ARTIFACT_MANIFEST_NAME]
+        assurance_identity = report.to_successor_assurance_identity(
+            successor_assured_manifest_sha256=cast("str", manifest_resource["sha256"]),
+            installed_public_tree_sha256=installed_public_tree_sha256,
+        )
+        if (
+            assurance_identity.successor_validation_report_sha256 != report_resource["sha256"]
+            or assurance_identity.successor_assured_manifest_sha256 != manifest_resource["sha256"]
+            or assurance_identity.planned_route_replacement_bindings_sha256
+            != report.planned_route_replacement_bindings_sha256
+        ):
+            msg = "Successor report, route bindings, and control-resource identity do not reconcile"
+            raise ValueError(msg)
+        if require_successor_current_authority:
+            if successor_generation_store is None or successor_data_root is None:
+                msg = (
+                    "Schema-v7 successor publication requires an explicit current "
+                    "generation store and public root"
+                )
+                raise ValueError(msg)
+            cls._require_successor_current_publication_authority(
+                data_root=successor_data_root,
+                generation_store=successor_generation_store,
+                assurance_identity=assurance_identity,
+                installed_public_tree_sha256=installed_public_tree_sha256,
+            )
+
+        baseline = report.baseline
+        normalized: dict[str, Any] = assurance_identity.to_dict()
+        normalized.update(
+            {
+                "schema_version": report.schema_version,
+                "kind": report.kind,
+                "model_green": report.model_green,
+                "data_green": report.data_green,
+                "chain_id": report.chain_id,
+                "coverage_fingerprint": report.coverage_fingerprint,
+                # BaselineAssuranceIdentity retains these legacy field names, but a
+                # successor publication must bind its newly installed DuckDB and
+                # canonical report rather than silently reusing its parent's bytes.
+                "checkpoint_database_sha256": report.database_evidence.duckdb_sha256,
+                "checkpoint_report_sha256": report.content_sha256,
+                "inherited_baseline_checkpoint_database_sha256": (
+                    baseline.checkpoint_database_sha256
+                ),
+                "inherited_baseline_checkpoint_report_sha256": (baseline.checkpoint_report_sha256),
+                "contract_blocked_lane_count": report.contract_blocked_lane_count,
+                "contract_blocked_evidence_sha256": (baseline.contract_blocked_evidence_sha256),
+                "provider_authority_sha256": baseline.provider_authority_sha256,
+                "planning_generation_manifest_sha256": (report.planning_generation_manifest_sha256),
+                "execution_plan_sha256": report.execution_plan_sha256,
+                "planning_artifact_identity_sha256": (
+                    report.planning_evidence.execution_plan.planning_artifact_identity_sha256
+                ),
+                "planning_manifest_sha256": (
+                    report.planning_evidence.execution_plan.planning_manifest_sha256
+                ),
+                "sealed_dispatch_inventory_sha256": (
+                    report.planning_evidence.execution_plan.sealed_dispatch_inventory_sha256
+                ),
+                "planning_generation_id": (
+                    report.planning_evidence.execution_plan.planning_generation_id
+                ),
+                "build_sha256": report.build_sha256,
+                "delta_coverage_sha256": report.delta_coverage_sha256,
+                "transform_output_count": report.transform_output_count,
+                "assured_manifest_data_tree_fingerprint": (assured_data_tree_fingerprint),
+                "successor_assurance_identity_sha256": assurance_identity.identity_sha256,
+            }
+        )
+        return normalized
+
+    @classmethod
+    def _require_successor_current_publication_authority(
+        cls,
+        *,
+        data_root: Path,
+        generation_store: SuccessorGenerationStore,
+        assurance_identity: SuccessorAssuranceIdentity,
+        installed_public_tree_sha256: str,
+    ) -> None:
+        """Bind schema-v7 publication to the store's exact frozen current tree."""
+
+        from nbadb.orchestrate.successor_publication_authority import (
+            require_successor_current_publication_authority,
+        )
+
+        require_successor_current_publication_authority(
+            data_root=data_root,
+            generation_store=generation_store,
+            assurance_identity=assurance_identity,
+            installed_public_tree_sha256=installed_public_tree_sha256,
+        )
 
     @staticmethod
     def _flatten_resource_file_inventory(
@@ -2120,14 +3633,14 @@ class KaggleClient:
             "generated_at": datetime.now(UTC).isoformat(),
             "status": status,
             "dataset": self._dataset,
-            "data_dir": str(data_dir),
-            "staged_dir": str(staged_dir) if staged_dir is not None else None,
+            "data_dir": "<data-root>",
+            "staged_dir": "<staged-upload-root>" if staged_dir is not None else None,
             "version_notes": version_notes,
-            "preflight": preflight,
+            "preflight": self._persistable_preflight(preflight),
             "serialization": UPLOAD_SERIALIZATION_CONTRACT,
         }
         if post_upload is not None:
-            manifest["post_upload"] = post_upload
+            manifest["post_upload"] = self._persistable_tree_snapshot(post_upload)
         if remote_readback is not None:
             manifest["remote_readback"] = remote_readback
         if publication is not None:
@@ -2135,8 +3648,87 @@ class KaggleClient:
         if error is not None:
             manifest["error"] = error
         sanitized = self._redact_persisted_error_fields(manifest)
+        sanitized = self._redact_local_authority(
+            sanitized,
+            data_dir=data_dir,
+            staged_dir=staged_dir,
+        )
         self._atomic_write_json(manifest_path, cast("dict[str, Any]", sanitized))
         return manifest_path
+
+    @classmethod
+    def _persistable_preflight(cls, value: Any) -> Any:
+        """Remove local filesystem authority from the diagnostic upload manifest."""
+
+        if isinstance(value, dict):
+            persisted: dict[str, Any] = {}
+            for key, item in value.items():
+                normalized_key = str(key)
+                if normalized_key == "source_path":
+                    continue
+                if normalized_key == "metadata_path":
+                    persisted[normalized_key] = "dataset-metadata.json"
+                    continue
+                if normalized_key == "root":
+                    persisted[normalized_key] = "<staged-upload-root>"
+                    continue
+                persisted[normalized_key] = cls._persistable_preflight(item)
+            return persisted
+        if isinstance(value, (list, tuple)):
+            return [cls._persistable_preflight(item) for item in value]
+        return value
+
+    @staticmethod
+    def _persistable_tree_snapshot(value: dict[str, Any]) -> dict[str, Any]:
+        persisted = dict(value)
+        if "root" in persisted:
+            persisted["root"] = "<staged-upload-root>"
+        return persisted
+
+    @classmethod
+    def _redact_local_authority(
+        cls,
+        value: Any,
+        *,
+        data_dir: Path,
+        staged_dir: Path | None,
+    ) -> Any:
+        """Replace known local roots before diagnostic state is persisted."""
+
+        replacements = sorted(
+            (
+                (str(path), label)
+                for path, label in (
+                    (data_dir, "<data-root>"),
+                    (staged_dir, "<staged-upload-root>"),
+                )
+                if path is not None and path.is_absolute()
+            ),
+            key=lambda item: len(item[0]),
+            reverse=True,
+        )
+        if isinstance(value, dict):
+            return {
+                key: cls._redact_local_authority(
+                    item,
+                    data_dir=data_dir,
+                    staged_dir=staged_dir,
+                )
+                for key, item in value.items()
+            }
+        if isinstance(value, (list, tuple)):
+            return [
+                cls._redact_local_authority(
+                    item,
+                    data_dir=data_dir,
+                    staged_dir=staged_dir,
+                )
+                for item in value
+            ]
+        if isinstance(value, str):
+            for local_root, label in replacements:
+                value = value.replace(local_root, label)
+        return value
 
     @staticmethod
     def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -2161,6 +3753,541 @@ class KaggleClient:
         except Exception:
             temporary_path.unlink(missing_ok=True)
             raise
+
+    @staticmethod
+    def _atomic_write_canonical_json_no_replace(
+        path: Path,
+        payload: dict[str, Any],
+    ) -> None:
+        """Publish canonical JSON atomically without replacing prior authority."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        canonical_bytes = (
+            json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+            + b"\n"
+        )
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        temporary_path = Path(temporary_name)
+        parent_descriptor = -1
+        named_temporary_descriptor = -1
+        temporary_identity: tuple[int, int] | None = None
+        published_identity: tuple[int, int] | None = None
+
+        def require_owner_only_regular_file(
+            observed: os.stat_result,
+            *,
+            expected_identity: tuple[int, int],
+            expected_links: int,
+            label: str,
+        ) -> None:
+            if (
+                not stat.S_ISREG(observed.st_mode)
+                or _directory_identity(observed) != expected_identity
+                or observed.st_nlink != expected_links
+                or stat.S_IMODE(observed.st_mode) != 0o600
+                or (os.name == "posix" and observed.st_uid != os.geteuid())
+            ):
+                raise RuntimeError(f"{label} differs from the admitted file authority")
+
+        canonical_sha256 = hashlib.sha256(canonical_bytes).digest()
+
+        def require_canonical_descriptor(
+            descriptor: int,
+            *,
+            expected_identity: tuple[int, int],
+            expected_links: int,
+            label: str,
+        ) -> None:
+            before = os.fstat(descriptor)
+            require_owner_only_regular_file(
+                before,
+                expected_identity=expected_identity,
+                expected_links=expected_links,
+                label=label,
+            )
+            if before.st_size != len(canonical_bytes):
+                raise RuntimeError(f"{label} content changed")
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            chunks: list[bytes] = []
+            remaining = len(canonical_bytes) + 1
+            while remaining:
+                chunk = os.read(descriptor, min(remaining, 1024 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            observed_bytes = b"".join(chunks)
+            after = os.fstat(descriptor)
+            require_owner_only_regular_file(
+                after,
+                expected_identity=expected_identity,
+                expected_links=expected_links,
+                label=label,
+            )
+            if (
+                after.st_size != len(canonical_bytes)
+                or not secrets.compare_digest(
+                    hashlib.sha256(observed_bytes).digest(),
+                    canonical_sha256,
+                )
+                or observed_bytes != canonical_bytes
+            ):
+                raise RuntimeError(f"{label} content changed")
+
+        def require_named_canonical_file(
+            name: str,
+            *,
+            expected_identity: tuple[int, int],
+            expected_links: int,
+            label: str,
+        ) -> None:
+            nonlocal named_temporary_descriptor
+            before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            require_owner_only_regular_file(
+                before,
+                expected_identity=expected_identity,
+                expected_links=expected_links,
+                label=label,
+            )
+            named_temporary_descriptor = os.open(
+                name,
+                _FILE_READ_FLAGS | getattr(os, "O_NONBLOCK", 0),
+                dir_fd=parent_descriptor,
+            )
+            try:
+                require_canonical_descriptor(
+                    named_temporary_descriptor,
+                    expected_identity=expected_identity,
+                    expected_links=expected_links,
+                    label=label,
+                )
+                after = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+                require_owner_only_regular_file(
+                    after,
+                    expected_identity=expected_identity,
+                    expected_links=expected_links,
+                    label=label,
+                )
+            finally:
+                os.close(named_temporary_descriptor)
+                named_temporary_descriptor = -1
+
+        def require_retained_parent_path() -> None:
+            retained_parent = os.fstat(parent_descriptor)
+            retained_identity = _directory_identity(retained_parent)
+            before = os.stat(path.parent, follow_symlinks=False)
+            observed_descriptor = _open_stable_directory(
+                path.parent,
+                label="verified public baseline receipt final parent",
+            )
+            try:
+                opened = os.fstat(observed_descriptor)
+                after = os.stat(path.parent, follow_symlinks=False)
+                if (
+                    not stat.S_ISDIR(retained_parent.st_mode)
+                    or not stat.S_ISDIR(before.st_mode)
+                    or not stat.S_ISDIR(opened.st_mode)
+                    or not stat.S_ISDIR(after.st_mode)
+                    or _directory_identity(before) != retained_identity
+                    or _directory_identity(opened) != retained_identity
+                    or _directory_identity(after) != retained_identity
+                ):
+                    raise RuntimeError(
+                        "verified public baseline receipt parent changed during finalization"
+                    )
+            finally:
+                os.close(observed_descriptor)
+
+        def close_non_authoritative(descriptor: int, *, label: str) -> None:
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                logger.warning(
+                    "Verified public baseline receipt {} descriptor cleanup failed: {}",
+                    label,
+                    type(exc).__name__,
+                )
+
+        def retire_temporary_name(*, required: bool) -> None:
+            nonlocal parent_descriptor
+            if temporary_identity is None:
+                if required:
+                    raise RuntimeError(
+                        "verified public baseline receipt temporary authority is unavailable"
+                    )
+                return
+            if parent_descriptor < 0:
+                try:
+                    parent_descriptor = _open_stable_directory(
+                        path.parent,
+                        label="verified public baseline receipt cleanup parent",
+                    )
+                except (OSError, RuntimeError):
+                    if required:
+                        raise RuntimeError(
+                            "verified public baseline receipt temporary cleanup parent is "
+                            "unavailable"
+                        ) from None
+                    return
+            try:
+                named = os.stat(
+                    temporary_path.name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                if required:
+                    raise RuntimeError(
+                        "verified public baseline receipt temporary is missing"
+                    ) from None
+                return
+            if not stat.S_ISREG(named.st_mode) or _directory_identity(named) != temporary_identity:
+                if required:
+                    raise RuntimeError(
+                        "verified public baseline receipt temporary differs from the admitted "
+                        "file authority"
+                    )
+                return
+            if required:
+                require_owner_only_regular_file(
+                    named,
+                    expected_identity=temporary_identity,
+                    expected_links=2,
+                    label="verified public baseline receipt temporary",
+                )
+            _unlink_named_regular_file_authority(
+                parent_descriptor,
+                temporary_path.name,
+                expected_identity=temporary_identity,
+                label="verified public baseline receipt temporary",
+            )
+
+        try:
+            retained = os.fstat(file_descriptor)
+            temporary_identity = _directory_identity(retained)
+            require_owner_only_regular_file(
+                retained,
+                expected_identity=temporary_identity,
+                expected_links=1,
+                label="verified public baseline receipt retained temporary",
+            )
+            os.fchmod(file_descriptor, 0o600)
+            pending = memoryview(canonical_bytes)
+            while pending:
+                written = os.write(file_descriptor, pending)
+                if written <= 0:
+                    raise OSError(errno.EIO, "canonical receipt write made no progress")
+                pending = pending[written:]
+            os.fsync(file_descriptor)
+            retained = os.fstat(file_descriptor)
+            require_owner_only_regular_file(
+                retained,
+                expected_identity=temporary_identity,
+                expected_links=1,
+                label="verified public baseline receipt retained temporary",
+            )
+            require_canonical_descriptor(
+                file_descriptor,
+                expected_identity=temporary_identity,
+                expected_links=1,
+                label="verified public baseline receipt retained temporary",
+            )
+            parent_descriptor = _open_stable_directory(
+                path.parent,
+                label="verified public baseline receipt parent",
+            )
+            require_named_canonical_file(
+                temporary_path.name,
+                expected_identity=temporary_identity,
+                expected_links=1,
+                label="verified public baseline receipt temporary",
+            )
+            require_canonical_descriptor(
+                file_descriptor,
+                expected_identity=temporary_identity,
+                expected_links=1,
+                label="verified public baseline receipt retained temporary",
+            )
+            os.link(
+                temporary_path.name,
+                path.name,
+                src_dir_fd=parent_descriptor,
+                dst_dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            published_identity = temporary_identity
+            require_named_canonical_file(
+                path.name,
+                expected_identity=published_identity,
+                expected_links=2,
+                label="verified public baseline receipt",
+            )
+            os.fsync(parent_descriptor)
+            require_named_canonical_file(
+                path.name,
+                expected_identity=published_identity,
+                expected_links=2,
+                label="verified public baseline receipt",
+            )
+            retire_temporary_name(required=True)
+            os.fsync(parent_descriptor)
+            _require_named_regular_file_authority(
+                parent_descriptor,
+                path.name,
+                expected_identity=published_identity,
+                label="verified public baseline receipt",
+            )
+            require_named_canonical_file(
+                path.name,
+                expected_identity=published_identity,
+                expected_links=1,
+                label="verified public baseline receipt",
+            )
+            require_canonical_descriptor(
+                file_descriptor,
+                expected_identity=published_identity,
+                expected_links=1,
+                label="verified public baseline receipt retained temporary",
+            )
+            require_retained_parent_path()
+            published_identity = None
+        except BaseException:
+            cleanup_error: BaseException | None = None
+            if published_identity is not None and parent_descriptor >= 0:
+                try:
+                    _unlink_named_regular_file_authority(
+                        parent_descriptor,
+                        path.name,
+                        expected_identity=published_identity,
+                        label="verified public baseline receipt",
+                    )
+                except BaseException as exc:
+                    cleanup_error = exc
+            try:
+                retire_temporary_name(required=False)
+            except BaseException as exc:
+                if cleanup_error is None:
+                    cleanup_error = exc
+            if cleanup_error is not None:
+                raise RuntimeError(
+                    "verified public baseline receipt finalization and exact cleanup failed"
+                ) from cleanup_error
+            raise
+        finally:
+            if named_temporary_descriptor >= 0:
+                close_non_authoritative(
+                    named_temporary_descriptor,
+                    label="named file",
+                )
+            if parent_descriptor >= 0:
+                close_non_authoritative(parent_descriptor, label="parent")
+            close_non_authoritative(file_descriptor, label="retained file")
+
+    def _public_baseline_receipt_payload(
+        self,
+        *,
+        exact_version: int,
+        exact_dataset_handle: str,
+        marker: dict[str, Any],
+        remote_tree: dict[str, Any],
+        snapshot: dict[str, Any],
+        installed_tree: InstalledPublicTreeInventory,
+        durable_ledger_checked: bool,
+        durable_resolution: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Build the canonical, public-only baseline receipt envelope."""
+        provenance = snapshot.get("provenance")
+        terminal_assurance = snapshot.get("terminal_assurance")
+        if not isinstance(provenance, dict) or not isinstance(terminal_assurance, dict):
+            raise ValueError("verified public baseline lacks complete assurance provenance")
+        resource_index = {
+            str(resource["path"]): resource
+            for resource in cast("list[dict[str, Any]]", snapshot["resources"])
+        }
+        assured_resource = resource_index.get(ASSURED_ARTIFACT_MANIFEST_NAME)
+        terminal_resource = resource_index.get(TERMINAL_ASSURANCE_REPORT_NAME)
+        if assured_resource is None or terminal_resource is None:
+            raise ValueError("verified public baseline lacks exact assurance control resources")
+
+        body = {
+            "dataset": self._dataset,
+            "exact_dataset_handle": exact_dataset_handle,
+            "remote_dataset_version": exact_version,
+            "publication_marker_sha256": hashlib.sha256(
+                self._publication_marker_bytes(marker)
+            ).hexdigest(),
+            "publish_key": marker["publish_key"],
+            "remote_inventory": {
+                "file_count": remote_tree["file_count"],
+                "bytes": remote_tree["bytes"],
+                "sha256": remote_tree["fingerprint"],
+                "content_identity": "exact_api_inventory_and_sha256_full_readback",
+            },
+            "validated_bundle": {
+                "resource_count": snapshot["resource_count"],
+                "resource_bytes": snapshot["resource_bytes"],
+                "fingerprint_sha256": snapshot["fingerprint"],
+                "installed_public_tree_sha256": (installed_tree.installed_public_tree_sha256),
+                "installed_public_tree_bytes": installed_tree.byte_count,
+                "assured_manifest_sha256": assured_resource["sha256"],
+                "terminal_assurance_report_sha256": terminal_resource["sha256"],
+            },
+            "provenance": provenance,
+            "terminal_assurance": {
+                field: terminal_assurance[field]
+                for field in (
+                    "chain_id",
+                    "source_sha",
+                    "coverage_fingerprint",
+                    "checkpoint_database_sha256",
+                    "checkpoint_report_sha256",
+                    "contract_blocked_evidence_sha256",
+                    "provider_authority_sha256",
+                )
+            },
+            "durable_reconciliation": {
+                "ledger": "github_deployment" if durable_ledger_checked else None,
+                "checked": durable_ledger_checked,
+                "resolution": durable_resolution,
+            },
+        }
+        receipt_sha256 = hashlib.sha256(
+            json.dumps(
+                body,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        return {
+            "schema_version": 1,
+            "kind": "nbadb_verified_public_baseline_receipt",
+            "receipt": body,
+            "receipt_sha256": receipt_sha256,
+        }
+
+    @classmethod
+    def _validate_verified_download_inventory(cls, inventory: object) -> int:
+        """Validate exact-file topology and return its bounded payload byte count."""
+
+        if not isinstance(inventory, list) or not inventory:
+            raise ValueError("verified public baseline inventory must be a nonempty list")
+        paths: set[str] = set()
+        total_bytes = 0
+        for item in inventory:
+            if not isinstance(item, dict):
+                raise ValueError("verified public baseline inventory entry must be an object")
+            raw_path = item.get("path")
+            byte_count = item.get("bytes")
+            if not isinstance(raw_path, str) or "\x00" in raw_path:
+                raise ValueError("verified public baseline inventory path is invalid")
+            normalized_path = cls._normalize_resource_path(raw_path)
+            if normalized_path != raw_path:
+                raise ValueError(
+                    f"verified public baseline inventory path is not canonical: {raw_path!r}"
+                )
+            if PurePosixPath(normalized_path).parts[0] == ".complete":
+                raise ValueError(
+                    "verified public baseline inventory uses reserved KaggleHub metadata path: "
+                    f"{normalized_path}"
+                )
+            if normalized_path in paths:
+                raise ValueError(
+                    f"verified public baseline inventory contains duplicate path: {normalized_path}"
+                )
+            if (
+                not isinstance(byte_count, int)
+                or isinstance(byte_count, bool)
+                or byte_count < 0
+                or byte_count > _MAX_SIGNED_63
+            ):
+                raise ValueError(
+                    f"verified public baseline inventory byte size is invalid: {normalized_path}"
+                )
+            if total_bytes > _MAX_SIGNED_63 - byte_count:
+                raise OverflowError("verified public baseline inventory byte total exceeds int64")
+            paths.add(normalized_path)
+            total_bytes += byte_count
+
+        for resource_path in paths:
+            parts = PurePosixPath(resource_path).parts
+            for part_count in range(1, len(parts)):
+                parent_path = PurePosixPath(*parts[:part_count]).as_posix()
+                if parent_path in paths:
+                    raise ValueError(
+                        "verified public baseline inventory contains a file/prefix collision: "
+                        f"{parent_path}, {resource_path}"
+                    )
+        return total_bytes
+
+    @staticmethod
+    def _copy_verified_download_file(source: Path, destination: Path) -> None:
+        """Copy one resolver payload into the clean candidate with no replacement."""
+
+        source_before = os.stat(source, follow_symlinks=False)
+        if not stat.S_ISREG(source_before.st_mode):
+            raise ValueError("verified public baseline resolver source must be a regular file")
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        source_descriptor = -1
+        destination_descriptor = -1
+        destination_created = False
+        try:
+            source_descriptor = os.open(source, _FILE_READ_FLAGS)
+            source_opened = os.fstat(source_descriptor)
+            if not stat.S_ISREG(source_opened.st_mode) or _directory_identity(
+                source_opened
+            ) != _directory_identity(source_before):
+                raise RuntimeError("verified public baseline resolver source changed while opening")
+            destination_descriptor = os.open(destination, _FILE_CREATE_FLAGS, 0o600)
+            destination_created = True
+            while True:
+                chunk = os.read(source_descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                remaining = memoryview(chunk)
+                while remaining:
+                    written = os.write(destination_descriptor, remaining)
+                    if written <= 0:
+                        raise OSError("verified public baseline candidate copy made no progress")
+                    remaining = remaining[written:]
+            os.fsync(destination_descriptor)
+            source_after = os.fstat(source_descriptor)
+            destination_after = os.fstat(destination_descriptor)
+            if (
+                _directory_identity(source_after) != _directory_identity(source_opened)
+                or source_after.st_size != source_opened.st_size
+                or source_after.st_mtime_ns != source_opened.st_mtime_ns
+            ):
+                raise RuntimeError("verified public baseline resolver source changed during copy")
+            if not stat.S_ISREG(destination_after.st_mode):
+                raise RuntimeError("verified public baseline candidate is not a regular file")
+            if destination_after.st_size != source_after.st_size:
+                raise RuntimeError("verified public baseline candidate copy is incomplete")
+        except BaseException:
+            if destination_descriptor >= 0:
+                os.close(destination_descriptor)
+                destination_descriptor = -1
+            if source_descriptor >= 0:
+                os.close(source_descriptor)
+                source_descriptor = -1
+            if destination_created:
+                destination.unlink(missing_ok=True)
+            raise
+        finally:
+            if destination_descriptor >= 0:
+                os.close(destination_descriptor)
+            if source_descriptor >= 0:
+                os.close(source_descriptor)
 
     @staticmethod
     def _file_sha256(path: Path) -> str:
@@ -2904,7 +5031,18 @@ class KaggleClient:
             raise ValueError(msg)
 
     @staticmethod
-    def _validate_full_publication_format_parity(resources: list[dict[str, Any]]) -> None:
+    def _validate_full_publication_format_parity(
+        resources: list[dict[str, Any]],
+        *,
+        require_authoritative_values: bool = False,
+    ) -> None:
+        """Validate the four projections and exact authoritative values.
+
+        DuckDB and Parquet are the logical-type authorities. SQLite and CSV are
+        convenience projections, so they retain inventory, row-count, and
+        ordered-column checks without an inaccurate type-lossless claim.
+        """
+
         database_tables: dict[str, dict[str, int]] = {}
         database_columns: dict[str, dict[str, list[str]]] = {}
         csv_tables: dict[str, dict[str, Any]] = {}
@@ -3094,6 +5232,76 @@ class KaggleClient:
             )
             raise ValueError(msg)
 
+        duckdb_resource = next(
+            (
+                resource
+                for resource in resources
+                if isinstance(resource.get("database_validation"), dict)
+                and resource["database_validation"].get("engine") == "duckdb"
+            ),
+            None,
+        )
+        duckdb_source = duckdb_resource.get("source_path") if duckdb_resource is not None else None
+        parquet_sources = {
+            PurePosixPath(str(resource["path"])).parts[1]: resource.get("source_path")
+            for resource in resources
+            if len(PurePosixPath(str(resource["path"])).parts) >= 2
+            and PurePosixPath(str(resource["path"])).parts[0] == "parquet"
+        }
+        source_backed = duckdb_source is not None or any(
+            source is not None for source in parquet_sources.values()
+        )
+        if require_authoritative_values or source_backed:
+            if not isinstance(duckdb_source, str) or not duckdb_source:
+                msg = "Full Kaggle publication authoritative DuckDB source is missing"
+                raise ValueError(msg)
+            missing_parquet_sources = sorted(
+                table
+                for table, source in parquet_sources.items()
+                if not isinstance(source, str) or not source
+            )
+            if set(parquet_sources) != expected_tables or missing_parquet_sources:
+                msg = (
+                    "Full Kaggle publication authoritative Parquet sources are incomplete: "
+                    f"missing_paths={missing_parquet_sources}; "
+                    f"missing_tables={sorted(expected_tables - set(parquet_sources))}; "
+                    f"unexpected_tables={sorted(set(parquet_sources) - expected_tables)}"
+                )
+                raise ValueError(msg)
+            from nbadb.orchestrate.successor_publication_inventory import (
+                validate_authoritative_duckdb_parquet_values,
+            )
+
+            parquet_file_receipts: dict[str, dict[str, tuple[int, str]]] = {}
+            for resource in resources:
+                parts = PurePosixPath(str(resource["path"])).parts
+                if len(parts) < 2 or parts[0] != "parquet":
+                    continue
+                table = parts[1]
+                if resource["kind"] == "file":
+                    source = Path(cast("str", resource["source_path"]))
+                    parquet_file_receipts[table] = {
+                        source.name: (
+                            int(resource["bytes"]),
+                            str(resource["sha256"]),
+                        )
+                    }
+                else:
+                    parquet_file_receipts[table] = {
+                        str(file_inventory["path"]): (
+                            int(file_inventory["bytes"]),
+                            str(file_inventory["sha256"]),
+                        )
+                        for file_inventory in resource["files"]
+                    }
+            validate_authoritative_duckdb_parquet_values(
+                Path(duckdb_source),
+                {table: Path(cast("str", source)) for table, source in parquet_sources.items()},
+                expected_duckdb_bytes=int(cast("dict[str, Any]", duckdb_resource)["bytes"]),
+                expected_duckdb_sha256=str(cast("dict[str, Any]", duckdb_resource)["sha256"]),
+                expected_parquet_files=parquet_file_receipts,
+            )
+
     @staticmethod
     def _monotonic() -> float:
         return time.monotonic()
@@ -3182,12 +5390,18 @@ class KaggleClient:
                     msg = "Kaggle remote file inventory response has invalid files"
                     raise ValueError(msg)
                 for remote_file in response.dataset_files:
-                    path = getattr(remote_file, "name", None)
+                    raw_path = getattr(remote_file, "name", None)
                     byte_count = getattr(remote_file, "total_bytes", None)
-                    if not isinstance(path, str) or not path:
+                    if not isinstance(raw_path, str) or not raw_path:
                         msg = "Kaggle remote file inventory contains an invalid path"
                         raise ValueError(msg)
-                    path = self._normalize_resource_path(path)
+                    path = self._normalize_resource_path(raw_path)
+                    if path != raw_path:
+                        msg = (
+                            "Kaggle remote file inventory contains a noncanonical path: "
+                            f"{raw_path!r}"
+                        )
+                        raise ValueError(msg)
                     if path in seen_paths:
                         msg = f"Kaggle remote file inventory contains duplicate path: {path}"
                         raise ValueError(msg)
@@ -3839,6 +6053,23 @@ class KaggleClient:
         home = str(Path.home())
         if home and home in message:
             message = message.replace(home, "~")
+        message = re.sub(
+            r"(?i)(?<!\w)file://(?:\[[^\]\s'\"<>|,;)}]+\]|"
+            r"(?:localhost|[^/\s'\"<>|,;)\]}]+))?"
+            r"(?:/[A-Za-z]:)?/[^\s'\"<>|,;)\]}]+",
+            "<local-path>",
+            message,
+        )
+        message = re.sub(
+            r"(?<![\w/])/(?!/)[^\s'\"<>|,;)\]}]+",
+            "<local-path>",
+            message,
+        )
+        message = re.sub(
+            r"(?<!\w)(?:[A-Za-z]:[\\/]|\\\\)[^\s'\"<>|,;)\]}]+",
+            "<local-path>",
+            message,
+        )
         message = _AUTHORIZATION_BEARER_RE.sub(r"\1<redacted>", message)
         message = _SECRET_ASSIGNMENT_RE.sub(
             lambda match: f"{match.group(1)}{match.group(2)}<redacted>{match.group(4)}",
@@ -3850,15 +6081,29 @@ class KaggleClient:
         )
 
     @classmethod
-    def _redact_persisted_error_fields(cls, value: Any, *, field_name: str = "") -> Any:
+    def _redact_persisted_error_fields(
+        cls,
+        value: Any,
+        *,
+        field_name: str = "",
+        error_context: bool = False,
+    ) -> Any:
+        error_context = error_context or "error" in field_name.lower()
         if isinstance(value, dict):
             return {
-                key: cls._redact_persisted_error_fields(item, field_name=str(key))
+                key: cls._redact_persisted_error_fields(
+                    item,
+                    field_name=str(key),
+                    error_context=error_context,
+                )
                 for key, item in value.items()
             }
-        if isinstance(value, list):
-            return [cls._redact_persisted_error_fields(item) for item in value]
-        if isinstance(value, str) and "error" in field_name.lower():
+        if isinstance(value, (list, tuple)):
+            return [
+                cls._redact_persisted_error_fields(item, error_context=error_context)
+                for item in value
+            ]
+        if isinstance(value, str) and error_context:
             return cls._redact_sensitive_text(value)
         return value
 

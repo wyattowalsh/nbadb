@@ -16,7 +16,7 @@ def monthly(
         False, "--quality-check", help="Run quality checks after pipeline"
     ),
 ) -> None:
-    """Monthly refresh of recent seasons."""
+    """Refresh recent NBA seasons from the current local/Kaggle baseline."""
     settings = _build_settings(data_dir)
     _run_pipeline(
         "monthly",
@@ -25,4 +25,5 @@ def monthly(
         verbose,
         quality_check,
         orchestrator_cls=Orchestrator,
+        require_complete_result=True,
     )

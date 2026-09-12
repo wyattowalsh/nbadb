@@ -12,6 +12,15 @@ import typer
 from loguru import logger
 
 from nbadb.cli._progress_common import fmt_rows, fmt_time
+from nbadb.orchestrate.raw_request_environment import (
+    RawRequestExecutionEnvironmentError as _RawRequestExecutionEnvironmentError,
+)
+from nbadb.orchestrate.raw_request_environment import (
+    raw_request_assurance_authority_from_env,
+    raw_request_execution_identity_from_env,
+)
+
+RawRequestExecutionEnvironmentError = _RawRequestExecutionEnvironmentError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Mapping
@@ -21,6 +30,25 @@ if TYPE_CHECKING:
     from nbadb.cli._progress_common import RunSummary
     from nbadb.core.config import NbaDbSettings
     from nbadb.orchestrate import PipelineResult
+    from nbadb.orchestrate.raw_request_assurance import RawRequestAssuranceAuthorityV2
+    from nbadb.orchestrate.raw_request_context import RawRequestExecutionIdentityV1
+
+
+def _raw_request_execution_identity_from_env(
+    environ: Mapping[str, str] | None = None,
+) -> RawRequestExecutionIdentityV1 | None:
+    """Compatibility wrapper for the shared production environment gate."""
+
+    return raw_request_execution_identity_from_env(environ)
+
+
+def _raw_request_assurance_authority_from_env(
+    execution_identity: RawRequestExecutionIdentityV1 | None,
+    environ: Mapping[str, str] | None = None,
+) -> RawRequestAssuranceAuthorityV2 | None:
+    """Compatibility wrapper for the shared production assurance gate."""
+
+    return raw_request_assurance_authority_from_env(execution_identity, environ)
 
 
 def _build_settings(
@@ -342,6 +370,7 @@ def _run_pipeline(
     quality_check: bool = False,
     orchestrator_cls: type[Any] | None = None,
     summary_path: Path | None = None,
+    require_complete_result: bool = False,
 ) -> None:
     """Run a pipeline mode end-to-end: log → orchestrate → print → (optionally) quality.
 
@@ -360,6 +389,32 @@ def _run_pipeline(
 
         orchestrator_cls = Orchestrator
 
+    raw_request_execution_identity = _raw_request_execution_identity_from_env()
+    raw_request_assurance_authority = _raw_request_assurance_authority_from_env(
+        raw_request_execution_identity
+    )
+    from nbadb.orchestrate.w2_runtime_environment import (
+        W2RuntimeEnvironmentError,
+        w2_source_call_preparation_runtime_from_env,
+    )
+    from nbadb.orchestrate.w2_source_call_preparation import (
+        W2SourceCallPreparationRuntime,
+    )
+
+    w2_preparation_runtime = w2_source_call_preparation_runtime_from_env(
+        raw_request_execution_identity,
+        raw_request_assurance_authority,
+    )
+    if raw_request_execution_identity is None:
+        if w2_preparation_runtime is not None:
+            raise W2RuntimeEnvironmentError(
+                "inactive raw-request execution returned a W2 preparation runtime"
+            )
+    elif type(w2_preparation_runtime) is not W2SourceCallPreparationRuntime:
+        raise W2RuntimeEnvironmentError(
+            "active raw-request execution returned a foreign W2 preparation runtime"
+        )
+
     # Use interactive Textual TUI when stdout is a terminal and not verbose
     use_tui = sys.stdout.isatty() and not verbose
     progress = None
@@ -368,14 +423,22 @@ def _run_pipeline(
     if use_tui:
         from nbadb.cli.tui import run_with_tui
 
-        result_obj, error, summary_obj = run_with_tui(mode, run_fn, settings, orchestrator_cls)
+        result_obj, error, summary_obj = run_with_tui(
+            mode,
+            run_fn,
+            settings,
+            orchestrator_cls,
+            raw_request_execution_identity=raw_request_execution_identity,
+            raw_request_assurance_authority=raw_request_assurance_authority,
+            w2_preparation_runtime=w2_preparation_runtime,
+        )
         summary = cast("Any", summary_obj)
         if error is not None:
             typer.echo(f"{mode} failed: {_format_pipeline_exception(error)}", err=True)
             raise typer.Exit(1)
         if result_obj is None:
             typer.echo(f"{mode}: stopped — progress saved in journal (resume-safe)", err=True)
-            raise typer.Exit(0)
+            raise typer.Exit(1)
         result = cast("Any", result_obj)
     else:
         from nbadb.cli.progress import CIProgress
@@ -408,14 +471,23 @@ def _run_pipeline(
         orch = None
         try:
             with progress:
-                orch = orchestrator_cls(settings=settings, progress=progress)
+                if raw_request_execution_identity is None:
+                    orch = orchestrator_cls(settings=settings, progress=progress)
+                else:
+                    orch = orchestrator_cls(
+                        settings=settings,
+                        progress=progress,
+                        raw_request_execution_identity=raw_request_execution_identity,
+                        raw_request_assurance_authority=raw_request_assurance_authority,
+                        w2_preparation_runtime=w2_preparation_runtime,
+                    )
                 try:
                     result = asyncio.run(run_fn(orch))
                 except (asyncio.CancelledError, KeyboardInterrupt):
                     typer.echo(
                         f"\n{mode}: stopped — progress saved in journal (resume-safe)", err=True
                     )
-                    raise typer.Exit(0) from None
+                    raise typer.Exit(1) from None
                 except Exception as exc:
                     typer.echo(f"{mode} failed: {_format_pipeline_exception(exc)}", err=True)
                     raise typer.Exit(1) from exc
@@ -451,6 +523,8 @@ def _run_pipeline(
         except Exception as exc:
             logger.debug("Failed to write requested summary JSON: {}", exc)
     if result.failed_loads:
+        raise typer.Exit(1)
+    if require_complete_result and result.failed_extractions:
         raise typer.Exit(1)
     if result.failed_extractions and result.tables_updated == 0 and result.rows_total == 0:
         raise typer.Exit(1)  # Complete failure — nothing extracted

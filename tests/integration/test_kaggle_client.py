@@ -14,15 +14,20 @@ import pytest
 
 from nbadb.core.artifact_identity import build_assured_artifact_manifest
 from nbadb.core.config import NbaDbSettings, get_settings
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
 
 if TYPE_CHECKING:
     from typing import Any
 
 
 @pytest.fixture(autouse=True)
-def _clear_settings_cache() -> None:
+def _clear_settings_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clear lru_cache on get_settings so mocks take effect."""
     get_settings.cache_clear()
+    monkeypatch.setattr(
+        "nbadb.kaggle.client.assert_public_kaggle_publication_admitted",
+        lambda: None,
+    )
 
 
 class TestKaggleClientDownload:
@@ -154,11 +159,33 @@ _ASSURED_PROVENANCE = {
 }
 
 
+def _write_assured_artifact_manifest(data_dir: Path) -> Path:
+    return build_assured_artifact_manifest(
+        data_dir,
+        chain_id=_ASSURED_PROVENANCE["chain_id"],
+        source_sha=_ASSURED_PROVENANCE["source_sha"],
+        coverage_fingerprint=_ASSURED_PROVENANCE["coverage_fingerprint"],
+    )
+
+
+def _checkpoint_report_mapping(report: dict[str, object]) -> dict[str, object]:
+    checkpoint_report = report["checkpoint_report"]
+    if type(checkpoint_report) is not dict:
+        raise AssertionError("terminal report checkpoint_report must be an object")
+    copied: dict[str, object] = {}
+    for key, value in checkpoint_report.items():
+        if type(key) is not str:
+            raise AssertionError("checkpoint_report keys must be strings")
+        copied[key] = value
+    return copied
+
+
 def _write_terminal_assurance_report(
     data_dir: Path,
     *,
     overrides: dict[str, object] | None = None,
 ) -> dict[str, object]:
+    provider_authority = expected_nba_api_provider_authority()
     blocked_evidence = {"schema_version": 1, "contract_blocked_lanes": []}
     blocked_evidence_sha256 = hashlib.sha256(
         json.dumps(blocked_evidence, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -184,13 +211,17 @@ def _write_terminal_assurance_report(
         "contract_blocked_lane_count": 0,
         "contract_blocked_evidence": blocked_evidence,
         "contract_blocked_evidence_sha256": blocked_evidence_sha256,
+        "provider_authority": provider_authority,
+        "provider_authority_sha256": provider_authority["authority_sha256"],
     }
     checkpoint_report_sha256 = hashlib.sha256(
         json.dumps(checkpoint_report, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     report: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         **_ASSURED_PROVENANCE,
+        "provider_authority": provider_authority,
+        "provider_authority_sha256": provider_authority["authority_sha256"],
         "checkpoint_artifact_name": "full-extraction-checkpoint-full-20260711-iter-3",
         "checkpoint_generation": 3,
         "checkpoint_database_sha256": "c" * 64,
@@ -213,7 +244,7 @@ def _rewrite_terminal_checkpoint_report(
     report: dict[str, object],
     **updates: object,
 ) -> dict[str, object]:
-    checkpoint_report = dict(report["checkpoint_report"])
+    checkpoint_report = _checkpoint_report_mapping(report)
     checkpoint_report.update(updates)
     report.update(
         {
@@ -236,7 +267,12 @@ def _rewrite_terminal_checkpoint_report(
 
 def _add_assured_provenance(data_dir: Path) -> dict[str, str]:
     provenance = dict(_ASSURED_PROVENANCE)
-    manifest_path = build_assured_artifact_manifest(data_dir, **provenance)
+    manifest_path = build_assured_artifact_manifest(
+        data_dir,
+        chain_id=provenance["chain_id"],
+        source_sha=provenance["source_sha"],
+        coverage_fingerprint=provenance["coverage_fingerprint"],
+    )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     metadata_path = data_dir / "dataset-metadata.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -294,14 +330,14 @@ def _write_stale_publication_marker(directory: Path) -> None:
 
 
 def _remote_file_inventory(directory: Path) -> list[dict[str, object]]:
-    files = []
+    files: list[tuple[str, int]] = []
     for path in directory.rglob("*"):
         relative = path.relative_to(directory)
         if relative.parts and relative.parts[0] == ".complete":
             continue
         if path.is_file():
-            files.append({"path": relative.as_posix(), "bytes": path.stat().st_size})
-    return sorted(files, key=lambda item: str(item["path"]))
+            files.append((relative.as_posix(), path.stat().st_size))
+    return [{"path": name, "bytes": size} for name, size in sorted(files)]
 
 
 def _paginated_inventory_api(
@@ -450,17 +486,25 @@ def _write_full_format_test_bundle(
     parquet_rows: int = 2,
     partitioned_parquet: bool = False,
 ) -> dict[str, str]:
+    import duckdb
+
     data_dir.mkdir(parents=True, exist_ok=True)
     table_rows = {"dim_player": database_rows}
     _write_sqlite_database(data_dir / "nba.sqlite", table_rows=table_rows)
     _write_duckdb_database(data_dir / "nba.duckdb", table_rows=table_rows)
+    duckdb_connection = duckdb.connect(str(data_dir / "nba.duckdb"))
+    try:
+        duckdb_connection.execute("ALTER TABLE dim_player ALTER COLUMN id TYPE BIGINT")
+        duckdb_connection.execute("UPDATE dim_player SET name = 'Player ' || CAST(id AS VARCHAR)")
+    finally:
+        duckdb_connection.close()
     csv_path = data_dir / "csv" / "dim_player.csv"
     csv_path.parent.mkdir()
     csv_path.write_text(
         "id,name\n" + "".join(f"{index},Player {index}\n" for index in range(1, csv_rows + 1)),
         encoding="utf-8",
     )
-    parquet_rows_payload = [
+    parquet_rows_payload: list[dict[str, object]] = [
         {"id": index, "name": f"Player {index}"} for index in range(1, parquet_rows + 1)
     ]
     if partitioned_parquet:
@@ -535,7 +579,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         report = _write_terminal_assurance_report(data_dir)
-        checkpoint_report = dict(report["checkpoint_report"])
+        checkpoint_report = _checkpoint_report_mapping(report)
         checkpoint_report["artifact_name"] = "full-extraction-checkpoint-wrong-iter-3"
         report["checkpoint_artifact_name"] = checkpoint_report["artifact_name"]
         report["checkpoint_report"] = checkpoint_report
@@ -581,7 +625,11 @@ class TestKaggleClientUpload:
             patch("kagglehub.dataset_upload") as upload,
             pytest.raises(ValueError, match="requires a declared assured-artifact-manifest.json"),
         ):
-            KaggleClient().upload(data_dir=data_dir, **upload_kwargs)
+            KaggleClient().upload(
+                data_dir=data_dir,
+                require_assured=bool(upload_kwargs.get("require_assured")),
+                full_publication=bool(upload_kwargs.get("full_publication")),
+            )
 
         upload.assert_not_called()
 
@@ -741,7 +789,7 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         report = _write_terminal_assurance_report(data_dir)
-        checkpoint_report = dict(report["checkpoint_report"])
+        checkpoint_report = _checkpoint_report_mapping(report)
         malformed_evidence = {"schema_version": 1, "contract_blocked_lanes": [42]}
         malformed_digest = hashlib.sha256(
             json.dumps(malformed_evidence, sort_keys=True, separators=(",", ":")).encode()
@@ -920,7 +968,7 @@ class TestKaggleClientUpload:
             duckdb_connection.execute("ALTER TABLE dim_player RENAME COLUMN name TO display_name")
         finally:
             duckdb_connection.close()
-        build_assured_artifact_manifest(data_dir, **_ASSURED_PROVENANCE)
+        _write_assured_artifact_manifest(data_dir)
         mock_settings.return_value = NbaDbSettings(
             data_dir=data_dir,
             log_dir=tmp_path / "logs",
@@ -991,8 +1039,17 @@ class TestKaggleClientUpload:
 
         KaggleClient._validate_full_publication_format_parity(resources)
 
-        for file_inventory in resources[-1]["files"]:
-            file_inventory["parquet_validation"]["columns"] = ["name", "id"]
+        parquet_resource = resources[-1]
+        parquet_files = parquet_resource["files"]
+        if type(parquet_files) is not list:
+            raise AssertionError("partitioned parquet inventory must list files")
+        for file_inventory in parquet_files:
+            if type(file_inventory) is not dict:
+                raise AssertionError("partitioned parquet file inventory must be an object")
+            validation = file_inventory["parquet_validation"]
+            if type(validation) is not dict:
+                raise AssertionError("parquet_validation must be an object")
+            validation["columns"] = ["name", "id"]
         with pytest.raises(ValueError, match="schema parity failed"):
             KaggleClient._validate_full_publication_format_parity(resources)
 
@@ -1170,6 +1227,14 @@ class TestKaggleClientUpload:
             assert mock_up.call_args.kwargs["version_notes"] == "test upload"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_unverified"
+        assert manifest["data_dir"] == "<data-root>"
+        assert manifest["staged_dir"] == "<staged-upload-root>"
+        assert manifest["preflight"]["metadata_path"] == "dataset-metadata.json"
+        assert "source_path" not in manifest["preflight"]["resources"][0]
+        assert manifest["preflight"]["staged"]["root"] == "<staged-upload-root>"
+        assert manifest["preflight"]["expected_staged"]["root"] == ("<staged-upload-root>")
+        assert manifest["post_upload"]["root"] == "<staged-upload-root>"
+        assert str(tmp_path) not in manifest_path.read_text(encoding="utf-8")
         assert manifest["publication"]["result"] == "uploaded_unverified"
         assert manifest["preflight"]["resource_count"] == 1
         assert manifest["preflight"]["resources"][0]["database_validation"] == {
@@ -1584,7 +1649,7 @@ class TestKaggleClientUpload:
         client = KaggleClient()
         with (
             patch("kagglehub.dataset_upload") as mock_up,
-            pytest.raises(ValueError, match="must not be a symlink"),
+            pytest.raises(ValueError, match="symlink"),
         ):
             client.upload(data_dir=data_dir)
 
@@ -1615,7 +1680,7 @@ class TestKaggleClientUpload:
 
         with (
             patch("kagglehub.dataset_upload") as upload,
-            pytest.raises(ValueError, match="resource path must not be a symlink"),
+            pytest.raises(ValueError, match="symlink"),
         ):
             KaggleClient().upload(data_dir=data_dir)
 
@@ -1798,7 +1863,7 @@ class TestKaggleClientUpload:
         client = KaggleClient()
         with (
             patch("kagglehub.dataset_upload") as mock_up,
-            pytest.raises(ValueError, match="directory contains symlink"),
+            pytest.raises(ValueError, match="symlink"),
         ):
             client.upload(data_dir=data_dir)
 
@@ -2033,7 +2098,7 @@ class TestKaggleClientUpload:
         assert manifest["preflight"]["provenance"] == provenance
         if full_publication:
             assert manifest["preflight"]["terminal_assurance"] == {
-                "schema_version": 2,
+                "schema_version": 3,
                 **_ASSURED_PROVENANCE,
                 "checkpoint_artifact_name": "full-extraction-checkpoint-full-20260711-iter-3",
                 "checkpoint_generation": 3,
@@ -2052,6 +2117,9 @@ class TestKaggleClientUpload:
                         separators=(",", ":"),
                     ).encode("utf-8")
                 ).hexdigest(),
+                "provider_authority_sha256": expected_nba_api_provider_authority()[
+                    "authority_sha256"
+                ],
             }
         else:
             assert manifest["preflight"]["terminal_assurance"] is None

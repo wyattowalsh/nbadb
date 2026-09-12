@@ -22,7 +22,16 @@ from nbadb.kaggle.metadata import (
     generate_metadata,
 )
 from nbadb.load.parquet_loader import PARTITIONED_TABLES
+from nbadb.orchestrate.raw_publication_inventory import (
+    RAW_REQUEST_AUTHORITY_CATEGORY,
+    raw_request_authority_publication_tables,
+)
+from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.transformers import discover_all_transformers
+from nbadb.orchestrate.w2_publication_inventory import (
+    W2_PUBLIC_VALUE_AUTHORITY_CATEGORY,
+    w2_public_value_authority_publication_tables,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,7 +39,18 @@ if TYPE_CHECKING:
     from nbadb.core.config import NbaDbSettings
 
 _ALL_TABLES = [table for tables in TABLE_CATEGORIES.values() for table in tables]
+_RAW_AUTHORITY_TABLES = [entry.table_name for entry in raw_request_authority_publication_tables()]
+_W2_AUTHORITY_TABLES = [
+    entry.table_name for entry in w2_public_value_authority_publication_tables()
+]
+_TRANSFORM_TABLES = [
+    table
+    for category, tables in TABLE_CATEGORIES.items()
+    if category not in {RAW_REQUEST_AUTHORITY_CATEGORY, W2_PUBLIC_VALUE_AUTHORITY_CATEGORY}
+    for table in tables
+]
 _TABLE_COUNT = len(_ALL_TABLES)
+_STAGING_TABLE_COUNT = len({entry.staging_key for entry in STAGING_MAP})
 
 
 def _generate_metadata_json(
@@ -123,7 +143,7 @@ class TestGenerateMetadata:
 
     def test_subtitle_tracks_catalog_count(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         data = _generate_metadata_json(tmp_path, settings)
-        assert f"{_TABLE_COUNT}-table star schema" in data["subtitle"]
+        assert f"{_TABLE_COUNT}-table public NBA data model" in data["subtitle"]
 
     def test_subtitle_matches_kaggle_length_bounds(
         self, tmp_path: Path, settings: NbaDbSettings
@@ -199,7 +219,7 @@ class TestBuildResources:
 
     def test_full_publication_resource_universe_is_exact(self) -> None:
         paths = expected_full_publication_resource_paths()
-        assert len(paths) == 1_344
+        assert len(paths) == 4 + (_TABLE_COUNT + _STAGING_TABLE_COUNT) * 2
         assert {"nba.duckdb", "nba.sqlite"} <= paths
         assert {
             "assured-artifact-manifest.json",
@@ -243,13 +263,15 @@ class TestBuildResources:
         assert resources[0]["path"] == "nba.duckdb"
         assert resources[1]["path"] == "nba.sqlite"
 
-    def test_covers_all_five_categories(self) -> None:
+    def test_covers_all_publication_categories(self) -> None:
         assert set(TABLE_CATEGORIES.keys()) == {
             "dimensions",
             "bridges",
             "facts",
             "derived",
             "analytics",
+            RAW_REQUEST_AUTHORITY_CATEGORY,
+            W2_PUBLIC_VALUE_AUTHORITY_CATEGORY,
         }
 
     def test_all_tables_have_descriptions(self) -> None:
@@ -260,7 +282,12 @@ class TestBuildResources:
         output_tables = [transformer.output_table for transformer in discover_all_transformers()]
 
         assert len(output_tables) == len(set(output_tables))
-        assert set(_ALL_TABLES) == set(output_tables)
+        assert set(_TRANSFORM_TABLES) == set(output_tables)
+        assert TABLE_CATEGORIES[RAW_REQUEST_AUTHORITY_CATEGORY] == _RAW_AUTHORITY_TABLES
+        assert TABLE_CATEGORIES[W2_PUBLIC_VALUE_AUTHORITY_CATEGORY] == _W2_AUTHORITY_TABLES
+        assert set(_ALL_TABLES) == (
+            set(output_tables) | set(_RAW_AUTHORITY_TABLES) | set(_W2_AUTHORITY_TABLES)
+        )
         assert all(tables == sorted(tables) for tables in TABLE_CATEGORIES.values())
 
     def test_catalog_includes_factory_and_live_transformer_outputs(self) -> None:

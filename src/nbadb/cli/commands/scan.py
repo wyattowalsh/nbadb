@@ -9,7 +9,7 @@ import typer
 
 from nbadb.cli.app import app
 from nbadb.cli.commands._helpers import _build_settings, _open_db_readonly
-from nbadb.cli.options import DataDirOption  # noqa: TC001
+from nbadb.cli.options import DataDirOption, SuccessorGenerationStoreOption  # noqa: TC001
 from nbadb.orchestrate.scanner import ScanCategory, ScanSeverity
 
 _VALID_CATEGORIES = {c.value for c in ScanCategory}
@@ -75,7 +75,10 @@ def scan(
         bool,
         typer.Option(
             "--full-publication",
-            help="Require bound checkpoint coverage and nonempty publication anchors",
+            help=(
+                "Require bound full-extraction checkpoint coverage or schema-v7 "
+                "successor authority, plus nonempty publication anchors"
+            ),
         ),
     ] = False,
     checkpoint_report: Annotated[
@@ -113,6 +116,7 @@ def scan(
             help="40-character source commit bound to the terminal checkpoint",
         ),
     ] = None,
+    successor_generation_store: SuccessorGenerationStoreOption = None,
 ) -> None:
     """Scan the database for missing data, gaps, and quality issues."""
     settings = _build_settings(data_dir)
@@ -129,31 +133,58 @@ def scan(
         missing_checkpoint_inputs = [
             option for option, value in checkpoint_inputs.items() if value is None or value == ""
         ]
-        if missing_checkpoint_inputs:
+        provided_checkpoint_inputs = [
+            option
+            for option, value in checkpoint_inputs.items()
+            if value is not None and value != ""
+        ]
+        if provided_checkpoint_inputs and missing_checkpoint_inputs:
             typer.echo(
                 "--full-publication requires canonical checkpoint inputs: "
                 + ", ".join(missing_checkpoint_inputs),
                 err=True,
             )
             raise typer.Exit(1)
-        assert checkpoint_report is not None
-        assert checkpoint_manifest is not None
-        assert checkpoint_dir is not None
-        assert checkpoint_chain_id is not None
-        assert checkpoint_source_sha is not None
-        from nbadb.orchestrate.scanner import validate_full_publication_checkpoint_report
+        if provided_checkpoint_inputs:
+            assert checkpoint_report is not None
+            assert checkpoint_manifest is not None
+            assert checkpoint_dir is not None
+            assert checkpoint_chain_id is not None
+            assert checkpoint_source_sha is not None
+            from nbadb.orchestrate.scanner import validate_full_publication_checkpoint_report
 
-        try:
-            validate_full_publication_checkpoint_report(
-                checkpoint_report,
-                manifest_path=checkpoint_manifest,
-                checkpoint_dir=checkpoint_dir,
-                chain_id=checkpoint_chain_id,
-                source_sha=checkpoint_source_sha,
+            try:
+                validate_full_publication_checkpoint_report(
+                    checkpoint_report,
+                    manifest_path=checkpoint_manifest,
+                    checkpoint_dir=checkpoint_dir,
+                    chain_id=checkpoint_chain_id,
+                    source_sha=checkpoint_source_sha,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                typer.echo(f"Full-publication checkpoint assurance failed: {exc}", err=True)
+                raise typer.Exit(1) from exc
+        else:
+            from nbadb.orchestrate.successor_publication_authority import (
+                SuccessorPublicationAuthorityError,
+                open_successor_generation_store,
+                require_successor_publication_authority,
             )
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            typer.echo(f"Full-publication checkpoint assurance failed: {exc}", err=True)
-            raise typer.Exit(1) from exc
+
+            try:
+                generation_store = (
+                    open_successor_generation_store(successor_generation_store)
+                    if successor_generation_store is not None
+                    else None
+                )
+                require_successor_publication_authority(
+                    settings.data_dir,
+                    successor_generation_store=generation_store,
+                    require_current_authority=True,
+                )
+            except SuccessorPublicationAuthorityError as exc:
+                typer.echo(f"Full-publication successor assurance failed: {exc}", err=True)
+                raise typer.Exit(1) from exc
 
     if db_path is None or not db_path.exists():
         typer.echo("Database not found. Run 'nbadb init' first.", err=True)
@@ -196,6 +227,9 @@ def scan(
             categories=categories,
             table_filter=table,
             full_publication=full_publication,
+            request_closure_inventory_path=(
+                settings.data_dir / "request-closure-observation-inventory.json"
+            ),
         )
 
         # Apply severity filter for display

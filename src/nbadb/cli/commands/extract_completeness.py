@@ -7,6 +7,11 @@ import typer
 
 from nbadb.cli.app import app
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+from nbadb.core.nba_api_contract import (
+    NbaApiContractDiscoveryError,
+    discover_runtime_endpoint_contracts,
+)
+from nbadb.core.provider_boundary import ProviderBoundaryError, require_provider_boundary
 
 OutputDirOption = Annotated[
     Path | None,
@@ -53,10 +58,33 @@ def extract_completeness(
     endpoint_analysis_docs_root: EndpointAnalysisDocsRootOption = None,
 ) -> None:
     """Generate endpoint coverage artifacts and report coverage counts."""
-    generator = EndpointCoverageGenerator(endpoint_analysis_docs_root=endpoint_analysis_docs_root)
-    artifacts = generator.build_artifacts()
-    written = generator.write_artifacts(artifacts, output_dir=output_dir)
-    summary = artifacts["summary"]
+    try:
+        expected_runtime_contract_count = (
+            len(discover_runtime_endpoint_contracts()) if require_full else None
+        )
+        if require_full:
+            require_provider_boundary(Path.cwd())
+        generator = EndpointCoverageGenerator(
+            endpoint_analysis_docs_root=endpoint_analysis_docs_root
+        )
+        artifacts = generator.build_artifacts()
+        summary = artifacts["summary"]
+        if require_full:
+            discovered_runtime_count = summary.get("runtime_endpoint_class_count")
+            if (
+                isinstance(discovered_runtime_count, bool)
+                or not isinstance(discovered_runtime_count, int)
+                or discovered_runtime_count != expected_runtime_contract_count
+            ):
+                raise NbaApiContractDiscoveryError(
+                    "runtime_inventory_reconciliation",
+                    "endpoint_coverage_summary",
+                    "PartialDiscovery",
+                )
+        written = generator.write_artifacts(artifacts, output_dir=output_dir)
+    except (NbaApiContractDiscoveryError, ProviderBoundaryError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from None
     extraction = summary.get("extraction_contract", {})
     extraction_ready = bool(extraction.get("ready_for_full_backfill", False))
     extractable = int(extraction.get("extractable_endpoint_count", 0))
@@ -104,6 +132,11 @@ def extract_completeness(
     upstream_contract = summary.get("upstream_contract", {})
     upstream_field_fate = summary.get("upstream_field_fate", {})
     endpoint_analysis_docs = summary.get("endpoint_analysis_docs", {})
+    docs_evidence_enabled = bool(endpoint_analysis_docs.get("enabled"))
+    provider_verified = bool(endpoint_analysis_docs.get("provider_provenance", {}).get("verified"))
+    provider_evidence_verified = bool(
+        endpoint_analysis_docs.get("provider_evidence", {}).get("verified")
+    )
     temporal_coverage = summary.get("temporal_coverage", {})
     if upstream_field_fate or temporal_coverage:
         typer.echo(
@@ -221,7 +254,10 @@ def extract_completeness(
         )
     )
     if require_full and (
-        partial
+        not docs_evidence_enabled
+        or not provider_verified
+        or not provider_evidence_verified
+        or partial
         or blocked
         or season_type_open
         or field_gaps
@@ -247,7 +283,7 @@ def extract_completeness(
         typer.echo(
             (
                 "require-full check failed: extraction, field sink, endpoint-analysis docs, "
-                "docs/tools metadata, or temporal contract gaps remain"
+                "exact provider provenance, docs/tools metadata, or temporal contract gaps remain"
             ),
             err=True,
         )

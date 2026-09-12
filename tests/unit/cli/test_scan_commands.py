@@ -174,16 +174,172 @@ class TestFailOn:
             source_sha="a" * 40,
         )
 
-    def test_full_publication_requires_terminal_checkpoint_report(self, tmp_path: Path) -> None:
+    def test_full_publication_without_checkpoints_requires_successor_authority(
+        self,
+        tmp_path: Path,
+    ) -> None:
         db_path = tmp_path / "nbadb" / "nba.duckdb"
         _make_db(db_path)
         with patch("nbadb.cli.commands.scan._build_settings") as mock_settings:
             mock_settings.return_value.duckdb_path = db_path
+            mock_settings.return_value.data_dir = tmp_path / "nbadb"
             result = runner.invoke(app, ["scan", "--full-publication"])
 
         assert result.exit_code == 1
+        assert "Full-publication successor assurance failed" in result.output
+        assert "cannot substitute" in result.output
+        assert "requires canonical checkpoint inputs" not in result.output
+
+    def test_full_publication_without_checkpoints_rejects_schema_v3_terminal_report(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        data_dir = tmp_path / "nbadb"
+        db_path = data_dir / "nba.duckdb"
+        _make_db(db_path)
+        (data_dir / "terminal-assurance-report.json").write_text(
+            json.dumps({"schema_version": 3, "chain_id": "full-baseline"}) + "\n",
+            encoding="utf-8",
+        )
+        with patch("nbadb.cli.commands.scan._build_settings") as mock_settings:
+            mock_settings.return_value.duckdb_path = db_path
+            mock_settings.return_value.data_dir = data_dir
+            result = runner.invoke(app, ["scan", "--full-publication"])
+
+        assert result.exit_code == 1
+        assert "Full-publication successor assurance failed" in result.output
+        assert "cannot substitute" in result.output
+
+    def test_full_publication_without_checkpoints_accepts_schema_v7_authority(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        data_dir = tmp_path / "nbadb"
+        db_path = data_dir / "nba.duckdb"
+        _make_db(db_path)
+        observed: dict[str, object] = {}
+        report = _make_report()
+
+        class FakeScanner:
+            def __init__(self, conn: object) -> None:
+                pass
+
+            def scan(self, **kwargs: object) -> ScanReport:
+                observed.update(kwargs)
+                return report
+
+        with (
+            patch("nbadb.orchestrate.scanner.DataScanner", FakeScanner),
+            patch("nbadb.cli.commands.scan._build_settings") as mock_settings,
+            patch(
+                "nbadb.orchestrate.successor_publication_authority."
+                "require_successor_publication_authority"
+            ) as require_authority,
+        ):
+            mock_settings.return_value.duckdb_path = db_path
+            mock_settings.return_value.data_dir = data_dir
+            result = runner.invoke(app, ["scan", "--full-publication"])
+
+        assert result.exit_code == 0
+        require_authority.assert_called_once_with(
+            data_dir,
+            successor_generation_store=None,
+            require_current_authority=True,
+        )
+        assert observed["full_publication"] is True
+
+    def test_full_publication_without_store_rejects_schema_v7_report(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from nbadb.core.artifact_identity import SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+        from tests.unit.orchestrate.test_successor_assurance import _report
+
+        data_dir = tmp_path / "nbadb"
+        db_path = data_dir / "nba.duckdb"
+        _make_db(db_path)
+        (data_dir / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME).write_bytes(_report().canonical_bytes)
+        with patch("nbadb.cli.commands.scan._build_settings") as mock_settings:
+            mock_settings.return_value.duckdb_path = db_path
+            mock_settings.return_value.data_dir = data_dir
+            result = runner.invoke(app, ["scan", "--full-publication"])
+
+        assert result.exit_code == 1
+        assert "Full-publication successor assurance failed" in result.output
+        assert "explicit current generation store" in result.output
+
+    def test_full_publication_forwards_successor_generation_store(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        data_dir = tmp_path / "nbadb"
+        db_path = data_dir / "nba.duckdb"
+        _make_db(db_path)
+        store_root = tmp_path / "successor-store"
+        store_root.mkdir()
+        observed: dict[str, object] = {}
+        report = _make_report()
+
+        class FakeScanner:
+            def __init__(self, conn: object) -> None:
+                pass
+
+            def scan(self, **kwargs: object) -> ScanReport:
+                observed.update(kwargs)
+                return report
+
+        with (
+            patch("nbadb.orchestrate.scanner.DataScanner", FakeScanner),
+            patch("nbadb.cli.commands.scan._build_settings") as mock_settings,
+            patch(
+                "nbadb.orchestrate.successor_publication_authority."
+                "require_successor_publication_authority"
+            ) as require_authority,
+        ):
+            mock_settings.return_value.duckdb_path = db_path
+            mock_settings.return_value.data_dir = data_dir
+            result = runner.invoke(
+                app,
+                [
+                    "scan",
+                    "--full-publication",
+                    "--successor-generation-store",
+                    str(store_root),
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        require_authority.assert_called_once()
+        kwargs = require_authority.call_args.kwargs
+        assert require_authority.call_args.args == (data_dir,)
+        assert kwargs["require_current_authority"] is True
+        assert kwargs["successor_generation_store"].root == store_root
+        assert observed["full_publication"] is True
+
+    def test_full_publication_partial_checkpoints_still_require_remaining_inputs(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+        checkpoint_report = tmp_path / "checkpoint-report.json"
+        _write_terminal_checkpoint_report(checkpoint_report)
+        with patch("nbadb.cli.commands.scan._build_settings") as mock_settings:
+            mock_settings.return_value.duckdb_path = db_path
+            mock_settings.return_value.data_dir = tmp_path / "nbadb"
+            result = runner.invoke(
+                app,
+                [
+                    "scan",
+                    "--full-publication",
+                    "--checkpoint-report",
+                    str(checkpoint_report),
+                ],
+            )
+
+        assert result.exit_code == 1
         assert "requires canonical checkpoint inputs" in result.output
-        assert "--checkpoint-report" in result.output
+        assert "--checkpoint-manifest" in result.output
 
     def test_full_publication_reports_missing_manifest_as_assurance_failure(
         self,

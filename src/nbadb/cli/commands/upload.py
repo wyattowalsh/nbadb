@@ -6,7 +6,7 @@ import typer
 
 from nbadb.cli.app import app
 from nbadb.cli.commands._helpers import _build_settings
-from nbadb.cli.options import DataDirOption  # noqa: TC001
+from nbadb.cli.options import DataDirOption, SuccessorGenerationStoreOption  # noqa: TC001
 
 _REMOTE_VERIFIED_STATUSES = frozenset({"uploaded_remote_verified", "reconciled_existing_remote"})
 _SUBMITTED_STATUSES = frozenset({"uploaded_unverified"})
@@ -59,9 +59,11 @@ def upload(
         "--require-durable-intent",
         help="Fail closed unless a crash-durable external publication intent is active.",
     ),
+    successor_generation_store: SuccessorGenerationStoreOption = None,
 ) -> None:
     """Push data to Kaggle."""
     from nbadb.kaggle.client import KaggleClient
+    from nbadb.kaggle.publication_rights import assert_public_kaggle_publication_admitted
 
     settings = _build_settings(data_dir)
     remote_verification = verify_remote or full_publication
@@ -90,6 +92,31 @@ def upload(
 
             durable_ledger = GitHubDeploymentPublicationLedger.from_actions_env()
 
+        from nbadb.orchestrate.successor_publication_authority import (
+            open_successor_generation_store,
+            require_successor_durable_publication,
+            successor_publication_requested,
+        )
+
+        generation_store = (
+            open_successor_generation_store(successor_generation_store)
+            if successor_generation_store is not None
+            else None
+        )
+        if successor_publication_requested(
+            settings.data_dir,
+            successor_generation_store=generation_store,
+        ):
+            require_successor_durable_publication(
+                settings.data_dir,
+                full_publication=full_publication,
+                verify_remote=remote_verification,
+                require_durable_intent=require_durable_intent,
+                publication_ledger=durable_ledger,
+                successor_generation_store=generation_store,
+            )
+
+        assert_public_kaggle_publication_admitted()
         client = KaggleClient()
         client.ensure_metadata(
             settings.data_dir,
@@ -105,6 +132,7 @@ def upload(
             remote_poll_interval_seconds=remote_poll_interval,
             publication_ledger=durable_ledger,
             require_durable_intent=require_durable_intent,
+            successor_generation_store=generation_store,
         )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         status = manifest.get("status")

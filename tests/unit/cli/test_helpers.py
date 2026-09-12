@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -39,6 +40,13 @@ def _asyncio_run_raising(exc: BaseException):
     return _run
 
 
+def _loguru_handlers() -> Any:
+    from loguru import logger
+
+    core = object.__getattribute__(cast("Any", logger), "_core")
+    return core.handlers
+
+
 # ---------------------------------------------------------------------------
 # _build_settings
 # ---------------------------------------------------------------------------
@@ -66,22 +74,18 @@ def test_build_settings_formats_override() -> None:
 
 
 def test_setup_logging_verbose() -> None:
-    from loguru import logger
-
     _setup_logging(verbose=True)
     # After verbose setup, a DEBUG-level handler should be active
-    handlers = logger._core.handlers
+    handlers = _loguru_handlers()
     assert len(handlers) >= 1
     # At least one handler should accept DEBUG level (levelno 10)
     assert any(h.levelno <= 10 for h in handlers.values())
 
 
 def test_setup_logging_non_verbose() -> None:
-    from loguru import logger
-
     _setup_logging(verbose=False)
     # After non-verbose setup, only WARNING-level handler should be active
-    handlers = logger._core.handlers
+    handlers = _loguru_handlers()
     assert len(handlers) >= 1
     # All handlers should be WARNING (30) or above
     assert all(h.levelno >= 30 for h in handlers.values())
@@ -160,9 +164,7 @@ def test_setup_logging_tui_mode(tmp_path) -> None:
         os.chdir(tmp_path)
         _setup_logging(verbose=False, tui=True)
         # Should have created a file-based handler
-        from loguru import logger
-
-        handlers = logger._core.handlers
+        handlers = _loguru_handlers()
         assert len(handlers) >= 1
     finally:
         os.chdir(original_cwd)
@@ -200,7 +202,10 @@ def test_open_db_readonly_valid_path(tmp_path) -> None:
     result = _open_db_readonly(db_path)
     try:
         # Should be able to read
-        assert result.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 0
+        count_row = result.execute("SELECT COUNT(*) FROM t").fetchone()
+        if count_row is None:
+            raise AssertionError("read-only count query must return a row")
+        assert count_row[0] == 0
     finally:
         result.close()
 
@@ -328,8 +333,8 @@ def test_run_pipeline_non_tty_exception_raises_exit() -> None:
         mock_echo.assert_any_call("test failed: RuntimeError: boom", err=True)
 
 
-def test_run_pipeline_non_tty_cancelled_error_raises_exit_0() -> None:
-    """CancelledError in non-TTY mode raises typer.Exit(0)."""
+def test_run_pipeline_non_tty_cancelled_error_raises_exit_1() -> None:
+    """CancelledError preserves progress but reports a non-success exit."""
     import asyncio as _asyncio
 
     async def fake_run(orch):
@@ -346,6 +351,8 @@ def test_run_pipeline_non_tty_cancelled_error_raises_exit_0() -> None:
             side_effect=_asyncio_run_raising(_asyncio.CancelledError()),
         ),
         patch("nbadb.cli.commands._helpers._setup_logging"),
+        patch("nbadb.cli.commands._helpers._print_result") as mock_print,
+        patch("nbadb.cli.commands._helpers._run_quality_checks") as mock_scan,
     ):
         mock_stdout.isatty.return_value = False
         settings = _build_settings()
@@ -355,13 +362,16 @@ def test_run_pipeline_non_tty_cancelled_error_raises_exit_0() -> None:
                 fake_run,
                 settings,
                 verbose=False,
+                quality_check=True,
                 orchestrator_cls=FakeOrchCls,
             )
-        assert exc_info.value.exit_code == 0
+        assert exc_info.value.exit_code == 1
+        mock_print.assert_not_called()
+        mock_scan.assert_not_called()
 
 
-def test_run_pipeline_keyboard_interrupt_raises_exit_0() -> None:
-    """KeyboardInterrupt in non-TTY mode raises typer.Exit(0)."""
+def test_run_pipeline_keyboard_interrupt_raises_exit_1() -> None:
+    """KeyboardInterrupt preserves progress but reports a non-success exit."""
 
     async def fake_run(orch):
         return None
@@ -377,6 +387,8 @@ def test_run_pipeline_keyboard_interrupt_raises_exit_0() -> None:
             side_effect=_asyncio_run_raising(KeyboardInterrupt()),
         ),
         patch("nbadb.cli.commands._helpers._setup_logging"),
+        patch("nbadb.cli.commands._helpers._print_result") as mock_print,
+        patch("nbadb.cli.commands._helpers._run_quality_checks") as mock_scan,
     ):
         mock_stdout.isatty.return_value = False
         settings = _build_settings()
@@ -386,9 +398,12 @@ def test_run_pipeline_keyboard_interrupt_raises_exit_0() -> None:
                 fake_run,
                 settings,
                 verbose=False,
+                quality_check=True,
                 orchestrator_cls=FakeOrchCls,
             )
-        assert exc_info.value.exit_code == 0
+        assert exc_info.value.exit_code == 1
+        mock_print.assert_not_called()
+        mock_scan.assert_not_called()
 
 
 def test_run_pipeline_lazy_import_orchestrator() -> None:
@@ -519,7 +534,7 @@ def test_run_pipeline_tui_path_error() -> None:
 
 
 def test_run_pipeline_tui_path_none_result() -> None:
-    """TUI path with None result (user cancelled) raises typer.Exit(0)."""
+    """TUI cancellation preserves progress but reports a non-success exit."""
 
     async def fake_run(orch):
         return None
@@ -527,6 +542,8 @@ def test_run_pipeline_tui_path_none_result() -> None:
     with (
         patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
         patch("nbadb.cli.tui.run_with_tui", return_value=(None, None, None)),
+        patch("nbadb.cli.commands._helpers._print_result") as mock_print,
+        patch("nbadb.cli.commands._helpers._run_quality_checks") as mock_scan,
     ):
         mock_stdout.isatty.return_value = True
         settings = _build_settings()
@@ -536,6 +553,47 @@ def test_run_pipeline_tui_path_none_result() -> None:
                 fake_run,
                 settings,
                 verbose=False,
+                quality_check=True,
                 orchestrator_cls=type("FakeOrch", (), {}),
             )
-        assert exc_info.value.exit_code == 0
+        assert exc_info.value.exit_code == 1
+        mock_print.assert_not_called()
+        mock_scan.assert_not_called()
+
+
+def test_run_pipeline_strict_result_rejects_partial_extraction() -> None:
+    fake_result = PipelineResult(
+        tables_updated=2,
+        rows_total=50,
+        duration_seconds=0.5,
+        failed_extractions=1,
+    )
+
+    async def fake_run(orch):
+        return fake_result
+
+    class FakeOrchCls:
+        def __init__(self, **kwargs):
+            pass
+
+    with (
+        patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
+        patch(
+            "nbadb.cli.commands._helpers.asyncio.run",
+            side_effect=_asyncio_run_returning(fake_result),
+        ),
+        patch("nbadb.cli.commands._helpers._print_result"),
+        patch("nbadb.cli.commands._helpers._setup_logging"),
+    ):
+        mock_stdout.isatty.return_value = False
+        with pytest.raises(typer.Exit) as exc_info:
+            _run_pipeline(
+                "daily",
+                fake_run,
+                _build_settings(),
+                verbose=False,
+                orchestrator_cls=FakeOrchCls,
+                require_complete_result=True,
+            )
+
+    assert exc_info.value.exit_code == 1

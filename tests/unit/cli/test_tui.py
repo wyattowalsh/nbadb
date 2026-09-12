@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+from unittest.mock import patch
+
 import pytest
 
 from nbadb.cli._progress_common import (
@@ -21,7 +24,15 @@ from nbadb.cli.tui import (
     StatCard,
     TotalsStrip,
     TuiLogSink,
+    run_with_tui,
 )
+from nbadb.orchestrate.raw_request_context import RawRequestExecutionIdentityV1
+from nbadb.orchestrate.w2_source_call_preparation import (
+    W2SourceCallPreparationRuntime,
+)
+
+if TYPE_CHECKING:
+    from nbadb.orchestrate.raw_request_assurance import RawRequestAssuranceAuthorityV2
 
 # ── shared _progress_common ────────────────────────────────
 
@@ -185,41 +196,41 @@ class TestTuiLogSink:
 
     def test_empty_message_skipped(self) -> None:
         app = self.FakeApp()
-        sink = TuiLogSink(app)  # type: ignore[arg-type]
+        sink = TuiLogSink(cast("NbaDbDashboard", app))
         sink.write("\n")
         assert app.messages == []
 
     def test_error_styled(self) -> None:
         app = self.FakeApp()
-        sink = TuiLogSink(app)  # type: ignore[arg-type]
+        sink = TuiLogSink(cast("NbaDbDashboard", app))
         sink.write("12:34:56 | ERROR   | something failed\n")
         assert len(app.messages) == 1
         assert app.messages[0][1] == _NBA_RED
 
     def test_warning_styled(self) -> None:
         app = self.FakeApp()
-        sink = TuiLogSink(app)  # type: ignore[arg-type]
+        sink = TuiLogSink(cast("NbaDbDashboard", app))
         sink.write("12:34:56 | WARNING | heads up\n")
         assert len(app.messages) == 1
         assert app.messages[0][1] == _NBA_GOLD
 
     def test_info_styled(self) -> None:
         app = self.FakeApp()
-        sink = TuiLogSink(app)  # type: ignore[arg-type]
+        sink = TuiLogSink(cast("NbaDbDashboard", app))
         sink.write("12:34:56 | INFO    | all good\n")
         assert len(app.messages) == 1
         assert app.messages[0][1] == ""
 
     def test_success_styled(self) -> None:
         app = self.FakeApp()
-        sink = TuiLogSink(app)  # type: ignore[arg-type]
+        sink = TuiLogSink(cast("NbaDbDashboard", app))
         sink.write("12:34:56 | SUCCESS | done\n")
         assert len(app.messages) == 1
         assert app.messages[0][1] == "green"
 
     def test_short_message_fallback(self) -> None:
         app = self.FakeApp()
-        sink = TuiLogSink(app)  # type: ignore[arg-type]
+        sink = TuiLogSink(cast("NbaDbDashboard", app))
         sink.write("short msg\n")
         assert len(app.messages) == 1
         assert app.messages[0][1] == "dim"
@@ -345,3 +356,61 @@ class TestRunWithTui:
         from nbadb.cli.tui import run_with_tui
 
         assert callable(run_with_tui)
+
+    def test_forwards_same_w2_runtime_without_reconstruction(self) -> None:
+        execution = RawRequestExecutionIdentityV1(
+            source_sha="a" * 40,
+            run_id=101,
+            run_attempt=1,
+            chain_id="chain",
+            lane_id="lane",
+        )
+        assurance = object()
+        runtime = object.__new__(W2SourceCallPreparationRuntime)
+        result = object()
+        summary = object()
+        observed: dict[str, object] = {}
+
+        class FakeDashboard:
+            pipeline_result = result
+            pipeline_error = None
+
+            def __init__(self, **kwargs: object) -> None:
+                observed.update(kwargs)
+
+            def run(self) -> None:
+                return None
+
+            def export_summary(self) -> object:
+                return summary
+
+        async def run_pipeline(_orchestrator: object) -> None:
+            return None
+
+        with (
+            patch("nbadb.cli.tui.NbaDbDashboard", FakeDashboard),
+            patch("loguru.logger.add", return_value=11),
+            patch("loguru.logger.remove"),
+            patch(
+                "nbadb.orchestrate.w2_runtime_environment."
+                "w2_source_call_preparation_runtime_from_env",
+                side_effect=AssertionError("TUI reconstructed the W2 runtime"),
+            ) as rebuild,
+        ):
+            observed_result, observed_error, observed_summary = run_with_tui(
+                "backfill",
+                run_pipeline,
+                object(),
+                object,
+                raw_request_execution_identity=execution,
+                raw_request_assurance_authority=cast("RawRequestAssuranceAuthorityV2", assurance),
+                w2_preparation_runtime=runtime,
+            )
+
+        assert observed["raw_request_execution_identity"] is execution
+        assert observed["raw_request_assurance_authority"] is assurance
+        assert observed["w2_preparation_runtime"] is runtime
+        assert observed_result is result
+        assert observed_error is None
+        assert observed_summary is summary
+        rebuild.assert_not_called()

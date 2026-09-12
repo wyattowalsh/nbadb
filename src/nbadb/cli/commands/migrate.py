@@ -12,7 +12,7 @@ def migrate(
     data_dir: DataDirOption = None,
 ) -> None:
     """Create or migrate pipeline tables in the DuckDB database."""
-    from nbadb.core.db import DBManager
+    from nbadb.core.db import DBManager, TransformOutputAuthorityPersistenceState
 
     settings = _build_settings(data_dir)
 
@@ -30,6 +30,12 @@ def migrate(
     )
     try:
         db.init()
+        authority_state = db.install_transform_output_authority_persistence()
+        if authority_state.state is not TransformOutputAuthorityPersistenceState.ALREADY_CURRENT:
+            raise RuntimeError(
+                "transform-output authority persistence requires explicit repair: "
+                f"{authority_state.reason_code}"
+            )
         typer.echo("Migration complete.")
     except Exception as exc:
         typer.echo(f"Migration failed: {type(exc).__name__}", err=True)

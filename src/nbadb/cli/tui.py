@@ -23,6 +23,12 @@ if TYPE_CHECKING:
     from textual.visual import VisualType
     from textual.widgets.data_table import RowKey
 
+    from nbadb.orchestrate.raw_request_assurance import RawRequestAssuranceAuthorityV2
+    from nbadb.orchestrate.raw_request_context import RawRequestExecutionIdentityV1
+    from nbadb.orchestrate.w2_source_call_preparation import (
+        W2SourceCallPreparationRuntime,
+    )
+
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
@@ -438,12 +444,28 @@ class NbaDbDashboard(App):
         run_fn: Callable[..., Awaitable[Any]] | None = None,
         settings: Any = None,
         orchestrator_cls: type | None = None,
+        raw_request_execution_identity: RawRequestExecutionIdentityV1 | None = None,
+        raw_request_assurance_authority: RawRequestAssuranceAuthorityV2 | None = None,
+        w2_preparation_runtime: W2SourceCallPreparationRuntime | None = None,
     ) -> None:
         super().__init__()
+        if raw_request_execution_identity is None:
+            if w2_preparation_runtime is not None:
+                raise TypeError("W2 preparation runtime requires an active execution identity")
+        else:
+            from nbadb.orchestrate.w2_source_call_preparation import (
+                W2SourceCallPreparationRuntime,
+            )
+
+            if type(w2_preparation_runtime) is not W2SourceCallPreparationRuntime:
+                raise TypeError("active execution requires an exact W2 preparation runtime")
         self._mode = mode.upper()
         self._run_fn = run_fn
         self._settings = settings
         self._orchestrator_cls = orchestrator_cls
+        self._raw_request_execution_identity = raw_request_execution_identity
+        self._raw_request_assurance_authority = raw_request_assurance_authority
+        self._w2_preparation_runtime = w2_preparation_runtime
         self._start_time = 0.0
         self._phase = ""
         self._phase_detail = ""
@@ -561,7 +583,16 @@ class NbaDbDashboard(App):
 
             orch_cls = Orchestrator
 
-        orch = orch_cls(settings=self._settings, progress=self)
+        if self._raw_request_execution_identity is None:
+            orch = orch_cls(settings=self._settings, progress=self)
+        else:
+            orch = orch_cls(
+                settings=self._settings,
+                progress=self,
+                raw_request_execution_identity=self._raw_request_execution_identity,
+                raw_request_assurance_authority=self._raw_request_assurance_authority,
+                w2_preparation_runtime=self._w2_preparation_runtime,
+            )
         try:
             run_fn = self._run_fn
             assert run_fn is not None
@@ -887,6 +918,10 @@ def run_with_tui(
     run_fn: Callable[..., Awaitable[Any]],
     settings: Any,
     orchestrator_cls: type | None = None,
+    *,
+    raw_request_execution_identity: RawRequestExecutionIdentityV1 | None = None,
+    raw_request_assurance_authority: RawRequestAssuranceAuthorityV2 | None = None,
+    w2_preparation_runtime: W2SourceCallPreparationRuntime | None = None,
 ) -> tuple[object, Exception | None, object]:
     """Run pipeline inside the Textual TUI.
 
@@ -900,6 +935,9 @@ def run_with_tui(
         run_fn=run_fn,
         settings=settings,
         orchestrator_cls=orchestrator_cls,
+        raw_request_execution_identity=raw_request_execution_identity,
+        raw_request_assurance_authority=raw_request_assurance_authority,
+        w2_preparation_runtime=w2_preparation_runtime,
     )
 
     # Wire loguru into the TUI log panel — don't nuke existing sinks

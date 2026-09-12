@@ -11,9 +11,26 @@ from loguru import logger
 if TYPE_CHECKING:
     from pathlib import Path
 
-from nbadb.core.artifact_identity import ASSURED_ARTIFACT_MANIFEST_NAME
+from nbadb.core.artifact_identity import (
+    ASSURED_ARTIFACT_MANIFEST_NAME,
+    assert_no_private_capture_sentinels,
+)
 from nbadb.core.config import get_settings
-from nbadb.orchestrate.staging_map import STAGING_MAP
+from nbadb.extract.live_lossless import LIVE_LOSSLESS_STAGING_KEY
+from nbadb.orchestrate.raw_publication_inventory import (
+    PRIVATE_RAW_REQUEST_AUTHORITY_TABLE_NAMES,
+    RAW_REQUEST_AUTHORITY_CATEGORY,
+    raw_request_authority_publication_tables,
+)
+from nbadb.orchestrate.staging_map import (
+    CONDITIONAL_STAGING_KEYS,
+    LOSSLESS_FALLBACK_STAGING_KEY,
+    STAGING_MAP,
+)
+from nbadb.orchestrate.w2_publication_inventory import (
+    W2_PUBLIC_VALUE_AUTHORITY_CATEGORY,
+    w2_public_value_authority_publication_tables,
+)
 
 TABLE_DESCRIPTIONS: dict[str, str] = {
     # --- Dimensions (18) ---
@@ -109,6 +126,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_league_hustle": "League-wide hustle stats leaders per season: deflections, contested shots, loose balls.",
     "fact_league_leaders_detail": "Detailed league leaders across multiple statistical categories per season.",
     "fact_league_lineup_viz": "Lineup visualization data showing five-man unit performance metrics.",
+    "fact_league_player_on_details": "League-wide team on/off splits for each compared player, court status, group, season, and season type, preserving every provider measure and rank.",
     "fact_league_opp_pt_shot": "Opponent player-tracking shot passthrough for the league opponent shot endpoint.",
     "fact_league_player_pt_shot": "Player tracking shot passthrough for the league player shot endpoint.",
     "fact_league_player_shot_locations": "Player shot-location passthrough for league-wide shot locations.",
@@ -121,10 +139,12 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_league_shot_locations": "League-wide shooting by court location and distance.",
     "fact_league_team_clutch": "Team-level clutch performance stats across the league per season.",
     "fact_lineup_stats": "Five-man lineup combination stats from both league-wide and team-specific sources.",
+    "fact_lineup_stint": "Exact five-player-per-side GameRotation stints linked to source-supported possessions, exposure, and scoring responses.",
     "fact_player_pt_pass": "Player tracking passing passthrough.",
     "fact_player_pt_shot_defend": "Player tracking shot-defense passthrough.",
     "fact_matchup": "Head-to-head matchup statistics between teams across seasons.",
     "fact_on_off_detail": "Detailed on/off court impact stats — team performance when a player is on vs. off the floor.",
+    "fact_team_on_off_overall": "Reconciled team-level overall totals and denominator context shared by the detailed and summary on/off endpoints.",
     "fact_play_by_play": "Every play-by-play event with game clock, score, event type (made_shot, rebound, foul, etc.), and up to 3 involved players.",
     "fact_play_by_play_v2": "Play-by-play V2 event passthrough with game clock, score, event type, and participant details.",
     "fact_play_by_play_v2_video": "Play-by-play V2 video availability passthrough by game and event.",
@@ -168,6 +188,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_player_yoy_detail": "Detailed player year-over-year stat comparisons across seasons.",
     "fact_playoff_picture": "Current playoff picture with clinch scenarios, elimination status, and projected seedings.",
     "fact_playoff_series": "Playoff series results with series winner, game count, and matchup details.",
+    "fact_rapm_design": "Unfitted long-form RAPM design rows with signed player indicators, stint exposure, and home net-point response.",
     "fact_rotation": "Player rotation data per game: check-in/out times, points scored, point differential, and usage during each stint.",
     "fact_scoreboard_detail": "Detailed scoreboard data with live game status, scores, and broadcast info.",
     "fact_scoreboard_available": "Scoreboard data-availability passthrough by game and date.",
@@ -193,6 +214,9 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_standings": "Team standings per season: W-L record, win%, conference/division rank, home/road record, streak.",
     "fact_static_players": "Static player reference snapshot from the NBA static dataset with IDs, names, and active flags.",
     "fact_static_teams": "Static team reference snapshot from the NBA static dataset with IDs, abbreviations, and franchise naming.",
+    "fact_static_wnba_players": "Static WNBA player reference snapshot from the pinned nba_api dataset with IDs, names, and active flags.",
+    "fact_static_wnba_teams": "Static WNBA team reference snapshot from the pinned nba_api dataset with IDs, abbreviations, franchise naming, and championship history.",
+    "fact_statistical_possession": "Conservative source-supported statistical possessions derived from V3 play-by-play with score, control, and ambiguity evidence.",
     "fact_streak_finder": "Historical streak finder results: longest winning/losing streaks matching criteria.",
     "fact_synergy": "Synergy play type data: PPP, efficiency, frequency by play type (PnR, isolation, transition, post-up, etc.) per player/team.",
     "fact_team_available_seasons": "Seasons with available data for each team.",
@@ -276,6 +300,15 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "analytics_team_general_splits": "Team split analytics that join general split detail with team identity and season-overall baselines for delta analysis.",
     "analytics_team_season_summary": "Team season summary combining season aggregates, standings (W-L, win%, conference/division rank), and team info.",
 }
+TABLE_DESCRIPTIONS.update(
+    {entry.table_name: entry.description for entry in raw_request_authority_publication_tables()}
+)
+TABLE_DESCRIPTIONS.update(
+    {
+        entry.table_name: entry.description
+        for entry in w2_public_value_authority_publication_tables()
+    }
+)
 
 _CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
     "dimensions": [
@@ -372,6 +405,7 @@ _CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_league_hustle",
         "fact_league_leaders_detail",
         "fact_league_lineup_viz",
+        "fact_league_player_on_details",
         "fact_league_opp_pt_shot",
         "fact_league_player_pt_shot",
         "fact_league_player_shot_locations",
@@ -384,6 +418,7 @@ _CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_league_shot_locations",
         "fact_league_team_clutch",
         "fact_lineup_stats",
+        "fact_lineup_stint",
         "fact_player_pt_pass",
         "fact_player_pt_shot_defend",
         "fact_matchup",
@@ -427,6 +462,7 @@ _CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_player_yoy_detail",
         "fact_playoff_picture",
         "fact_playoff_series",
+        "fact_rapm_design",
         "fact_rotation",
         "fact_scoreboard_detail",
         "fact_scoreboard_conference_standings",
@@ -451,6 +487,7 @@ _CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_standings",
         "fact_static_players",
         "fact_static_teams",
+        "fact_statistical_possession",
         "fact_streak_finder",
         "fact_synergy",
         "fact_team_available_seasons",
@@ -525,7 +562,12 @@ _CURATED_TABLE_CATEGORIES: dict[str, list[str]] = {
     ],
 }
 
-CATEGORY_ORDER = ("dimensions", "bridges", "facts", "derived", "analytics")
+_TRANSFORM_CATEGORY_ORDER = ("dimensions", "bridges", "facts", "derived", "analytics")
+CATEGORY_ORDER = (
+    *_TRANSFORM_CATEGORY_ORDER,
+    RAW_REQUEST_AUTHORITY_CATEGORY,
+    W2_PUBLIC_VALUE_AUTHORITY_CATEGORY,
+)
 TERMINAL_ASSURANCE_REPORT_NAME = "terminal-assurance-report.json"
 
 _CATEGORY_PREFIXES: dict[str, str] = {
@@ -557,7 +599,9 @@ def _discover_table_categories() -> dict[str, list[str]]:
         raise RuntimeError("Runtime transformer discovery returned duplicate output tables")
 
     curated_tables = [
-        table for category in CATEGORY_ORDER for table in _CURATED_TABLE_CATEGORIES[category]
+        table
+        for category in _TRANSFORM_CATEGORY_ORDER
+        for table in _CURATED_TABLE_CATEGORIES[category]
     ]
     duplicate_curated = sorted(
         table for table in set(curated_tables) if curated_tables.count(table) > 1
@@ -566,7 +610,7 @@ def _discover_table_categories() -> dict[str, list[str]]:
     missing_descriptions = sorted(runtime_set - TABLE_DESCRIPTIONS.keys())
     miscategorized = sorted(
         table
-        for category in CATEGORY_ORDER
+        for category in _TRANSFORM_CATEGORY_ORDER
         for table in _CURATED_TABLE_CATEGORIES[category]
         if _table_category(table) != category
     )
@@ -581,6 +625,12 @@ def _discover_table_categories() -> dict[str, list[str]]:
     categories: dict[str, list[str]] = {category: [] for category in CATEGORY_ORDER}
     for table in runtime_tables:
         categories[_table_category(table)].append(table)
+    categories[RAW_REQUEST_AUTHORITY_CATEGORY] = [
+        entry.table_name for entry in raw_request_authority_publication_tables()
+    ]
+    categories[W2_PUBLIC_VALUE_AUTHORITY_CATEGORY] = [
+        entry.table_name for entry in w2_public_value_authority_publication_tables()
+    ]
     return categories
 
 
@@ -592,6 +642,8 @@ CATEGORY_LABELS: dict[str, str] = {
     "facts": "Facts",
     "derived": "Aggregations",
     "analytics": "Analytics Views",
+    RAW_REQUEST_AUTHORITY_CATEGORY: "Raw Request Authority",
+    W2_PUBLIC_VALUE_AUTHORITY_CATEGORY: "W2 Public Value Authority",
 }
 
 CATEGORY_SUMMARIES: dict[str, str] = {
@@ -600,6 +652,13 @@ CATEGORY_SUMMARIES: dict[str, str] = {
     "facts": "Box scores, play-by-play, shot charts, tracking, standings, matchups, and dashboards.",
     "derived": "Season totals, career stats, all-time leaders, rolling windows, and rate-normalized rollups.",
     "analytics": "Pre-joined wide tables for ML, BI, and notebook workflows.",
+    RAW_REQUEST_AUTHORITY_CATEGORY: (
+        "Exact public parser inputs, request observations, and ordered result occurrences."
+    ),
+    W2_PUBLIC_VALUE_AUTHORITY_CATEGORY: (
+        "Exact provider result cells, lossless stats/live records, representation and "
+        "route-field bindings, and terminal W2 operation receipts."
+    ),
 }
 
 FORMAT_SPECS: tuple[tuple[str, str, str], ...] = (
@@ -622,14 +681,49 @@ class ExportInventory:
     parquet_tables: int
     table_count: int
     staging_tables: int
+    raw_authority_tables: int
+    w2_authority_tables: int
 
 
 def _iter_catalog_tables() -> list[str]:
+    registered_raw = tuple(TABLE_CATEGORIES[RAW_REQUEST_AUTHORITY_CATEGORY])
+    current_raw = tuple(entry.table_name for entry in raw_request_authority_publication_tables())
+    if registered_raw != current_raw:
+        raise RuntimeError(
+            "metadata raw request-authority catalog drifted from store/schema authority"
+        )
+    registered_w2 = tuple(TABLE_CATEGORIES[W2_PUBLIC_VALUE_AUTHORITY_CATEGORY])
+    current_w2 = tuple(entry.table_name for entry in w2_public_value_authority_publication_tables())
+    if registered_w2 != current_w2:
+        raise RuntimeError("metadata W2 public-value catalog drifted from store/schema authority")
+    if set(registered_raw) & set(registered_w2):
+        raise RuntimeError("metadata raw request and W2 public-value catalogs overlap")
     return [table for category in CATEGORY_ORDER for table in TABLE_CATEGORIES[category]]
 
 
 _STAGING_TABLE_RE = re.compile(r"stg_[a-z0-9_]+")
+_RAW_TABLE_RE = re.compile(r"raw_[a-z0-9_]+")
 _CANONICAL_STAGING_TABLES = frozenset(entry.staging_key for entry in STAGING_MAP)
+_PUBLICATION_STAGING_TABLES = _CANONICAL_STAGING_TABLES | CONDITIONAL_STAGING_KEYS
+
+
+def _public_raw_table_sets() -> tuple[frozenset[str], frozenset[str]]:
+    """Return the public raw table sets under the exact-four private-only rule.
+
+    The four provider-body authority relations are private-only: their public
+    projection must be empty, and none of the four names may appear in the
+    exact-six public W2 value-authority catalog (or any other public surface).
+    """
+
+    raw_v2 = frozenset(entry.table_name for entry in raw_request_authority_publication_tables())
+    w2 = frozenset(entry.table_name for entry in w2_public_value_authority_publication_tables())
+    private_only = frozenset(PRIVATE_RAW_REQUEST_AUTHORITY_TABLE_NAMES)
+    if raw_v2 or len(w2) != 6 or raw_v2 & w2 or private_only & w2:
+        raise RuntimeError(
+            "public raw table registries must keep the exact-four private-only "
+            "and the exact-six disjoint"
+        )
+    return raw_v2, w2
 
 
 def _staging_export_tables(data_dir: Path) -> list[str]:
@@ -679,7 +773,7 @@ def _staging_export_tables(data_dir: Path) -> list[str]:
         raise ValueError(msg)
     candidates = csv_candidates | parquet_candidates
     malformed = sorted(table for table in candidates if _STAGING_TABLE_RE.fullmatch(table) is None)
-    unregistered = sorted(candidates - _CANONICAL_STAGING_TABLES)
+    unregistered = sorted(candidates - _PUBLICATION_STAGING_TABLES)
     if malformed or unregistered:
         msg = (
             "Export directories contain non-canonical staging tables: "
@@ -693,16 +787,20 @@ def _staging_export_tables(data_dir: Path) -> list[str]:
             f"parquet_only={sorted(parquet_candidates - csv_candidates)}"
         )
         raise ValueError(msg)
-    if not candidates:
-        return []
-
     duckdb_path = data_dir / "nba.duckdb"
+    if not candidates and (not duckdb_path.is_file() or duckdb_path.is_symlink()):
+        return []
     if not duckdb_path.is_file() or duckdb_path.is_symlink():
         raise FileNotFoundError("Staging exports require a regular nba.duckdb source")
 
     import duckdb
 
-    connection = duckdb.connect(str(duckdb_path), read_only=True)
+    try:
+        connection = duckdb.connect(str(duckdb_path), read_only=True)
+    except duckdb.Error:
+        if not candidates:
+            return []
+        raise
     try:
         database_tables = {
             str(row[0])
@@ -720,6 +818,131 @@ def _staging_export_tables(data_dir: Path) -> list[str]:
     if missing_from_database:
         msg = "Staging exports are not present in nba.duckdb: " + ", ".join(missing_from_database)
         raise ValueError(msg)
+    database_conditionals = database_tables & CONDITIONAL_STAGING_KEYS
+    exported_conditionals = candidates & CONDITIONAL_STAGING_KEYS
+    if database_conditionals != exported_conditionals:
+        msg = (
+            "Conditional staging exports differ from nba.duckdb: "
+            f"database_only={sorted(database_conditionals - exported_conditionals)}; "
+            f"exports_only={sorted(exported_conditionals - database_conditionals)}"
+        )
+        raise ValueError(msg)
+    return sorted(candidates)
+
+
+def _raw_authority_export_tables(data_dir: Path) -> list[str]:
+    """Validate raw exports against separate exact-four and exact-six authorities."""
+
+    raw_v2, w2 = _public_raw_table_sets()
+    expected = raw_v2 | w2
+    csv_dir = data_dir / "csv"
+    parquet_dir = data_dir / "parquet"
+    symlinked_roots = [path.name for path in (csv_dir, parquet_dir) if path.is_symlink()]
+    if symlinked_roots:
+        raise ValueError(f"Export directories contain symlinked roots: {sorted(symlinked_roots)}")
+
+    csv_candidates: set[str] = set()
+    invalid_csv_entries: list[str] = []
+    for path in csv_dir.glob("raw_*"):
+        if path.is_symlink() or not path.is_file() or path.suffix != ".csv":
+            invalid_csv_entries.append(path.name)
+            continue
+        csv_candidates.add(path.stem)
+
+    parquet_candidates: set[str] = set()
+    invalid_parquet_entries: list[str] = []
+    for path in parquet_dir.glob("raw_*"):
+        expected_file = path / f"{path.name}.parquet"
+        if (
+            path.is_symlink()
+            or not path.is_dir()
+            or expected_file.is_symlink()
+            or not expected_file.is_file()
+        ):
+            invalid_parquet_entries.append(path.name)
+            continue
+        unexpected_children = [
+            child.relative_to(path).as_posix()
+            for child in path.rglob("*")
+            if child.is_symlink() or (child.is_file() and child != expected_file)
+        ]
+        if unexpected_children:
+            invalid_parquet_entries.extend(
+                f"{path.name}/{child}" for child in sorted(unexpected_children)
+            )
+            continue
+        parquet_candidates.add(path.name)
+
+    if invalid_csv_entries or invalid_parquet_entries:
+        raise ValueError(
+            "Export directories contain invalid raw authority entries: "
+            f"csv={sorted(invalid_csv_entries)}; parquet={sorted(invalid_parquet_entries)}"
+        )
+    candidates = csv_candidates | parquet_candidates
+    malformed = sorted(table for table in candidates if _RAW_TABLE_RE.fullmatch(table) is None)
+    unregistered = sorted(candidates - expected)
+    if malformed or unregistered:
+        raise ValueError(
+            "Export directories contain non-canonical raw authority tables: "
+            f"malformed={malformed}; unregistered={unregistered}"
+        )
+    if csv_candidates != parquet_candidates:
+        raise ValueError(
+            "CSV and Parquet raw authority exports differ: "
+            f"csv_only={sorted(csv_candidates - parquet_candidates)}; "
+            f"parquet_only={sorted(parquet_candidates - csv_candidates)}"
+        )
+    if candidates and candidates != expected:
+        raise ValueError(
+            "Raw publication export is missing part of the exact-four/exact-six authority: "
+            f"missing={sorted(expected - candidates)}; unexpected={sorted(candidates - expected)}"
+        )
+
+    duckdb_path = data_dir / "nba.duckdb"
+    if not candidates and (not duckdb_path.is_file() or duckdb_path.is_symlink()):
+        return []
+    if not duckdb_path.is_file() or duckdb_path.is_symlink():
+        raise FileNotFoundError("Raw authority exports require a regular nba.duckdb source")
+
+    import duckdb
+
+    try:
+        connection = duckdb.connect(str(duckdb_path), read_only=True)
+    except duckdb.Error:
+        if not candidates:
+            return []
+        raise
+    try:
+        database_tables = {
+            str(row[0])
+            for row in connection.execute(
+                """
+                select table_name
+                from information_schema.tables
+                where table_schema = 'main'
+                """
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+
+    database_raw = {table for table in database_tables if table.startswith("raw_")}
+    unexpected_database_raw = sorted(database_raw - expected)
+    if unexpected_database_raw:
+        raise ValueError(
+            f"nba.duckdb contains non-canonical raw authority tables: {unexpected_database_raw}"
+        )
+    if database_raw and database_raw != expected:
+        raise ValueError(
+            "nba.duckdb is missing part of the exact-four/exact-six raw authority: "
+            f"missing={sorted(expected - database_raw)}"
+        )
+    missing_from_database = sorted(candidates - database_tables)
+    if missing_from_database:
+        raise ValueError(
+            "Raw authority exports are not present in nba.duckdb: "
+            + ", ".join(missing_from_database)
+        )
     return sorted(candidates)
 
 
@@ -728,14 +951,50 @@ def _iter_resource_tables(data_dir: Path | None = None) -> list[str]:
     if data_dir is None:
         return tables
     staging_tables = _staging_export_tables(data_dir)
+    _raw_authority_export_tables(data_dir)
     return [*tables, *[table for table in staging_tables if table not in tables]]
 
 
-def expected_full_publication_resource_contract() -> dict[str, str]:
-    """Return the exact resource path and kind required for a full publication."""
+def expected_full_publication_resource_contract(
+    data_dir: Path | None = None,
+    *,
+    include_lossless_fallback: bool | None = None,
+    include_live_lossless: bool | None = None,
+) -> dict[str, str]:
+    """Return the static contract plus each observed typed conditional table."""
     from nbadb.load.parquet_loader import PARTITIONED_TABLES
 
-    tables = [*_iter_catalog_tables(), *sorted(_CANONICAL_STAGING_TABLES)]
+    if include_lossless_fallback is not None and type(include_lossless_fallback) is not bool:
+        raise TypeError("include_lossless_fallback must be a boolean or None")
+    if include_live_lossless is not None and type(include_live_lossless) is not bool:
+        raise TypeError("include_live_lossless must be a boolean or None")
+    observed_conditionals: frozenset[str] = frozenset()
+    if data_dir is not None:
+        _raw_authority_export_tables(data_dir)
+        observed_conditionals = frozenset(_staging_export_tables(data_dir)) & (
+            CONDITIONAL_STAGING_KEYS
+        )
+    observed_lossless_fallback = LOSSLESS_FALLBACK_STAGING_KEY in observed_conditionals
+    observed_live_lossless = LIVE_LOSSLESS_STAGING_KEY in observed_conditionals
+    if include_lossless_fallback is None:
+        include_lossless_fallback = observed_lossless_fallback
+    elif data_dir is not None and include_lossless_fallback != observed_lossless_fallback:
+        raise ValueError("conditional publication override differs from the observed export tree")
+    if include_live_lossless is None:
+        include_live_lossless = observed_live_lossless
+    elif data_dir is not None and include_live_lossless != observed_live_lossless:
+        raise ValueError("conditional publication override differs from the observed export tree")
+    conditional_tables = sorted(
+        (
+            *((LOSSLESS_FALLBACK_STAGING_KEY,) if include_lossless_fallback else ()),
+            *((LIVE_LOSSLESS_STAGING_KEY,) if include_live_lossless else ()),
+        )
+    )
+    tables = [
+        *_iter_catalog_tables(),
+        *sorted(_CANONICAL_STAGING_TABLES),
+        *conditional_tables,
+    ]
     contract = {
         "nba.duckdb": "file",
         "nba.sqlite": "file",
@@ -751,9 +1010,20 @@ def expected_full_publication_resource_contract() -> dict[str, str]:
     return dict(sorted(contract.items()))
 
 
-def expected_full_publication_resource_paths() -> frozenset[str]:
+def expected_full_publication_resource_paths(
+    data_dir: Path | None = None,
+    *,
+    include_lossless_fallback: bool | None = None,
+    include_live_lossless: bool | None = None,
+) -> frozenset[str]:
     """Return the exact resource-path universe required for a full publication."""
-    return frozenset(expected_full_publication_resource_contract())
+    return frozenset(
+        expected_full_publication_resource_contract(
+            data_dir,
+            include_lossless_fallback=include_lossless_fallback,
+            include_live_lossless=include_live_lossless,
+        )
+    )
 
 
 def _total_table_count() -> int:
@@ -769,6 +1039,8 @@ def _expected_inventory() -> ExportInventory:
         parquet_tables=total_tables,
         table_count=total_tables,
         staging_tables=0,
+        raw_authority_tables=len(TABLE_CATEGORIES[RAW_REQUEST_AUTHORITY_CATEGORY]),
+        w2_authority_tables=len(TABLE_CATEGORIES[W2_PUBLIC_VALUE_AUTHORITY_CATEGORY]),
     )
 
 
@@ -779,6 +1051,8 @@ def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
     if not data_dir.exists():
         raise FileNotFoundError(f"Metadata data_dir does not exist: {data_dir}")
 
+    public_raw_tables = frozenset(_raw_authority_export_tables(data_dir))
+    raw_v2, w2 = _public_raw_table_sets()
     all_tables = _iter_resource_tables(data_dir)
     csv_tables = sum(
         1
@@ -798,6 +1072,8 @@ def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
         parquet_tables=parquet_tables,
         table_count=len(all_tables),
         staging_tables=sum(table.startswith("stg_") for table in all_tables),
+        raw_authority_tables=len(public_raw_tables & raw_v2),
+        w2_authority_tables=len(public_raw_tables & w2),
     )
 
 
@@ -832,14 +1108,15 @@ def _render_subtitle(inventory: ExportInventory) -> str:
     total_tables = _total_table_count()
     format_names = _available_format_labels(inventory)
     formats = "/".join(format_names) or "catalog metadata"
-    return f"{total_tables}-table star schema for NBA, 1946-present: {formats}"
+    return f"{total_tables}-table public NBA data model, 1946-present: {formats}"
 
 
 def _render_what_you_get() -> str:
     rows = [
         "## What You Get",
         "",
-        "A warehouse-style NBA dataset with normalized dimensions, event facts, aggregate rollups, and ready-to-query analytics views.",
+        "A warehouse-style NBA dataset with normalized dimensions, event facts, aggregate "
+        "rollups, ready-to-query analytics views, and exact public raw request authority.",
         "",
         "| Layer | Count | Description |",
         "|-------|------:|-------------|",
@@ -974,6 +1251,14 @@ def _render_export_inventory(inventory: ExportInventory) -> str:
     ]
     if inventory.staging_tables:
         rows.append(f"- **Silver staging tables available**: {inventory.staging_tables}")
+    if inventory.raw_authority_tables:
+        rows.append(
+            f"- **Raw request-authority tables available**: {inventory.raw_authority_tables}"
+        )
+    if inventory.w2_authority_tables:
+        rows.append(
+            f"- **W2 public-value authority tables available**: {inventory.w2_authority_tables}"
+        )
     rows.extend(
         [
             f"- **CSV exports available**: {inventory.csv_tables}/{total_tables}",
@@ -1178,6 +1463,8 @@ def generate_metadata(
     settings = get_settings()
     inventory = _resolve_export_inventory(data_dir)
     resource_data_dir = data_dir if data_dir is not None and data_dir.exists() else None
+    if resource_data_dir is not None:
+        assert_no_private_capture_sentinels(resource_data_dir)
     metadata = {
         "id": settings.kaggle_dataset,
         "id_no": None,
@@ -1217,6 +1504,8 @@ def generate_metadata(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    if resource_data_dir is not None:
+        assert_no_private_capture_sentinels(resource_data_dir)
     logger.info(f"Generated metadata at {output_path}")
 
 
@@ -1263,7 +1552,7 @@ def _extract_column_schema(table_name: str) -> list[dict] | None:
     if schema_cls is not None:
         return _schema_to_fields(schema_cls)
 
-    if table_name.startswith("stg_"):
+    if table_name.startswith(("stg_", "raw_")):
         schema_cls = get_input_schema(table_name)
         if schema_cls is not None:
             return _schema_to_fields(schema_cls)
@@ -1280,7 +1569,15 @@ def _extract_column_schema(table_name: str) -> list[dict] | None:
 def _table_display_name(table: str) -> str:
     """Convert a snake_case table name to a human-readable display name."""
     # Strip prefix
-    for prefix in ("dim_", "fact_", "agg_", "bridge_", "analytics_", "stg_"):
+    for prefix in (
+        "dim_",
+        "fact_",
+        "agg_",
+        "bridge_",
+        "analytics_",
+        "stg_",
+        "raw_",
+    ):
         if table.startswith(prefix):
             table = table[len(prefix) :]
             break
@@ -1336,6 +1633,7 @@ def _build_resources(
     """Build resource entries for exported tables, filtering by data_dir when provided."""
     resources: list[dict] = []
     total_tables = _total_table_count()
+    _raw_v2_tables, w2_tables = _public_raw_table_sets()
 
     # Database files
     if data_dir is None or (
@@ -1407,7 +1705,17 @@ def _build_resources(
         ):
             csv_resource: dict = {
                 "path": csv_path,
-                "name": f"{display_name} (Staging)" if table.startswith("stg_") else display_name,
+                "name": (
+                    f"{display_name} (Staging)"
+                    if table.startswith("stg_")
+                    else (
+                        f"{display_name} (Raw Authority)"
+                        if table.startswith("raw_") and table not in w2_tables
+                        else (
+                            f"{display_name} (W2 Authority)" if table in w2_tables else display_name
+                        )
+                    )
+                ),
                 "description": description,
             }
             if schema_fields is not None:
@@ -1423,7 +1731,15 @@ def _build_resources(
                 "name": (
                     f"{display_name} (Staging Parquet)"
                     if table.startswith("stg_")
-                    else f"{display_name} (Parquet)"
+                    else (
+                        f"{display_name} Raw Authority (Parquet)"
+                        if table.startswith("raw_") and table not in w2_tables
+                        else (
+                            f"{display_name} W2 Authority (Parquet)"
+                            if table in w2_tables
+                            else f"{display_name} (Parquet)"
+                        )
+                    )
                 ),
                 "description": description,
             }
