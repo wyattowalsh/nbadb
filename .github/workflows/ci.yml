@@ -281,7 +281,19 @@ jobs:
           COVERAGE_FILE: .coverage.${{ matrix.id }}
           UNIT_PATHS: ${{ matrix.paths }}
         run: |
-          read -r -a unit_paths <<< "$UNIT_PATHS"
+          read -r -a unit_patterns <<< "$UNIT_PATHS"
+          unit_paths=()
+          for pattern in "${unit_patterns[@]}"; do
+            mapfile -t matches < <(compgen -G "$pattern")
+            if [ "${#matches[@]}" -eq 0 ]; then
+              if [ ! -e "$pattern" ]; then
+                echo "Unit shard pattern matched no paths: $pattern"
+                exit 1
+              fi
+              matches=("$pattern")
+            fi
+            unit_paths+=("${matches[@]}")
+          done
           uv run pytest \
             -o addopts="--import-mode=importlib" \
             "${unit_paths[@]}" \
