@@ -1,0 +1,317 @@
+{
+  "absent_creation_inputs": [
+    "src/nbadb/core/nba_api_competition_applicability.py",
+    "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+    "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+    "tests/unit/core/test_nba_api_competition_applicability.py",
+    "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+    "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json"
+  ],
+  "accepted_fact_ids": [
+    "F04"
+  ],
+  "accepted_fact_slugs": [
+    "competition-closure"
+  ],
+  "consumers": [
+    "A1.2d",
+    "A1.2e",
+    "A1.2f",
+    "A1.4",
+    "J1A",
+    "E2"
+  ],
+  "denominator_authority": {
+    "alias_role_competition_cell_count": 635,
+    "alias_role_temporal_shape_counts": {
+      "date_or_date_range_only": 3,
+      "explicit_season": 110,
+      "no_temporal_parameter": 7,
+      "participant_season_axis": 2,
+      "season_type_only": 5
+    },
+    "competition_count": 5,
+    "endpoint_competition_cell_count": 555,
+    "package_endpoint_count": 111,
+    "package_occurrence_count": 112,
+    "parameter_axis_competition_cell_count": 560,
+    "parameter_axis_count": 112,
+    "projected_role_count": 127,
+    "repo_alias_count": 126,
+    "temporal_shape_counts": {
+      "date_or_date_range_only": 3,
+      "explicit_season": 96,
+      "no_temporal_parameter": 7,
+      "participant_season_axis": 2,
+      "season_type_only": 4
+    },
+    "typed_declared_axis_cell_count": 1750
+  },
+  "evidence_layer_contract": {
+    "competition_existence": "Official-source lineage and native-period existence may gate probe eligibility only; it cannot establish endpoint support, provider availability, or terminal state.",
+    "endpoint_request_contract_support": "Reviewed package/request/occurrence authorities establish declared LeagueID axes only. Supported or unsupported status requires exact endpoint-specific evidence; competition history and defaults are forbidden substitutes.",
+    "provider_availability": "A1.2c may emit only probe_required or unknown. Available, observed-empty, upstream-unavailable, terminal, and complete states require later receipt-bound provider evidence."
+  },
+  "false_green_counters": {
+    "history_promoted_to_endpoint_support_count": 0,
+    "provider_available_claim_count": 0,
+    "unclassified_request_contract_cell_count": 0,
+    "upstream_unavailable_claim_count": 0
+  },
+  "focused_test_nodes": {
+    "adjacent": [
+      "tests/unit/core/test_nba_api_competition.py",
+      "tests/unit/core/test_nba_api_request_surface.py",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py",
+      "tests/unit/core/test_nba_api_competition_occurrences.py",
+      "tests/unit/core/test_nba_api_competition_occurrences_verifier.py",
+      "tests/unit/orchestrate/test_extractor_request_scope_forwarding.py"
+    ],
+    "aggregate": [
+      "tests/unit/core/test_nba_api_competition_applicability.py",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py"
+    ],
+    "behavior": [
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_resolver_returns_probe_eligible_only_inside_source_backed_existence",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_resolver_keeps_provider_availability_unknown",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_resolver_returns_non_temporal_scope_without_season_value"
+    ],
+    "mutation": [
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_authority_changes_when_existence_boundary_or_source_digest_changes",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_count_preserving_endpoint_cell_swap",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_count_preserving_occurrence_axis_swap",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_count_preserving_alias_role_swap",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_support_evidence_kind_promotion",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_probe_required_to_available_mutation",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_gl_alum_participant_temporal_binding_swap",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_nba_default_substitution_for_other_competition",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_non_temporal_to_season_scoped_mutation"
+    ],
+    "negative": [
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_missing_extra_or_duplicate_endpoint_axis_or_role_cell",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_unclassified_or_evidence_free_unsupported_cell",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_history_evidence_as_endpoint_support",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_endpoint_support_as_existence_evidence",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_provider_available_or_upstream_unavailable_claim",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_overlapping_reversed_or_unconfirmed_existence_interval",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_missing_revalidation_metadata",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_nba_season_string_for_non_nba_competition",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_applicability_rejects_gl_alum_axis_collapse_or_joint_cartesian_authority",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_verifier_rejects_noncanonical_source_or_checked_resource"
+    ],
+    "positive": [
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_authority_preserves_555_endpoint_560_axis_and_635_role_denominators",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_authority_partitions_all_112_axes_by_temporal_shape",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_non_temporal_endpoints_are_explicit_and_have_no_synthesized_season_value",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_existence_intervals_only_gate_probe_eligibility",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_provider_availability_remains_probe_required_or_unknown",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_gl_alum_participant_axes_and_temporal_companions_remain_distinct",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_alias_projection_preserves_127_roles_and_635_cells",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_competition_applicability_resource_is_generated_without_drift",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_applicability_authority_matches_primary"
+    ]
+  },
+  "forbidden_external_effects": [
+    "network",
+    "provider calls",
+    "NBA API",
+    "VPN",
+    "GitHub Actions",
+    "Kaggle",
+    "Git index",
+    "commit",
+    "push"
+  ],
+  "immutable_inputs": [
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/goal.md",
+      "sha256": "9bc200aa01ca3d80766136afc07ba6e8797b9df03bf2191fe018837530d2beba"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/facts.md",
+      "sha256": "f4d810bc5cd83bfda11339dd64522798e0f021b24faff1065c431b1043cf8e92"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/facts.meta.json",
+      "sha256": "fc8a7d2224378296f33e4599cdf300dec14d5d7a8c54c7fcb8798899916201cf"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/plan.md",
+      "sha256": "35f7eb7188e652b87eaaeda2c9bca4b5b9942a0bd2590a546c2a3f43b99326ec"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/fact-traceability.json",
+      "sha256": "ed82d5a23c05dd4cde7b91190c5f03b6c15e4fc99ab3244f35f319fbe58612c7"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/receipt.json",
+      "sha256": "dd13cdf86760263f6d009eedad546e81eec06696978d0367437e2ceba8ca1c41"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/review-k.json",
+      "sha256": "07fa28c7cca666b44b2fd8f12365ff47798d3ae5bcc8bdac7c010dbe6131715d"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/E1/receipt.json",
+      "sha256": "e6ada86f96239ccc1bc181a2cbc56f85e9f268a598a2dc18091f9c1320b0da5f"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/E1/review.json",
+      "sha256": "64c3a5a3c59041d9a56f433d57e575a6015fae93e7cc739a92af3fb6f0f1df19"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2a.json",
+      "sha256": "4340526fec94cb2107804f8a0922bfffa06d8faec9ac34dd2122240aef5b53d4"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2a/receipt.json",
+      "sha256": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2a/review.json",
+      "sha256": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition.py",
+      "sha256": "b4027e2cd3bb4214be0776097e98d82481422972af60ce6fdf0761febc46e42d"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_verifier.py",
+      "sha256": "df78e92626051c9d8c314b169b2816190a0cc47e802f6abff191ef2206a40598"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+      "sha256": "cfb93458f5efb569995ddccaf33ae37c0c312e25e09d0649c307999ec0057c44"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_request_surface.py",
+      "sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2b.json",
+      "sha256": "5dcc66663ae8f432ec1c134b5d7f2735090352662b60c341f945f2901d71074c"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2b/receipt.json",
+      "sha256": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2b/review.json",
+      "sha256": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_occurrences.py",
+      "sha256": "e4d7ede67873d1becee61c1fa19d683da9acbe9a079aec73fc9d9e770b118ef1"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_occurrences_verifier.py",
+      "sha256": "97fa101b9d79d0e48508d68b3e7969ec341d67d8d090ad49d8f48be2fd589a87"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/competition-existence-evidence.json",
+      "sha256": "876f79c748faa1f477dee8f15071d1799ad423d7e3b32e5b38e7c56cb34ccfa6"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+      "sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+      "sha256": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589"
+    }
+  ],
+  "last_valid_rollback_authority": "The finding-free A1.2b receipt/review, all 27 immutable input hashes, and the independently reviewed three-file source-input set in this packet. If the leaf fails, remove only the six new A1.2c owned paths; never modify or regenerate issuer-owned source inputs.",
+  "mutation_boundary": "Add an offline applicability compiler, independently implemented verifier, checked resource, two focused test files, and TaskEvidence receipt only. Preserve competition existence, declared request-axis support, and provider availability as disjoint evidence layers. Do not adopt runtime behavior, call a provider, classify endpoints without league axes, propagate identity, close collisions, or modify any A1.2a/A1.2b/request/extraction/orchestration/shared authority.",
+  "output": {
+    "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json",
+    "schema": "TaskEvidenceV1"
+  },
+  "predecessor_receipts": {
+    "A1.2a": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21",
+    "A1.2a_review": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0",
+    "A1.2b": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b",
+    "A1.2b_review": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40",
+    "E1": "e6ada86f96239ccc1bc181a2cbc56f85e9f268a598a2dc18091f9c1320b0da5f",
+    "E1_review": "64c3a5a3c59041d9a56f433d57e575a6015fae93e7cc739a92af3fb6f0f1df19",
+    "J0F": "dd13cdf86760263f6d009eedad546e81eec06696978d0367437e2ceba8ca1c41",
+    "source_review": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589"
+  },
+  "retry_class": "local_repair",
+  "role": "worker_writer",
+  "schema": "TaskPacketV1",
+  "source_input_authority": {
+    "competition_existence": {
+      "authority_sha256": "27f4a84f9ff26caaa8b07234975dc645c386742e6bfbb43522f743d3b31998ad",
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/competition-existence-evidence.json",
+      "payload_sha256": "ff113ddb858aa78ea23c3c63fe79dfdb67e548156d26c2db57cae01d7669bc5b",
+      "sha256": "876f79c748faa1f477dee8f15071d1799ad423d7e3b32e5b38e7c56cb34ccfa6"
+    },
+    "endpoint_support": {
+      "authority_sha256": "cfaf6b690e9d27c562813df964db05ed945f8430a8a395255643225247ddb7fd",
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+      "payload_sha256": "82a959b811e5f12cbecef7302a1c003ef2af79fd3cc2584a0420523f2ccc235c",
+      "sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb"
+    },
+    "independent_source_review": {
+      "authority_sha256": "d626977d4299847eabf5fe84b74551257fdb6552d64bf4fead93380b04749429",
+      "disposition": "pass",
+      "findings": [],
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+      "payload_sha256": "706b6196787cca666350fa013e3b3a3fb2ae94e5ef0b7d3c1530a1e14d8c1d57",
+      "sha256": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589"
+    }
+  },
+  "stop_condition": "All five competition values and native-period semantics are represented without synthesizing NBA season strings for other competitions; exactly 555 endpoint-summary, 560 occurrence-axis, and 635 alias-role cells exist with zero missing, duplicate, or unclassified request-contract cells; the seven non-temporal endpoints and GLAlum's two participant axes remain exact; history never becomes endpoint support or availability; provider availability remains probe_required or unknown; primary and independent authorities match; all named focused/adjacent tests, generated no-drift, Ruff, format, ty, scoped diff, canonical/current-edge/duration gates pass; a finding-free independent review is still required before A1.2d dispatch.",
+  "task_id": "A1.2c",
+  "timeout_seconds": 3600,
+  "writer_lease": {
+    "excluded_paths": [
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs",
+      "artifacts/assurance/complete-nba-api-sink/A1.2a",
+      "artifacts/assurance/complete-nba-api-sink/A1.2b",
+      "artifacts/assurance/complete-nba-api-sink/J0F",
+      "artifacts/assurance/complete-nba-api-sink/D5.5a",
+      "artifacts/assurance/complete-nba-api-sink/W0.8",
+      "artifacts/assurance/complete-nba-api-sink/B2.1a",
+      "goals/complete-nba-api-sink-and-kaggle-baseline",
+      "src/nbadb/core/nba_api_competition.py",
+      "src/nbadb/core/nba_api_competition_verifier.py",
+      "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+      "src/nbadb/core/nba_api_request_surface.py",
+      "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "src/nbadb/core/nba_api_competition_occurrences.py",
+      "src/nbadb/core/nba_api_competition_occurrences_verifier.py",
+      "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "src/nbadb/contracts/temporal_availability_contract.py",
+      "tests/unit/contracts/test_temporal_availability_contract.py",
+      "src/nbadb/orchestrate/extraction_contract.py",
+      "src/nbadb/core/__init__.py",
+      "src/nbadb/core/endpoint_coverage.py",
+      "src/nbadb/extract",
+      "src/nbadb/orchestrate",
+      "src/nbadb/kaggle",
+      ".github"
+    ],
+    "owned_paths": [
+      "src/nbadb/core/nba_api_competition_applicability.py",
+      "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+      "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "tests/unit/core/test_nba_api_competition_applicability.py",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json"
+    ]
+  }
+}

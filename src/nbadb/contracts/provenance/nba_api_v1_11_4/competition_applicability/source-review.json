@@ -1,0 +1,352 @@
+{
+  "authority_identities": {
+    "a1_2a_receipt_sha256": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21",
+    "a1_2a_review_sha256": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0",
+    "a1_2a_task_packet_sha256": "4340526fec94cb2107804f8a0922bfffa06d8faec9ac34dd2122240aef5b53d4",
+    "a1_2b_receipt_sha256": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b",
+    "a1_2b_review_sha256": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40",
+    "a1_2b_task_packet_sha256": "5dcc66663ae8f432ec1c134b5d7f2735090352662b60c341f945f2901d71074c",
+    "competition_existence_authority_sha256": "27f4a84f9ff26caaa8b07234975dc645c386742e6bfbb43522f743d3b31998ad",
+    "competition_existence_payload_sha256": "ff113ddb858aa78ea23c3c63fe79dfdb67e548156d26c2db57cae01d7669bc5b",
+    "competition_existence_resource_sha256": "876f79c748faa1f477dee8f15071d1799ad423d7e3b32e5b38e7c56cb34ccfa6",
+    "competition_occurrence_authority_sha256": "1b6c41f6a89ec9c74bc3ac1c4c0fff9aa517cd1842363055d7cc48e5854c4f64",
+    "competition_occurrence_payload_sha256": "d459a37fd49ee86bcd68a81e7659c9e8eb5cd57e86b896c37370e61c7801b264",
+    "competition_occurrence_resource_sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700",
+    "competition_value_authority_sha256": "61c9477221c08f4f36269c8c3050171e0ec472508a0a8ac72ddc6f42d865ef98",
+    "competition_value_payload_sha256": "1e79989c9d75d671520d868dfa4e63bc828ceb7844c64b28e7325dd11a6ce7e0",
+    "competition_value_resource_sha256": "cfb93458f5efb569995ddccaf33ae37c0c312e25e09d0649c307999ec0057c44",
+    "endpoint_support_authority_sha256": "cfaf6b690e9d27c562813df964db05ed945f8430a8a395255643225247ddb7fd",
+    "endpoint_support_payload_sha256": "82a959b811e5f12cbecef7302a1c003ef2af79fd3cc2584a0420523f2ccc235c",
+    "endpoint_support_resource_sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb",
+    "request_surface_payload_sha256": "55fead813bab8a8f012f065d1d8ad41e0dfa88423b347215702c8e4a1410861b",
+    "request_surface_resource_sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608",
+    "request_surface_sha256": "e240dc4c551f571aa46d8c7e6124c63c85e189d688c5bf3b78814b66c3cb9605"
+  },
+  "authority_sha256": "d626977d4299847eabf5fe84b74551257fdb6552d64bf4fead93380b04749429",
+  "canonicalization": {
+    "allow_nan": false,
+    "authority_sha256_fields": [
+      "authority_identities",
+      "data_green_asserted",
+      "disposition",
+      "findings",
+      "global_completion_asserted",
+      "live_operations_admissible",
+      "model_green_asserted",
+      "network_used",
+      "publication_admissible",
+      "review_scope",
+      "reviewed_inputs",
+      "semantic_review",
+      "source_review",
+      "task_id",
+      "validation"
+    ],
+    "digest_serialization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)",
+    "duplicate_keys": "reject",
+    "ensure_ascii": false,
+    "indent": 2,
+    "payload_sha256_basis": "canonical minified UTF-8 JSON of the complete payload with payload_sha256 omitted after authority_sha256 is sealed",
+    "sort_keys": true,
+    "trailing_newline": "single_lf"
+  },
+  "data_green_asserted": false,
+  "disposition": "pass",
+  "evidence_limitations": [
+    "The independent reviewer did not retrieve the remote source URLs. The sealed competition-existence leaf records the issuer's 2026-08-21 network retrieval, but retains no article-body bytes or body digests; this review therefore verifies the sealed official-source metadata, URL-host mapping, bounded claim classifications, rights limits, and revalidation semantics rather than a fresh remote-content readback.",
+    "The 555 endpoint, 560 occurrence-axis, and 635 alias-role cells are pinned declared-axis evidence only. They do not establish endpoint support, provider availability, a successful or empty response, an upstream-unavailable classification, or a terminal request state.",
+    "Competition existence gates only whether a future provider probe may be considered. It cannot promote any declared request value into supported, unsupported, available, complete, or terminal status.",
+    "The reviewer did not inspect or modify A1.2c implementation paths. This artifact admits only the two sealed source inputs for subsequent TaskPacket issuance.",
+    "No MODEL-GREEN, DATA-GREEN, extraction, VPN capacity, GitHub Actions, Kaggle publication, exact-version remote download, or database interrogation state is established."
+  ],
+  "external_effects": [
+    "Created only this local A1.2c independent source-input review artifact. No source input, implementation file, Git index, commit, push, network, provider, VPN, GitHub Actions, Kaggle, publication, download, or database mutation occurred."
+  ],
+  "findings": [],
+  "global_completion_asserted": false,
+  "issued_at": "2026-08-21T16:14:22Z",
+  "live_operations_admissible": false,
+  "model_green_asserted": false,
+  "network_used": false,
+  "payload_sha256": "706b6196787cca666350fa013e3b3a3fb2ae94e5ef0b7d3c1530a1e14d8c1d57",
+  "publication_admissible": false,
+  "review_id": "A1.2c/source-input-admission",
+  "review_scope": "sealed_source_input_admission_only",
+  "reviewed_inputs": [
+    {
+      "authority_sha256": "27f4a84f9ff26caaa8b07234975dc645c386742e6bfbb43522f743d3b31998ad",
+      "network_used_by_issuer": true,
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/competition-existence-evidence.json",
+      "payload_sha256": "ff113ddb858aa78ea23c3c63fe79dfdb67e548156d26c2db57cae01d7669bc5b",
+      "schema": "CompetitionExistenceEvidenceV1",
+      "sha256": "876f79c748faa1f477dee8f15071d1799ad423d7e3b32e5b38e7c56cb34ccfa6"
+    },
+    {
+      "authority_sha256": "cfaf6b690e9d27c562813df964db05ed945f8430a8a395255643225247ddb7fd",
+      "network_used_by_issuer": false,
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+      "payload_sha256": "82a959b811e5f12cbecef7302a1c003ef2af79fd3cc2584a0420523f2ccc235c",
+      "schema": "EndpointCompetitionSupportEvidenceV1",
+      "sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb"
+    }
+  ],
+  "reviewer_role": "independent-offline-source-input-reviewer",
+  "schema": "IndependentSourceReviewV1",
+  "semantic_review": {
+    "alias_role_temporal_shape_counts": {
+      "date_or_date_range_only": 3,
+      "explicit_season": 110,
+      "no_temporal_parameter": 7,
+      "participant_season_axis": 2,
+      "season_type_only": 5
+    },
+    "compact_row_counts": {
+      "alias_role_rows": 127,
+      "endpoint_rows": 111,
+      "parameter_axis_rows": 112
+    },
+    "competition_count": 5,
+    "competition_values": [
+      {
+        "league_id": "00",
+        "symbol": "nba"
+      },
+      {
+        "league_id": "01",
+        "symbol": "aba"
+      },
+      {
+        "league_id": "10",
+        "symbol": "wnba"
+      },
+      {
+        "league_id": "15",
+        "symbol": "summer_league"
+      },
+      {
+        "league_id": "20",
+        "symbol": "g_league"
+      }
+    ],
+    "gl_alum_role_separation": {
+      "independent_axis_cell_count": 10,
+      "joint_cartesian_cell_count_authorized": false,
+      "participant_roles": [
+        {
+          "constructor_name": "person1_league_id",
+          "provider_occurrence_id": "parameter:stats:GLAlumBoxScoreSimilarityScore:0002:person1_league_id",
+          "temporal_companion_occurrence_ids": [
+            "parameter:stats:GLAlumBoxScoreSimilarityScore:0003:person1_season_year",
+            "parameter:stats:GLAlumBoxScoreSimilarityScore:0004:person1_season_type"
+          ],
+          "wire_name": "Person1LeagueId"
+        },
+        {
+          "constructor_name": "person2_league_id",
+          "provider_occurrence_id": "parameter:stats:GLAlumBoxScoreSimilarityScore:0005:person2_league_id",
+          "temporal_companion_occurrence_ids": [
+            "parameter:stats:GLAlumBoxScoreSimilarityScore:0006:person2_season_year",
+            "parameter:stats:GLAlumBoxScoreSimilarityScore:0007:person2_season_type"
+          ],
+          "wire_name": "Person2LeagueId"
+        }
+      ]
+    },
+    "package_endpoint_count": 111,
+    "package_occurrence_count": 112,
+    "projected_cell_counts": {
+      "alias_role_competition_cells": 635,
+      "endpoint_competition_cells": 555,
+      "parameter_axis_competition_cells": 560,
+      "typed_declared_axis_cells": 1750
+    },
+    "projected_role_count": 127,
+    "provider_claim_counts": {
+      "endpoint_specific_supported": 0,
+      "endpoint_specific_unsupported": 0,
+      "existence_provider_availability": 0,
+      "existence_typed_endpoint_support": 0,
+      "provider_availability": 0,
+      "provider_availability_observations": 0
+    },
+    "repo_alias_count": 126,
+    "temporal_shape_counts": {
+      "date_or_date_range_only": 3,
+      "explicit_season": 96,
+      "no_temporal_parameter": 7,
+      "participant_season_axis": 2,
+      "season_type_only": 4
+    },
+    "temporal_shape_special_sets": {
+      "date_or_date_range_only_endpoint_ids": [
+        "ScoreboardV2",
+        "ScoreboardV3",
+        "VideoStatus"
+      ],
+      "no_temporal_parameter_endpoint_ids": [
+        "CommonPlayerInfo",
+        "CommonTeamYears",
+        "FranchiseHistory",
+        "FranchiseLeaders",
+        "GameRotation",
+        "PlayerCareerStats",
+        "PlayerProfileV2"
+      ],
+      "participant_endpoint_id": "GLAlumBoxScoreSimilarityScore",
+      "season_type_only_endpoint_ids": [
+        "AllTimeLeadersGrids",
+        "FranchisePlayers",
+        "PlayerNextNGames",
+        "TeamYearByYearStats"
+      ]
+    }
+  },
+  "source_review": {
+    "competition_period_bounds": [
+      {
+        "explicit_gaps": [],
+        "last_confirmed_period": "2025-26",
+        "league_id": "00",
+        "lower_bound": "1946-47",
+        "native_period_type": "season_label",
+        "planned_future_periods": [
+          "2026-27"
+        ]
+      },
+      {
+        "explicit_gaps": [],
+        "last_confirmed_period": "1975-76",
+        "league_id": "01",
+        "lower_bound": "1967-68",
+        "native_period_type": "season_label",
+        "planned_future_periods": []
+      },
+      {
+        "explicit_gaps": [],
+        "last_confirmed_period": 2026,
+        "league_id": "10",
+        "lower_bound": 1997,
+        "native_period_type": "calendar_year",
+        "planned_future_periods": []
+      },
+      {
+        "explicit_gaps": [
+          2011,
+          2020
+        ],
+        "last_confirmed_period": 2026,
+        "league_id": "15",
+        "lower_bound": 2004,
+        "native_period_type": "event_year",
+        "planned_future_periods": []
+      },
+      {
+        "explicit_gaps": [],
+        "last_confirmed_period": "2025-26",
+        "league_id": "20",
+        "lower_bound": "2001-02",
+        "native_period_type": "season_label",
+        "planned_future_periods": []
+      }
+    ],
+    "host_counts": {
+      "cdn.nba.com": 1,
+      "gleague.nba.com": 2,
+      "www.nba.com": 7,
+      "www.wnba.com": 2
+    },
+    "network_used_by_independent_review": false,
+    "network_used_by_sealed_competition_existence_evidence": true,
+    "revalidation_semantics": {
+      "advancement_requires_new_official_source_and_reseal": true,
+      "planned_future_promotion_without_new_official_confirmation_allowed": false,
+      "remote_source_retrieval_required_before_period_advancement": true,
+      "source_body_bytes_or_digests_retained": false
+    },
+    "rights_semantics": {
+      "article_or_pdf_body_reproduced": false,
+      "bounded_fact_summaries_and_metadata_only": true,
+      "database_rights_granted": false,
+      "publication_rights_granted": false,
+      "redistribution_rights_granted": false,
+      "trademark_rights_granted": false
+    },
+    "source_count": 12,
+    "source_url_host_inventory": [
+      {
+        "authority_host": "cdn.nba.com",
+        "url": "https://cdn.nba.com/manage/2026/08/2026-27-NBA-Regular-Season-Schedule-By-Date.pdf"
+      },
+      {
+        "authority_host": "gleague.nba.com",
+        "url": "https://gleague.nba.com/faq"
+      },
+      {
+        "authority_host": "gleague.nba.com",
+        "url": "https://gleague.nba.com/news/nba-g-leagues-25th-season-tips-off-nov-7"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/nets/news/history/2019/07/22/1976-aba-champions"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/news/2025-26-nba-regular-season-schedule"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/news/2026-nba-summer-league-facts-figures"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/news/2026-nba-summer-league-teams-announced"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/news/history-season-review-1946-47"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/news/history-this-date-in-nba-oct"
+      },
+      {
+        "authority_host": "www.nba.com",
+        "url": "https://www.nba.com/news/teams-in-nba-and-aba-to-win-championships"
+      },
+      {
+        "authority_host": "www.wnba.com",
+        "url": "https://www.wnba.com/news/2026-schedule-release"
+      },
+      {
+        "authority_host": "www.wnba.com",
+        "url": "https://www.wnba.com/news/formation-of-the-wnba"
+      }
+    ],
+    "source_url_inventory_sha256": "60bd72234177f3b64c10827b519f1f44bcaac068b54ce57a11564b5d1088439b"
+  },
+  "task_id": "A1.2c-source-inputs",
+  "validation": {
+    "authority_input_file_hashes_current": true,
+    "authority_payload_and_subauthority_digests_recomputed": true,
+    "canonical_pretty_json_source_inputs": "pass",
+    "checked_contract_bindings_exact": true,
+    "duplicate_rejecting_json_parse": "pass",
+    "endpoint_competition_cells_independent_exact_equality": true,
+    "exclusive_writer_assignment_confirmed": true,
+    "exclusive_writer_path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+    "git_index_mutation_performed": false,
+    "implementation_paths_inspected": false,
+    "implementation_paths_modified": false,
+    "network_used": false,
+    "parameter_axis_competition_cells_independent_exact_equality": true,
+    "provider_calls_performed": false,
+    "review_duration_limitation": "No single retained monotonic timer spanned the full review; duration is therefore not inferred from wall-clock timestamps.",
+    "review_duration_seconds": null,
+    "source_body_network_revalidation_performed": false,
+    "source_metadata_rights_and_revalidation_semantics_reviewed": true,
+    "staged_review_path_count": 0,
+    "unmerged_review_path_count": 0,
+    "workspace_branch": "main",
+    "workspace_head_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5"
+  }
+}

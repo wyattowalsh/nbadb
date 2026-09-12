@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import given
@@ -14,7 +15,11 @@ from nbadb.orchestrate.checkpoint_contract import (
     CheckpointState,
     CheckpointTransaction,
     CheckpointTransitionError,
+    CheckpointW2AuthorityIdentity,
 )
+from nbadb.orchestrate.public_value_authority_store import PUBLIC_VALUE_AUTHORITY_TABLES
+from nbadb.orchestrate.w2_database_assurance import W2DatabaseAuthorityReceiptV1
+from nbadb.orchestrate.w2_operation_store import RAW_NBA_API_W2_OPERATION_TABLE
 
 _SOURCE_SHA = "a" * 40
 _DATABASE_SHA = "b" * 64
@@ -23,6 +28,46 @@ _ARTIFACT_DIGEST = "sha256:" + "d" * 64
 _LANE_A_SHA = "e" * 64
 _LANE_B_SHA = "f" * 64
 _SEMANTIC_COVERAGE_SHA = "1" * 64
+
+
+def _digest(label: str) -> str:
+    return hashlib.sha256(label.encode("utf-8", errors="strict")).hexdigest()
+
+
+def _w2_database_authority(seed: str = "fixture") -> W2DatabaseAuthorityReceiptV1:
+    relation_counts = tuple(
+        sorted(
+            (
+                table_name,
+                1 if table_name == RAW_NBA_API_W2_OPERATION_TABLE else 0,
+            )
+            for table_name in (*PUBLIC_VALUE_AUTHORITY_TABLES, RAW_NBA_API_W2_OPERATION_TABLE)
+        )
+    )
+    return W2DatabaseAuthorityReceiptV1.build(
+        w2_required_logical_call_count=1,
+        w2_source_call_admission_inventory_sha256=_digest(f"{seed}:admissions"),
+        raw_authority_v2_bundle_count=1,
+        raw_authority_v2_bundle_inventory_sha256=_digest(f"{seed}:raw-bundles"),
+        raw_authority_v2_persistence_receipt_inventory_sha256=_digest(f"{seed}:raw-persistence"),
+        w2_publication_receipt_count=1,
+        w2_publication_receipt_inventory_sha256=_digest(f"{seed}:publications"),
+        w2_exact_six_schema_inventory_sha256=_digest(f"{seed}:schemas"),
+        w2_relation_row_counts=relation_counts,
+        w2_relation_row_count=1,
+        w2_relation_inventory_sha256=_digest(f"{seed}:relations"),
+    )
+
+
+def _w2_authority(seed: str = "fixture") -> CheckpointW2AuthorityIdentity:
+    database_authority = _w2_database_authority(seed)
+    return CheckpointW2AuthorityIdentity(
+        database_authority=database_authority,
+        database_authority_sha256=database_authority.receipt_sha256,
+        expected_call_count=1,
+        expected_call_inventory_sha256=_digest(f"{seed}:expected-calls"),
+        database_authority_closed=True,
+    )
 
 
 def _lane_contracts() -> list[dict[str, object]]:
@@ -59,6 +104,7 @@ def _built() -> CheckpointTransaction:
     return _candidate().mark_built(
         database_sha256=_DATABASE_SHA,
         report_sha256=_REPORT_SHA,
+        w2_authority=_w2_authority(),
     )
 
 
@@ -68,6 +114,7 @@ def _receipt(transaction: CheckpointTransaction | None = None) -> CheckpointArti
     return CheckpointArtifactReceipt(
         artifact_id=12345,
         artifact_run_id=98765,
+        artifact_run_attempt=1,
         artifact_name=transaction.artifact_name,
         artifact_digest=_ARTIFACT_DIGEST,
         artifact_size_bytes=4096,
@@ -78,6 +125,7 @@ def _receipt(transaction: CheckpointTransaction | None = None) -> CheckpointArti
         generation=transaction.identity.generation,
         coverage_fingerprint=transaction.identity.coverage.coverage_fingerprint,
         lane_inventory_sha256=(transaction.identity.coverage.lane_inventory_sha256),
+        w2_authority_identity_sha256=transaction.build.w2_authority.identity_sha256,
     )
 
 
@@ -178,6 +226,7 @@ def test_split_lane_inventory_can_bind_same_semantic_coverage_fingerprint() -> N
     ).mark_built(
         database_sha256=_DATABASE_SHA,
         report_sha256=_REPORT_SHA,
+        w2_authority=_w2_authority(),
     )
     descendants = CheckpointTransaction.candidate(
         chain_id="full-a1",
@@ -198,6 +247,7 @@ def test_split_lane_inventory_can_bind_same_semantic_coverage_fingerprint() -> N
     ).mark_built(
         database_sha256=_DATABASE_SHA,
         report_sha256=_REPORT_SHA,
+        w2_authority=_w2_authority(),
     )
     receipt = _receipt(parent)
 
@@ -246,7 +296,7 @@ def test_coverage_identity_rejects_duplicate_lane_ids() -> None:
 def test_coverage_identity_rejects_untyped_direct_lane_values() -> None:
     with pytest.raises(CheckpointContractError, match="LaneCoverageIdentity"):
         CheckpointCoverageIdentity(
-            lanes=("not-a-lane",),  # type: ignore[arg-type]
+            lanes=cast("Any", ("not-a-lane",)),
             coverage_fingerprint=_SEMANTIC_COVERAGE_SHA,
         )
 
@@ -279,6 +329,7 @@ def test_transaction_happy_path_binds_verified_receipt_before_commit() -> None:
     built = candidate.mark_built(
         database_sha256=_DATABASE_SHA,
         report_sha256=_REPORT_SHA,
+        w2_authority=_w2_authority(),
     )
     uploaded = built.mark_uploaded_verified(_receipt(built))
     committed = uploaded.commit()
@@ -299,6 +350,7 @@ def test_transaction_happy_path_binds_verified_receipt_before_commit() -> None:
             lambda transaction: transaction.mark_built(
                 database_sha256=_DATABASE_SHA,
                 report_sha256=_REPORT_SHA,
+                w2_authority=_w2_authority(),
             ),
             "expected candidate",
         ),
@@ -331,6 +383,7 @@ def test_illegal_transitions_fail_closed(
         ("generation", 4),
         ("coverage_fingerprint", "0" * 64),
         ("lane_inventory_sha256", "0" * 64),
+        ("w2_authority_identity_sha256", "0" * 64),
     ],
 )
 def test_uploaded_verified_rejects_receipt_binding_mismatch(
@@ -407,6 +460,22 @@ def test_deserialization_rejects_candidate_with_build_payload() -> None:
         CheckpointTransaction.from_dict(payload)
 
 
+def test_deserialization_rejects_build_missing_w2_authority() -> None:
+    payload = _built().to_dict()
+    del payload["build"]["w2_authority"]
+
+    with pytest.raises(CheckpointContractError, match="missing=w2_authority"):
+        CheckpointTransaction.from_dict(payload)
+
+
+def test_deserialization_rejects_foreign_w2_database_authority() -> None:
+    payload = _built().to_dict()
+    payload["build"]["w2_authority"]["w2_database_authority"]["kind"] = "foreign"
+
+    with pytest.raises(CheckpointContractError, match="foreign database receipt"):
+        CheckpointTransaction.from_dict(payload)
+
+
 def test_deserialization_revalidates_receipt_binding() -> None:
     transaction = _built().mark_uploaded_verified(_receipt())
     payload = transaction.to_dict()
@@ -419,3 +488,43 @@ def test_deserialization_revalidates_receipt_binding() -> None:
 def test_committed_receipt_is_unavailable_before_commit() -> None:
     with pytest.raises(CheckpointTransitionError, match="expected committed"):
         assert _built().mark_uploaded_verified(_receipt()).committed_receipt
+
+
+class TestArtifactRunAttemptV3:
+    """Checkpoint contract v3 binds the artifact owner's exact run attempt."""
+
+    def test_receipt_round_trips_run_attempt(self) -> None:
+        receipt = _receipt()
+        assert receipt.artifact_run_attempt >= 1
+        payload = receipt.to_dict()
+        assert payload["artifact_run_attempt"] == receipt.artifact_run_attempt
+        assert CheckpointArtifactReceipt.from_dict(payload) == receipt
+
+    def test_missing_attempt_key_rejected(self) -> None:
+        payload = _receipt().to_dict()
+        del payload["artifact_run_attempt"]
+        with pytest.raises(CheckpointContractError, match="missing=artifact_run_attempt"):
+            CheckpointArtifactReceipt.from_dict(payload)
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_nonpositive_attempt_rejected(self, bad: int) -> None:
+        payload = _receipt().to_dict()
+        payload["artifact_run_attempt"] = bad
+        with pytest.raises(CheckpointContractError, match="artifact_run_attempt"):
+            CheckpointArtifactReceipt.from_dict(payload)
+
+    def test_v2_transaction_payload_rejected(self) -> None:
+        transaction = _built()
+        payload = transaction.to_dict()
+        assert payload["schema_version"] == 3
+        payload["schema_version"] = 2
+        with pytest.raises(CheckpointContractError, match="schema version"):
+            CheckpointTransaction.from_dict(payload)
+
+    def test_attempt_is_never_inferred_from_artifact_name(self) -> None:
+        payload = _receipt().to_dict()
+        # A name carrying an attempt-like token must not satisfy the field.
+        payload["artifact_name"] = "full-extraction-checkpoint-attempt-7"
+        with pytest.raises(CheckpointContractError, match="artifact_run_attempt"):
+            payload.pop("artifact_run_attempt")
+            CheckpointArtifactReceipt.from_dict(payload)

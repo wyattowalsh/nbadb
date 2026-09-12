@@ -1,0 +1,393 @@
+{
+  "authority_exclusions": {
+    "endpoint_support": "not_authorized",
+    "planned_future_as_confirmed": "not_authorized",
+    "provider_availability": "not_authorized",
+    "publication_rights": "not_authorized",
+    "request_terminal_state": "not_authorized"
+  },
+  "authority_sha256": "27f4a84f9ff26caaa8b07234975dc645c386742e6bfbb43522f743d3b31998ad",
+  "canonicalization": {
+    "allow_nan": false,
+    "authority_sha256_basis": "canonical minified UTF-8 JSON of authority_exclusions, competition_count, competitions_sha256, evidence_scope, provider_availability_claim_count, revalidation_sha256, retrieval_date, source_count, source_url_inventory_sha256, sources_sha256, and typed_endpoint_support_claim_count",
+    "claim_sha256_basis": "canonical minified UTF-8 JSON of the source object with claim_sha256 omitted",
+    "competitions_sha256_basis": "canonical minified UTF-8 JSON of competitions",
+    "digest_serialization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)",
+    "duplicate_keys": "reject",
+    "ensure_ascii": false,
+    "indent": 2,
+    "payload_sha256_basis": "canonical minified UTF-8 JSON of the complete payload with payload_sha256 omitted",
+    "revalidation_sha256_basis": "canonical minified UTF-8 JSON of revalidation",
+    "separators": [
+      ",",
+      ": "
+    ],
+    "sort_keys": true,
+    "source_url_inventory_sha256_basis": "canonical minified UTF-8 JSON of source_url_inventory",
+    "sources_sha256_basis": "canonical minified UTF-8 JSON of sources after every claim_sha256 is sealed",
+    "trailing_newline": "single_lf"
+  },
+  "competition_count": 5,
+  "competitions": [
+    {
+      "confirmed_intervals": [
+        {
+          "end": "2025-26",
+          "start": "1946-47",
+          "status": "confirmed_eligibility"
+        }
+      ],
+      "continuity_claim": "The official BAA/NBA lineage is bounded from the 1946-47 first season through the confirmed 2025-26 NBA season.",
+      "endpoint_support_claim_count": 0,
+      "evidence_scope": "competition_existence_only",
+      "explicit_gaps": [],
+      "last_confirmed_period": "2025-26",
+      "league_id": "00",
+      "lower_bound": "1946-47",
+      "native_period_type": "season_label",
+      "planned_future_periods": [
+        {
+          "period": "2026-27",
+          "source_ids": [
+            "nba-planned-2026-27"
+          ],
+          "status": "planned_future_not_confirmed_eligibility"
+        }
+      ],
+      "provider_availability_claim_count": 0,
+      "source_ids": [
+        "nba-current-2025-26",
+        "nba-planned-2026-27",
+        "nba-start-1946-47"
+      ],
+      "source_limitations": "The official sources establish lower/current bounds and a future schedule; they do not independently enumerate every intermediate season, and 2026-27 is planning evidence only.",
+      "symbol": "nba"
+    },
+    {
+      "confirmed_intervals": [
+        {
+          "end": "1975-76",
+          "start": "1967-68",
+          "status": "confirmed_eligibility"
+        }
+      ],
+      "continuity_claim": "The ABA's official nine-season era is bounded from 1967-68 through its final 1975-76 season and is closed before 1976-77 NBA play.",
+      "endpoint_support_claim_count": 0,
+      "evidence_scope": "competition_existence_only",
+      "explicit_gaps": [],
+      "last_confirmed_period": "1975-76",
+      "league_id": "01",
+      "lower_bound": "1967-68",
+      "native_period_type": "season_label",
+      "planned_future_periods": [],
+      "provider_availability_claim_count": 0,
+      "source_ids": [
+        "aba-era-1967-1976",
+        "aba-final-1976",
+        "aba-start-1967-68"
+      ],
+      "source_limitations": "Official history establishes the league-era bounds and transition only; it does not enumerate endpoint behavior or provider data availability.",
+      "symbol": "aba"
+    },
+    {
+      "confirmed_intervals": [
+        {
+          "end": 2026,
+          "start": 1997,
+          "status": "confirmed_eligibility"
+        }
+      ],
+      "continuity_claim": "The WNBA is bounded in its native calendar-year axis from the 1997 inaugural season through the official 2026 season.",
+      "endpoint_support_claim_count": 0,
+      "evidence_scope": "competition_existence_only",
+      "explicit_gaps": [],
+      "last_confirmed_period": 2026,
+      "league_id": "10",
+      "lower_bound": 1997,
+      "native_period_type": "calendar_year",
+      "planned_future_periods": [],
+      "provider_availability_claim_count": 0,
+      "source_ids": [
+        "wnba-current-2026",
+        "wnba-start-1997"
+      ],
+      "source_limitations": "The official formation and schedule sources establish lineage bounds, not endpoint behavior, period-specific response data, or completion of every scheduled game.",
+      "symbol": "wnba"
+    },
+    {
+      "confirmed_intervals": [
+        {
+          "end": 2026,
+          "start": 2004,
+          "status": "confirmed_eligibility_with_explicit_gaps"
+        }
+      ],
+      "continuity_claim": "NBA Summer League event years run from the 2004 debut through the completed 2026 event, excluding the explicit 2011 and 2020 gaps.",
+      "endpoint_support_claim_count": 0,
+      "evidence_scope": "competition_existence_only",
+      "explicit_gaps": [
+        {
+          "period": 2011,
+          "reason": "official source states NBA Summer League was not held",
+          "source_ids": [
+            "summer-history-gaps-2004-2026"
+          ],
+          "status": "confirmed_gap"
+        },
+        {
+          "period": 2020,
+          "reason": "official source states NBA Summer League was not held",
+          "source_ids": [
+            "summer-history-gaps-2004-2026"
+          ],
+          "status": "confirmed_gap"
+        }
+      ],
+      "last_confirmed_period": 2026,
+      "league_id": "15",
+      "lower_bound": 2004,
+      "native_period_type": "event_year",
+      "planned_future_periods": [],
+      "provider_availability_claim_count": 0,
+      "source_ids": [
+        "summer-current-completed-2026",
+        "summer-history-gaps-2004-2026"
+      ],
+      "source_limitations": "This authority covers the NBA Summer League event-year lineage named by the official source; it does not generalize to every regional summer competition or any provider endpoint.",
+      "symbol": "summer_league"
+    },
+    {
+      "confirmed_intervals": [
+        {
+          "end": "2025-26",
+          "start": "2001-02",
+          "status": "confirmed_eligibility"
+        }
+      ],
+      "continuity_claim": "The NBA G League lineage is bounded from its 2001-02 first season through its official 2025-26 season.",
+      "endpoint_support_claim_count": 0,
+      "evidence_scope": "competition_existence_only",
+      "explicit_gaps": [],
+      "last_confirmed_period": "2025-26",
+      "league_id": "20",
+      "lower_bound": "2001-02",
+      "native_period_type": "season_label",
+      "planned_future_periods": [],
+      "provider_availability_claim_count": 0,
+      "source_ids": [
+        "g-league-current-2025-26",
+        "g-league-start-2001-02"
+      ],
+      "source_limitations": "The official FAQ and schedule establish lower/current bounds only; no 2026-27 G League period is admitted by this leaf, and no endpoint availability is inferred.",
+      "symbol": "g_league"
+    }
+  ],
+  "competitions_sha256": "749e864d9dd2dbdbe34b12a5a51c8f48725bbfeea2684d51d24c35d60557cebc",
+  "evidence_scope": "competition_existence_and_event_periods_only",
+  "network_used": true,
+  "payload_sha256": "ff113ddb858aa78ea23c3c63fe79dfdb67e548156d26c2db57cae01d7669bc5b",
+  "provider_availability_claim_count": 0,
+  "retrieval_date": "2026-08-21",
+  "revalidation": {
+    "last_revalidated_date": "2026-08-21",
+    "network_required": true,
+    "planned_future_promotion_rule": "A planned-future period remains ineligible until a newly retrieved official source independently confirms that period as current or completed and this evidence payload is resealed and rereviewed.",
+    "policy_id": "competition-existence-source-revalidation-v1",
+    "required_checks": [
+      "confirm every exact URL remains controlled by its recorded authority host",
+      "confirm every recorded title and bounded claim remains supported without relying on article-body instructions",
+      "confirm explicit Summer League gaps remain exactly 2011 and 2020",
+      "confirm no competition-history claim has been promoted into endpoint support or provider availability",
+      "confirm no planned-future row has been promoted into confirmed eligibility",
+      "retrieve a new official current-bound source whenever a competition advances beyond the recorded last confirmed period"
+    ],
+    "source_body_bytes_retained": false,
+    "source_body_sha256_retained": false,
+    "trigger": "before A1.2c TaskPacket issuance, after any source/title/bound change, and before any refresh that advances a competition period"
+  },
+  "revalidation_sha256": "12af2249c83ce4a4973dbe21f01b1064e0753f14d760735485498550157954fd",
+  "rights_and_source_limitations": [
+    "Article and PDF bodies are not reproduced; only source metadata and concise factual claim summaries are retained.",
+    "Factual source summaries do not grant redistribution, publication, trademark, or database rights.",
+    "Source retrieval did not retain article-body bytes, so claim digests bind the recorded summaries and metadata rather than remote content bytes.",
+    "These sources establish competition lineage or event-period existence only and cannot establish endpoint support, provider availability, response contents, or terminal request state."
+  ],
+  "schema": "CompetitionExistenceEvidenceV1",
+  "source_count": 12,
+  "source_url_inventory": [
+    "https://cdn.nba.com/manage/2026/08/2026-27-NBA-Regular-Season-Schedule-By-Date.pdf",
+    "https://gleague.nba.com/faq",
+    "https://gleague.nba.com/news/nba-g-leagues-25th-season-tips-off-nov-7",
+    "https://www.nba.com/nets/news/history/2019/07/22/1976-aba-champions",
+    "https://www.nba.com/news/2025-26-nba-regular-season-schedule",
+    "https://www.nba.com/news/2026-nba-summer-league-facts-figures",
+    "https://www.nba.com/news/2026-nba-summer-league-teams-announced",
+    "https://www.nba.com/news/history-season-review-1946-47",
+    "https://www.nba.com/news/history-this-date-in-nba-oct",
+    "https://www.nba.com/news/teams-in-nba-and-aba-to-win-championships",
+    "https://www.wnba.com/news/2026-schedule-release",
+    "https://www.wnba.com/news/formation-of-the-wnba"
+  ],
+  "source_url_inventory_sha256": "60bd72234177f3b64c10827b519f1f44bcaac068b54ce57a11564b5d1088439b",
+  "sources": [
+    {
+      "authority_host": "www.nba.com",
+      "claim": "The ABA played nine seasons from 1967 through 1976 and transitioned into the NBA for 1976-77.",
+      "claim_classification": "confirmed_closed_era",
+      "claim_sha256": "5ad1957bd3c4ae1f6a14bd6ee19c57fdb5b24e7648378795be798c804c1f113a",
+      "competition_league_ids": [
+        "01"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "aba-era-1967-1976",
+      "title": "Teams in NBA and ABA to win championships",
+      "url": "https://www.nba.com/news/teams-in-nba-and-aba-to-win-championships"
+    },
+    {
+      "authority_host": "www.nba.com",
+      "claim": "The New York Nets won the final ABA championship in 1976, corroborating the closed 1975-76 upper bound.",
+      "claim_classification": "confirmed_upper_bound_corroboration",
+      "claim_sha256": "f5d38bba417b2b56f3b99f505a143a60cde2f505322b16ae7d60d371ea4aac9b",
+      "competition_league_ids": [
+        "01"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "aba-final-1976",
+      "title": "1976 ABA Champions",
+      "url": "https://www.nba.com/nets/news/history/2019/07/22/1976-aba-champions"
+    },
+    {
+      "authority_host": "www.nba.com",
+      "claim": "The first ABA game was played on October 13, 1967, establishing the 1967-68 lower bound.",
+      "claim_classification": "confirmed_lower_bound",
+      "claim_sha256": "a148f04bfc886f603c15aa31116a2a8667f3eb856accae482a0f040d5c6cb796",
+      "competition_league_ids": [
+        "01"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "aba-start-1967-68",
+      "title": "This Date in the NBA: October",
+      "url": "https://www.nba.com/news/history-this-date-in-nba-oct"
+    },
+    {
+      "authority_host": "gleague.nba.com",
+      "claim": "The NBA G League published its complete 2025-26 schedule, confirming the 2025-26 bound.",
+      "claim_classification": "confirmed_upper_bound",
+      "claim_sha256": "b33e886ba43d64aa9ed8d24e361eda2129fc98efaf2446816b935ee6b5a6b7ab",
+      "competition_league_ids": [
+        "20"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "g-league-current-2025-26",
+      "title": "NBA G League's 25th Season Tips Off Nov. 7",
+      "url": "https://gleague.nba.com/news/nba-g-leagues-25th-season-tips-off-nov-7"
+    },
+    {
+      "authority_host": "gleague.nba.com",
+      "claim": "The NBA G League began play in the 2001-02 season.",
+      "claim_classification": "confirmed_lower_bound",
+      "claim_sha256": "82334d9d925c9254cdeedcb70749ee00c354d856d7ae65db5a6bbbb8e98785f7",
+      "competition_league_ids": [
+        "20"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "g-league-start-2001-02",
+      "title": "Frequently Asked Questions: NBA G League",
+      "url": "https://gleague.nba.com/faq"
+    },
+    {
+      "authority_host": "www.nba.com",
+      "claim": "The NBA published its 2025-26 regular-season schedule, confirming the 2025-26 bound.",
+      "claim_classification": "confirmed_upper_bound",
+      "claim_sha256": "fab8d54c5b1937a11f0b51843b3d211f588b0bad5114b8cba9bca4cc68b2babe",
+      "competition_league_ids": [
+        "00"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "nba-current-2025-26",
+      "title": "NBA announces schedule for 2025-26 regular season",
+      "url": "https://www.nba.com/news/2025-26-nba-regular-season-schedule"
+    },
+    {
+      "authority_host": "cdn.nba.com",
+      "claim": "The NBA published a 2026-27 regular-season schedule; this is planned-future evidence only.",
+      "claim_classification": "planned_future_only",
+      "claim_sha256": "89fdd9499e424366c0b4c877c82d620bfb714f9947e931460d0a1544a8bcc809",
+      "competition_league_ids": [
+        "00"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "nba-planned-2026-27",
+      "title": "2026-27 NBA REGULAR SEASON SCHEDULE",
+      "url": "https://cdn.nba.com/manage/2026/08/2026-27-NBA-Regular-Season-Schedule-By-Date.pdf"
+    },
+    {
+      "authority_host": "www.nba.com",
+      "claim": "The official season review records the BAA/NBA lineage's 1946-47 first season.",
+      "claim_classification": "confirmed_lower_bound",
+      "claim_sha256": "599356320636264204eb2672cfef98bbdda2476ea483b846891ebff23e171df8",
+      "competition_league_ids": [
+        "00"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "nba-start-1946-47",
+      "title": "Season Review: 1946-47",
+      "url": "https://www.nba.com/news/history-season-review-1946-47"
+    },
+    {
+      "authority_host": "www.nba.com",
+      "claim": "The official 2026 all-event team announcement corroborates that the 2026 NBA Summer League event was completed.",
+      "claim_classification": "confirmed_upper_bound_corroboration",
+      "claim_sha256": "5452e310f13d05a943f30d7f2e0779f0c11a0562a05c62c3dccf0e8a73c5d46b",
+      "competition_league_ids": [
+        "15"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "summer-current-completed-2026",
+      "title": "2026 NBA Summer League First and Second Teams announced",
+      "url": "https://www.nba.com/news/2026-nba-summer-league-teams-announced"
+    },
+    {
+      "authority_host": "www.nba.com",
+      "claim": "NBA Summer League debuted in 2004 and was held every year through 2026 except 2011 and 2020.",
+      "claim_classification": "confirmed_interval_and_gaps",
+      "claim_sha256": "93919344fa2e1f619c62e0cfabfc29ab430881ae6b33bdc034abe370d56fbd5d",
+      "competition_league_ids": [
+        "15"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "summer-history-gaps-2004-2026",
+      "title": "2026 NBA Summer League: Facts & Figures",
+      "url": "https://www.nba.com/news/2026-nba-summer-league-facts-figures"
+    },
+    {
+      "authority_host": "www.wnba.com",
+      "claim": "The WNBA published the official 2026 regular-season schedule, confirming calendar year 2026.",
+      "claim_classification": "confirmed_upper_bound",
+      "claim_sha256": "4b90070ec891a76d75ecc7444206e2cec2cc8ddd63bab2f6d05357387b761872",
+      "competition_league_ids": [
+        "10"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "wnba-current-2026",
+      "title": "WNBA Slated To Tip Off 30th Season Friday, May 8",
+      "url": "https://www.wnba.com/news/2026-schedule-release"
+    },
+    {
+      "authority_host": "www.wnba.com",
+      "claim": "The WNBA's inaugural game was played June 21, 1997, establishing calendar year 1997.",
+      "claim_classification": "confirmed_lower_bound",
+      "claim_sha256": "39b8b801d0ce0cae772f6b705b475e9bd33be157b35f072e6480051946069f16",
+      "competition_league_ids": [
+        "10"
+      ],
+      "retrieval_date": "2026-08-21",
+      "source_id": "wnba-start-1997",
+      "title": "The Formation of the WNBA",
+      "url": "https://www.wnba.com/news/formation-of-the-wnba"
+    }
+  ],
+  "sources_sha256": "fe0f764998cfed9d93578972bb3a4fbaa0b0d4c001c3449b8a4ba0ca914c7535",
+  "task_id": "A1.2c-source-evidence",
+  "typed_endpoint_support_claim_count": 0
+}

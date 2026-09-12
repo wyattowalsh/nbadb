@@ -1,0 +1,354 @@
+{
+  "entries": [
+    {
+      "endpoint_contract_sha256": "4d35e0a3ddcf2c7eb9fc725fd8bccd026f4a2ddd1bd5dc1d1b22a6a660daa37b",
+      "endpoint_id": "PlayByPlayV3",
+      "fixture_kind": "positive_stats",
+      "id": "custom_play_by_play_v3",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 0,
+            "headers_sha256": "7519194ac43339ee164b51f2ab13952cf2e65c882e9176f40de3b1fa695de34e",
+            "name": "AvailableVideo",
+            "normalized_output_sha256": "77408f0fac3cd3243e5a0658ebf8a66735ea1ecc4843c20fad0c8fb14543f950",
+            "provider_index": 1,
+            "row_count": 1
+          },
+          {
+            "canonical_index": 1,
+            "headers_sha256": "0e0b4010710ab92af12488588b2d29fd10ff31cafd6d748ae2558b30a2529316",
+            "name": "PlayByPlay",
+            "normalized_output_sha256": "31a0b4cee9bf47067d54e7279bd661ef4614cb123148b70b23595f947dd7ca1a",
+            "provider_index": 0,
+            "row_count": 1
+          }
+        ]
+      },
+      "payload_sha256": "379b26cfca982094edfe73f6e1e01f48129b7c1789992da691603d395ec2ee14",
+      "relative_path": "tests/fixtures/nba_api_contract/custom_play_by_play_v3.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/custom_play_by_play_v3.json",
+      "source_sha256": "379b26cfca982094edfe73f6e1e01f48129b7c1789992da691603d395ec2ee14"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "positive_stats_lossless",
+      "id": "duplicate_headers",
+      "oracle": {
+        "fallback_frame_sha256": "476d8794e20b54d4952504ccebca546064b71b154038b08727d6378462f2a6a9",
+        "fallback_record_count": 6,
+        "outcome": "success_lossless_fallback",
+        "reason_codes": [
+          "additive_header",
+          "duplicate_header",
+          "removed_header"
+        ],
+        "wide_packet_count": 0
+      },
+      "payload_sha256": "b55f3a39e678aa1dddc53ade4d2952bf4926f1c58c81c645ba857d9b44cb1377",
+      "relative_path": "tests/fixtures/nba_api_contract/duplicate_headers.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/duplicate_headers.json",
+      "source_sha256": "b55f3a39e678aa1dddc53ade4d2952bf4926f1c58c81c645ba857d9b44cb1377"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "positive_stats",
+      "id": "empty_result_set",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 0,
+            "headers_sha256": "9c1bdd87c56da7351e53f9307b58aa53c1bdcd5114f6a7e45c9b07ac19115eab",
+            "name": "LeagueGameLog",
+            "normalized_output_sha256": "475fde74f69179bfeb4f3b30bdaf22bfd3d6317edf9e86ceb150c94e4c4fb94a",
+            "provider_index": 0,
+            "row_count": 0
+          }
+        ]
+      },
+      "payload_sha256": "95dbeb284f82cd0b6bd0ea02fec0b47856a7dc08ed4ca78f7b9544440269d33c",
+      "relative_path": "tests/fixtures/nba_api_contract/empty_result_set.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/empty_result_set.json",
+      "source_sha256": "95dbeb284f82cd0b6bd0ea02fec0b47856a7dc08ed4ca78f7b9544440269d33c"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "negative",
+      "id": "error_envelope",
+      "oracle": {
+        "error_class": "UpstreamApplicationError",
+        "outcome": "application_error_envelope"
+      },
+      "payload_sha256": "b3f204fe3b7fe51569c0714e88857cef1b80e21cd19989e208e77edb1b726213",
+      "relative_path": "tests/fixtures/nba_api_contract/error_envelope.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/error_envelope.json",
+      "source_sha256": "b3f204fe3b7fe51569c0714e88857cef1b80e21cd19989e208e77edb1b726213"
+    },
+    {
+      "endpoint_contract_sha256": "819ad4832fa1c0772348a95e400db1a3bf2049c681e8dd1427195006534f07c8",
+      "endpoint_id": "CommonPlayerInfo",
+      "fixture_kind": "positive_stats",
+      "id": "legacy_multi",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 0,
+            "headers_sha256": "61a0130d052f456eda53f8ebe614c1051762e4d81092541dc10c383f15b92d6a",
+            "name": "AvailableSeasons",
+            "normalized_output_sha256": "e3b6a03827c7fcf70cd06594231f151e8ccad76d52fbb25f6f4792316e28af35",
+            "provider_index": 0,
+            "row_count": 1
+          },
+          {
+            "canonical_index": 1,
+            "headers_sha256": "23c9ca4f35b49e7a7c2a60f38bde3ec98c794b6b70bdf0aed5cbcffd0cbad517",
+            "name": "CommonPlayerInfo",
+            "normalized_output_sha256": "dd9e4b66490aa06ae7620067f21d033108ba17dcc1ecd9f3337e215fdbfddcf4",
+            "provider_index": 1,
+            "row_count": 1
+          },
+          {
+            "canonical_index": 2,
+            "headers_sha256": "393ae927065a9c020ee32bbb491cd2ec97512940a8dae7476685cd374a8139f5",
+            "name": "PlayerHeadlineStats",
+            "normalized_output_sha256": "389adcf467b04f1373291266d22a033877d515cad5574c108d2582035774290d",
+            "provider_index": 2,
+            "row_count": 1
+          }
+        ]
+      },
+      "payload_sha256": "60efe09f056650144ff7aa4bf1da703ddf7e1b689964b57b15e7312a5d1a7f3c",
+      "relative_path": "tests/fixtures/nba_api_contract/legacy_multi.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/legacy_multi.json",
+      "source_sha256": "60efe09f056650144ff7aa4bf1da703ddf7e1b689964b57b15e7312a5d1a7f3c"
+    },
+    {
+      "endpoint_contract_sha256": "819ad4832fa1c0772348a95e400db1a3bf2049c681e8dd1427195006534f07c8",
+      "endpoint_id": "CommonPlayerInfo",
+      "fixture_kind": "positive_stats",
+      "id": "legacy_multi_reordered",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 0,
+            "headers_sha256": "61a0130d052f456eda53f8ebe614c1051762e4d81092541dc10c383f15b92d6a",
+            "name": "AvailableSeasons",
+            "normalized_output_sha256": "e3b6a03827c7fcf70cd06594231f151e8ccad76d52fbb25f6f4792316e28af35",
+            "provider_index": 1,
+            "row_count": 1
+          },
+          {
+            "canonical_index": 1,
+            "headers_sha256": "23c9ca4f35b49e7a7c2a60f38bde3ec98c794b6b70bdf0aed5cbcffd0cbad517",
+            "name": "CommonPlayerInfo",
+            "normalized_output_sha256": "dd9e4b66490aa06ae7620067f21d033108ba17dcc1ecd9f3337e215fdbfddcf4",
+            "provider_index": 2,
+            "row_count": 1
+          },
+          {
+            "canonical_index": 2,
+            "headers_sha256": "393ae927065a9c020ee32bbb491cd2ec97512940a8dae7476685cd374a8139f5",
+            "name": "PlayerHeadlineStats",
+            "normalized_output_sha256": "389adcf467b04f1373291266d22a033877d515cad5574c108d2582035774290d",
+            "provider_index": 0,
+            "row_count": 1
+          }
+        ]
+      },
+      "payload_sha256": "bfa831479a948dc037b301202a4b9c8dd4441bb3d91225c4d78ebcf03b0ae69e",
+      "relative_path": "tests/fixtures/nba_api_contract/legacy_multi_reordered.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/legacy_multi_reordered.json",
+      "source_sha256": "bfa831479a948dc037b301202a4b9c8dd4441bb3d91225c4d78ebcf03b0ae69e"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "positive_stats",
+      "id": "legacy_single",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 0,
+            "headers_sha256": "9c1bdd87c56da7351e53f9307b58aa53c1bdcd5114f6a7e45c9b07ac19115eab",
+            "name": "LeagueGameLog",
+            "normalized_output_sha256": "4b851df52cafe311b9f6ef1ead0920671630f62d4901904f39c74666322c8f02",
+            "provider_index": 0,
+            "row_count": 1
+          }
+        ]
+      },
+      "payload_sha256": "25c8b23adbf1a00817674420109c4f48d8cf9734c326776cd6010722cad503f0",
+      "relative_path": "tests/fixtures/nba_api_contract/legacy_single.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/legacy_single.json",
+      "source_sha256": "25c8b23adbf1a00817674420109c4f48d8cf9734c326776cd6010722cad503f0"
+    },
+    {
+      "endpoint_contract_sha256": "f866e627a9f22d7f05f39378a5ffab4a656205468d6b94db5d7696a022fe35e5",
+      "endpoint_id": "PlayByPlay",
+      "fixture_kind": "positive_live",
+      "id": "live_play_by_play_empty",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 2,
+            "headers_sha256": "913fb1cafa3eee12925614795ebd3fd56359c8aa6b192bab123a7f0f06d8ab63",
+            "name": "game_actions",
+            "normalized_output_sha256": "ec238b9d47bc78ac4e06b30ca8a6fea8a3303f01b5bbba14a9841b73067c7a98",
+            "provider_index": null,
+            "row_count": 0
+          }
+        ]
+      },
+      "payload_sha256": "2191557044b45002b140557ccecb3f66c5a8057d53cad10bdc0e7a5759f4d216",
+      "relative_path": "tests/fixtures/nba_api_contract/live_play_by_play_empty.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/live_play_by_play_empty.json",
+      "source_sha256": "2191557044b45002b140557ccecb3f66c5a8057d53cad10bdc0e7a5759f4d216"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "negative",
+      "id": "malformed_json",
+      "oracle": {
+        "error_class": "ResponseContractError",
+        "outcome": "malformed_json"
+      },
+      "payload_sha256": "d26029d40c35902884aaddf19a044f8cba5209455a254114976e6a6254cd8810",
+      "relative_path": "tests/fixtures/nba_api_contract/malformed_json.txt",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/malformed_json.txt",
+      "source_sha256": "d26029d40c35902884aaddf19a044f8cba5209455a254114976e6a6254cd8810"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "positive_stats_lossless",
+      "id": "mixed_type_rows",
+      "oracle": {
+        "fallback_frame_sha256": "fde9758a10ed502ca0dd7dab30d53f7836f45aa6299bcede3ab36e18ebf839ea",
+        "fallback_record_count": 90,
+        "outcome": "success_lossless_fallback",
+        "reason_codes": [
+          "heterogeneous_column"
+        ],
+        "wide_packet_count": 0
+      },
+      "payload_sha256": "a0dd1761df65331ac21fadcf5982262433be0f9c132c7c101e13874a93819a05",
+      "relative_path": "tests/fixtures/nba_api_contract/mixed_type_rows.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/mixed_type_rows.json",
+      "source_sha256": "a0dd1761df65331ac21fadcf5982262433be0f9c132c7c101e13874a93819a05"
+    },
+    {
+      "endpoint_contract_sha256": "f866e627a9f22d7f05f39378a5ffab4a656205468d6b94db5d7696a022fe35e5",
+      "endpoint_id": "PlayByPlay",
+      "fixture_kind": "negative",
+      "id": "optional_missing_live",
+      "oracle": {
+        "error_class": "ResponseContractError",
+        "outcome": "optional_result_set_absent"
+      },
+      "payload_sha256": "a35d66202588706f4523b5d61d12a6f16a9518934e7e8b860209f9e9d93a36dd",
+      "relative_path": "tests/fixtures/nba_api_contract/optional_missing_live.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/optional_missing_live.json",
+      "source_sha256": "a35d66202588706f4523b5d61d12a6f16a9518934e7e8b860209f9e9d93a36dd"
+    },
+    {
+      "endpoint_contract_sha256": "a2c575ef34e425ccb64c18a1921cdcb0a887242ed6c8a967e14078e7c3d0e8d7",
+      "endpoint_id": "LeagueGameLog",
+      "fixture_kind": "positive_stats_lossless",
+      "id": "ragged_rows",
+      "oracle": {
+        "fallback_frame_sha256": "f128b70a79a68668c342c598a4af6e7f6ce8d304d38eb000b62c9bdf2c1b1da9",
+        "fallback_record_count": 5,
+        "outcome": "success_lossless_fallback",
+        "reason_codes": [
+          "ragged_row",
+          "removed_header"
+        ],
+        "wide_packet_count": 0
+      },
+      "payload_sha256": "55c1714edc26afeab030e5b62bd82032798625760b0c71722617cac43e2d8b5f",
+      "relative_path": "tests/fixtures/nba_api_contract/ragged_rows.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/ragged_rows.json",
+      "source_sha256": "55c1714edc26afeab030e5b62bd82032798625760b0c71722617cac43e2d8b5f"
+    },
+    {
+      "endpoint_contract_sha256": "723c03ee09b50d1afd35c7466e2e7691004c58d3b72eb2b9e4a609a1a4a6a95c",
+      "endpoint_id": "static_teams",
+      "fixture_kind": "positive_static_canonical_representation",
+      "id": "static_teams_synthetic",
+      "oracle": {
+        "outcome": "success",
+        "packets": [
+          {
+            "canonical_index": 0,
+            "headers_sha256": "6d16a5282a39641f8feadb79ad7770ad159ef56367580f09403c02cb9693fb2c",
+            "name": "teams_shape_1",
+            "normalized_output_sha256": "fe23f94e9280caaf470c9747e5be3b2585e53e8734e391750284dab557a33d5d",
+            "provider_index": 0,
+            "row_count": 2
+          }
+        ]
+      },
+      "payload_sha256": "f65c6104178464a9d213a5ca1ed2b6ae81f72c24675c9c13498bd0b987ff7dae",
+      "relative_path": "tests/fixtures/nba_api_contract/static_teams_synthetic.json",
+      "rights_policy_id": "repo-synthetic-mit",
+      "sanitization_policy_id": "synthetic-none",
+      "source_path": "repo-authored:tests/fixtures/nba_api_contract/static_teams_synthetic.json",
+      "source_sha256": "f65c6104178464a9d213a5ca1ed2b6ae81f72c24675c9c13498bd0b987ff7dae"
+    }
+  ],
+  "entries_sha256": "d7f5fc1b18e1fb57cf5cf1208bf44a806061a3f27fcd238b91e1eed898af2e22",
+  "kind": "nbadb_nba_api_exact_release_fixture_manifest",
+  "manifest_sha256": "362576af5ce2224dd112cc6da102b307e1c3e497329f5f1c97fc45360884fbb8",
+  "provider": {
+    "distribution_version": "1.11.4",
+    "runtime_contract_payload_sha256": "7c9b59c475cff6b0b9d3619bdfe9a3849e11619980f6d15a1cafd5f269f61b3b",
+    "upstream_tag": "v1.11.4"
+  },
+  "rights_policies": {
+    "repo-synthetic-mit": {
+      "copied_nba_response_data": false,
+      "copied_upstream_code": false,
+      "copied_upstream_docs": false,
+      "data_class": "repository_authored_synthetic_non_nba",
+      "license_identifier": "MIT"
+    }
+  },
+  "sanitization_policies": {
+    "synthetic-none": "not_applicable_repo_authored_synthetic"
+  },
+  "schema_version": 1
+}

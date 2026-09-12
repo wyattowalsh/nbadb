@@ -21,11 +21,13 @@ classifiers = [
 ]
 dependencies = [
     "nba-api==1.11.4",
-    "polars[database,pyarrow]>=1.42.1",
+    "polars[database,pyarrow]>=1.43.2",
     "pandera[polars]>=0.32.1",
     "sqlmodel>=0.0.39,<0.1.0",
-    "duckdb>=1.5.4",
-    "kagglehub>=1.0.2",
+    "duckdb>=1.5.5",
+    "pyarrow>=25.0.1",
+    "kagglehub==1.0.2",
+    "kagglesdk==0.1.34",
     "typer>=0.15",
     "rich>=13.7",
     "loguru>=0.7",
@@ -74,7 +76,6 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TCH"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/nbadb/kaggle/metadata.py" = ["E501"]
-"notebooks/kaggle_update.py" = ["E402"]
 
 [tool.ty.src]
 include = ["src"]
@@ -131,6 +132,8 @@ include = ["tests/**"]
 [tool.ty.overrides.rules]
 possibly-missing-attribute = "ignore"
 possibly-missing-import = "ignore"
+not-iterable = "ignore"
+missing-argument = "ignore"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

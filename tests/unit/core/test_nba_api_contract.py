@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import importlib
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
+from nbadb.core import nba_api_contract
 from nbadb.core.nba_api_contract import (
+    NbaApiContractDiscoveryError,
     build_endpoint_contract,
     build_nba_api_bronze_contracts_from_bundle,
     build_nba_api_metadata_ledger,
@@ -10,11 +16,13 @@ from nbadb.core.nba_api_contract import (
     contract_to_json,
     discover_endpoint_analysis_doc_contracts,
     discover_live_endpoint_doc_contracts,
+    discover_runtime_endpoint_contracts,
     discover_runtime_live_endpoint_contracts,
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    import pkgutil
+    from collections.abc import Iterable, Iterator
 
 
 def _write_endpoint_doc(
@@ -68,11 +76,27 @@ class SyntheticRuntimeEndpoint:
     ) -> None:
         self.season = season
         self.player_id = player_id
+        self.parameters = {
+            "Season": season,
+            "PlayerID": player_id,
+            "LocationNullable": location_nullable,
+        }
 
     def load_response(self) -> None:
         data_sets = {"PrimarySet": [], "MissingLoadResponseSet": []}
         self.primary = data_sets["PrimarySet"]
         self.missing = data_sets["MissingLoadResponseSet"]
+
+
+_UNTRUSTED_EXPECTED_DATA = {"Untrusted": ["ID"]}
+
+
+class SyntheticReferencedExpectedData:
+    endpoint = "syntheticreferencedexpecteddata"
+    expected_data = _UNTRUSTED_EXPECTED_DATA
+
+    def __init__(self, get_request: bool = True) -> None:
+        self.parameters = {}
 
 
 def test_build_endpoint_contract_reads_runtime_metadata_and_source_warnings() -> None:
@@ -81,6 +105,11 @@ def test_build_endpoint_contract_reads_runtime_metadata_and_source_warnings() ->
     assert contract.runtime_class_name == "SyntheticRuntimeEndpoint"
     assert contract.endpoint_slug == "syntheticruntimeendpoint"
     assert contract.parameters == ("season", "player_id", "location_nullable")
+    assert contract.parameter_query_names == (
+        ("season", "Season"),
+        ("player_id", "PlayerID"),
+        ("location_nullable", "LocationNullable"),
+    )
     assert contract.required_parameters == ("season",)
     assert contract.nullable_parameters == ("player_id", "location_nullable")
     assert contract.warnings == (
@@ -92,6 +121,115 @@ def test_build_endpoint_contract_reads_runtime_metadata_and_source_warnings() ->
     ]
     assert contract.result_sets[0].expected_columns == ("PLAYER_ID", "TEAM_ID")
     assert contract.result_sets[1].expected_columns == ()
+
+
+def test_build_endpoint_contract_accepts_only_modeled_nonliteral_expected_data() -> None:
+    from nba_api.stats.endpoints import BoxScoreSummaryV3, GravityLeaders
+
+    summary = build_endpoint_contract(BoxScoreSummaryV3)
+    gravity = build_endpoint_contract(GravityLeaders)
+
+    assert summary.result_sets[0].result_set_name == "GameSummary"
+    assert summary.parser_kind == "custom_nested"
+    assert gravity.result_sets[0].result_set_name == "leaders"
+    assert gravity.parser_kind == "custom_nested"
+    with pytest.raises(NbaApiContractDiscoveryError) as exc_info:
+        build_endpoint_contract(SyntheticReferencedExpectedData)
+    assert exc_info.value.stage == "stats_expected_data_inventory"
+    assert exc_info.value.error_type == "InvalidContract"
+
+
+def test_runtime_discovery_fails_closed_on_endpoint_import_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = "nba_api.stats.endpoints.assisttracker"
+    secret = "response body must not escape"
+    real_import_module = importlib.import_module
+
+    def _import_with_failure(module_name: str) -> object:
+        if module_name == target:
+            raise ImportError(secret)
+        return real_import_module(module_name)
+
+    discover_runtime_endpoint_contracts.cache_clear()
+    monkeypatch.setattr(nba_api_contract.importlib, "import_module", _import_with_failure)
+    with pytest.raises(NbaApiContractDiscoveryError) as exc_info:
+        discover_runtime_endpoint_contracts()
+    discover_runtime_endpoint_contracts.cache_clear()
+
+    assert exc_info.value.stage == "stats_runtime_module_import"
+    assert exc_info.value.source == target
+    assert exc_info.value.error_type == "ImportError"
+    assert secret not in str(exc_info.value)
+
+
+def test_runtime_discovery_rejects_partial_package_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    importlib.import_module("nba_api.stats.endpoints")
+    real_iter_modules = nba_api_contract.pkgutil.iter_modules
+
+    def _partial_iter_modules(
+        paths: Iterable[str] | None = None,
+        prefix: str = "",
+    ) -> Iterator[pkgutil.ModuleInfo]:
+        modules = list(real_iter_modules(paths, prefix))
+        return iter(modules[:-1])
+
+    discover_runtime_endpoint_contracts.cache_clear()
+    monkeypatch.setattr(nba_api_contract.pkgutil, "iter_modules", _partial_iter_modules)
+    with pytest.raises(NbaApiContractDiscoveryError) as exc_info:
+        discover_runtime_endpoint_contracts()
+    discover_runtime_endpoint_contracts.cache_clear()
+
+    assert exc_info.value.stage == "stats_runtime_module_inventory"
+    assert exc_info.value.source == "nba_api.stats.endpoints"
+    assert exc_info.value.error_type == "InventoryMismatch"
+
+
+def test_endpoint_docs_discovery_fails_closed_on_unreadable_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_path = _write_endpoint_doc(
+        tmp_path,
+        ("docs", "nba_api", "stats", "endpoints"),
+        "unreadable.md",
+        _minimal_endpoint_markdown("Unreadable"),
+    )
+    secret = "filesystem detail must not escape"
+    real_read_text = Path.read_text
+
+    def _read_text(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == source_path:
+            raise PermissionError(secret)
+        return real_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", _read_text)
+    with pytest.raises(NbaApiContractDiscoveryError) as exc_info:
+        discover_endpoint_analysis_doc_contracts(tmp_path)
+
+    assert exc_info.value.stage == "stats_docs_read"
+    assert exc_info.value.source == "docs/nba_api/stats/endpoints/unreadable.md"
+    assert exc_info.value.error_type == "PermissionError"
+    assert secret not in str(exc_info.value)
+
+
+def test_metadata_discovery_fails_closed_on_invalid_tools_source(tmp_path: Path) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    (tools_dir / "broken.py").write_text("endpoint_list = [\n", encoding="utf-8")
+
+    with pytest.raises(NbaApiContractDiscoveryError) as exc_info:
+        build_nba_api_metadata_ledger(tmp_path)
+
+    assert exc_info.value.stage == "tools_source_parse"
+    assert exc_info.value.source == "tools/broken.py"
+    assert exc_info.value.error_type == "SyntaxError"
 
 
 def test_contract_to_json_preserves_result_set_order_and_columns() -> None:
@@ -705,11 +843,13 @@ _**player_id**_ `default` | `0`
     ]
     assert live_tables
     assert all(table["column_count"] > 0 for table in live_tables)
-    assert all(
-        column["source"] == "nba_api_live_expected_data"
-        for table in live_tables
-        for column in table["columns"]
-    )
+    live_sources = {column["source"] for table in live_tables for column in table["columns"]}
+    assert live_sources <= {
+        "nba_api_live_expected_data",
+        "nba_api_live_expected_data+live_docs_about_fields",
+        "live_docs_about_fields",
+        "nbadb_nested_scalar_projection",
+    }
     assert "0022400001" not in {
         column["name"] for table in live_tables for column in table["columns"]
     }
@@ -1007,7 +1147,15 @@ def test_live_bronze_contracts_use_runtime_expected_data_not_markdown_samples(
     assert "https://example.invalid/tickets" not in live_column_names
     assert "Sample Official" not in live_column_names
     assert all(
-        column["source"] == "nba_api_live_expected_data" and column["json_path"].startswith("$")
+        column["source"]
+        in {
+            "nba_api_live_expected_data",
+            "nba_api_live_expected_data+live_docs_about_fields",
+            "live_docs_about_fields",
+            "nbadb_nested_scalar_projection",
+        }
+        and column["json_path"].startswith("$")
+        and isinstance(column["source_field"], bool)
         for table in live_tables
         for column in table["columns"]
     )

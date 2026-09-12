@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
+from nbadb.orchestrate import player_directory_snapshot
 from nbadb.orchestrate.discovery import (
     GameDiscoveryResult,
     PlayerIdDiscoveryResult,
@@ -38,6 +40,19 @@ def _load_module():
     module.__file__ = str(MODULE_PATH)
     exec(MODULE_CODE, module.__dict__)
     return module
+
+
+def _manifest(payload: dict[str, object]) -> dict[str, object]:
+    """Bind direct seed tests to the same pinned provider authority as production manifests."""
+
+    return {
+        **payload,
+        "provider_authority": expected_nba_api_provider_authority(),
+    }
+
+
+def _write_manifest(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(json.dumps(_manifest(payload)), encoding="utf-8")
 
 
 def _load_verifier_module():
@@ -227,28 +242,26 @@ def test_game_seed_persists_only_explicitly_covered_combo_frames(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "game,date",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Regular Season,Playoffs",
-                        },
-                        {
-                            "patterns": "date",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Regular Season",
-                        },
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "game,date",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Regular Season,Playoffs",
+                    },
+                    {
+                        "patterns": "date",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Regular Season",
+                    },
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
     requested = frozenset(
         {
@@ -342,28 +355,26 @@ def test_player_team_seed_deduplicates_seasons_and_rejects_uncovered_pairs(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "player_team_season",
-                            "season_start": "2024",
-                            "season_end": "2025",
-                            "season_types": "Regular Season",
-                        },
-                        {
-                            "patterns": "player_team_season",
-                            "season_start": "2024",
-                            "season_end": "2025",
-                            "season_types": "Regular Season",
-                        },
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "player_team_season",
+                        "season_start": "2024",
+                        "season_end": "2025",
+                        "season_types": "Regular Season",
+                    },
+                    {
+                        "patterns": "player_team_season",
+                        "season_start": "2024",
+                        "season_end": "2025",
+                        "season_types": "Regular Season",
+                    },
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
     requested = frozenset(
         {
@@ -561,8 +572,6 @@ def test_workload_seed_accounts_for_mixed_and_all_cached_pairs_once(tmp_path: Pa
                 "season_type": cached_pair[1],
             }
         ],
-        seasons=[cached_pair[0]],
-        season_types=[cached_pair[1]],
         covered_pairs={cached_pair},
     )
 
@@ -661,33 +670,31 @@ def test_seed_attests_exact_result_failure_taxonomies(
     game_pair = ("2024-25", "Playoffs")
     workload_pair = ("2025-26", "Regular Season")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "player_season",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                        },
-                        {
-                            "patterns": "game",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Playoffs",
-                        },
-                        {
-                            "patterns": "player_team_season",
-                            "season_start": "2025",
-                            "season_end": "2025",
-                            "season_types": "Regular Season",
-                        },
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "player_season",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                    },
+                    {
+                        "patterns": "game",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Playoffs",
+                    },
+                    {
+                        "patterns": "player_team_season",
+                        "season_start": "2025",
+                        "season_end": "2025",
+                        "season_types": "Regular Season",
+                    },
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
 
     class FakeRegistry:
@@ -783,22 +790,20 @@ def test_seed_refreshes_current_season_player_game_and_workload_caches(
     module = _load_module()
     current = "2025-26"
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "player_season,game,player_team_season",
-                            "season_start": "2025",
-                            "season_end": "2025",
-                            "season_types": "Regular Season",
-                        }
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "player_season,game,player_team_season",
+                        "season_start": "2025",
+                        "season_end": "2025",
+                        "season_types": "Regular Season",
+                    }
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
     artifact_store = DiscoveryArtifactStore.from_duckdb_path(duckdb_path)
@@ -828,8 +833,6 @@ def test_seed_refreshes_current_season_player_game_and_workload_caches(
                 "season_type": "Regular Season",
             }
         ],
-        seasons=[current],
-        season_types=["Regular Season"],
         covered_pairs={(current, "Regular Season")},
     )
     live_game_frame = pl.DataFrame({"game_id": ["new"], "game_date": ["2026-01-02"]})
@@ -892,11 +895,6 @@ def test_seed_refreshes_current_season_player_game_and_workload_caches(
     monkeypatch.setattr(module, "current_season", lambda: current)
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(
-        module,
-        "player_ids_by_season_from_snapshot",
-        lambda _seasons: {current: [1]},
-    )
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -938,9 +936,9 @@ def test_aggregate_only_player_seed_refreshes_stale_current_season_cache(
     seasons = ("2024-25", "2025-26")
     current = seasons[-1]
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps({"github_matrix": {"include": [{"patterns": "player"}]}}),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {"github_matrix": {"include": [{"patterns": "player"}]}},
     )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
     store = DiscoveryArtifactStore.from_duckdb_path(duckdb_path)
@@ -957,9 +955,17 @@ def test_aggregate_only_player_seed_refreshes_stale_current_season_cache(
 
     class FakeDiscovery:
         targeted_calls: list[str] = []
+        bulk_calls: list[tuple[str, ...]] = []
 
         def __init__(self, _registry: object) -> None:
             return None
+
+        async def discover_all_player_ids_by_season(
+            self,
+            requested_seasons: list[str],
+        ) -> dict[str, list[int]]:
+            self.bulk_calls.append(tuple(requested_seasons))
+            return {"2024-25": [10]}
 
         async def discover_all_player_ids(self, *, season: str | None = None) -> list[int]:
             assert season is not None
@@ -970,11 +976,6 @@ def test_aggregate_only_player_seed_refreshes_stale_current_season_cache(
     monkeypatch.setattr(module, "current_season", lambda: current)
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(
-        module,
-        "player_ids_by_season_from_snapshot",
-        lambda _seasons: {"2024-25": [10], current: [20]},
-    )
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -991,6 +992,7 @@ def test_aggregate_only_player_seed_refreshes_stale_current_season_cache(
     assert summary["scope_count"] == 1
     assert summary["failure_count"] == 0
     assert FakeDiscovery.targeted_calls == [current]
+    assert FakeDiscovery.bulk_calls == [("2024-25",)]
     assert store.load_ids(current_scope) == [20, 30]
     assert store.load_ids(aggregate_scope) == [10, 20, 30]
 
@@ -1001,19 +1003,17 @@ def test_seed_player_discovery_artifacts_reuses_per_season_cache(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "lanes": [
-                    {
-                        "patterns": ["player_season"],
-                        "season_start": 1946,
-                        "season_end": 1947,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1946,
+                    "season_end": 1947,
+                }
+            ]
+        },
     )
 
     class FakeRegistry:
@@ -1031,7 +1031,6 @@ def test_seed_player_discovery_artifacts_reuses_per_season_cache(
 
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(module, "player_ids_by_season_from_snapshot", lambda _seasons: {})
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -1045,25 +1044,34 @@ def test_seed_player_discovery_artifacts_reuses_per_season_cache(
     assert sorted(item["count"] for item in summary["seeded"]) == [1, 1, 2]
 
 
-def test_seed_player_discovery_artifacts_snapshot_seeds_single_seasons(
+def test_seed_player_discovery_artifacts_bulk_owns_historical_single_seasons(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    snapshot_calls: list[tuple[str, ...]] = []
+
+    def forbidden_snapshot(requested_seasons: list[str]) -> dict[str, list[int]]:
+        snapshot_calls.append(tuple(requested_seasons))
+        raise AssertionError("blocked player-directory snapshot was consulted")
+
+    monkeypatch.setattr(
+        player_directory_snapshot,
+        "player_ids_by_season_from_snapshot",
+        forbidden_snapshot,
+    )
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "lanes": [
-                    {
-                        "patterns": ["player_season"],
-                        "season_start": 1946,
-                        "season_end": 1947,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1946,
+                    "season_end": 1947,
+                }
+            ]
+        },
     )
 
     class FakeRegistry:
@@ -1071,6 +1079,8 @@ def test_seed_player_discovery_artifacts_snapshot_seeds_single_seasons(
             return None
 
     class FakeDiscovery:
+        bulk_calls: list[tuple[str, ...]] = []
+
         def __init__(self, _registry: object) -> None:
             return None
 
@@ -1078,21 +1088,17 @@ def test_seed_player_discovery_artifacts_snapshot_seeds_single_seasons(
             self,
             seasons: list[str],
         ) -> dict[str, list[int]]:
-            raise AssertionError(f"live bulk discovery should not run: {seasons}")
+            self.bulk_calls.append(tuple(seasons))
+            return {
+                "1946-47": [1, 2],
+                "1947-48": [2, 3],
+            }
 
         async def discover_all_player_ids(self, *, season: str | None = None) -> list[int]:
             raise AssertionError(f"targeted discovery should not run: {season}")
 
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(
-        module,
-        "player_ids_by_season_from_snapshot",
-        lambda seasons: {
-            "1946-47": [1, 2],
-            "1947-48": [2, 3],
-        },
-    )
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -1104,9 +1110,11 @@ def test_seed_player_discovery_artifacts_snapshot_seeds_single_seasons(
     assert summary["failure_count"] == 0
     assert summary["seeded_count"] == 3
     assert sorted(item["count"] for item in summary["seeded"]) == [2, 2, 3]
+    assert FakeDiscovery.bulk_calls == [("1946-47", "1947-48")]
+    assert snapshot_calls == []
 
 
-def test_seed_player_discovery_artifacts_snapshot_hydrates_all_seasons_scope(
+def test_seed_player_discovery_artifacts_bulk_hydrates_all_seasons_scope(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1117,11 +1125,7 @@ def test_seed_player_discovery_artifacts_snapshot_hydrates_all_seasons_scope(
         "1947-48": [2, 3],
     }
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps({"lanes": [{"patterns": ["player"]}]}),
-        encoding="utf-8",
-    )
-    snapshot_calls: list[tuple[str, ...]] = []
+    _write_manifest(manifest_path, {"lanes": [{"patterns": ["player"]}]})
 
     class FakeRegistry:
         def discover(self) -> None:
@@ -1145,14 +1149,9 @@ def test_seed_player_discovery_artifacts_snapshot_hydrates_all_seasons_scope(
             self.live_calls.append((season,))
             return ids_by_season[season]
 
-    def snapshot_ids(requested_seasons: list[str]) -> dict[str, list[int]]:
-        snapshot_calls.append(tuple(requested_seasons))
-        return ids_by_season
-
     monkeypatch.setattr(module, "season_range", lambda start=1946, end=None: list(seasons))
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(module, "player_ids_by_season_from_snapshot", snapshot_ids)
     duckdb_path = tmp_path / "data" / "nba.duckdb"
     aggregate_scope = module.DiscoveryArtifactScope(
         kind="player_ids_all",
@@ -1178,21 +1177,17 @@ def test_seed_player_discovery_artifacts_snapshot_hydrates_all_seasons_scope(
         assert store.load_ids(scope) == expected_ids
     assert store.load_ids(aggregate_scope) == [1, 2, 3]
     assert summary["failure_count"] == 0
-    assert snapshot_calls == [seasons]
-    assert FakeDiscovery.live_calls == []
+    assert FakeDiscovery.live_calls == [seasons]
 
 
-def test_seed_player_discovery_artifacts_bulk_fills_snapshot_gap(
+def test_seed_player_discovery_artifacts_targeted_fills_bulk_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_module()
     seasons = ("1946-47", "1947-48")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps({"lanes": [{"patterns": ["player"]}]}),
-        encoding="utf-8",
-    )
+    _write_manifest(manifest_path, {"lanes": [{"patterns": ["player"]}]})
 
     class FakeRegistry:
         def discover(self) -> None:
@@ -1200,6 +1195,7 @@ def test_seed_player_discovery_artifacts_bulk_fills_snapshot_gap(
 
     class FakeDiscovery:
         bulk_calls: list[tuple[str, ...]] = []
+        targeted_calls: list[str] = []
 
         def __init__(self, _registry: object) -> None:
             return None
@@ -1212,16 +1208,13 @@ def test_seed_player_discovery_artifacts_bulk_fills_snapshot_gap(
             return {"1947-48": [2, 3]}
 
         async def discover_all_player_ids(self, *, season: str | None = None) -> list[int]:
-            raise AssertionError(f"targeted discovery should not run: {season}")
+            assert season is not None
+            self.targeted_calls.append(season)
+            return [1, 2]
 
     monkeypatch.setattr(module, "season_range", lambda start=1946, end=None: list(seasons))
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(
-        module,
-        "player_ids_by_season_from_snapshot",
-        lambda _seasons: {"1946-47": [1, 2]},
-    )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
 
     summary = module.asyncio.run(
@@ -1239,7 +1232,8 @@ def test_seed_player_discovery_artifacts_bulk_fills_snapshot_gap(
     store = module.DiscoveryArtifactStore.from_duckdb_path(duckdb_path)
     assert summary["failure_count"] == 0
     assert store.load_ids(aggregate_scope) == [1, 2, 3]
-    assert FakeDiscovery.bulk_calls == [("1947-48",)]
+    assert FakeDiscovery.bulk_calls == [seasons]
+    assert FakeDiscovery.targeted_calls == ["1946-47"]
 
 
 def test_seed_player_discovery_artifacts_rejects_partial_aggregate(
@@ -1249,10 +1243,7 @@ def test_seed_player_discovery_artifacts_rejects_partial_aggregate(
     module = _load_module()
     seasons = ("1946-47", "1947-48")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps({"lanes": [{"patterns": ["player"]}]}),
-        encoding="utf-8",
-    )
+    _write_manifest(manifest_path, {"lanes": [{"patterns": ["player"]}]})
 
     class FakeRegistry:
         def discover(self) -> None:
@@ -1278,11 +1269,6 @@ def test_seed_player_discovery_artifacts_rejects_partial_aggregate(
     monkeypatch.setattr(module, "season_range", lambda start=1946, end=None: list(seasons))
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(
-        module,
-        "player_ids_by_season_from_snapshot",
-        lambda _seasons: {"1946-47": [1, 2]},
-    )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
 
     summary = module.asyncio.run(
@@ -1304,15 +1290,17 @@ def test_seed_player_discovery_artifacts_rejects_partial_aggregate(
             "kind": "player_ids_all",
             "seasons": list(seasons),
             "reason": "incomplete_season_coverage",
-            "missing_seasons": ["1947-48"],
-            "resolved_season_count": 1,
+            "missing_seasons": list(seasons),
+            "resolved_season_count": 0,
             "requested_season_count": 2,
             "discovery_errors": ["no_data"],
-            "discovery_failures": [{"season": "1947-48", "failure_kind": "no_data"}],
+            "discovery_failures": [
+                {"season": season, "failure_kind": "no_data"} for season in seasons
+            ],
         }
     ]
     assert store.load_ids(aggregate_scope) == []
-    assert FakeDiscovery.targeted_calls == ["1947-48"]
+    assert FakeDiscovery.targeted_calls == list(seasons)
 
 
 def test_seed_player_discovery_artifacts_bulk_seeds_single_seasons(
@@ -1321,19 +1309,17 @@ def test_seed_player_discovery_artifacts_bulk_seeds_single_seasons(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "lanes": [
-                    {
-                        "patterns": ["player_season"],
-                        "season_start": 1946,
-                        "season_end": 1947,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1946,
+                    "season_end": 1947,
+                }
+            ]
+        },
     )
 
     class FakeRegistry:
@@ -1363,7 +1349,6 @@ def test_seed_player_discovery_artifacts_bulk_seeds_single_seasons(
 
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(module, "player_ids_by_season_from_snapshot", lambda _seasons: {})
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -1384,19 +1369,17 @@ def test_seed_player_discovery_artifacts_seeds_single_seasons_concurrently(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "lanes": [
-                    {
-                        "patterns": ["player_season"],
-                        "season_start": 1946,
-                        "season_end": 1948,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1946,
+                    "season_end": 1948,
+                }
+            ]
+        },
     )
 
     class FakeRegistry:
@@ -1423,7 +1406,6 @@ def test_seed_player_discovery_artifacts_seeds_single_seasons_concurrently(
     monkeypatch.setenv(module.DISCOVERY_SEED_CONCURRENCY_ENV, "3")
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(module, "player_ids_by_season_from_snapshot", lambda _seasons: {})
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -1443,22 +1425,20 @@ def test_seed_writes_atomic_fail_closed_summary_before_discovery(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "game",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Regular Season",
-                        }
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "game",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Regular Season",
+                    }
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
     summary_path = tmp_path / "artifacts" / "summary.json"
@@ -1553,23 +1533,21 @@ def test_mixed_game_cache_round_trips_through_checkpoint_summary_and_verifier(
         {"season": cached_pair[0], "season_type": cached_pair[1]},
     ]
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "game",
-                            "season_start": "2023",
-                            "season_end": "2023",
-                            "season_types": "Regular Season,Playoffs",
-                            "resume_only": False,
-                        }
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "game",
+                        "season_start": "2023",
+                        "season_end": "2023",
+                        "season_types": "Regular Season,Playoffs",
+                        "resume_only": False,
+                    }
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
     summary_path = tmp_path / "artifacts" / "summary.json"
@@ -1735,19 +1713,17 @@ def test_soft_deadline_preserves_completed_exact_player_artifact(
     module = _load_module()
     seasons = ("1946-47", "1947-48")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "lanes": [
-                    {
-                        "patterns": ["player_season"],
-                        "season_start": 1946,
-                        "season_end": 1947,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1946,
+                    "season_end": 1947,
+                }
+            ]
+        },
     )
     duckdb_path = tmp_path / "data" / "nba.duckdb"
     summary_path = tmp_path / "artifacts" / "summary.json"
@@ -1774,7 +1750,6 @@ def test_soft_deadline_preserves_completed_exact_player_artifact(
     monkeypatch.setattr(module, "current_season", lambda: "2099-00")
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(module, "player_ids_by_season_from_snapshot", lambda _seasons: {})
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -1826,19 +1801,17 @@ def test_soft_deadline_preserves_completed_player_failure_bookkeeping(
     module = _load_module()
     seasons = ("1946-47", "1947-48")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "lanes": [
-                    {
-                        "patterns": ["player_season"],
-                        "season_start": 1946,
-                        "season_end": 1947,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
+    _write_manifest(
+        manifest_path,
+        {
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1946,
+                    "season_end": 1947,
+                }
+            ]
+        },
     )
 
     class FakeRegistry:
@@ -1873,7 +1846,6 @@ def test_soft_deadline_preserves_completed_player_failure_bookkeeping(
     monkeypatch.setattr(module, "current_season", lambda: "2099-00")
     monkeypatch.setattr(module, "registry", FakeRegistry())
     monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
-    monkeypatch.setattr(module, "player_ids_by_season_from_snapshot", lambda _seasons: {})
 
     summary = module.asyncio.run(
         module.seed_player_discovery_artifacts(
@@ -1909,28 +1881,26 @@ def test_game_batch_fault_preserves_prior_exact_combo_without_unavailable_classi
     successful_pair = ("2023-24", "Playoffs")
     failed_pair = ("2024-25", "Regular Season")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "game",
-                            "season_start": "2023",
-                            "season_end": "2023",
-                            "season_types": "Playoffs",
-                        },
-                        {
-                            "patterns": "game",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Regular Season",
-                        },
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "game",
+                        "season_start": "2023",
+                        "season_end": "2023",
+                        "season_types": "Playoffs",
+                    },
+                    {
+                        "patterns": "game",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Regular Season",
+                    },
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
     successful_frame = pl.DataFrame({"game_id": ["001"], "game_date": ["2024-04-20"]})
 
@@ -2004,28 +1974,26 @@ def test_game_deadline_summary_retains_the_completed_batch(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "game",
-                            "season_start": "2023",
-                            "season_end": "2023",
-                            "season_types": "Regular Season",
-                        },
-                        {
-                            "patterns": "game",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Regular Season",
-                        },
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "game",
+                        "season_start": "2023",
+                        "season_end": "2023",
+                        "season_types": "Regular Season",
+                    },
+                    {
+                        "patterns": "game",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Regular Season",
+                    },
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
 
     class FakeRegistry:
@@ -2092,28 +2060,26 @@ def test_workload_deadline_summary_retains_the_completed_batch(
 ) -> None:
     module = _load_module()
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "github_matrix": {
-                    "include": [
-                        {
-                            "patterns": "player_team_season",
-                            "season_start": "2023",
-                            "season_end": "2023",
-                            "season_types": "Playoffs",
-                        },
-                        {
-                            "patterns": "player_team_season",
-                            "season_start": "2024",
-                            "season_end": "2024",
-                            "season_types": "Regular Season",
-                        },
-                    ]
-                }
+    _write_manifest(
+        manifest_path,
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "player_team_season",
+                        "season_start": "2023",
+                        "season_end": "2023",
+                        "season_types": "Playoffs",
+                    },
+                    {
+                        "patterns": "player_team_season",
+                        "season_start": "2024",
+                        "season_end": "2024",
+                        "season_types": "Regular Season",
+                    },
+                ]
             }
-        ),
-        encoding="utf-8",
+        },
     )
 
     class FakeRegistry:

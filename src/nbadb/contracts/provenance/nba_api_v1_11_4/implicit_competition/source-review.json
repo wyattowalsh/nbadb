@@ -1,0 +1,309 @@
+{
+  "authority_identities": {
+    "a1_2a_receipt_sha256": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21",
+    "a1_2a_review_sha256": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0",
+    "a1_2b_receipt_sha256": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b",
+    "a1_2b_review_sha256": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40",
+    "a1_2c_receipt_sha256": "1efc04501c0bc0d0d2db1f84649ef11cbd86118851d3191cfa1eb365261b16d3",
+    "a1_2c_review_sha256": "6fb52dd0efbf0c25007f8d6f894a1904648b4572339333a840ba51262b511421",
+    "a1_2c_source_review_sha256": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589",
+    "competition_applicability_resource_sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53",
+    "competition_occurrence_resource_sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700",
+    "competition_value_resource_sha256": "cfb93458f5efb569995ddccaf33ae37c0c312e25e09d0649c307999ec0057c44",
+    "distribution_record_authority_sha256": "c644ee6a70347b2f49a0064d237aebaaf82f4522e2b78faf5347afe99c516aa8",
+    "implicit_evidence_authority_sha256": "96a166d692a07becea6a0a011072c20bae95833487ce092ee0a02debee5143ac",
+    "implicit_evidence_canonicalization_sha256": "d58db0edc23f101e5bff8ef086b4dcecc48730b77239c5f3c176a1ce24991e99",
+    "implicit_evidence_payload_sha256": "905bfadce66e678af78415347c5c3a6dd4d575149b8848b6b0473b80aa0bcebb",
+    "implicit_evidence_receipt_policy_sha256": "a53080ffbeafd3196ab4f258c508c54ac771af43abccf7c675fbf75e641dc4bd",
+    "implicit_evidence_resource_sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba",
+    "registry_source_sha256": "86cb7d7e3d63d9e864480ccd44d89f3d2efb5c1b3037d8432f54df4ef9e7fe05",
+    "request_surface_resource_sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608",
+    "runtime_contract_resource_sha256": "114963fa48fc13c2c850f5261f368925f2e8b81c57129e6b3d7cfae6ed921790"
+  },
+  "authority_sha256": "cfb8b6f52204d645a8206a7cf5799c76a8aed4c37990339c489f4698a5f721a3",
+  "canonicalization": {
+    "allow_nan": false,
+    "authority_sha256_basis": "canonical minified UTF-8 JSON of the exact projection named by authority_sha256_fields",
+    "authority_sha256_fields": [
+      "authority_identities",
+      "canonicalization_sha256",
+      "data_green_asserted",
+      "disposition",
+      "evidence_limitations",
+      "external_effects",
+      "findings",
+      "global_completion_asserted",
+      "issuer_repair_history",
+      "live_operations_admissible",
+      "model_green_asserted",
+      "network_used",
+      "publication_admissible",
+      "review_id",
+      "review_scope",
+      "reviewed_inputs",
+      "reviewer_role",
+      "schema",
+      "schema_version",
+      "semantic_review",
+      "source_review",
+      "task_id",
+      "validation"
+    ],
+    "canonicalization_sha256_basis": "canonical minified UTF-8 JSON of the complete canonicalization object",
+    "digest_serialization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False)",
+    "duplicate_keys": "reject",
+    "ensure_ascii": false,
+    "indent": 2,
+    "payload_sha256_basis": "canonical minified UTF-8 JSON of the complete payload with payload_sha256 omitted after authority_sha256 is sealed",
+    "sort_keys": true,
+    "trailing_newline": "single_lf"
+  },
+  "canonicalization_sha256": "bc7963a2135272174cf1959733d0b18e8a5caedd1ea1b1529430442d54130817",
+  "data_green_asserted": false,
+  "disposition": "pass",
+  "evidence_limitations": [
+    "This is an offline source-input admission review. It does not establish endpoint support, provider availability, response success or emptiness, upstream unavailability, a terminal request state, extraction completeness, or competition propagation owned by A1.2e.",
+    "The 160 dynamic cells require a future exact ReceiptBoundCompetitionRootV1 envelope, matching complete typed variant evidence, the exact root-binding row, and the matching producer/source receipt. No common envelope, endpoint name, LeagueID default, ID shape, or history-only inference can resolve a competition.",
+    "The four fixed static cells are authorized only by their exact pinned getter/source/data chains. The other 16 static cells are root_not_exposed and are not endpoint-unsupported, provider-unavailable, upstream-unavailable, or terminal.",
+    "The independent review used the installed pinned nba-api package and current local source authorities without network or provider calls. It did not inspect or import a future A1.2d compiler.",
+    "No MODEL-GREEN, DATA-GREEN, live-operation, global-completion, GitHub Actions, Kaggle, publication, remote-readback, or database state is established."
+  ],
+  "external_effects": [
+    "Created only this local A1.2d independent source-input review artifact. No evidence input, implementation/shared path, Git index, commit, push, network, provider, VPN, GitHub Actions, Kaggle, publication, download, or database mutation occurred."
+  ],
+  "findings": [],
+  "global_completion_asserted": false,
+  "issuer_repair_history": [
+    {
+      "candidate_file_sha256": "828c6ce4d81ac7f8b91566b9239f258c18fe2449360d02777091e8d9b4ed1c93",
+      "disposition": "superseded_before_review",
+      "finding": "volatile issued_at was included in the evidence authority"
+    },
+    {
+      "candidate_file_sha256": "3f60a2dd5675ac64506654b729272a1d3c825dc76bbf2931e2a4bab642d47f57",
+      "disposition": "superseded_before_review",
+      "finding": "canonicalization semantics were not bound by canonicalization_sha256 in the authority projection"
+    },
+    {
+      "candidate_file_sha256": "e0ecf73281376507ef2f55bc4632222054fc65cdd571427df711c861adca0a7b",
+      "disposition": "superseded_before_review",
+      "finding": "the common receipt envelope did not require an exact root binding and complete typed producer variant"
+    },
+    {
+      "candidate_file_sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba",
+      "disposition": "accepted_for_independent_review",
+      "finding": null
+    }
+  ],
+  "live_operations_admissible": false,
+  "model_green_asserted": false,
+  "network_used": false,
+  "payload_sha256": "fddd62b89999ef7a1d43ded8aef6f5511c6ffe0d0c1884125b9b54ce41c172b2",
+  "publication_admissible": false,
+  "review_id": "A1.2d/source-input-admission",
+  "review_scope": "sealed_implicit_competition_root_source_input_admission_only",
+  "reviewed_inputs": [
+    {
+      "authority_sha256": "96a166d692a07becea6a0a011072c20bae95833487ce092ee0a02debee5143ac",
+      "canonicalization_sha256": "d58db0edc23f101e5bff8ef086b4dcecc48730b77239c5f3c176a1ce24991e99",
+      "network_used_by_issuer": false,
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/implicit-competition-root-evidence.json",
+      "payload_sha256": "905bfadce66e678af78415347c5c3a6dd4d575149b8848b6b0473b80aa0bcebb",
+      "receipt_bound_root_policy_sha256": "a53080ffbeafd3196ab4f258c508c54ac771af43abccf7c675fbf75e641dc4bd",
+      "schema": "ImplicitCompetitionRootEvidenceV1",
+      "sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba"
+    }
+  ],
+  "reviewer_role": "independent-offline-source-input-reviewer",
+  "schema": "IndependentSourceReviewV1",
+  "schema_version": 1,
+  "semantic_review": {
+    "combined_admitted_cell_counts": {
+      "alias_role_competition_cells": 815,
+      "endpoint_competition_cells": 735,
+      "parameter_axis_competition_cells": 740
+    },
+    "competition_count": 5,
+    "explicit_partition": {
+      "alias_count": 126,
+      "physical_endpoint_count": 111
+    },
+    "implicit_partition": {
+      "alias_count": 36,
+      "live_alias_count": 4,
+      "physical_endpoint_count": 36,
+      "static_alias_count": 4,
+      "stats_alias_count": 28
+    },
+    "live_root_evidence": [
+      {
+        "endpoint_contract_sha256": "f04d41475e536093d10df0790e29b01fd7f456a9551ab3dc460a9d633a0f6aa0",
+        "game_id_field_evidence_sha256": "5b475e67edeeaa2091c8c9273ca64bf31e6b405c6480550f2d025079f66843ab",
+        "game_id_json_path": "$.games.gameId",
+        "per_game_receipt_join_required": true,
+        "provider_endpoint_id": "Odds",
+        "request_level_competition_assignment_permitted": false,
+        "result_set_fields_sha256": "44bce4930d4b50101ea7c00aeef88f19c183c54a98a6fecac4dea3ec6b03a295",
+        "root_binding_sha256": "8023c25f6abcd107519221f1425f8116a65d3de6f948074d58603d76785de736",
+        "root_mode": "response_game_join"
+      },
+      {
+        "endpoint_contract_sha256": "880d9a634763d43b7fefaa76948904dbc39f3f1ee2f3446ca0736bed18e44b5a",
+        "game_id_field_evidence_sha256": "4ef7214c5990360b9b06a39537e92ccd04b1e29a0acd4e907f9daad7e0013bb7",
+        "game_id_json_path": "$.scoreboard.games.gameId",
+        "games_result_set_fields_sha256": "851a77fad5b7180921b3be308ec2959f25686ba6147c895f7ba458485d3d29fc",
+        "league_and_game_receipt_agreement_required": true,
+        "league_id_field_evidence_sha256": "26d3932ad79d7edec2e8d43fca1757268b92b028caa716608044e57bfe014241",
+        "league_id_json_path": "$.scoreboard.leagueId",
+        "league_result_set_fields_sha256": "9f8cfa9360e058936eaac8b0d22461434b72629f0ad1f71986e806528fbc7978",
+        "provider_endpoint_id": "ScoreBoard",
+        "raw_only_reference_path_confirmed": true,
+        "raw_parser_input_required": true,
+        "root_binding_sha256": "beedbe4336a873a4f228bfbdffab0b8222a392ca2698d794e7a2f7237ccf5b29",
+        "root_mode": "response_game_collection"
+      }
+    ],
+    "package_census": {
+      "package_physical_endpoint_count": 147,
+      "package_registered_alias_count": 162
+    },
+    "projected_cells": {
+      "alias_competition_cell_count": 180,
+      "alias_root_state_counts": {
+        "fixed_static_root": 4,
+        "receipt_bound_root_required": 160,
+        "root_not_exposed": 16
+      },
+      "physical_competition_cell_count": 180,
+      "physical_root_state_counts": {
+        "fixed_static_root": 4,
+        "receipt_bound_root_required": 160,
+        "root_not_exposed": 16
+      }
+    },
+    "receipt_bound_root_policy": {
+      "common_envelope_alone_authorizes_resolution": false,
+      "common_producer_evidence_field_count": 6,
+      "exact_root_binding_required": true,
+      "observation_projection_field_count": 12,
+      "receipt_required_field_count": 14,
+      "receipt_resolution_required_input_count": 4,
+      "root_observation_digest_basis_defined": true,
+      "self_reference_rules_defined": true,
+      "static_receipt_resolution_permitted": false,
+      "static_required_chain_field_count": 12,
+      "typed_variant_modes": [
+        "request_parameter",
+        "response_game_collection",
+        "response_game_join"
+      ]
+    },
+    "root_binding_count": 36,
+    "root_kind_counts": {
+      "game": 30,
+      "player": 1,
+      "static": 4,
+      "team": 1
+    },
+    "root_mode_counts": {
+      "embedded_static_dataset": 4,
+      "request_parameter": 30,
+      "response_game_collection": 1,
+      "response_game_join": 1
+    },
+    "static_root_chain_count": 4,
+    "static_root_chains": [
+      {
+        "chain_sha256": "92a2d621f56d2c91303851eddf7dd43ef99fd02d7b9996226a2c28c65f2184cb",
+        "dataset_id": "static_players",
+        "fixed_league_id": "00",
+        "getter_name": "get_players",
+        "row_count": 5103,
+        "source_rows_sha256": "6f5d5a10a0c5d74850dd7e46118e59b71302185e4bb70394d068475abdf4bec5",
+        "source_symbol": "players"
+      },
+      {
+        "chain_sha256": "25cf8cdc8f4f73fed1a415ef98f91ecbc1f6d6535046a7eef2d8f4a029fa19f9",
+        "dataset_id": "static_teams",
+        "fixed_league_id": "00",
+        "getter_name": "get_teams",
+        "row_count": 30,
+        "source_rows_sha256": "966358b390723819e1ec06172c0e96a3a025d0109340659d32f3fa80ed6cfb18",
+        "source_symbol": "teams"
+      },
+      {
+        "chain_sha256": "b1716363337cc22255e990de26e5a53362d487cf32d5824b245f29830cbf06b0",
+        "dataset_id": "static_wnba_players",
+        "fixed_league_id": "10",
+        "getter_name": "get_wnba_players",
+        "row_count": 1147,
+        "source_rows_sha256": "2b6386a3777b15a4974dff256e210ab8c9485a58f9193eaa52e21f5c48b2c555",
+        "source_symbol": "wnba_players"
+      },
+      {
+        "chain_sha256": "d10231f8a1f59829947284b61d642f235ed51522c0a2e551210a84cb05399a5a",
+        "dataset_id": "static_wnba_teams",
+        "fixed_league_id": "10",
+        "getter_name": "get_wnba_teams",
+        "row_count": 13,
+        "source_rows_sha256": "6117405e88bb0df60d5e5bd6c417ff7284717d54cb06c3860c059a8e70135724",
+        "source_symbol": "wnba_teams"
+      }
+    ]
+  },
+  "source_review": {
+    "authority_subdigests": {
+      "alias_competition_cells_sha256": "b7ae01ce242c25945cac8d39fedd756d3e17bdb58609e804f425d6b8577e0c27",
+      "competition_values_sha256": "5541d21711a620c0a0d0f8007d177cbe8c9512e51fd75c0d2f6f7e58dffb5f93",
+      "immutable_inputs_sha256": "60a23f5f08f992c75750d0d40a61b8d1bcb81e8c667368989da0fbd7f53d737a",
+      "implicit_alias_complement_sha256": "54f1da07f08dc206e4b7dd5059e1c7e8d978adb56713cdb3d838f772bd487585",
+      "live_raw_root_evidence_sha256": "f45dd10412bbd8a45f846b0ebb8f046848d997f0162c4d040baab61fd17ef13f",
+      "physical_competition_cells_sha256": "655f0e189bf48905b85d4fe3efca6352b05a2e430f4bf1fbb2121edd49d91fbc",
+      "repo_source_inventory_sha256": "13e6d09917b25cb0630c97014458f374e262997ca402eda0687facfa23b9b57b",
+      "root_bindings_sha256": "b0ad3c2f49ec579011e23ce483f730ccd55d7367fd8bfff2e7ae588268e283bb",
+      "source_authorities_sha256": "33c4183f786d633a5a064f88550e8339838f75a294f52d1ea8b6d7fcbe23c1d3",
+      "static_root_chains_sha256": "98cf6c43448f6a648dd9d482d86eb00fbb3306b08c63d0a2767caefe5b31089b",
+      "workspace_barrier_sha256": "af33b8ad1baa2c5517b0e2e302a46c4e220161fe71fb6f56bdc309d42f99c064"
+    },
+    "distribution_record": {
+      "authority_sha256": "c644ee6a70347b2f49a0064d237aebaaf82f4522e2b78faf5347afe99c516aa8",
+      "distribution_name": "nba-api",
+      "distribution_version": "1.11.4",
+      "entries_sha256": "a4ce72f52e3a54dd6a2425121c12a9208fca060830569e1fe2115daaa114c1aa",
+      "entry_count": 195,
+      "hashed_entry_count": 194
+    },
+    "immutable_input_count": 39,
+    "immutable_input_file_hashes_current": true,
+    "network_used_by_independent_review": false,
+    "repo_source_file_count": 13,
+    "repo_source_file_hashes_current": true,
+    "source_authority_projections_exact": true
+  },
+  "task_id": "A1.2d-source-inputs",
+  "validation": {
+    "alias_cells_independent_exact_equality": true,
+    "authority_payload_and_all_subdigests_recomputed": true,
+    "canonical_pretty_json_input": "pass",
+    "canonical_pretty_json_review": "pass",
+    "common_envelope_and_typed_variant_contract_reviewed": true,
+    "duplicate_rejecting_and_nonfinite_rejecting_json_parse": "pass",
+    "exclusive_writer_path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/source-review.json",
+    "future_a1_2d_compiler_imported": false,
+    "git_index_mutation_performed": false,
+    "implementation_or_shared_paths_modified": false,
+    "installed_distribution_record_recomputed": true,
+    "network_used": false,
+    "physical_cells_independent_exact_equality": true,
+    "provider_calls_performed": false,
+    "request_parameter_bindings_independent_exact_equality": true,
+    "source_authority_paths_inspected": true,
+    "source_input_modified": false,
+    "static_getter_source_data_chains_independent_exact_equality": true,
+    "unmerged_review_path_count_before_write": 0,
+    "workspace_branch": "main",
+    "workspace_head_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5",
+    "workspace_origin_main_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5",
+    "workspace_status_line_count_before_write": 513
+  }
+}

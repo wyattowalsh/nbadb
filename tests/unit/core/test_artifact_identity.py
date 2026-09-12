@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
-from typing import TYPE_CHECKING
+import os
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
 import nbadb.core.artifact_identity as artifact_identity
 from nbadb.core.artifact_identity import (
     ASSURED_ARTIFACT_MANIFEST_NAME,
+    SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME,
+    assert_no_private_capture_sentinels,
     build_assured_artifact_manifest,
+    inventory_regular_tree,
     main,
     verify_assured_artifact_manifest,
 )
+from nbadb.extract.bronze import BronzeCaptureStore, BronzeLimits
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -51,6 +58,122 @@ def test_build_and_verify_manifest_round_trip(tmp_path: Path) -> None:
     ]
 
 
+def test_general_inventory_supports_caller_owned_exclusions(tmp_path: Path) -> None:
+    (tmp_path / "included.bin").write_bytes(b"included")
+    (tmp_path / "private.lock").write_bytes(b"lock")
+
+    inventory = inventory_regular_tree(
+        tmp_path,
+        excluded_paths=frozenset({"private.lock"}),
+    )
+
+    assert inventory == [
+        {
+            "path": "included.bin",
+            "bytes": len(b"included"),
+            "sha256": hashlib.sha256(b"included").hexdigest(),
+        }
+    ]
+
+
+def test_artifact_identity_apis_accept_exact_expected_root_identity(tmp_path: Path) -> None:
+    _write_artifact(tmp_path)
+    observed = tmp_path.stat()
+    expected = (observed.st_dev, observed.st_ino)
+
+    inventory = inventory_regular_tree(tmp_path, expected_root_identity=expected)
+    assert inventory
+    assert_no_private_capture_sentinels(tmp_path, expected_root_identity=expected)
+    manifest_path = build_assured_artifact_manifest(
+        tmp_path,
+        chain_id="full-20260711",
+        source_sha=_SOURCE_SHA,
+        coverage_fingerprint=_COVERAGE_FINGERPRINT,
+        expected_root_identity=expected,
+    )
+    manifest = verify_assured_artifact_manifest(
+        tmp_path,
+        expected_root_identity=expected,
+    )
+
+    assert manifest_path == tmp_path / ASSURED_ARTIFACT_MANIFEST_NAME
+    assert manifest["file_count"] == len(inventory)
+
+
+@pytest.mark.parametrize("invalid_identity", [True, 1.5, [1, 2], (-1, 2)])
+def test_artifact_identity_apis_reject_invalid_expected_root_identity(
+    tmp_path: Path,
+    invalid_identity: object,
+) -> None:
+    _write_artifact(tmp_path)
+    build_assured_artifact_manifest(
+        tmp_path,
+        chain_id="full-20260711",
+        source_sha=_SOURCE_SHA,
+        coverage_fingerprint=_COVERAGE_FINGERPRINT,
+    )
+    manifest_path = tmp_path / ASSURED_ARTIFACT_MANIFEST_NAME
+    before = manifest_path.read_bytes()
+    invalid = cast("tuple[int, int]", invalid_identity)
+
+    with pytest.raises(ValueError, match="expected root identity is invalid"):
+        inventory_regular_tree(tmp_path, expected_root_identity=invalid)
+    with pytest.raises(ValueError, match="expected root identity is invalid"):
+        assert_no_private_capture_sentinels(tmp_path, expected_root_identity=invalid)
+    with pytest.raises(ValueError, match="expected root identity is invalid"):
+        build_assured_artifact_manifest(
+            tmp_path,
+            chain_id="full-20260711",
+            source_sha=_SOURCE_SHA,
+            coverage_fingerprint=_COVERAGE_FINGERPRINT,
+            expected_root_identity=invalid,
+        )
+    with pytest.raises(ValueError, match="expected root identity is invalid"):
+        verify_assured_artifact_manifest(tmp_path, expected_root_identity=invalid)
+
+    assert manifest_path.read_bytes() == before
+
+
+def test_artifact_identity_rejects_foreign_root_before_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_artifact(tmp_path)
+    manifest_path = build_assured_artifact_manifest(
+        tmp_path,
+        chain_id="full-20260711",
+        source_sha=_SOURCE_SHA,
+        coverage_fingerprint=_COVERAGE_FINGERPRINT,
+    )
+    before = manifest_path.read_bytes()
+    observed = tmp_path.stat()
+    foreign = (observed.st_dev, observed.st_ino + 1)
+
+    def unexpected_effect(*args: object, **kwargs: object) -> object:
+        raise AssertionError("artifact traversal must not run for foreign root authority")
+
+    monkeypatch.setattr(artifact_identity, "_scan_public_tree_descriptor", unexpected_effect)
+    monkeypatch.setattr(artifact_identity, "_inventory_from_descriptor", unexpected_effect)
+    monkeypatch.setattr(artifact_identity, "_read_manifest", unexpected_effect)
+
+    with pytest.raises(ValueError, match="root differs from expected authority"):
+        inventory_regular_tree(tmp_path, expected_root_identity=foreign)
+    with pytest.raises(ValueError, match="root differs from expected authority"):
+        assert_no_private_capture_sentinels(tmp_path, expected_root_identity=foreign)
+    with pytest.raises(ValueError, match="root differs from expected authority"):
+        build_assured_artifact_manifest(
+            tmp_path,
+            chain_id="full-20260711",
+            source_sha=_SOURCE_SHA,
+            coverage_fingerprint=_COVERAGE_FINGERPRINT,
+            expected_root_identity=foreign,
+        )
+    with pytest.raises(ValueError, match="root differs from expected authority"):
+        verify_assured_artifact_manifest(tmp_path, expected_root_identity=foreign)
+
+    assert manifest_path.read_bytes() == before
+
+
 def test_verify_rejects_tampered_artifact(tmp_path: Path) -> None:
     _write_artifact(tmp_path)
     build_assured_artifact_manifest(
@@ -63,6 +186,299 @@ def test_verify_rejects_tampered_artifact(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="contents do not match"):
         verify_assured_artifact_manifest(tmp_path)
+
+
+@pytest.mark.parametrize("mutation", ["add", "unlink", "replace", "rewrite"])
+def test_verify_rejects_directory_entry_mutation_after_file_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    root = tmp_path / "public"
+    root.mkdir()
+    data_path = root / "data.bin"
+    data_path.write_bytes(b"original")
+    build_assured_artifact_manifest(
+        root,
+        chain_id="full-20260711",
+        source_sha=_SOURCE_SHA,
+        coverage_fingerprint=_COVERAGE_FINGERPRINT,
+    )
+    replacement = tmp_path / "foreign.bin"
+    replacement.write_bytes(b"foreign")
+    original_hash = artifact_identity._hash_regular_descriptor
+    mutated = False
+
+    def mutate_after_hash(descriptor: int, *, display_path: str) -> tuple[int, str]:
+        nonlocal mutated
+        result = original_hash(descriptor, display_path=display_path)
+        if display_path == "data.bin" and not mutated:
+            mutated = True
+            if mutation == "add":
+                (root / "extra.bin").write_bytes(b"extra")
+            elif mutation == "unlink":
+                data_path.unlink()
+            elif mutation == "replace":
+                os.replace(replacement, data_path)
+            else:
+                data_path.write_bytes(b"foreign-in-place")
+        return result
+
+    monkeypatch.setattr(artifact_identity, "_hash_regular_descriptor", mutate_after_hash)
+
+    with pytest.raises(ValueError, match="changed"):
+        verify_assured_artifact_manifest(root)
+
+    assert mutated is True
+
+
+@pytest.mark.parametrize("mutation", ["add", "unlink", "replace", "rewrite"])
+def test_private_sentinel_scan_rejects_mutation_after_file_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    root = tmp_path / "public"
+    root.mkdir()
+    data_path = root / "data.bin"
+    data_path.write_bytes(b"public")
+    replacement = tmp_path / "foreign.bin"
+    replacement.write_bytes(b'{"kind":"logical_call"}')
+    original_scan = artifact_identity._scan_descriptor_for_private_capture
+    mutated = False
+
+    def mutate_after_scan(descriptor: int, *, display_path: str) -> None:
+        nonlocal mutated
+        original_scan(descriptor, display_path=display_path)
+        if display_path == "data.bin" and not mutated:
+            mutated = True
+            if mutation == "add":
+                (root / "extra.bin").write_bytes(b'{"kind":"logical_call"}')
+            elif mutation == "unlink":
+                data_path.unlink()
+            elif mutation == "replace":
+                os.replace(replacement, data_path)
+            else:
+                data_path.write_bytes(b'{"kind":"logical_call"}')
+
+    monkeypatch.setattr(
+        artifact_identity,
+        "_scan_descriptor_for_private_capture",
+        mutate_after_scan,
+    )
+
+    with pytest.raises(ValueError, match="changed"):
+        assert_no_private_capture_sentinels(root)
+
+    assert mutated is True
+
+
+@pytest.mark.parametrize(
+    "sentinel",
+    [
+        b"private_parser_input_generation",
+        b"nbadb_exact_decoded_response_text_utf8",
+        b"nba_api_static_canonical_json_utf8",
+    ],
+)
+def test_public_artifact_rejects_private_capture_sentinels(
+    tmp_path: Path,
+    sentinel: bytes,
+) -> None:
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "leak.bin").write_bytes(b"prefix-" + sentinel + b"-suffix")
+
+    with pytest.raises(ValueError, match="private parser-input sentinel"):
+        assert_no_private_capture_sentinels(tmp_path)
+    with pytest.raises(ValueError, match="private parser-input sentinel"):
+        build_assured_artifact_manifest(
+            tmp_path,
+            chain_id="full-20260711",
+            source_sha=_SOURCE_SHA,
+            coverage_fingerprint=_COVERAGE_FINGERPRINT,
+        )
+
+
+def test_successor_report_exclusion_rejects_unvalidated_private_identity_payload(
+    tmp_path: Path,
+) -> None:
+    report = tmp_path / SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME
+    report.write_bytes(b'{"kind":"private_parser_input_generation"}\n')
+    (tmp_path / "data.bin").write_bytes(b"public")
+
+    with pytest.raises(ValueError, match="private parser-input sentinel"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+    with pytest.raises(ValueError, match="not canonical assurance"):
+        assert_no_private_capture_sentinels(
+            tmp_path,
+            sentinel_excluded_paths=frozenset({SUCCESSOR_TERMINAL_ASSURANCE_REPORT_NAME}),
+        )
+
+    with pytest.raises(ValueError, match="unsupported public control"):
+        assert_no_private_capture_sentinels(
+            tmp_path,
+            sentinel_excluded_paths=frozenset({"data.bin"}),
+        )
+
+
+def test_public_artifact_rejects_a_real_private_capture_store_layout(
+    tmp_path: Path,
+) -> None:
+    public_root = tmp_path / "public"
+    public_root.mkdir()
+    with (
+        BronzeCaptureStore(
+            tmp_path / "private",
+            limits=BronzeLimits(
+                max_response_bytes=1_000,
+                max_generation_stored_bytes=10_000,
+                minimum_free_bytes=1,
+                max_receipt_bytes=1_000,
+                max_receipt_count=10,
+            ),
+            public_roots=[public_root],
+        ) as store,
+        pytest.raises(ValueError, match="private parser-input layout path"),
+    ):
+        assert_no_private_capture_sentinels(store.root)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "blobs/sha256/aa/" + "a" * 64 + ".payload.gz",
+        "receipts/attempts/bb/" + "b" * 64 + ".json",
+        "receipts/calls/cc/" + "c" * 64 + ".json",
+    ],
+)
+def test_public_artifact_rejects_private_capture_layout_signatures(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    target = tmp_path / relative_path
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"opaque-private-bytes")
+
+    with pytest.raises(ValueError, match="private parser-input layout path"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["response_attempt", "logical_call"])
+def test_public_artifact_rejects_renamed_private_receipt_json(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    (tmp_path / "renamed-public-looking.bin").write_text(
+        json.dumps({"schema_version": 5, "kind": kind}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="private parser-input"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["response_attempt", "logical_call"])
+def test_public_artifact_rejects_large_whitespace_private_receipt(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    target = tmp_path / "large-public-looking.bin"
+    padding = b" " * (2 * 1024 * 1024 + 17)
+    target.write_bytes(b'{"kind"' + padding + b":" + padding + b'"' + kind.encode() + b'"}')
+
+    with pytest.raises(ValueError, match="private parser-input sentinel"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["response_attempt", "logical_call"])
+def test_public_artifact_rejects_renamed_whitespace_private_gzip(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    payload = b'{\n\t"kind" \r\n:\t "' + kind.encode() + b'"\n}'
+    (tmp_path / "public-looking-cache.bin").write_bytes(
+        gzip.compress(payload, compresslevel=6, mtime=0)
+    )
+
+    with pytest.raises(ValueError, match="private parser-input sentinel"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+def test_public_artifact_rejects_private_payload_suffix_in_any_directory(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "exports" / "renamed.payload.gz"
+    target.parent.mkdir()
+    target.write_bytes(gzip.compress(b"otherwise opaque", mtime=0))
+
+    with pytest.raises(ValueError, match="private parser-input layout path"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+def test_public_artifact_allows_legitimate_gzip_without_private_evidence(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "legitimate-public-export.gz").write_bytes(
+        gzip.compress(b'{"kind":"public_export","rows":42}', mtime=0)
+    )
+
+    assert_no_private_capture_sentinels(tmp_path)
+
+
+def test_public_artifact_rejects_malformed_gzip_with_private_structure(
+    tmp_path: Path,
+) -> None:
+    payload = b'{"kind":' + b" " * (artifact_identity._PRIVATE_GZIP_READ_BYTES * 2)
+    compressed = gzip.compress(payload, mtime=0)
+    (tmp_path / "truncated-public-looking.bin").write_bytes(compressed[:-8])
+
+    with pytest.raises(ValueError, match="malformed or incomplete gzip"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+def test_private_gzip_inspection_limit_fails_closed_for_every_unfinished_stream(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(artifact_identity, "_MAX_PRIVATE_GZIP_DECOMPRESSED_BYTES", 64)
+    monkeypatch.setattr(artifact_identity, "_MIN_PRIVATE_GZIP_DECOMPRESSED_BYTES", 64)
+    monkeypatch.setattr(artifact_identity, "_MAX_PRIVATE_GZIP_EXPANSION_RATIO", 1)
+
+    ordinary_root = tmp_path / "ordinary"
+    ordinary_root.mkdir()
+    (ordinary_root / "ordinary.gz").write_bytes(gzip.compress(b"x" * 4_096, mtime=0))
+    with pytest.raises(ValueError, match="cannot be fully inspected"):
+        assert_no_private_capture_sentinels(ordinary_root)
+
+    suspicious_root = tmp_path / "suspicious"
+    suspicious_root.mkdir()
+    suspicious_payload = b'{"kind":' + b" " * 4_096 + b'"logical_call"}'
+    (suspicious_root / "renamed.bin").write_bytes(gzip.compress(suspicious_payload, mtime=0))
+    with pytest.raises(ValueError, match="cannot be fully inspected"):
+        assert_no_private_capture_sentinels(suspicious_root)
+
+
+def test_private_marker_starting_after_gzip_cap_is_not_accepted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(artifact_identity, "_MAX_PRIVATE_GZIP_DECOMPRESSED_BYTES", 64)
+    monkeypatch.setattr(artifact_identity, "_MIN_PRIVATE_GZIP_DECOMPRESSED_BYTES", 64)
+    monkeypatch.setattr(artifact_identity, "_MAX_PRIVATE_GZIP_EXPANSION_RATIO", 1)
+    payload = b" " * 65 + b'{"kind":"logical_call"}'
+    (tmp_path / "public-looking.bin").write_bytes(gzip.compress(payload, mtime=0))
+
+    with pytest.raises(ValueError, match="cannot be fully inspected"):
+        assert_no_private_capture_sentinels(tmp_path)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="requires POSIX FIFOs")
+def test_public_artifact_rejects_special_file_without_reading_it(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "private-stream")
+
+    with pytest.raises(ValueError, match="not a regular file"):
+        assert_no_private_capture_sentinels(tmp_path)
 
 
 def test_verify_rejects_expected_identity_mismatch(tmp_path: Path) -> None:
@@ -106,6 +522,51 @@ def test_verify_rejects_manifest_with_inconsistent_tree_fingerprint(tmp_path: Pa
     manifest_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ValueError, match="tree fingerprint is inconsistent"):
+        verify_assured_artifact_manifest(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("extra_key", "fields are invalid"),
+        ("duplicate_key", "cannot be read safely"),
+        ("nonfinite", "cannot be read safely"),
+        ("noncanonical", "bytes are not canonical"),
+        ("trailing_json", "cannot be read safely"),
+    ],
+)
+def test_verify_rejects_noncanonical_or_extended_manifest_authority(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    _write_artifact(tmp_path)
+    manifest_path = build_assured_artifact_manifest(
+        tmp_path,
+        chain_id="full-20260711",
+        source_sha=_SOURCE_SHA,
+        coverage_fingerprint=_COVERAGE_FINGERPRINT,
+    )
+    encoded = manifest_path.read_bytes()
+    payload = json.loads(encoded)
+    if mutation == "extra_key":
+        payload["foreign_unvalidated_authority"] = {"value": "foreign"}
+        tampered = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+    elif mutation == "duplicate_key":
+        tampered = b'{\n  "bytes": 0,\n' + encoded[2:]
+    elif mutation == "nonfinite":
+        tampered = encoded.replace(
+            f'"bytes": {payload["bytes"]}'.encode(),
+            b'"bytes": NaN',
+            1,
+        )
+    elif mutation == "noncanonical":
+        tampered = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    else:
+        tampered = encoded + b"{}"
+    manifest_path.write_bytes(tampered)
+
+    with pytest.raises(ValueError, match=message):
         verify_assured_artifact_manifest(tmp_path)
 
 

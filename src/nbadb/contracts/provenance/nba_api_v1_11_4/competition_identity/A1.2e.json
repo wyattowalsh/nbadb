@@ -1,0 +1,1996 @@
+{
+  "absent_creation_inputs": [
+    "src/nbadb/core/nba_api_competition_identity.py",
+    "src/nbadb/core/nba_api_competition_identity_verifier.py",
+    "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+    "tests/unit/core/test_nba_api_competition_identity.py",
+    "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+    "artifacts/assurance/complete-nba-api-sink/A1.2e/receipt.json"
+  ],
+  "accepted_fact_ids": [
+    "F04"
+  ],
+  "accepted_fact_slugs": [
+    "competition-closure"
+  ],
+  "binding_strategy_counts": {
+    "explicit_applicability_cell": 635,
+    "fixed_static_root": 4,
+    "receipt_bound_dynamic_root": 160,
+    "root_not_exposed": 16
+  },
+  "checked_resource_contract": {
+    "canonical_pretty_json_required": true,
+    "generated_no_drift_required": true,
+    "independent_proof": {
+      "required": true,
+      "verifier_id": "nbadb_independent_competition_identity_v1"
+    },
+    "independent_proof_exact_keys": [
+      "required",
+      "verifier_id"
+    ],
+    "independent_proof_required": true,
+    "kind": "nbadb_nba_api_competition_identity_authority",
+    "path": "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+    "provider_availability_values": [
+      "unknown"
+    ],
+    "schema_version": 1,
+    "strict_duplicate_key_rejection_required": true,
+    "strict_nonfinite_rejection_required": true,
+    "strict_unknown_field_rejection_required": true,
+    "top_level_key_count": 19,
+    "top_level_keys": [
+      "schema_version",
+      "kind",
+      "task_id",
+      "source_authorities",
+      "collision_census",
+      "domain_separators",
+      "identity_requirements",
+      "identity_requirements_sha256",
+      "qualified_surface_contracts",
+      "qualified_surface_contracts_sha256",
+      "denominator_counts",
+      "binding_strategy_counts",
+      "provider_request_policy",
+      "provider_availability_values",
+      "false_green_counters",
+      "collision_invariants",
+      "independent_proof",
+      "authority_sha256",
+      "payload_sha256"
+    ]
+  },
+  "checked_resource_digest_contract": {
+    "authority_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact checked-resource top-level object after every non-digest field is present and before authority_sha256 or payload_sha256 is added.",
+    "canonical_minified_json": {
+      "allow_nan": false,
+      "ensure_ascii": false,
+      "separators": [
+        ",",
+        ":"
+      ],
+      "sort_keys": true,
+      "terminal_newline": false
+    },
+    "canonical_pretty_json": {
+      "allow_nan": false,
+      "ensure_ascii": false,
+      "indent": 2,
+      "sort_keys": true,
+      "terminal_newline": true
+    },
+    "identity_requirements_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact 815-row identity_requirements array in requirement_id order.",
+    "payload_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact checked-resource top-level object including authority_sha256 and excluding only payload_sha256.",
+    "qualified_surface_contracts_sha256": "d63d7842e2e68544afe6fa3eb36566f5b4f29138770fe20e76718bce9133c4b4",
+    "qualified_surface_contracts_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact eight-row qualified_surface_contracts array in TaskPacket order, including each verified surface_contract_sha256.",
+    "requirement_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for {domain_separator:'nbadb.nba-api.competition-scope.v1',requirement:<the exact requirement row excluding only requirement_sha256>}.",
+    "role_binding_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact nested role_binding object excluding only role_binding_sha256.",
+    "surface_contract_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact surface-contract row excluding only surface_contract_sha256; the row itself contains its named domain_separator.",
+    "strict_duplicate_key_rejection_required": true,
+    "strict_nonfinite_rejection_required": true
+  },
+  "checked_resource_projection_contract": {
+    "exact_copy_fields": {
+      "binding_strategy_counts": "TaskPacket.binding_strategy_counts",
+      "collision_invariants": "TaskPacket.collision_invariants",
+      "denominator_counts": "TaskPacket.denominator_authority",
+      "domain_separators": "TaskPacket.domain_separators",
+      "false_green_counters": "TaskPacket.false_green_counters",
+      "provider_request_policy": "TaskPacket.provider_request_policy"
+    },
+    "exact_copy_semantics": "Each named checked-resource value must be copied from the authenticated TaskPacket with the exact nested keyset, exact scalar/container types, and exact value. Missing, additional, renamed, normalized, coerced, recomputed, or independently supplied nested values are forbidden.",
+    "nested_field_contracts": {
+      "binding_strategy_counts": {
+        "exact_keys": [
+          "explicit_applicability_cell",
+          "fixed_static_root",
+          "receipt_bound_dynamic_root",
+          "root_not_exposed"
+        ],
+        "value_type": "nonnegative_int_bool_forbidden"
+      },
+      "collision_invariants": {
+        "exact_keys": [
+          "competition_scope_prevents_cross_competition_collisions",
+          "glalum_ordered_role_bindings_required",
+          "implicit_competition_provider_parameter_injection_permitted",
+          "provider_request_sha256_replacement_permitted",
+          "root_not_exposed_promotion_permitted",
+          "source_spelling_or_history_authorizes_competition",
+          "unavailable_without_competition_qualified_authority_permitted",
+          "unqualified_downstream_identity_permitted"
+        ],
+        "value_type": "exact_bool"
+      },
+      "denominator_counts": {
+        "exact_keys": [
+          "competition_count",
+          "cumulative_alias_role_cell_count",
+          "cumulative_parameter_axis_cell_count",
+          "cumulative_parameter_axis_count",
+          "cumulative_physical_competition_cell_count",
+          "cumulative_projected_alias_role_count",
+          "dynamic_receipt_required_cell_count",
+          "executable_role_cell_count",
+          "explicit_physical_source_count",
+          "explicit_repo_alias_count",
+          "five_way_executable_cell_count",
+          "five_way_executable_family_count",
+          "fixed_static_root_cell_count",
+          "implicit_physical_source_count",
+          "implicit_repo_alias_count",
+          "live_physical_source_count",
+          "package_physical_source_count",
+          "package_registered_alias_count",
+          "root_not_exposed_cell_count",
+          "source_inventory_file_count",
+          "static_competition_cell_count",
+          "static_physical_source_count",
+          "stats_physical_source_count"
+        ],
+        "value_type": "nonnegative_int_bool_forbidden"
+      },
+      "domain_separators": {
+        "container_type": "exact_list[str]",
+        "exact_item_order": "TaskPacket.domain_separators order",
+        "value": [
+          "nbadb.nba-api.competition-scope.v1",
+          "nbadb.nba-api.source-request.v1",
+          "nbadb.nba-api.pagination-series.v1",
+          "nbadb.nba-api.pagination-page.v1",
+          "nbadb.nba-api.discovery-generation.v1",
+          "nbadb.nba-api.terminal-observation.v1",
+          "nbadb.nba-api.unavailable-evidence.v1",
+          "nbadb.nba-api.staging-occurrence.v1",
+          "nbadb.nba-api.entity.v1"
+        ]
+      },
+      "false_green_counters": {
+        "exact_keys": [
+          "cross_competition_identity_collision_count",
+          "data_green_claim_count",
+          "exact_remote_kaggle_download_verified_claim_count",
+          "full_assurance_complete_claim_count",
+          "glalum_cartesian_support_claim_count",
+          "glalum_role_collapse_count",
+          "global_completion_claim_count",
+          "history_source_name_or_url_inference_claim_count",
+          "id_shape_magnitude_or_prefix_inference_claim_count",
+          "implicit_competition_provider_parameter_injection_count",
+          "live_operations_admissible_claim_count",
+          "manual_database_interrogation_verified_claim_count",
+          "model_green_claim_count",
+          "nba_default_substitution_claim_count",
+          "provider_or_network_runtime_call_count",
+          "public_kaggle_publication_verified_claim_count",
+          "publication_admissible_claim_count",
+          "raw_provider_hash_replacement_count",
+          "root_not_exposed_promotion_count",
+          "simultaneous_vpn_capacity_verified_claim_count",
+          "synthetic_non_nba_period_claim_count",
+          "unknown_or_probe_required_promotion_count",
+          "unqualified_downstream_identity_count"
+        ],
+        "value_type": "nonnegative_int_bool_forbidden"
+      },
+      "provider_request_policy": {
+        "exact_keys": [
+          "implicit_competition_injection_permitted",
+          "provider_request_sha256_is_transport_evidence",
+          "provider_request_sha256_replacement_permitted",
+          "request_kind_discriminator_required",
+          "source_request_sha256_wraps_provider_request_and_competition",
+          "static_source_provider_request_sha256_is_null",
+          "static_source_uses_exact_static_chain_evidence",
+          "typed_canonical_provider_request_input_required",
+          "wire_parameters_remain_unchanged"
+        ],
+        "value_type": "exact_bool"
+      }
+    },
+    "other_top_level_projection_rules": {
+      "collision_census": "Use the exact keys and exact TaskPacket values required by collision_census_contract; source_inventory_inputs is the exact TaskPacket array in its exact order.",
+      "identity_requirements": "Use the exact compiled 815-row array governed by identity_requirements_contract and its independently recomputed digest.",
+      "independent_proof": "Exact copy of checked_resource_contract.independent_proof with exactly checked_resource_contract.independent_proof_exact_keys.",
+      "kind": "Exact checked_resource_contract.kind literal.",
+      "provider_availability_values": "Exact copy of checked_resource_contract.provider_availability_values with exact list container and order.",
+      "qualified_surface_contracts": "Exact copy of TaskPacket.qualified_surface_contracts with exact order and independently recomputed digest.",
+      "schema_version": "Exact nonnegative integer checked_resource_contract.schema_version; bool is forbidden.",
+      "source_authorities": "Exact projection governed by source_authorities_contract.",
+      "task_id": "Exact TaskPacket.task_id literal."
+    }
+  },
+  "collision_census_contract": {
+    "canonical_ordered_row_digest_sha256": "e0795472375627bccefab70ce77764875b03f3152cb44f046ba358d19fd1d7a9",
+    "direct_source_inventory_is_sufficient": true,
+    "exact_keys": [
+      "source_inventory_file_count",
+      "source_inventory_inputs",
+      "source_inventory_inputs_sha256",
+      "direct_source_inventory_is_sufficient",
+      "separate_authored_source_evidence_required",
+      "source_spelling_or_history_authorizes_competition"
+    ],
+    "separate_authored_source_evidence_required": false,
+    "source_inventory_file_count": 25,
+    "source_inventory_inputs_must_equal_task_packet_rows": true,
+    "source_spelling_or_history_authorizes_competition": false
+  },
+  "collision_invariants": {
+    "competition_scope_prevents_cross_competition_collisions": true,
+    "glalum_ordered_role_bindings_required": true,
+    "implicit_competition_provider_parameter_injection_permitted": false,
+    "provider_request_sha256_replacement_permitted": false,
+    "root_not_exposed_promotion_permitted": false,
+    "source_spelling_or_history_authorizes_competition": false,
+    "unavailable_without_competition_qualified_authority_permitted": false,
+    "unqualified_downstream_identity_permitted": false
+  },
+  "completion_gate_contract": {
+    "only_permitted_positive_marker": "a1_2e_local_offline_candidate",
+    "required_receipt_values": {
+      "a1_2e_local_offline_candidate": true,
+      "data_green": false,
+      "exact_remote_kaggle_download_verified": false,
+      "f04_whole_fact_complete": false,
+      "full_assurance_complete": false,
+      "independent_a1_2e_review_complete": false,
+      "live_operations_admissible": false,
+      "manual_database_interrogation_verified": false,
+      "model_green": false,
+      "public_kaggle_publication_verified": false,
+      "simultaneous_vpn_capacity_verified": false
+    }
+  },
+  "constructor_validation_contract": {
+    "applies_to": [
+      "CompetitionIdentityRequirement",
+      "CompetitionRoleBinding",
+      "CompetitionQualifiedRequest",
+      "CompetitionQualifiedPaginationSeries",
+      "CompetitionQualifiedPaginationPage",
+      "CompetitionQualifiedDiscoveryGeneration",
+      "CompetitionQualifiedTerminalObservation",
+      "CompetitionQualifiedUnavailableEvidence",
+      "CompetitionQualifiedStagingOccurrence",
+      "CompetitionQualifiedEntityIdentity",
+      "CompetitionIdentityAuthority",
+      "IndependentCompetitionIdentityProof"
+    ],
+    "boolean_as_integer_permitted": false,
+    "copy_or_reconstruction_bypass_permitted": false,
+    "deferred_validation_permitted": false,
+    "empty_identifier_permitted": false,
+    "exact_concrete_child_types_required": true,
+    "exact_scalar_types_required": true,
+    "exact_tuple_container_types_required": true,
+    "fail_at_public_constructor_and_consumption_boundaries": true,
+    "foreign_capability_token_permitted": false,
+    "foreign_enum_or_discriminator_permitted": false,
+    "invalid_or_noncanonical_digest_permitted": false,
+    "private_normalized_revalidation_evidence_required": true,
+    "subclass_or_coercive_acceptance_permitted": false,
+    "tamper_vectors_required": [
+      "direct construction",
+      "dataclasses.replace with and without fresh InitVars",
+      "copy.copy",
+      "copy.deepcopy",
+      "pickle reconstruction",
+      "object.__setattr__ exact-type mutation",
+      "self-resealed foreign identities",
+      "forged copied or mutated private capability tokens"
+    ],
+    "unknown_fields_in_checked_resource_permitted": false
+  },
+  "consumers": [
+    "A1.2f",
+    "A1.4",
+    "J1A",
+    "E2"
+  ],
+  "denominator_authority": {
+    "competition_count": 5,
+    "cumulative_alias_role_cell_count": 815,
+    "cumulative_parameter_axis_cell_count": 740,
+    "cumulative_parameter_axis_count": 148,
+    "cumulative_physical_competition_cell_count": 735,
+    "cumulative_projected_alias_role_count": 163,
+    "dynamic_receipt_required_cell_count": 160,
+    "executable_role_cell_count": 799,
+    "explicit_physical_source_count": 111,
+    "explicit_repo_alias_count": 126,
+    "five_way_executable_cell_count": 795,
+    "five_way_executable_family_count": 159,
+    "fixed_static_root_cell_count": 4,
+    "implicit_physical_source_count": 36,
+    "implicit_repo_alias_count": 36,
+    "live_physical_source_count": 4,
+    "package_physical_source_count": 147,
+    "package_registered_alias_count": 162,
+    "root_not_exposed_cell_count": 16,
+    "source_inventory_file_count": 25,
+    "static_competition_cell_count": 20,
+    "static_physical_source_count": 4,
+    "stats_physical_source_count": 139
+  },
+  "dispatch_barrier": {
+    "active_overlapping_writer_leases": [],
+    "branch": "main",
+    "head_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5",
+    "origin_main_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5",
+    "stable_status_read_count": 2,
+    "status_line_count": 518,
+    "status_porcelain_v1_uall_sha256": "15b527a73f2224a7163cabceaf5af5bf69fce428b0cbce007ff48c04cfb165c3",
+    "task_packet_path_absent_before_issue": true,
+    "writer_owned_paths_absent_before_issue": true
+  },
+  "domain_separators": [
+    "nbadb.nba-api.competition-scope.v1",
+    "nbadb.nba-api.source-request.v1",
+    "nbadb.nba-api.pagination-series.v1",
+    "nbadb.nba-api.pagination-page.v1",
+    "nbadb.nba-api.discovery-generation.v1",
+    "nbadb.nba-api.terminal-observation.v1",
+    "nbadb.nba-api.unavailable-evidence.v1",
+    "nbadb.nba-api.staging-occurrence.v1",
+    "nbadb.nba-api.entity.v1"
+  ],
+  "evidence_layer_contract": {
+    "applicability": "Bind every explicit role to the exact current A1.2c applicability cell.",
+    "implicit_dynamic_root": "Bind every dynamic implicit role to a complete A1.2d ReceiptBoundCompetitionRootV1 and its exact typed producer evidence.",
+    "implicit_static_root": "Bind only the four exact fixed Static roots through the pinned A1.2d chain; Static receipts remain forbidden.",
+    "provider_availability": "Remain unknown unless a separately competition-qualified support or availability authority is supplied.",
+    "root_not_exposed": "Classification identity only; cannot materialize a request, unavailable evidence, or terminal observation.",
+    "source_inventory": "The 25 current source files are a collision census, not competition assignment or availability evidence."
+  },
+  "false_green_counters": {
+    "cross_competition_identity_collision_count": 0,
+    "data_green_claim_count": 0,
+    "exact_remote_kaggle_download_verified_claim_count": 0,
+    "full_assurance_complete_claim_count": 0,
+    "glalum_cartesian_support_claim_count": 0,
+    "glalum_role_collapse_count": 0,
+    "global_completion_claim_count": 0,
+    "history_source_name_or_url_inference_claim_count": 0,
+    "id_shape_magnitude_or_prefix_inference_claim_count": 0,
+    "implicit_competition_provider_parameter_injection_count": 0,
+    "live_operations_admissible_claim_count": 0,
+    "manual_database_interrogation_verified_claim_count": 0,
+    "model_green_claim_count": 0,
+    "nba_default_substitution_claim_count": 0,
+    "provider_or_network_runtime_call_count": 0,
+    "public_kaggle_publication_verified_claim_count": 0,
+    "publication_admissible_claim_count": 0,
+    "raw_provider_hash_replacement_count": 0,
+    "root_not_exposed_promotion_count": 0,
+    "simultaneous_vpn_capacity_verified_claim_count": 0,
+    "synthetic_non_nba_period_claim_count": 0,
+    "unknown_or_probe_required_promotion_count": 0,
+    "unqualified_downstream_identity_count": 0
+  },
+  "focused_test_nodes": {
+    "adjacent": [
+      "tests/unit/core/test_nba_api_request_surface.py::test_provider_request_key_is_authority_bound_and_serializes_exact_wire_request",
+      "tests/unit/core/test_nba_api_request_surface.py::test_route_manifest_rejects_pagination_truncation",
+      "tests/unit/core/test_nba_api_request_surface.py::test_closure_rejects_mismatched_evidence_and_pagination_truncation",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py::test_verifier_rejects_unavailable_and_blocked_receipt_mismatch",
+      "tests/unit/orchestrate/test_request_closure_runtime.py::test_alias_routes_share_one_exact_provider_unit",
+      "tests/unit/orchestrate/test_discovery_artifacts.py::test_game_log_cache_requires_every_exact_combo_including_zero_row_combos",
+      "tests/unit/orchestrate/test_staging_batches.py::test_different_sources_with_same_content_preserve_distinct_rows",
+      "tests/unit/orchestrate/test_cume_workload_contract.py::test_complete_value_binds_scope_order_receipt_and_provider_authority",
+      "tests/unit/orchestrate/test_successor_planning_program_compiler.py::test_non_cume_values_are_canonical_deduped_but_cume_order_is_authority"
+    ],
+    "aggregate": [
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py"
+    ],
+    "behavior": [
+      "tests/unit/core/test_nba_api_competition_identity.py::test_same_numeric_ids_stay_distinct_across_all_five_competitions",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_glalum_roles_remain_ordered_and_independent_without_cartesian_support",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_wire_provider_request_key_is_preserved_as_transport_evidence",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_competition_propagates_through_every_qualified_surface",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_typed_runtime_receipts_derive_discovery_terminal_and_staging_identities",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_authority_and_proof_contracts_use_exact_immutable_container_types",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_competition_identity_builder_never_sends_provider_requests",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_independent_verifier_never_sends_provider_requests"
+    ],
+    "mutation": [
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_count_preserving_cell_or_surface_replacement",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_same_id_competition_collapse",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_cross_competition_pagination_rebinding",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_cross_competition_discovery_terminal_unavailable_or_staging_rebinding",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_qualified_children_reject_cross_endpoint_parent_and_receipt_rebinding",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_glalum_role_swap_or_role_collapse"
+    ],
+    "negative": [
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_missing_or_foreign_applicability_or_root_receipt",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_raw_implicit_id_default_history_url_or_source_spelling_authority",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_qualified_evidence_rejects_bare_digests_non_success_and_tampered_typed_inputs",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_noncanonical_or_foreign_resource"
+    ],
+    "positive": [
+      "tests/unit/core/test_nba_api_competition_identity.py::test_competition_identity_authority_covers_exact_c_plus_d_denominators",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_explicit_implicit_and_static_sources_compile_typed_distinct_identities",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_unexposed_static_roots_are_non_executable_and_availability_stays_unknown",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_checked_identity_resource_is_canonical_and_generated_without_drift",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_independent_competition_identity_authority_matches_primary"
+    ]
+  },
+  "focused_test_vector_contract": {
+    "tests/unit/core/test_nba_api_competition_identity.py::test_qualified_children_reject_cross_endpoint_parent_and_receipt_rebinding": [
+      "cross-competition and cross-endpoint pagination parent",
+      "finite integral float cursor plus distinct string/int/float encoding",
+      "nonintegral/nonfinite/bool cursor rejection",
+      "dynamic request with missing, foreign, or mutated retained ReceiptBoundCompetitionRoot"
+    ],
+    "tests/unit/core/test_nba_api_competition_identity.py::test_qualified_evidence_rejects_bare_digests_non_success_and_tampered_typed_inputs": [
+      "discovery request with a nondefault counter, direction, league_id, player_or_team_abbreviation, sorter, date_from_nullable, or date_to_nullable",
+      "discovery request for league 01, 10, 15, or 20",
+      "foreign internally self-consistent FoundationAuthority provider_authority_sha256",
+      "terminal or staging observation with a foreign request_surface_sha256, route_manifest_sha256, scope_sha256, provider request, endpoint, or non-success state",
+      "staging execution/logical-call binding with a foreign logical_parameters_sha256, provider authority, logical_call_receipt_sha256, manifest-to-physical route mapping, result-set name, ordinal, row count, or receipt root",
+      "bare digest, count, ordinal, or unqualified legacy replacement for any typed evidence input"
+    ],
+    "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_verifier_rejects_count_preserving_cell_or_surface_replacement": [
+      "count-preserving requirement and qualified-surface replacement",
+      "checked-resource exact-copy drift in denominator_counts, binding_strategy_counts, provider_request_policy, false_green_counters, collision_invariants, or domain_separators",
+      "checked-resource nested missing, additional, renamed, reordered-array, or scalar/container-type-coerced values"
+    ]
+  },
+  "forbidden_external_effects": [
+    "network",
+    "provider calls",
+    "NBA API",
+    "VPN",
+    "GitHub Actions",
+    "Kaggle",
+    "Git index",
+    "commit",
+    "push"
+  ],
+  "identity_contract": {
+    "availability_contract": "Unavailable evidence requires a separately admitted typed competition-qualified support or availability authority. No such typed authority is admitted before A1.3a, so A1.2e retains the qualified identity schema but its public qualifier must fail closed. An opaque digest, A1.2c unknown/probe_required, history, defaults, source names, and URLs never authorize unavailable or terminal state.",
+    "discovery_generation_contract": "Derive competition, native-period scope, exact producer receipt identity, schema, row count, and content digest only from the exact revalidated FoundationAuthority plus its exact DISCOVERY_GENERATION FoundationInputReceipt member. Bare digest/count inputs and every legacy unqualified generation are rejected.",
+    "entity_contract": "Bind competition, entity kind, exact provider encoding, and exact value. Preserve string leading zeros.",
+    "glalum_contract": "Person1 and Person2 are separate ordered role bindings; role swaps change identity and no 25-cell Cartesian support authority may be synthesized.",
+    "pagination_contract": "A series binds competition, endpoint, cursor axis, and non-cursor scope. A page additionally binds exact cursor encoding, page ordinal, and raw wire hash.",
+    "provider_request_contract": "Preserve raw provider_request_sha256 as transport evidence and wrap it in competition-qualified source_request_sha256. Never replace it or inject implicit competition into provider parameters. A fixed Static source is discriminated as static_source, carries exact null provider_request_sha256, and binds its exact static_chain_sha256 as source evidence instead of fabricating transport evidence.",
+    "qualified_surface_names": [
+      "source_request",
+      "pagination_series",
+      "pagination_page",
+      "discovery_generation",
+      "terminal_observation",
+      "unavailable_evidence",
+      "staging_occurrence",
+      "entity"
+    ],
+    "request_binding_contract": "Bind each requirement to the exact current A1.2c applicability cell or A1.2d dynamic receipt/fixed Static chain. Canonicalize role bindings by role, not league.",
+    "staging_contract": "Routes remain structural. Occurrences derive the route contract, result ordinal, logical-call receipt, and committed staging receipt only from one exact pinned StagingRouteContract, one exact successful RequestObservation, its exact pinned RequestClosureExecutionAuthority and LogicalCallReceiptBinding, and its exact matching CommittedStagingChunkReceipt; bare digests/ordinals are rejected.",
+    "static_fixed_roots": {
+      "players": "00",
+      "teams": "00",
+      "wnba_players": "10",
+      "wnba_teams": "10"
+    },
+    "static_source_contract": "bind_static_competition_source accepts only an executable fixed_static_root requirement, emits request_kind=static_source, source_evidence_sha256 equal to the exact admitted static_chain_sha256, and provider_request_sha256=null. root_not_exposed remains nonconstructible.",
+    "terminal_observation_contract": "Derive the exact observation digest from one exact reconstructed successful RequestObservation whose pinned request surface, provider request, source family, endpoint, route manifest, scope, and routes match the competition-qualified request plus an exact reconstructed RequestClosureExecutionAuthority; incomplete, non-success, bare-digest, static, or unqualified inputs cannot become terminal.",
+    "unexposed_contract": "root_not_exposed yields classification identity only and cannot yield a request, terminal observation, or unavailable evidence."
+  },
+  "identity_requirements_contract": {
+    "competition_authority_sha256": "61c9477221c08f4f36269c8c3050171e0ec472508a0a8ac72ddc6f42d865ef98",
+    "competition_scope_sha256_basis": {
+      "competition_authority_sha256": "61c9477221c08f4f36269c8c3050171e0ec472508a0a8ac72ddc6f42d865ef98",
+      "domain_separator": "nbadb.nba-api.competition-scope.v1",
+      "fields": [
+        "domain_separator",
+        "competition_authority_sha256",
+        "league_id",
+        "symbol"
+      ]
+    },
+    "count": 815,
+    "executable_count": 799,
+    "field_types": {
+      "competition_scope_sha256": "sha256_hex",
+      "executable": "bool",
+      "league_id": "nonempty_str",
+      "physical_endpoint_key": "nonempty_str",
+      "provider_availability_status": "literal:unknown",
+      "provider_endpoint_id": "nonempty_str",
+      "repo_endpoint_name": "nonempty_str",
+      "request_terminal_state": "literal:not_asserted",
+      "requirement_id": "nonempty_str",
+      "requirement_sha256": "sha256_hex",
+      "role_binding": "CompetitionRoleBinding",
+      "source_family": "nonempty_str",
+      "symbol": "nonempty_str"
+    },
+    "ordering": [
+      "requirement_id"
+    ],
+    "partitions": {
+      "explicit_applicability_cell": {
+        "count": 635,
+        "executable": true,
+        "physical_endpoint_key_derivation": "Join provider_endpoint_id uniquely to the pinned request-surface endpoint contract, then concatenate source_family + ':' + provider_endpoint_id. The admitted join has 635 rows, 111 unique provider IDs, source_family='stats', missing=[], and multi=[].",
+        "source_authority_kind": "competition_applicability",
+        "source_authority_sha256": "4e81a390af03edda953490f750658f0a8a8928e9297be33954c284caa716980a"
+      },
+      "fixed_static_root": {
+        "count": 4,
+        "executable": true,
+        "physical_endpoint_key_derivation": "Preserve the exact A1.2d alias_competition_cells.physical_endpoint_key.",
+        "source_authority_kind": "implicit_competition",
+        "source_authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97"
+      },
+      "receipt_bound_dynamic_root": {
+        "count": 160,
+        "executable": true,
+        "physical_endpoint_key_derivation": "Preserve the exact A1.2d alias_competition_cells.physical_endpoint_key.",
+        "source_authority_kind": "implicit_competition",
+        "source_authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97"
+      },
+      "root_not_exposed": {
+        "count": 16,
+        "executable": false,
+        "physical_endpoint_key_derivation": "Preserve the exact A1.2d alias_competition_cells.physical_endpoint_key.",
+        "source_authority_kind": "implicit_competition",
+        "source_authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97"
+      }
+    },
+    "provider_availability_status": "unknown",
+    "request_terminal_state": "not_asserted",
+    "requirement_id_format": "competition-requirement:<source_family>:<repo_endpoint_name>:<source_cell_id>:<league_id>",
+    "requirement_sha256_basis": {
+      "domain_separator": "nbadb.nba-api.competition-scope.v1",
+      "fields": [
+        "domain_separator",
+        "requirement"
+      ],
+      "requirement_value": "the exact requirement row excluding only requirement_sha256"
+    },
+    "row_keys": [
+      "requirement_id",
+      "source_family",
+      "physical_endpoint_key",
+      "provider_endpoint_id",
+      "repo_endpoint_name",
+      "league_id",
+      "symbol",
+      "competition_scope_sha256",
+      "role_binding",
+      "executable",
+      "provider_availability_status",
+      "request_terminal_state",
+      "requirement_sha256"
+    ]
+  },
+  "independent_verifier_proof_contract": {
+    "exact_fields": [
+      "verifier_id",
+      "task_packet_sha256",
+      "immutable_inputs_sha256",
+      "source_inventory_inputs_sha256",
+      "competition_applicability_authority_sha256",
+      "implicit_competition_authority_sha256",
+      "candidate_authority_sha256",
+      "candidate_payload_sha256",
+      "identity_requirements_sha256",
+      "qualified_surface_contracts_sha256",
+      "identity_requirement_count",
+      "qualified_surface_contract_count",
+      "finding_count",
+      "findings",
+      "proof_sha256"
+    ],
+    "field_types": {
+      "candidate_authority_sha256": "sha256_hex",
+      "candidate_payload_sha256": "sha256_hex",
+      "competition_applicability_authority_sha256": "sha256_hex",
+      "finding_count": "nonnegative_int_bool_forbidden",
+      "findings": "exact_tuple[str,...]_required_empty",
+      "identity_requirement_count": "nonnegative_int_bool_forbidden",
+      "identity_requirements_sha256": "sha256_hex",
+      "immutable_inputs_sha256": "sha256_hex",
+      "implicit_competition_authority_sha256": "sha256_hex",
+      "proof_sha256": "sha256_hex",
+      "qualified_surface_contract_count": "nonnegative_int_bool_forbidden",
+      "qualified_surface_contracts_sha256": "sha256_hex",
+      "source_inventory_inputs_sha256": "sha256_hex",
+      "task_packet_sha256": "sha256_hex",
+      "verifier_id": "literal:nbadb_independent_competition_identity_v1"
+    },
+    "finding_count": 0,
+    "findings": [],
+    "json_projection": {
+      "exact_keys": "exact_fields in exact order",
+      "findings_container": "exact JSON array in tuple order; admitted value is []",
+      "scalar_types": "Digest and verifier fields remain exact strings; counts remain exact nonnegative JSON integers with booleans forbidden."
+    },
+    "proof_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact proof object excluding only proof_sha256.",
+    "required": true,
+    "verifier_id": "nbadb_independent_competition_identity_v1"
+  },
+  "immutable_inputs": [
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2a/receipt.json",
+      "sha256": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2a/review.json",
+      "sha256": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2b/receipt.json",
+      "sha256": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2b/review.json",
+      "sha256": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json",
+      "sha256": "1efc04501c0bc0d0d2db1f84649ef11cbd86118851d3191cfa1eb365261b16d3"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/review.json",
+      "sha256": "6fb52dd0efbf0c25007f8d6f894a1904648b4572339333a840ba51262b511421"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/competition-existence-evidence.json",
+      "sha256": "876f79c748faa1f477dee8f15071d1799ad423d7e3b32e5b38e7c56cb34ccfa6"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+      "sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+      "sha256": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/E1/receipt.json",
+      "sha256": "e6ada86f96239ccc1bc181a2cbc56f85e9f268a598a2dc18091f9c1320b0da5f"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/E1/review.json",
+      "sha256": "64c3a5a3c59041d9a56f433d57e575a6015fae93e7cc739a92af3fb6f0f1df19"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/receipt.json",
+      "sha256": "dd13cdf86760263f6d009eedad546e81eec06696978d0367437e2ceba8ca1c41"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/review-k.json",
+      "sha256": "07fa28c7cca666b44b2fd8f12365ff47798d3ae5bcc8bdac7c010dbe6131715d"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2a.json",
+      "sha256": "4340526fec94cb2107804f8a0922bfffa06d8faec9ac34dd2122240aef5b53d4"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2b.json",
+      "sha256": "5dcc66663ae8f432ec1c134b5d7f2735090352662b60c341f945f2901d71074c"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2c.json",
+      "sha256": "d2f668cd0627562508849423c5df5d8e0e120a2fecc270a44699c9fe4458bf91"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/fact-traceability.json",
+      "sha256": "ed82d5a23c05dd4cde7b91190c5f03b6c15e4fc99ab3244f35f319fbe58612c7"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/facts.md",
+      "sha256": "f4d810bc5cd83bfda11339dd64522798e0f021b24faff1065c431b1043cf8e92"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/facts.meta.json",
+      "sha256": "fc8a7d2224378296f33e4599cdf300dec14d5d7a8c54c7fcb8798899916201cf"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/goal.md",
+      "sha256": "9bc200aa01ca3d80766136afc07ba6e8797b9df03bf2191fe018837530d2beba"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/plan.md",
+      "sha256": "35f7eb7188e652b87eaaeda2c9bca4b5b9942a0bd2590a546c2a3f43b99326ec"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+      "sha256": "cfb93458f5efb569995ddccaf33ae37c0c312e25e09d0649c307999ec0057c44"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_runtime_contract_v1_11_4.json",
+      "sha256": "114963fa48fc13c2c850f5261f368925f2e8b81c57129e6b3d7cfae6ed921790"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition.py",
+      "sha256": "b4027e2cd3bb4214be0776097e98d82481422972af60ce6fdf0761febc46e42d"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_applicability.py",
+      "sha256": "271bfa9855bf4c3e8f51bc3eaff82d6225c5a89569fdc319a7d43856d0085cda"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+      "sha256": "a847dff632338981aa522646ce766a2e029aa43a95c4adcc3e0fb427e06a7ebd"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_occurrences.py",
+      "sha256": "e4d7ede67873d1becee61c1fa19d683da9acbe9a079aec73fc9d9e770b118ef1"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_occurrences_verifier.py",
+      "sha256": "97fa101b9d79d0e48508d68b3e7969ec341d67d8d090ad49d8f48be2fd589a87"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_verifier.py",
+      "sha256": "df78e92626051c9d8c314b169b2816190a0cc47e802f6abff191ef2206a40598"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_request_surface.py",
+      "sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_runtime_contract.py",
+      "sha256": "38dd758a7c5c291c466dbc947f47330d746c60e8ba2e7286194b454eeb2c18d0"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_surface_inventory.py",
+      "sha256": "2b4634fea1115ade8a2c5c4007533806b32fbc40e143d01521a74a76e109e6d5"
+    },
+    {
+      "path": "src/nbadb/extract/registry.py",
+      "sha256": "86cb7d7e3d63d9e864480ccd44d89f3d2efb5c1b3037d8432f54df4ef9e7fe05"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_applicability.py",
+      "sha256": "81485758756d9725d75e3afa2dd51772f8e38bc2645d4af77e590cbcb71b538f"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+      "sha256": "c600a957d31da68b909fc7fb3f397d60ba96dabd1f27e73b5c9059defff4b242"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/implicit-competition-root-evidence.json",
+      "sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/source-review.json",
+      "sha256": "d028c60baa78832991d83cbd977d0d555b32b6ebc38a281bb14e7592d76f37e8"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2d.json",
+      "sha256": "acc12887aa5525a0ed9cc8047264c7efda3da92da745c5145138b4eb2a72e1bb"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_implicit_competition.py",
+      "sha256": "df5810747e66c5578132a58839a4c36b1a32ff4d44b2f8b0a20cbc5bff1edfcd"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_implicit_competition_verifier.py",
+      "sha256": "f9c31bbcacee72d918111206496187a5e0e5892f2ee01b241b4d1ddadb06e099"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+      "sha256": "ed75be5cf84df8975cc32d50b51215648896b618584ed5b3b3aedcb8b6dc2111"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_implicit_competition.py",
+      "sha256": "7b23976cc30b0cfa1a7765d90f2c8533cf2405d9f1c4c7ae8e699d615d6db443"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_implicit_competition_verifier.py",
+      "sha256": "a678edd8e383d4c0755dccb3e27a4bcfb23784d9d471925d2da9edb2e3034c15"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/receipt.json",
+      "sha256": "fc32ce49c54b93bebd83c953d60b51d6fe6edaf2da1d9b43075c51ad01b2678a"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/review.json",
+      "sha256": "1b94ce7e572b669b454271fbf7ae5bf602c5268717ae252484f4b0c1a9ad0e6d"
+    }
+  ],
+  "immutable_inputs_digest_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact ordered immutable_inputs row array with object keys sorted and no trailing newline.",
+  "immutable_inputs_sha256": "1c8aa2ee96aeef63ea98cf491b877a71884f7c367fb9dd7c82aee73d3963c537",
+  "invalidation_triggers": [
+    "any of the 49 immutable input rows or hashes changes",
+    "any of the 25 collision-census source paths, hashes, ordering, or canonical row digest changes",
+    "either A1.2c or A1.2d receipt/review disposition, authority, payload, proof, resource, source evidence, or implementation digest changes",
+    "the 147/162/148/163 or 735/740/815 denominator changes",
+    "the 160 dynamic, 4 fixed Static, 16 root_not_exposed, 799 executable, or 159-family/795-cell partition changes",
+    "any domain separator, checked-resource field, provider-request policy, role binding, or identity surface contract changes",
+    "primary and independent implementations become coupled",
+    "owned/excluded lease overlap or current branch/HEAD/origin/status barrier drift is observed",
+    "implementation requires any current request, Bronze, capture, discovery, staging, journal, planner, successor, live, provider, workflow, publication, export, or shared runtime edit",
+    "any provider/network call or availability, terminal, MODEL-GREEN, DATA-GREEN, publication, live-operation, VPN, Kaggle, remote-download, manual-database, or full-assurance claim is introduced"
+  ],
+  "last_valid_rollback_authority": "The finding-free A1.2c and A1.2d receipt/review chains, all 49 immutable input rows, and the separate exact 25-row collision-census source inventory in this packet. If the leaf fails, remove only the six new A1.2e owned paths; never edit a predecessor, census input, issuer-owned packet, or shared runtime path.",
+  "mutation_boundary": "Add only an offline MODEL-layer competition-identity compiler, an independently implemented verifier, one checked resource, two focused test files, and a TaskEvidenceV1 receipt. Preserve raw provider-request identity as transport evidence and wrap it in competition-qualified identities across the specified modeled surfaces. Do not change current request, Bronze, capture, discovery, staging, journal, planner, successor, live, provider, workflow, publication, public-export, predecessor, census-input, or shared-runtime behavior. Do not claim current runtime surfaces are competition-safe.",
+  "output": {
+    "path": "artifacts/assurance/complete-nba-api-sink/A1.2e/receipt.json",
+    "schema": "TaskEvidenceV1"
+  },
+  "predecessor_receipts": {
+    "A1.2a": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21",
+    "A1.2a_review": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0",
+    "A1.2b": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b",
+    "A1.2b_review": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40",
+    "A1.2c": "1efc04501c0bc0d0d2db1f84649ef11cbd86118851d3191cfa1eb365261b16d3",
+    "A1.2c_review": "6fb52dd0efbf0c25007f8d6f894a1904648b4572339333a840ba51262b511421",
+    "A1.2d": "fc32ce49c54b93bebd83c953d60b51d6fe6edaf2da1d9b43075c51ad01b2678a",
+    "A1.2d_review": "1b94ce7e572b669b454271fbf7ae5bf602c5268717ae252484f4b0c1a9ad0e6d",
+    "A1.2d_task_packet": "acc12887aa5525a0ed9cc8047264c7efda3da92da745c5145138b4eb2a72e1bb",
+    "E1": "e6ada86f96239ccc1bc181a2cbc56f85e9f268a598a2dc18091f9c1320b0da5f",
+    "E1_review": "64c3a5a3c59041d9a56f433d57e575a6015fae93e7cc739a92af3fb6f0f1df19",
+    "J0F": "dd13cdf86760263f6d009eedad546e81eec06696978d0367437e2ceba8ca1c41"
+  },
+  "provider_request_input_contract": {
+    "bare_provider_request_sha256_input_permitted": false,
+    "exact_type": "nbadb.core.nba_api_request_surface.CanonicalProviderRequest",
+    "explicit_applicability_cell": {
+      "competition_parameter_match": "The exact materialized_parameters item named by role_binding.constructor_name must exist once and its exact string value must equal requirement.league_id. GLAlum Person1 and Person2 are validated independently by their distinct constructor names.",
+      "endpoint_match": "provider_request.source_family and endpoint_id must equal requirement.source_family and provider_endpoint_id.",
+      "role_collapse_permitted": false
+    },
+    "foreign_or_subclass_input_permitted": false,
+    "normalized_revalidation": "Reconstruct the exact concrete CanonicalProviderRequest from every public field at the binder boundary so post-construction object.__setattr__, copy, pickle, subclass, or foreign-instance tampering cannot bypass its pinned request-surface/runtime/materialization checks.",
+    "projected_transport_digest": "Only the revalidated CanonicalProviderRequest.provider_request_sha256 is copied into CompetitionQualifiedRequest.provider_request_sha256.",
+    "receipt_bound_dynamic_root": {
+      "competition_parameter_injection_permitted": false,
+      "endpoint_match": "provider_request.source_family and endpoint_id must equal requirement.source_family and provider_endpoint_id.",
+      "exact_receipt_input_type": "nbadb.core.nba_api_implicit_competition.ReceiptBoundCompetitionRoot",
+      "foreign_or_subclass_receipt_input_permitted": false,
+      "request_parameter_root_match": "When the exact A1.2d endpoint binding root_mode is request_parameter, its root_evidence.parameter.name must select exactly one CanonicalProviderRequest.materialized_parameters item, and that item's exact concrete type and value must equal ReceiptBoundCompetitionRoot.root_value. Boolean/integer, string/integer, subclass, or any other coercive equality is forbidden.",
+      "receipt_input_revalidation": "Require type(receipt) is ReceiptBoundCompetitionRoot, invoke receipt._revalidate() at the binder consumption boundary, and reject any copied, pickled, object.__setattr__-mutated, foreign, or subclass instance whose complete retained typed evidence does not revalidate. The public to_dict projection alone is not sufficient evidence because it omits retained variant and producer evidence.",
+      "response_root_match": "When root_mode is response_game_collection or response_game_join, the exact endpoint binding has no request root parameter; CanonicalProviderRequest.materialized_parameters must equal the pinned canonical endpoint parameter tuple and ReceiptBoundCompetitionRoot.source_request_identity_sha256 must still equal the provider request digest. The receipt's already revalidated captured game evidence remains the only root-value source.",
+      "receipt_match": "The separately reconstructed/revalidated ReceiptBoundCompetitionRoot must match requirement.role_binding.root_binding_sha256 and requirement.league_id, and its source_request_identity_sha256 must equal the reconstructed CanonicalProviderRequest.provider_request_sha256, before the provider request is qualified."
+    },
+    "static_source_provider_request_input_permitted": false
+  },
+  "provider_request_policy": {
+    "implicit_competition_injection_permitted": false,
+    "provider_request_sha256_is_transport_evidence": true,
+    "provider_request_sha256_replacement_permitted": false,
+    "request_kind_discriminator_required": true,
+    "source_request_sha256_wraps_provider_request_and_competition": true,
+    "static_source_provider_request_sha256_is_null": true,
+    "static_source_uses_exact_static_chain_evidence": true,
+    "typed_canonical_provider_request_input_required": true,
+    "wire_parameters_remain_unchanged": true
+  },
+  "public_api_contract": {
+    "core_init_edit_permitted": false,
+    "direct_module_only": true,
+    "dto_field_contracts": {
+      "CompetitionIdentityAuthority": [
+        "task_packet_sha256",
+        "competition_authority_sha256",
+        "competition_applicability_authority_sha256",
+        "implicit_competition_authority_sha256",
+        "source_inventory_inputs_sha256",
+        "identity_requirements",
+        "identity_requirements_sha256",
+        "qualified_surface_contracts_sha256",
+        "binding_strategy_counts",
+        "collision_invariants",
+        "authority_sha256"
+      ],
+      "CompetitionIdentityRequirement": [
+        "requirement_id",
+        "source_family",
+        "physical_endpoint_key",
+        "provider_endpoint_id",
+        "repo_endpoint_name",
+        "league_id",
+        "symbol",
+        "competition_scope_sha256",
+        "role_binding",
+        "executable",
+        "provider_availability_status",
+        "request_terminal_state",
+        "requirement_sha256"
+      ],
+      "CompetitionQualifiedDiscoveryGeneration": [
+        "competition_scope_sha256",
+        "native_period_scope_sha256",
+        "producer_request_or_root_receipt_inventory_sha256",
+        "schema_sha256",
+        "row_count",
+        "content_sha256",
+        "discovery_generation_sha256"
+      ],
+      "CompetitionQualifiedEntityIdentity": [
+        "competition_scope_sha256",
+        "entity_kind",
+        "provider_encoding",
+        "entity_value",
+        "entity_identity_sha256"
+      ],
+      "CompetitionQualifiedPaginationPage": [
+        "pagination_series_sha256",
+        "source_request_sha256",
+        "cursor_value",
+        "page_ordinal",
+        "raw_wire_sha256",
+        "pagination_page_sha256"
+      ],
+      "CompetitionQualifiedPaginationSeries": [
+        "competition_scope_sha256",
+        "provider_endpoint_id",
+        "cursor_occurrence_id",
+        "non_cursor_scope_sha256",
+        "pagination_series_sha256"
+      ],
+      "CompetitionQualifiedRequest": [
+        "competition_scope_sha256",
+        "requirement_sha256",
+        "role_binding_sha256",
+        "request_kind",
+        "source_evidence_sha256",
+        "provider_request_sha256",
+        "source_request_sha256"
+      ],
+      "CompetitionQualifiedStagingOccurrence": [
+        "source_request_sha256",
+        "route_contract_sha256",
+        "result_ordinal",
+        "logical_call_receipt_sha256",
+        "committed_staging_receipt_sha256",
+        "staging_occurrence_sha256"
+      ],
+      "CompetitionQualifiedTerminalObservation": [
+        "source_request_sha256",
+        "observation_sha256",
+        "terminal_observation_sha256"
+      ],
+      "CompetitionQualifiedUnavailableEvidence": [
+        "source_request_sha256",
+        "support_or_availability_authority_sha256",
+        "unavailable_evidence_sha256"
+      ],
+      "CompetitionRoleBinding": [
+        "binding_strategy",
+        "source_authority_kind",
+        "source_authority_sha256",
+        "source_cell_id",
+        "source_cell_sha256",
+        "constructor_name",
+        "provider_occurrence_id",
+        "wire_name",
+        "temporal_companion_occurrence_ids",
+        "participant_axis_binding",
+        "root_binding_sha256",
+        "root_kind",
+        "root_mode",
+        "root_state",
+        "static_chain_sha256",
+        "role_binding_sha256"
+      ],
+      "IndependentCompetitionIdentityProof": [
+        "verifier_id",
+        "task_packet_sha256",
+        "immutable_inputs_sha256",
+        "source_inventory_inputs_sha256",
+        "competition_applicability_authority_sha256",
+        "implicit_competition_authority_sha256",
+        "candidate_authority_sha256",
+        "candidate_payload_sha256",
+        "identity_requirements_sha256",
+        "qualified_surface_contracts_sha256",
+        "identity_requirement_count",
+        "qualified_surface_contract_count",
+        "finding_count",
+        "findings",
+        "proof_sha256"
+      ]
+    },
+    "dto_json_projection_contracts": {
+      "CompetitionIdentityAuthority": {
+        "authority_sha256": "Must equal the independently recomputed checked-resource authority_sha256 governed by checked_resource_digest_contract.authority_sha256_basis; it is not a digest of only the public DTO field projection.",
+        "binding_strategy_counts": "Project the exact sorted tuple of exact (str, nonnegative_int_bool_forbidden) pairs to one JSON object with the same exact keys and values.",
+        "collision_invariants": "Project the exact sorted tuple of exact (str, exact_bool) pairs to one JSON object with the same exact keys and values.",
+        "exact_keys": "Exactly dto_field_contracts.CompetitionIdentityAuthority in that order; no public qualified_surface_contracts field or mutable mapping state is permitted.",
+        "identity_requirements": "Project the exact tuple to a JSON array in requirement_id order; every item is the exact identity_requirements_contract.row_keys object and role_binding is the exact nested role_binding_contract object.",
+        "qualified_surface_contracts": "Not projected from the authority DTO. build_pinned_competition_identity_payload copies the exact authenticated TaskPacket.qualified_surface_contracts array directly and verifies checked_resource_digest_contract.qualified_surface_contracts_sha256.",
+        "scalar_projection": "All digest and identifier strings, exact booleans, nulls, and nonnegative integers retain their exact JSON scalar types; bool-as-int and numeric/string coercion are forbidden."
+      },
+      "IndependentCompetitionIdentityProof": {
+        "exact_keys": "Exactly dto_field_contracts.IndependentCompetitionIdentityProof in that order.",
+        "findings": "Project the exact tuple[str, ...] to a JSON array in exact tuple order; the admitted proof requires the empty array.",
+        "scalar_projection": "All digest and identifier strings and nonnegative integer counts retain exact JSON scalar types; bool-as-int and coercion are forbidden."
+      }
+    },
+    "dto_type_contracts": {
+      "CompetitionIdentityAuthority": {
+        "authority_sha256": "sha256_hex",
+        "binding_strategy_counts": "exact_sorted_tuple[exact_tuple[str,nonnegative_int_bool_forbidden],...]",
+        "collision_invariants": "exact_sorted_tuple[exact_tuple[str,exact_bool],...]",
+        "competition_applicability_authority_sha256": "sha256_hex",
+        "competition_authority_sha256": "sha256_hex",
+        "identity_requirements": "exact_tuple[exact_CompetitionIdentityRequirement,...]_ordered_by_requirement_id",
+        "identity_requirements_sha256": "sha256_hex",
+        "implicit_competition_authority_sha256": "sha256_hex",
+        "qualified_surface_contracts_sha256": "sha256_hex",
+        "source_inventory_inputs_sha256": "sha256_hex",
+        "task_packet_sha256": "sha256_hex"
+      },
+      "IndependentCompetitionIdentityProof": {
+        "candidate_authority_sha256": "sha256_hex",
+        "candidate_payload_sha256": "sha256_hex",
+        "competition_applicability_authority_sha256": "sha256_hex",
+        "finding_count": "nonnegative_int_bool_forbidden",
+        "findings": "exact_tuple[str,...]_required_empty",
+        "identity_requirement_count": "nonnegative_int_bool_forbidden",
+        "identity_requirements_sha256": "sha256_hex",
+        "immutable_inputs_sha256": "sha256_hex",
+        "implicit_competition_authority_sha256": "sha256_hex",
+        "proof_sha256": "sha256_hex",
+        "qualified_surface_contract_count": "nonnegative_int_bool_forbidden",
+        "qualified_surface_contracts_sha256": "sha256_hex",
+        "source_inventory_inputs_sha256": "sha256_hex",
+        "task_packet_sha256": "sha256_hex",
+        "verifier_id": "literal:nbadb_independent_competition_identity_v1"
+      }
+    },
+    "function_signatures": {
+      "bind_explicit_competition_request": "bind_explicit_competition_request(requirement, provider_request)",
+      "bind_receipt_root_competition_request": "bind_receipt_root_competition_request(requirement, receipt, provider_request)",
+      "bind_static_competition_source": "bind_static_competition_source(requirement)",
+      "build_competition_identity_authority": "build_competition_identity_authority()",
+      "build_pinned_competition_identity_payload": "build_pinned_competition_identity_payload()",
+      "compile_competition_identity_requirements": "compile_competition_identity_requirements()",
+      "pinned_competition_identity_authority": "pinned_competition_identity_authority()",
+      "qualify_discovery_generation": "qualify_discovery_generation(request, foundation_authority, discovery_receipt)",
+      "qualify_entity_identity": "qualify_entity_identity(requirement, entity_kind, provider_encoding, entity_value)",
+      "qualify_pagination_page": "qualify_pagination_page(series, request, cursor_value, page_ordinal, raw_wire_sha256)",
+      "qualify_pagination_series": "qualify_pagination_series(request, provider_endpoint_id, cursor_occurrence_id, non_cursor_scope_sha256)",
+      "qualify_staging_occurrence": "qualify_staging_occurrence(request, observation, execution_authority, logical_call_receipt_binding, route, committed_receipt)",
+      "qualify_terminal_observation": "qualify_terminal_observation(request, observation, execution_authority)",
+      "qualify_unavailable_evidence": "qualify_unavailable_evidence(request, support_or_availability_authority)"
+    },
+    "independent_module": "nbadb.core.nba_api_competition_identity_verifier",
+    "independent_symbols": [
+      "IndependentCompetitionIdentityProof",
+      "verify_pinned_competition_identity_authority"
+    ],
+    "load_pinned_signature": "load_pinned_competition_identity_payload(path=None)",
+    "primary_import_permitted_in_independent_verifier": false,
+    "primary_module": "nbadb.core.nba_api_competition_identity",
+    "primary_symbols": [
+      "NbaApiCompetitionIdentityError",
+      "CompetitionIdentityRequirement",
+      "CompetitionRoleBinding",
+      "CompetitionQualifiedRequest",
+      "CompetitionQualifiedPaginationSeries",
+      "CompetitionQualifiedPaginationPage",
+      "CompetitionQualifiedDiscoveryGeneration",
+      "CompetitionQualifiedTerminalObservation",
+      "CompetitionQualifiedUnavailableEvidence",
+      "CompetitionQualifiedStagingOccurrence",
+      "CompetitionQualifiedEntityIdentity",
+      "CompetitionIdentityAuthority",
+      "compile_competition_identity_requirements",
+      "bind_explicit_competition_request",
+      "bind_receipt_root_competition_request",
+      "bind_static_competition_source",
+      "qualify_pagination_series",
+      "qualify_pagination_page",
+      "qualify_discovery_generation",
+      "qualify_terminal_observation",
+      "qualify_unavailable_evidence",
+      "qualify_staging_occurrence",
+      "qualify_entity_identity",
+      "build_competition_identity_authority",
+      "build_pinned_competition_identity_payload",
+      "write_pinned_competition_identity",
+      "load_pinned_competition_identity_payload",
+      "pinned_competition_identity_authority"
+    ],
+    "request_binding_rules": {
+      "explicit_applicability_cell": {
+        "binder": "bind_explicit_competition_request",
+        "provider_request_input": "exact revalidated CanonicalProviderRequest",
+        "provider_request_sha256": "project the exact revalidated CanonicalProviderRequest.provider_request_sha256",
+        "request_kind": "provider_request",
+        "source_evidence_sha256": "role_binding.source_cell_sha256"
+      },
+      "fixed_static_root": {
+        "binder": "bind_static_competition_source",
+        "provider_request_sha256": null,
+        "request_kind": "static_source",
+        "source_evidence_sha256": "role_binding.static_chain_sha256"
+      },
+      "receipt_bound_dynamic_root": {
+        "binder": "bind_receipt_root_competition_request",
+        "provider_request_input": "exact revalidated CanonicalProviderRequest",
+        "provider_request_sha256": "project the exact revalidated CanonicalProviderRequest.provider_request_sha256",
+        "request_kind": "provider_request",
+        "source_evidence_sha256": "validated ReceiptBoundCompetitionRoot.receipt_sha256"
+      },
+      "root_not_exposed": {
+        "binder": null,
+        "construction_permitted": false
+      }
+    },
+    "verify_pinned_signature": "verify_pinned_competition_identity_authority(path=None)",
+    "write_pinned_signature": "write_pinned_competition_identity(path, check=False)"
+  },
+  "qualified_surface_evidence_contract": {
+    "expected_provider_authority_sha256": "7e5d7e62077757f6f316172fa3177a3a3649c485e37b733f6f9528b3a98171c2",
+    "expected_provider_authority_validation": "Require the exact literal expected_provider_authority_sha256 to equal both nbadb.core.nba_api_provenance.expected_nba_api_provider_authority()['authority_sha256'] and staging_route_contract_bundle().provider_authority_sha256 at every discovery-generation and staging-occurrence qualifier boundary; any drift fails closed.",
+    "discovery_generation": {
+      "accepted_authority_kind": "nbadb.orchestrate.dependent_workload_contract.FoundationAuthorityKind.DISCOVERY_GENERATION",
+      "bare_digest_or_count_inputs_permitted": false,
+      "derived_output_fields": {
+        "competition_scope_sha256": "request.competition_scope_sha256",
+        "content_sha256": "discovery_receipt.persisted_content_sha256",
+        "native_period_scope_sha256": "discovery_receipt.logical_parameters_sha256",
+        "producer_request_or_root_receipt_inventory_sha256": "nbadb.orchestrate.dependent_workload_contract.canonical_sha256([revalidated_discovery_receipt.to_dict()]): SHA-256 of that exact singleton inventory under the source function's sorted object keys, separators ',' and ':', ensure_ascii=true, allow_nan=false, UTF-8 bytes, and no trailing newline",
+        "row_count": "discovery_receipt.persisted_row_count",
+        "schema_sha256": "discovery_receipt.persisted_schema_sha256"
+      },
+      "exact_input_types": {
+        "discovery_receipt": "nbadb.orchestrate.dependent_workload_contract.FoundationInputReceipt",
+        "foundation_authority": "nbadb.orchestrate.dependent_workload_contract.FoundationAuthority",
+        "request": "CompetitionQualifiedRequest"
+      },
+      "logical_parameter_projection": {
+        "current_admissible_league_id": "00",
+        "endpoint_name": "league_game_log",
+        "exact_keys": [
+          "season",
+          "season_type"
+        ],
+        "provider_parameter_names": {
+          "season": "season",
+          "season_type": "season_type_all_star"
+        },
+        "source_authority": "Exact LeagueGameLogExtractor mapping in the immutable source_inventory_inputs row src/nbadb/extract/stats/game_log.py plus the pinned LeagueGameLog CanonicalProviderRequest parameter surface. No generic same-name inference is permitted."
+      },
+      "match_rules": [
+        "The request must be a revalidated provider_request, not a static_source.",
+        "The exact reconstructed FoundationInputReceipt must occur exactly once by identity_sha256 in the exact reconstructed FoundationAuthority.input_receipts, must equal that exact member, and its authority_kind must be DISCOVERY_GENERATION.",
+        "FoundationAuthority.provider_authority_sha256 and discovery_receipt.provider_authority_sha256 must both equal qualified_surface_evidence_contract.expected_provider_authority_sha256 after expected_provider_authority_validation succeeds.",
+        "discovery_receipt.endpoint_name must equal the exact requirement.repo_endpoint_name recovered from request.requirement_sha256, and that requirement's provider_endpoint_id/source_family must equal the retained CanonicalProviderRequest endpoint_id/source_family.",
+        "discovery_receipt.logical_parameters must contain exactly logical_parameter_projection.exact_keys. Reconstruct the entire expected CanonicalProviderRequest by materializing the exact pinned stats LeagueGameLog endpoint with only {season: receipt season, season_type_all_star: receipt season_type} and the pinned request-surface/runtime digests; every retained request public field and provider_request_sha256 must equal that expected request. No other nondefault provider parameter is admitted.",
+        "Because LeagueGameLogExtractor supplies no league_id and the pinned provider default is league_id='00', requirement.league_id must equal logical_parameter_projection.current_admissible_league_id. A receipt with the same period cannot qualify a request for league 01, 10, 15, or 20.",
+        "The receipt's logical_parameters_sha256 and identity_sha256 are independently recomputed. persisted_schema_sha256, persisted_row_count, and persisted_content_sha256 are exact-type/shape revalidated by the reconstructed FoundationInputReceipt and preserved only from the exact authenticated authority member; A1.2e does not claim byte/schema/row readback that is absent from this function's typed inputs."
+      ],
+      "revalidation": "Require exact concrete input types (type(x) is the named class), recursively reconstruct the authority and receipt from their exact public typed state, recompute all init=False and property digests, and reject subclasses, foreign lookalikes, copies or object.__setattr__ mutations that do not reproduce byte-for-byte canonical state."
+    },
+    "staging_occurrence": {
+      "bare_digest_or_ordinal_inputs_permitted": false,
+      "derived_output_fields": {
+        "committed_staging_receipt_sha256": "committed_receipt.receipt_root_sha256",
+        "logical_call_receipt_sha256": "committed_receipt.logical_call_receipt_sha256",
+        "result_ordinal": "persisted_receipt.result_set_ordinal",
+        "route_contract_sha256": "canonical_route.contract_sha256",
+        "source_request_sha256": "request.source_request_sha256"
+      },
+      "exact_input_types": {
+        "committed_receipt": "nbadb.orchestrate.staging_batches.CommittedStagingChunkReceipt",
+        "execution_authority": "nbadb.orchestrate.extractor_runner.RequestClosureExecutionAuthority",
+        "logical_call_receipt_binding": "nbadb.extract.bronze.LogicalCallReceiptBinding",
+        "observation": "nbadb.orchestrate.request_closure_runtime.RequestObservation",
+        "request": "CompetitionQualifiedRequest",
+        "route": "nbadb.contracts.staging_route_contract.StagingRouteContract"
+      },
+      "match_rules": [
+        "The request must be a revalidated provider_request and observation.state must be exactly success_nonempty or success_empty.",
+        "The exact reconstructed observation.request_surface_sha256, provider_request_sha256, source_family, and endpoint_id must equal the retained CanonicalProviderRequest request_surface_sha256, provider_request_sha256, source_family, and endpoint_id and the recovered requirement; request_surface_sha256 must equal the independently reproduced pinned request surface.",
+        "Reconstruct the exact RequestClosureExecutionAuthority, require observation.route_manifest_sha256 and scope_sha256 to equal its exact route manifest and scope, and select exactly one authority.logical_calls member whose provider_request_sha256 equals request.provider_request_sha256 and whose endpoint_name equals requirement.repo_endpoint_name.",
+        "The selected execution logical call's route_ids must equal observation.route_ids. Its exact staging-route aliases must map those manifest route IDs bijectively to logical_call_receipt_binding.result_route_ids, and exactly one selected alias must map to route.route_id.",
+        "Reconstruct the exact LogicalCallReceiptBinding and require its endpoint_name, logical_parameters_sha256, provider_authority_sha256, and result_route_ids to equal the selected execution logical call plus its exact physical-route projection; its provider_authority_sha256 must also equal qualified_surface_evidence_contract.expected_provider_authority_sha256 after expected_provider_authority_validation succeeds.",
+        "route must equal the one exact route_id member of staging_route_contract_bundle(); route.source_family, provider_endpoint_id, and endpoint_name must equal requirement.source_family, provider_endpoint_id, and repo_endpoint_name.",
+        "The pinned route must have one exact nonnull canonical_result_set_name and provider_result_set_name and they must be identical. The four current stats routes with null structural result-set names are not staging-occurrence-constructible in A1.2e and fail closed rather than accepting an inferred name.",
+        "committed_receipt.result_route_id and staging_key must equal route.route_id and route.staging_key; committed_receipt.provider_authority_sha256, logical_parameters_sha256, and logical_call_receipt_sha256 must equal route.provider_authority_sha256, logical_call_receipt_binding.logical_parameters_sha256, and logical_call_receipt_binding.logical_call_receipt_sha256.",
+        "Select exactly one reconstructed observation.staging_receipts member whose staging_key equals route.staging_key, result_set_ordinal equals route.declared_result_set_index and route.canonical_result_set_ordinal, result_set_name equals the route's exact nonnull canonical_result_set_name (and its nonnull provider_result_set_name), and staging_receipt_root_sha256 equals committed_receipt.receipt_root_sha256.",
+        "The selected persisted receipt row_count must equal committed_receipt.persisted_row_count. The exact reconstructed committed receipt root already binds its logical_parameters_sha256, provider_authority_sha256, persisted content/schema digests, row count, route, and logical call; no unbound replacement digest is accepted.",
+        "The selected result ordinal must be a nonnegative exact int with bool forbidden; no route-id suffix parsing alone may authorize it."
+      ],
+      "revalidation": "Require exact concrete input types; reconstruct RequestObservation with RequestObservation.from_dict(observation.to_dict()), recursively reconstruct RequestClosureExecutionAuthority and every nested route/scope/alias/logical-call value from exact public typed state, reconstruct LogicalCallReceiptBinding and CommittedStagingChunkReceipt from every public field, replace route with the exact pinned bundle member after equality and digest checks, and reject subclasses, foreign lookalikes, copies, pickle state, or object.__setattr__ mutations that do not reproduce canonical state."
+    },
+    "terminal_observation": {
+      "accepted_states": [
+        "success_nonempty",
+        "success_empty"
+      ],
+      "bare_observation_sha256_input_permitted": false,
+      "derived_output_fields": {
+        "observation_sha256": "SHA-256 of canonical minified UTF-8 JSON for the exact reconstructed RequestObservation.to_dict()",
+        "source_request_sha256": "request.source_request_sha256"
+      },
+      "exact_input_types": {
+        "execution_authority": "nbadb.orchestrate.extractor_runner.RequestClosureExecutionAuthority",
+        "observation": "nbadb.orchestrate.request_closure_runtime.RequestObservation",
+        "request": "CompetitionQualifiedRequest"
+      },
+      "match_rules": [
+        "The request must be a revalidated provider_request, not a static_source.",
+        "The exact reconstructed observation.request_surface_sha256, provider_request_sha256, source_family, and endpoint_id must equal the retained CanonicalProviderRequest request_surface_sha256, provider_request_sha256, source_family, and endpoint_id and the exact requirement recovered from request.requirement_sha256; request_surface_sha256 must equal the independently reproduced pinned request surface.",
+        "Reconstruct the exact RequestClosureExecutionAuthority, require observation.route_manifest_sha256 and scope_sha256 to equal its exact route manifest and scope, and require exactly one independently reproduced authority.bindings member for observation.provider_request_sha256 whose exact route_ids equal observation.route_ids.",
+        "Only success_nonempty and success_empty observations are terminal observation evidence in A1.2e. upstream_unavailable remains reserved for qualify_unavailable_evidence and fails closed until A1.3a; contract_blocked, transient_failed, response_contract_failed, unattempted, and unclassified are rejected."
+      ],
+      "revalidation": "Require exact concrete input types, reconstruct RequestObservation with RequestObservation.from_dict(observation.to_dict()), and recursively reconstruct RequestClosureExecutionAuthority and all nested route/scope/alias/logical-call values from exact public typed state before every comparison and digest. Reject subclasses, foreign lookalikes, copies, pickle state, or object.__setattr__ mutations that do not reproduce exact canonical state."
+    }
+  },
+  "qualified_surface_parent_consistency_contract": {
+    "child_input_revalidation": "Every child qualifier requires exact concrete A1.2e DTO inputs, reconstructs their public fields, revalidates their privately retained exact requirement and CanonicalProviderRequest evidence plus the exact ReceiptBoundCompetitionRoot retained by a receipt_bound_dynamic_root request, and rejects subclass, foreign, copied, pickled, or object.__setattr__-mutated values whose public/private identities diverge.",
+    "pagination_page": [
+      "series.competition_scope_sha256 must equal request.competition_scope_sha256 and series.provider_endpoint_id must equal the exact provider endpoint recovered from request.requirement_sha256 and its retained CanonicalProviderRequest.",
+      "Re-run the pagination-series parent qualifier from the provided revalidated request plus series.provider_endpoint_id, series.cursor_occurrence_id, and series.non_cursor_scope_sha256; its complete public value and pagination_series_sha256 must equal the provided exact concrete series before constructing a page.",
+      "source_request_sha256 is derived only as request.source_request_sha256; the caller cannot provide or replace it.",
+      "series.cursor_occurrence_id must still resolve to the one exact pagination_cursor parameter of the retained CanonicalProviderRequest endpoint.",
+      "cursor_value must have the identical exact concrete str, nonbool int, or finite float type and value of that cursor's retained materialized parameter. Apply the pinned request-surface numeric interpretation, require the finite result to be an exact whole number in the pinned 0..2147483647 cursor bounds, and require page_ordinal to be the identical exact nonnegative int value; bool, nonintegral float/text, overflow, and coercively equal but differently encoded cursor values are rejected. The exact cursor encoding remains in pagination_page_sha256, so '1', '1.0', 1, and 1.0 remain distinct identities when individually admissible.",
+      "raw_wire_sha256 is identity-only caller input and must be exact canonical sha256_hex; it does not by itself authorize terminal, persistence, availability, or provider-response evidence."
+    ],
+    "pagination_series": [
+      "request must be request_kind=provider_request and must retain one exact revalidated CanonicalProviderRequest; static_source is rejected.",
+      "provider_endpoint_id must equal both the exact requirement.provider_endpoint_id recovered from request.requirement_sha256 and the retained CanonicalProviderRequest.endpoint_id.",
+      "cursor_occurrence_id must resolve to exactly one parameter occurrence on that exact pinned source_family/provider endpoint and that occurrence.semantic_role must be pagination_cursor; zero, multiple, foreign-endpoint, or non-cursor matches are rejected.",
+      "non_cursor_scope_sha256 must equal the independently computed SHA-256, under qualified_identity_digest_contract.canonicalization, of {request_surface_sha256,source_family,provider_endpoint_id,materialized_parameters:[the exact retained CanonicalProviderRequest materialized parameter name/value pairs except that exact cursor occurrence, preserving pinned parameter order]}; opaque or caller-invented digests are rejected."
+    ],
+    "private_request_evidence": "CompetitionQualifiedRequest always retains private exact normalized CompetitionIdentityRequirement evidence. An explicit_applicability_cell provider_request additionally retains one exact revalidated CanonicalProviderRequest and no root receipt. A receipt_bound_dynamic_root provider_request additionally retains both that exact CanonicalProviderRequest and the exact ReceiptBoundCompetitionRoot consumed by its binder. A fixed_static_root static_source retains neither provider request nor root receipt. Private evidence is excluded from public DTO fields and source_request_sha256, but must be revalidated at every consumer boundary; a public-field-only self-resealed object is rejected.",
+    "request_requirement_consistency": "For every child qualifier, request.requirement_sha256, competition_scope_sha256, role_binding_sha256, request_kind, source_evidence_sha256, provider_request_sha256, and source_request_sha256 must reproduce from the one exact pinned requirement and retained normalized request evidence before the child identity is constructed. Dynamic requests must exact-type check and invoke _revalidate() on their retained ReceiptBoundCompetitionRoot, then re-prove root_binding_sha256, league_id, source_request_identity_sha256/provider_request_sha256, and source_evidence_sha256/receipt_sha256. Explicit and static requests must reject any retained root receipt."
+  },
+  "qualified_identity_digest_contract": {
+    "canonicalization": "SHA-256 of canonical minified UTF-8 JSON with sorted object keys, separators ',' and ':', ensure_ascii=false, allow_nan=false, and no trailing newline.",
+    "discovery_generation_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "competition_scope_sha256",
+        "native_period_scope_sha256",
+        "producer_request_or_root_receipt_inventory_sha256",
+        "schema_sha256",
+        "row_count",
+        "content_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.discovery-generation.v1"
+    },
+    "entity_identity_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "competition_scope_sha256",
+        "entity_kind",
+        "provider_encoding",
+        "entity_value"
+      ],
+      "domain_separator": "nbadb.nba-api.entity.v1"
+    },
+    "pagination_page_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "pagination_series_sha256",
+        "source_request_sha256",
+        "cursor_value",
+        "page_ordinal",
+        "raw_wire_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.pagination-page.v1"
+    },
+    "pagination_series_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "competition_scope_sha256",
+        "provider_endpoint_id",
+        "cursor_occurrence_id",
+        "non_cursor_scope_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.pagination-series.v1"
+    },
+    "source_request_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "competition_scope_sha256",
+        "requirement_sha256",
+        "role_binding_sha256",
+        "request_kind",
+        "source_evidence_sha256",
+        "provider_request_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.source-request.v1"
+    },
+    "staging_occurrence_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "source_request_sha256",
+        "route_contract_sha256",
+        "result_ordinal",
+        "logical_call_receipt_sha256",
+        "committed_staging_receipt_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.staging-occurrence.v1"
+    },
+    "terminal_observation_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "source_request_sha256",
+        "observation_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.terminal-observation.v1"
+    },
+    "unavailable_evidence_sha256": {
+      "digest_body_fields": [
+        "domain_separator",
+        "source_request_sha256",
+        "support_or_availability_authority_sha256"
+      ],
+      "domain_separator": "nbadb.nba-api.unavailable-evidence.v1"
+    }
+  },
+  "qualified_surface_contracts": [
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.source-request.v1",
+      "identity_field_types": {
+        "competition_scope_sha256": "str",
+        "provider_request_sha256": "str|null",
+        "request_kind": "literal:provider_request|static_source",
+        "requirement_sha256": "str",
+        "role_binding_sha256": "str",
+        "source_evidence_sha256": "str",
+        "source_request_sha256": "str"
+      },
+      "identity_fields": [
+        "competition_scope_sha256",
+        "requirement_sha256",
+        "role_binding_sha256",
+        "request_kind",
+        "source_evidence_sha256",
+        "provider_request_sha256",
+        "source_request_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": null,
+      "surface_contract_sha256": "d7c7bdde411819bd3dab62ab8fbf65eebf2daf23e8c291a914e43c847a118c33",
+      "surface_name": "source_request"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.pagination-series.v1",
+      "identity_field_types": {
+        "competition_scope_sha256": "str",
+        "cursor_occurrence_id": "str",
+        "non_cursor_scope_sha256": "str",
+        "pagination_series_sha256": "str",
+        "provider_endpoint_id": "str"
+      },
+      "identity_fields": [
+        "competition_scope_sha256",
+        "provider_endpoint_id",
+        "cursor_occurrence_id",
+        "non_cursor_scope_sha256",
+        "pagination_series_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": "source_request",
+      "surface_contract_sha256": "52a327207f564cb1f325db2092c686923ee23d12c90a74ab1df3e13b163e210b",
+      "surface_name": "pagination_series"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.pagination-page.v1",
+      "identity_field_types": {
+        "cursor_value": "finite_float|int|str",
+        "page_ordinal": "nonnegative_int",
+        "pagination_page_sha256": "str",
+        "pagination_series_sha256": "str",
+        "raw_wire_sha256": "str",
+        "source_request_sha256": "str"
+      },
+      "identity_fields": [
+        "pagination_series_sha256",
+        "source_request_sha256",
+        "cursor_value",
+        "page_ordinal",
+        "raw_wire_sha256",
+        "pagination_page_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": "pagination_series",
+      "surface_contract_sha256": "96474b1e354e1b559a36b1ee85989041648a79f7f4f25c21c1bab403062b6b5b",
+      "surface_name": "pagination_page"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.discovery-generation.v1",
+      "identity_field_types": {
+        "competition_scope_sha256": "str",
+        "content_sha256": "str",
+        "discovery_generation_sha256": "str",
+        "native_period_scope_sha256": "str",
+        "producer_request_or_root_receipt_inventory_sha256": "str",
+        "row_count": "nonnegative_int",
+        "schema_sha256": "str"
+      },
+      "identity_fields": [
+        "competition_scope_sha256",
+        "native_period_scope_sha256",
+        "producer_request_or_root_receipt_inventory_sha256",
+        "schema_sha256",
+        "row_count",
+        "content_sha256",
+        "discovery_generation_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": "source_request",
+      "surface_contract_sha256": "505f7f5c1ac2901eb0aede7acee643ad4e293f55652bee51ffeccd144639af95",
+      "surface_name": "discovery_generation"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.terminal-observation.v1",
+      "identity_field_types": {
+        "observation_sha256": "str",
+        "source_request_sha256": "str",
+        "terminal_observation_sha256": "str"
+      },
+      "identity_fields": [
+        "source_request_sha256",
+        "observation_sha256",
+        "terminal_observation_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": "source_request",
+      "surface_contract_sha256": "5647e83762faf83b189ba96628614b1918e1efaa77304cbe3a122529a07d5c2e",
+      "surface_name": "terminal_observation"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.unavailable-evidence.v1",
+      "identity_field_types": {
+        "source_request_sha256": "str",
+        "support_or_availability_authority_sha256": "str",
+        "unavailable_evidence_sha256": "str"
+      },
+      "identity_fields": [
+        "source_request_sha256",
+        "support_or_availability_authority_sha256",
+        "unavailable_evidence_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": "source_request",
+      "surface_contract_sha256": "46cabbd37e74841edc19d971d6b9d7fb504ad7c45e2ce803d7a6f270f1e3f517",
+      "surface_name": "unavailable_evidence"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.staging-occurrence.v1",
+      "identity_field_types": {
+        "committed_staging_receipt_sha256": "str",
+        "logical_call_receipt_sha256": "str",
+        "result_ordinal": "nonnegative_int",
+        "route_contract_sha256": "str",
+        "source_request_sha256": "str",
+        "staging_occurrence_sha256": "str"
+      },
+      "identity_fields": [
+        "source_request_sha256",
+        "route_contract_sha256",
+        "result_ordinal",
+        "logical_call_receipt_sha256",
+        "committed_staging_receipt_sha256",
+        "staging_occurrence_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": "source_request",
+      "surface_contract_sha256": "dec30f7523f6552f7e14779acc3d34415d643223a6192f176d8ed7ed7f899cab",
+      "surface_name": "staging_occurrence"
+    },
+    {
+      "competition_qualified": true,
+      "domain_separator": "nbadb.nba-api.entity.v1",
+      "identity_field_types": {
+        "competition_scope_sha256": "str",
+        "entity_identity_sha256": "str",
+        "entity_kind": "str",
+        "entity_value": "int|str",
+        "provider_encoding": "str"
+      },
+      "identity_fields": [
+        "competition_scope_sha256",
+        "entity_kind",
+        "provider_encoding",
+        "entity_value",
+        "entity_identity_sha256"
+      ],
+      "legacy_unqualified_input_permitted": false,
+      "parent_surface": null,
+      "surface_contract_sha256": "6d02b7bb090e49f20bbe786a10babe88008932e7b89cc2a49add6b67db126f4e",
+      "surface_name": "entity"
+    }
+  ],
+  "retry_class": "local_repair",
+  "role": "worker_writer",
+  "role_binding_contract": {
+    "count": 815,
+    "field_types": {
+      "binding_strategy": "literal:explicit_applicability_cell|receipt_bound_dynamic_root|fixed_static_root|root_not_exposed",
+      "constructor_name": "str|null",
+      "participant_axis_binding": "str|null",
+      "provider_occurrence_id": "str|null",
+      "role_binding_sha256": "sha256_hex",
+      "root_binding_sha256": "sha256_hex|null",
+      "root_kind": "str|null",
+      "root_mode": "str|null",
+      "root_state": "str|null",
+      "source_authority_kind": "literal:competition_applicability|implicit_competition",
+      "source_authority_sha256": "sha256_hex",
+      "source_cell_id": "nonempty_str",
+      "source_cell_sha256": "sha256_hex",
+      "static_chain_sha256": "sha256_hex|null",
+      "temporal_companion_occurrence_ids": "ordered_array[str]",
+      "wire_name": "str|null"
+    },
+    "row_keys": [
+      "binding_strategy",
+      "source_authority_kind",
+      "source_authority_sha256",
+      "source_cell_id",
+      "source_cell_sha256",
+      "constructor_name",
+      "provider_occurrence_id",
+      "wire_name",
+      "temporal_companion_occurrence_ids",
+      "participant_axis_binding",
+      "root_binding_sha256",
+      "root_kind",
+      "root_mode",
+      "root_state",
+      "static_chain_sha256",
+      "role_binding_sha256"
+    ],
+    "self_digest_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact role-binding object excluding only role_binding_sha256.",
+    "strategy_rules": {
+      "explicit_applicability_cell": {
+        "constructor_name": "preserve exact A1.2c alias-role row value",
+        "count": 635,
+        "participant_axis_binding": "preserve exact A1.2c alias-role row value",
+        "provider_occurrence_id": "preserve exact A1.2c alias-role row value",
+        "root_binding_sha256": null,
+        "root_kind": null,
+        "root_mode": null,
+        "root_state": null,
+        "source_authority_kind": "competition_applicability",
+        "source_authority_sha256": "4e81a390af03edda953490f750658f0a8a8928e9297be33954c284caa716980a",
+        "source_cell_id_format": "alias-role:<repo_endpoint_name>:<provider_occurrence_id>:<league_id>",
+        "source_cell_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact pinned A1.2c alias_role_competition_cells row.",
+        "static_chain_sha256": null,
+        "temporal_companion_occurrence_ids": "preserve exact ordered A1.2c alias-role row array",
+        "wire_name": "preserve exact A1.2c alias-role row value"
+      },
+      "fixed_static_root": {
+        "constructor_name": null,
+        "count": 4,
+        "participant_axis_binding": null,
+        "provider_occurrence_id": null,
+        "root_fields": "preserve exact A1.2d root_binding_sha256, root_kind, endpoint binding root_mode, and alias-cell root_state",
+        "source_authority_kind": "implicit_competition",
+        "source_authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97",
+        "source_cell_id": "preserve exact A1.2d alias_competition_cells.cell_id",
+        "source_cell_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact pinned A1.2d alias_competition_cells row.",
+        "static_chain_sha256": "preserve the exact matching A1.2d endpoint_bindings.root_evidence.static_chain_sha256",
+        "temporal_companion_occurrence_ids": [],
+        "wire_name": null
+      },
+      "receipt_bound_dynamic_root": {
+        "constructor_name": null,
+        "count": 160,
+        "participant_axis_binding": null,
+        "provider_occurrence_id": null,
+        "root_fields": "preserve exact A1.2d root_binding_sha256, root_kind, endpoint binding root_mode, and alias-cell root_state",
+        "source_authority_kind": "implicit_competition",
+        "source_authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97",
+        "source_cell_id": "preserve exact A1.2d alias_competition_cells.cell_id",
+        "source_cell_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact pinned A1.2d alias_competition_cells row.",
+        "static_chain_sha256": null,
+        "temporal_companion_occurrence_ids": [],
+        "wire_name": null
+      },
+      "root_not_exposed": {
+        "constructor_name": null,
+        "count": 16,
+        "participant_axis_binding": null,
+        "provider_occurrence_id": null,
+        "request_construction_permitted": false,
+        "root_fields": "preserve exact A1.2d root_binding_sha256, root_kind, endpoint binding root_mode, and alias-cell root_state",
+        "source_authority_kind": "implicit_competition",
+        "source_authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97",
+        "source_cell_id": "preserve exact A1.2d alias_competition_cells.cell_id",
+        "source_cell_sha256_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact pinned A1.2d alias_competition_cells row.",
+        "static_chain_sha256": "preserve the exact matching A1.2d endpoint_bindings.root_evidence.static_chain_sha256",
+        "temporal_companion_occurrence_ids": [],
+        "wire_name": null
+      }
+    }
+  },
+  "schema": "TaskPacketV1",
+  "source_authorities": {
+    "competition_applicability": {
+      "authority_sha256": "4e81a390af03edda953490f750658f0a8a8928e9297be33954c284caa716980a",
+      "independent_proof_sha256": "55cd218bd048f93419dc0e91d57e7f4c005262732af59fb17dfe6318dc0d4deb",
+      "path": "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "payload_sha256": "10740b15f58daa50e6136e4bc1d5ebeea9f187614b6230083a98a9bb53523bc0",
+      "receipt_sha256": "1efc04501c0bc0d0d2db1f84649ef11cbd86118851d3191cfa1eb365261b16d3",
+      "resource_sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53",
+      "review_sha256": "6fb52dd0efbf0c25007f8d6f894a1904648b4572339333a840ba51262b511421"
+    },
+    "implicit_competition": {
+      "alias_bindings_sha256": "54f1da07f08dc206e4b7dd5059e1c7e8d978adb56713cdb3d838f772bd487585",
+      "alias_cells_sha256": "b7ae01ce242c25945cac8d39fedd756d3e17bdb58609e804f425d6b8577e0c27",
+      "authority_sha256": "fe7fd7581532754b322155ad0a74fcbd4068e1ebc83fbd841fd3736e27616d97",
+      "endpoint_bindings_sha256": "b0ad3c2f49ec579011e23ce483f730ccd55d7367fd8bfff2e7ae588268e283bb",
+      "independent_proof_sha256": "88d606d1b87630ee1f268a87d40770b2a626c72594cb300c044ca858f9481f5a",
+      "path": "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+      "payload_sha256": "9fddfad2276884b5d49dc71fca052d7285f73e046d5157427b7fb7b2fcd35ec1",
+      "physical_cells_sha256": "655f0e189bf48905b85d4fe3efca6352b05a2e430f4bf1fbb2121edd49d91fbc",
+      "provider_availability_values": [
+        "unknown"
+      ],
+      "receipt_bound_root_policy_sha256": "a53080ffbeafd3196ab4f258c508c54ac771af43abccf7c675fbf75e641dc4bd",
+      "receipt_sha256": "fc32ce49c54b93bebd83c953d60b51d6fe6edaf2da1d9b43075c51ad01b2678a",
+      "resource_sha256": "ed75be5cf84df8975cc32d50b51215648896b618584ed5b3b3aedcb8b6dc2111",
+      "review_sha256": "1b94ce7e572b669b454271fbf7ae5bf602c5268717ae252484f4b0c1a9ad0e6d",
+      "root_evidence_authority_sha256": "96a166d692a07becea6a0a011072c20bae95833487ce092ee0a02debee5143ac",
+      "root_evidence_canonicalization_sha256": "d58db0edc23f101e5bff8ef086b4dcecc48730b77239c5f3c176a1ce24991e99",
+      "root_evidence_payload_sha256": "905bfadce66e678af78415347c5c3a6dd4d575149b8848b6b0473b80aa0bcebb",
+      "root_evidence_sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba",
+      "source_review_sha256": "d028c60baa78832991d83cbd977d0d555b32b6ebc38a281bb14e7592d76f37e8"
+    }
+  },
+  "source_authorities_contract": {
+    "competition_applicability": {
+      "exact_keys": [
+        "authority_sha256",
+        "independent_proof_sha256",
+        "path",
+        "payload_sha256",
+        "receipt_sha256",
+        "resource_sha256",
+        "review_sha256"
+      ],
+      "must_equal_task_packet_source_authority": true
+    },
+    "exact_keys": [
+      "task_packet",
+      "competition_applicability",
+      "implicit_competition",
+      "predecessor_receipts"
+    ],
+    "implicit_competition": {
+      "exact_keys": [
+        "alias_bindings_sha256",
+        "alias_cells_sha256",
+        "authority_sha256",
+        "endpoint_bindings_sha256",
+        "independent_proof_sha256",
+        "path",
+        "payload_sha256",
+        "physical_cells_sha256",
+        "provider_availability_values",
+        "receipt_bound_root_policy_sha256",
+        "receipt_sha256",
+        "resource_sha256",
+        "review_sha256",
+        "root_evidence_authority_sha256",
+        "root_evidence_canonicalization_sha256",
+        "root_evidence_payload_sha256",
+        "root_evidence_sha256",
+        "source_review_sha256"
+      ],
+      "must_equal_task_packet_source_authority": true
+    },
+    "predecessor_receipts": {
+      "exact_keys": [
+        "A1.2a",
+        "A1.2a_review",
+        "A1.2b",
+        "A1.2b_review",
+        "A1.2c",
+        "A1.2c_review",
+        "A1.2d",
+        "A1.2d_review",
+        "A1.2d_task_packet",
+        "E1",
+        "E1_review",
+        "J0F"
+      ],
+      "must_equal_task_packet_predecessor_receipts": true
+    },
+    "task_packet": {
+      "exact_keys": [
+        "path",
+        "sha256"
+      ],
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2e.json",
+      "sha256_basis": "SHA-256 of the exact final TaskPacket bytes."
+    }
+  },
+  "source_inventory_inputs": [
+    {
+      "path": "src/nbadb/core/nba_api_request_surface.py",
+      "sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+    },
+    {
+      "path": "src/nbadb/orchestrate/request_closure_production.py",
+      "sha256": "f474ef36cdae74bb91cc402b02f88f58a59abc3ee51c4e20a1141fdbb47208ee"
+    },
+    {
+      "path": "src/nbadb/orchestrate/extractor_runner.py",
+      "sha256": "04c84efd8ae61c67cf53b33a02a8b780c3cb2b21dd8ed88f3973f00425e9a79e"
+    },
+    {
+      "path": "src/nbadb/orchestrate/request_closure_runtime.py",
+      "sha256": "691075a0e61db520c731a8be5f0874b6b7d2ece17a7ad340854f2be32df6bfb4"
+    },
+    {
+      "path": "src/nbadb/orchestrate/request_closure_staging.py",
+      "sha256": "c8e3d3f2321c6a26354f7641a891671c0fb819cf26612314617cb9292df38c56"
+    },
+    {
+      "path": "src/nbadb/orchestrate/orchestrator.py",
+      "sha256": "a33dd3b09f0059fd14275d320a61173fdc67ef5760152926c2ae8ac89da0fb27"
+    },
+    {
+      "path": "src/nbadb/extract/bronze.py",
+      "sha256": "406fd372b4f7c9e700c5f7c5fcf65bacaa3bf776fe1f11d96b8d2765fcc7df0e"
+    },
+    {
+      "path": "src/nbadb/orchestrate/capture_session.py",
+      "sha256": "4ee0b97d9d984127a167e8ecffe41037bcb4f11de22ad86c1a6167ff2f6d7871"
+    },
+    {
+      "path": "src/nbadb/orchestrate/discovery.py",
+      "sha256": "d11a54b844f86c092b3a07a6ae61b1e90d018632dd12cccbf6608819027d79a6"
+    },
+    {
+      "path": "src/nbadb/orchestrate/discovery_artifacts.py",
+      "sha256": "dde40d6a4b6148ccf2d3d06be94a72352f505e3d1616ff7aba380c6d62712447"
+    },
+    {
+      "path": "src/nbadb/orchestrate/workload_contract.py",
+      "sha256": "73c6c3767797c517df2800a1dfba68172792254a584020e98d8d8af01310ea43"
+    },
+    {
+      "path": "src/nbadb/orchestrate/cume_workload_contract.py",
+      "sha256": "d8beca266d5602ad3b6278825d03946e268ff486cf1931d0b98356a0b1df7619"
+    },
+    {
+      "path": "src/nbadb/orchestrate/dependent_workload_contract.py",
+      "sha256": "15cec48346ef41cbfc43ddb31dcd7c6295837ae1a7f402fec6d60f1872a8f0ce"
+    },
+    {
+      "path": "src/nbadb/contracts/staging_route_contract.py",
+      "sha256": "19ee24901ee90b492e2183c5d364bbd7b0e13bc286d0e2df11892ca86e1c00f4"
+    },
+    {
+      "path": "src/nbadb/orchestrate/staging_batches.py",
+      "sha256": "366a19ae55e6d9538a8d06e9b7d51277e4d0ee1d774bbef24a0016993992a962"
+    },
+    {
+      "path": "src/nbadb/orchestrate/journal.py",
+      "sha256": "e95b23d796c77e2dc9a54148bd34a82af82775887be59b8dd8fc5c9ead1e9d51"
+    },
+    {
+      "path": "src/nbadb/orchestrate/planning.py",
+      "sha256": "e2734457a63e459e12e962e025d6e243c1561970a760621ee85aaefb41436d0b"
+    },
+    {
+      "path": "src/nbadb/orchestrate/successor_update_contract.py",
+      "sha256": "a16e40640040d3402f23239475f92d74bad4c4a0ebd19250cfb682a4ef0ffce7"
+    },
+    {
+      "path": "src/nbadb/orchestrate/successor_planning_generation_contract.py",
+      "sha256": "fc939f7b03597f1a6f4e51fe478018d5c80db8a6159d2db22a35b294bebe698f"
+    },
+    {
+      "path": "src/nbadb/orchestrate/successor_planning_program_compiler.py",
+      "sha256": "798dcc54ec3b6890480354b6a9d2eced58cf3182d2b1e5710ee4c2713bcd6395"
+    },
+    {
+      "path": "src/nbadb/extract/base.py",
+      "sha256": "638779321db0fc5be45fb320ac168a86f42301f716faa5a1b03843d455f1b3c6"
+    },
+    {
+      "path": "src/nbadb/orchestrate/live_snapshot.py",
+      "sha256": "e0ef54722cf8823d4b40ccd4e03063f979b63b6c6b77146e2fbca47550db08c8"
+    },
+    {
+      "path": "src/nbadb/contracts/temporal_availability_contract.py",
+      "sha256": "6f0cc1dee4c01dcf2041ed139edcd211f1fb659b946fb4990e8c2909a11abe36"
+    }
+  ],
+  "source_inventory_inputs_digest_basis": "SHA-256 of canonical minified UTF-8 JSON for the exact ordered source_inventory_inputs row array with object keys sorted and no trailing newline.",
+  "source_inventory_inputs_sha256": "e0795472375627bccefab70ce77764875b03f3152cb44f046ba358d19fd1d7a9",
+  "stop_condition": "Before writes, stop on any missing or nonfinal prerequisite, receipt or review drift, immutable/current-edge drift, collision-census drift, denominator or semantic drift, non-disjoint lease, shared-path requirement, or external effect. Success requires exact 147/162/148/163 and 735/740/815 denominators, the 160 dynamic plus 4 fixed Static plus 16 root_not_exposed partition, 799 executable role cells and 159 five-way families/795 cells, competition-distinct numeric identifiers, ordered GLAlum roles, unchanged provider request hashes, exact qualification across every constructible identity surface, unavailable-evidence schema retention with a fail-closed public qualifier until A1.3a admits a typed authority, availability entirely unknown absent separate authority, primary/independent equality, canonical checked-resource no-drift, all 23 focused nodes with every focused_test_vector_contract vector, nine adjacent guards, both aggregate files, Ruff, format check, production ty, scoped diff, duration capture, current-edge verification, and strict TaskEvidenceV1 readback. A separate finding-free A1.2e implementation review remains mandatory before A1.4.",
+  "task_id": "A1.2e",
+  "timeout_seconds": 3600,
+  "unavailable_evidence_construction_contract": {
+    "admitted_typed_authority_symbols": [],
+    "constructor_direct_or_reconstruction_forgery_permitted": false,
+    "future_typed_authority_owner": "A1.3a",
+    "opaque_digest_only_input_permitted": false,
+    "qualifier_behavior": "Revalidate the exact CompetitionQualifiedRequest and then raise NbaApiCompetitionIdentityError because no typed competition-qualified support or availability authority is admitted by this leaf.",
+    "successful_public_construction_permitted": false,
+    "surface_identity_schema_retained": true,
+    "unavailable_claim_emission_permitted": false
+  },
+  "verification_contract": {
+    "adjacent_execution_order": [
+      "tests/unit/core/test_nba_api_request_surface.py::test_provider_request_key_is_authority_bound_and_serializes_exact_wire_request",
+      "tests/unit/core/test_nba_api_request_surface.py::test_route_manifest_rejects_pagination_truncation",
+      "tests/unit/core/test_nba_api_request_surface.py::test_closure_rejects_mismatched_evidence_and_pagination_truncation",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py::test_verifier_rejects_unavailable_and_blocked_receipt_mismatch",
+      "tests/unit/orchestrate/test_request_closure_runtime.py::test_alias_routes_share_one_exact_provider_unit",
+      "tests/unit/orchestrate/test_discovery_artifacts.py::test_game_log_cache_requires_every_exact_combo_including_zero_row_combos",
+      "tests/unit/orchestrate/test_staging_batches.py::test_different_sources_with_same_content_preserve_distinct_rows",
+      "tests/unit/orchestrate/test_cume_workload_contract.py::test_complete_value_binds_scope_order_receipt_and_provider_authority",
+      "tests/unit/orchestrate/test_successor_planning_program_compiler.py::test_non_cume_values_are_canonical_deduped_but_cume_order_is_authority"
+    ],
+    "aggregate_execution_order": [
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py"
+    ],
+    "canonical_checked_resource_required": true,
+    "canonical_task_evidence_readback_required": true,
+    "current_edge_verification_required": true,
+    "duration_capture_required": true,
+    "format_check_required": true,
+    "generated_no_drift_required": true,
+    "primary_independent_equality_required": true,
+    "production_ty_required": true,
+    "ruff_required": true,
+    "scoped_diff_required": true,
+    "separate_finding_free_implementation_review_before_A1_4": true
+  },
+  "writer_lease": {
+    "excluded_paths": [
+      ".github",
+      "artifacts/assurance/complete-nba-api-sink/A1.2a",
+      "artifacts/assurance/complete-nba-api-sink/A1.2a/receipt.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2a/review.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2b",
+      "artifacts/assurance/complete-nba-api-sink/A1.2b/receipt.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2b/review.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/review.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/competition-existence-evidence.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2d",
+      "artifacts/assurance/complete-nba-api-sink/A1.2d/receipt.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2d/review.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/implicit-competition-root-evidence.json",
+      "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/source-review.json",
+      "artifacts/assurance/complete-nba-api-sink/B2.1a",
+      "artifacts/assurance/complete-nba-api-sink/D5.5a",
+      "artifacts/assurance/complete-nba-api-sink/E1",
+      "artifacts/assurance/complete-nba-api-sink/E1/receipt.json",
+      "artifacts/assurance/complete-nba-api-sink/E1/review.json",
+      "artifacts/assurance/complete-nba-api-sink/J0F",
+      "artifacts/assurance/complete-nba-api-sink/J0F/receipt.json",
+      "artifacts/assurance/complete-nba-api-sink/J0F/review-k.json",
+      "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2a.json",
+      "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2b.json",
+      "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2c.json",
+      "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2d.json",
+      "artifacts/assurance/complete-nba-api-sink/W0.8",
+      "artifacts/assurance/complete-nba-api-sink/fact-traceability.json",
+      "goals/complete-nba-api-sink-and-kaggle-baseline",
+      "goals/complete-nba-api-sink-and-kaggle-baseline/facts.md",
+      "goals/complete-nba-api-sink-and-kaggle-baseline/facts.meta.json",
+      "goals/complete-nba-api-sink-and-kaggle-baseline/goal.md",
+      "goals/complete-nba-api-sink-and-kaggle-baseline/plan.md",
+      "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+      "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+      "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "src/nbadb/contracts/nba_api_runtime_contract_v1_11_4.json",
+      "src/nbadb/contracts/staging_route_contract.py",
+      "src/nbadb/contracts/temporal_availability_contract.py",
+      "src/nbadb/core/__init__.py",
+      "src/nbadb/core/nba_api_competition.py",
+      "src/nbadb/core/nba_api_competition_applicability.py",
+      "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+      "src/nbadb/core/nba_api_competition_occurrences.py",
+      "src/nbadb/core/nba_api_competition_occurrences_verifier.py",
+      "src/nbadb/core/nba_api_competition_verifier.py",
+      "src/nbadb/core/nba_api_implicit_competition.py",
+      "src/nbadb/core/nba_api_implicit_competition_verifier.py",
+      "src/nbadb/core/nba_api_request_surface.py",
+      "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "src/nbadb/core/nba_api_runtime_contract.py",
+      "src/nbadb/core/nba_api_surface_inventory.py",
+      "src/nbadb/extract",
+      "src/nbadb/extract/base.py",
+      "src/nbadb/extract/bronze.py",
+      "src/nbadb/extract/registry.py",
+      "src/nbadb/kaggle",
+      "src/nbadb/orchestrate",
+      "src/nbadb/orchestrate/capture_session.py",
+      "src/nbadb/orchestrate/cume_workload_contract.py",
+      "src/nbadb/orchestrate/dependent_workload_contract.py",
+      "src/nbadb/orchestrate/discovery.py",
+      "src/nbadb/orchestrate/discovery_artifacts.py",
+      "src/nbadb/orchestrate/extractor_runner.py",
+      "src/nbadb/orchestrate/journal.py",
+      "src/nbadb/orchestrate/live_snapshot.py",
+      "src/nbadb/orchestrate/orchestrator.py",
+      "src/nbadb/orchestrate/planning.py",
+      "src/nbadb/orchestrate/request_closure_production.py",
+      "src/nbadb/orchestrate/request_closure_runtime.py",
+      "src/nbadb/orchestrate/request_closure_staging.py",
+      "src/nbadb/orchestrate/staging_batches.py",
+      "src/nbadb/orchestrate/successor_planning_generation_contract.py",
+      "src/nbadb/orchestrate/successor_planning_program_compiler.py",
+      "src/nbadb/orchestrate/successor_update_contract.py",
+      "src/nbadb/orchestrate/workload_contract.py",
+      "tests/unit/core/test_nba_api_competition_applicability.py",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+      "tests/unit/core/test_nba_api_implicit_competition.py",
+      "tests/unit/core/test_nba_api_implicit_competition_verifier.py"
+    ],
+    "immutable_and_source_inventory_paths_are_excluded": true,
+    "owned_paths": [
+      "src/nbadb/core/nba_api_competition_identity.py",
+      "src/nbadb/core/nba_api_competition_identity_verifier.py",
+      "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+      "artifacts/assurance/complete-nba-api-sink/A1.2e/receipt.json"
+    ]
+  }
+}

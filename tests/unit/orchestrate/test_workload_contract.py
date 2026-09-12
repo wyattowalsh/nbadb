@@ -59,8 +59,7 @@ def _upsert_one(
 ) -> None:
     store.upsert(
         [_one_param(player_id=player_id, team_id=team_id, pair=pair)],
-        seasons=[pair[0]],
-        season_types=[pair[1]],
+        covered_pairs={pair},
     )
 
 
@@ -122,7 +121,7 @@ def _write_legacy_v3(
 def test_store_tracks_zero_row_covered_pairs_in_v4_generation(tmp_path: Path) -> None:
     store = _store(tmp_path)
 
-    store.upsert([], seasons=[_PAIR[0]], season_types=[_PAIR[1]])
+    store.upsert([], covered_pairs={_PAIR})
 
     coverage = store.load_coverage(seasons=[_PAIR[0]], season_types=[_PAIR[1]])
     assert coverage.counts_by_pair == {}
@@ -171,14 +170,12 @@ def test_store_replaces_overlapping_scope_and_keeps_other_pairs(tmp_path: Path) 
             _one_param(player_id=1, team_id=10),
             _one_param(player_id=2, team_id=20, pair=_OTHER_PAIR),
         ],
-        seasons=[_PAIR[0], _OTHER_PAIR[0]],
-        season_types=[_PAIR[1]],
+        covered_pairs={_PAIR, _OTHER_PAIR},
     )
 
     store.upsert(
         [_one_param(player_id=3, team_id=30)],
-        seasons=[_PAIR[0]],
-        season_types=[_PAIR[1]],
+        covered_pairs={_PAIR},
     )
 
     assert store.load_params(season_types=[_PAIR[1]]) == [
@@ -192,14 +189,55 @@ def test_store_upsert_uses_explicit_covered_pairs(tmp_path: Path) -> None:
 
     store.upsert(
         [_one_param(pair=_OTHER_PAIR)],
-        seasons=[_PAIR[0], _OTHER_PAIR[0]],
-        season_types=[_PAIR[1]],
         covered_pairs={_OTHER_PAIR},
     )
 
     coverage = store.load_coverage(seasons=[_PAIR[0], _OTHER_PAIR[0]], season_types=[_PAIR[1]])
     assert coverage.covered_pairs == {_OTHER_PAIR}
     assert coverage.counts_by_pair == {_OTHER_PAIR: 1}
+
+
+def test_store_requires_explicit_nonempty_covered_pairs(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    omitted: dict[str, set[tuple[str, str]]] = {}
+
+    with pytest.raises(TypeError, match="covered_pairs"):
+        store.upsert([], **omitted)
+    with pytest.raises(ValueError, match="non-empty set"):
+        store.upsert([], covered_pairs=set())
+
+    assert store.manifest_path is not None
+    assert not store.manifest_path.exists()
+
+
+@pytest.mark.parametrize(
+    "covered_pairs",
+    [
+        {("", _PAIR[1])},
+        {(_PAIR[0], "")},
+    ],
+)
+def test_store_rejects_invalid_covered_pairs(
+    tmp_path: Path,
+    covered_pairs: set[tuple[str, str]],
+) -> None:
+    store = _store(tmp_path)
+
+    with pytest.raises(ValueError, match="exact non-empty string pairs"):
+        store.upsert([], covered_pairs=covered_pairs)
+
+    assert store.manifest_path is not None
+    assert not store.manifest_path.exists()
+
+
+def test_store_rejects_rows_outside_explicit_covered_pairs(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+
+    with pytest.raises(ValueError, match="outside covered pairs"):
+        store.upsert([_one_param(pair=_OTHER_PAIR)], covered_pairs={_PAIR})
+
+    assert store.manifest_path is not None
+    assert not store.manifest_path.exists()
 
 
 def test_store_rejects_malformed_manifest_without_reconstruction(tmp_path: Path) -> None:
@@ -319,7 +357,7 @@ def test_store_rejects_generation_schema_mismatch_with_valid_digest(tmp_path: Pa
 
 def test_store_rejects_invalid_sentinel_with_valid_digest(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    store.upsert([], seasons=[_PAIR[0]], season_types=[_PAIR[1]])
+    store.upsert([], covered_pairs={_PAIR})
     invalid_frame = pl.DataFrame(
         [
             {

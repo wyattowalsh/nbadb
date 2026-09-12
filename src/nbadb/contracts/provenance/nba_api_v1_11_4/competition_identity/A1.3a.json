@@ -1,0 +1,2030 @@
+{
+  "absent_creation_inputs": [
+    "src/nbadb/core/nba_api_terminal_state.py",
+    "src/nbadb/core/nba_api_terminal_state_verifier.py",
+    "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+    "tests/unit/core/test_nba_api_terminal_state.py",
+    "tests/unit/core/test_nba_api_terminal_state_verifier.py",
+    "tests/unit/core/test_nba_api_terminal_state_mutations.py"
+  ],
+  "accepted_fact_ids": [
+    "F03",
+    "F05",
+    "F07",
+    "F33"
+  ],
+  "accepted_fact_slugs": [
+    "package-surface-closure",
+    "request-universe",
+    "terminal-classification",
+    "no-false-completion"
+  ],
+  "checked_resource_contracts": {
+    "canonical_bytes": "Every changed checked resource must exactly match its own strict sorted-key writer encoding with ensure_ascii=false, allow_nan=false, and one terminal LF: terminal, request, occurrence, and applicability use minified JSON; competition identity uses two-space pretty JSON. The immutable historical implicit-competition resource must retain exact opening bytes. All semantic digests use minified sorted-key JSON without the terminal LF.",
+    "double_generation_lifecycle": [
+      "generate terminal policy twice in distinct fresh task temp directories and require byte plus semantic-digest equality",
+      "materialize the terminal checked resource only after equality",
+      "generate request surface v3 twice against the exact terminal policy hash and require byte plus authority equality",
+      "materialize request v3 only after equality",
+      "generate competition occurrences twice against the exact request-v3 resource and require byte plus authority equality",
+      "materialize competition occurrences only after equality",
+      "after the W4 primary and independent source edits are persisted and read back, generate competition applicability twice against the exact occurrence plus request-v3 resources and the authenticated A1.2c historical evidence projection; require byte plus authority equality",
+      "materialize competition applicability only after generation equality, then require both the primary loader and independent verifier to accept the exact final bytes and reject every predecessor-supersession mismatch",
+      "authenticate the immutable A1.2d implicit checked resource at exact SHA-256 ed75be5cf84df8975cc32d50b51215648896b618584ed5b3b3aedcb8b6dc2111; never generate or rewrite it",
+      "run the updated implicit verifier twice into the two distinct W5 proof children against both the sealed historical barrier and the current request/occurrence/applicability authorities; require semantic partition equality plus byte-identical canonical receipt-to-record proof bodies and one identical digest whose authority is complete at W5",
+      "generate competition identity v2 twice against exact terminal, request-v3, current applicability, immutable historical implicit, and W5-finalized implicit-supersession-proof hashes; require byte plus authority equality",
+      "materialize competition identity v2 only after equality",
+      "regenerate all five changed checked resources in a third fresh directory, require exact checked-path no-drift, and reauthenticate the unchanged historical implicit bytes"
+    ],
+    "downstream_independent_verifiers": [
+      {
+        "candidate_resource_read_last": true,
+        "expected_predecessor_supersession": [],
+        "module": "nbadb.core.nba_api_competition_occurrences_verifier",
+        "source_mutable": false
+      },
+      {
+        "candidate_resource_read_last": true,
+        "expected_predecessor_supersession": [
+          "nba_api_competition_occurrences_v1_11_4.json",
+          "nba_api_request_surface_v1_11_4.json",
+          "A1.2c historical endpoint-support evidence"
+        ],
+        "module": "nbadb.core.nba_api_competition_applicability_verifier",
+        "source_mutable": true
+      },
+      {
+        "candidate_resource_read_last": true,
+        "expected_predecessor_supersession": [
+          "immutable A1.2d implicit resource",
+          "current request surface v3",
+          "current competition occurrences v1",
+          "current competition applicability v1"
+        ],
+        "module": "nbadb.core.nba_api_implicit_competition_verifier",
+        "source_mutable": true
+      },
+      {
+        "candidate_resource_read_last": true,
+        "expected_predecessor_supersession": [
+          "A1.3a packet",
+          "terminal policy v1",
+          "request surface v3",
+          "current competition applicability v1",
+          "immutable A1.2d implicit resource",
+          "W5-finalized receipt-to-record implicit supersession proof digest"
+        ],
+        "module": "nbadb.core.nba_api_competition_identity_verifier",
+        "source_mutable": true
+      }
+    ],
+    "historical_supersession_contract": {
+      "current_paths_never_reinterpreted_as_historical_bytes": true,
+      "digest_convention": "SHA-256 of canonical minified UTF-8 JSON for the exact ordered path-string or {path,sha256} row array with object keys sorted, ensure_ascii=false, nonfinite values rejected, and no trailing LF",
+      "generic_or_implicit_fallback_permitted": false,
+      "historical_barriers": [
+        {
+          "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+          "sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb"
+        },
+        {
+          "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+          "sha256": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589"
+        },
+        {
+          "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2d.json",
+          "sha256": "acc12887aa5525a0ed9cc8047264c7efda3da92da745c5145138b4eb2a72e1bb"
+        },
+        {
+          "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/implicit-competition-root-evidence.json",
+          "sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba"
+        },
+        {
+          "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/source-review.json",
+          "sha256": "d028c60baa78832991d83cbd977d0d555b32b6ebc38a281bb14e7592d76f37e8"
+        },
+        {
+          "path": "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+          "sha256": "ed75be5cf84df8975cc32d50b51215648896b618584ed5b3b3aedcb8b6dc2111"
+        }
+      ],
+      "historical_membership_authentication": "For each reconciliation, first require exact set equality and per-path opening-hash equality between the historical packet immutable-input/current-development-path intersection and the declared opening rows; then project those rows into the packet-frozen successor order below. Historical immutable-input row order is not successor order and must not be substituted for it.",
+      "implicit_checked_resource_mutation_permitted": false,
+      "implicit_current_semantic_projection_fields": [
+        "endpoint_bindings",
+        "alias_bindings",
+        "physical_competition_cells",
+        "alias_competition_cells",
+        "denominator_counts",
+        "receipt_bound_root_policy"
+      ],
+      "implicit_supersession_proof_authority_depends_on_future_receipt": false,
+      "implicit_supersession_proof_lifecycle": [
+        "W5 derives the complete canonical proof independently into two distinct initially absent task-temp children, requires byte-identical bodies and identical SHA-256 digests, and finalizes that digest without reading or depending on any future receipt",
+        "W6 consumes only the already-final W5 proof digest and binds it into competition identity v2; no receipt path, receipt bytes, or receipt digest participates in identity authority",
+        "W8 final-no-drift independently performs a third proof derivation and requires exact byte and digest equality with W5",
+        "the coordinator retains the exact W5 proof body and digest only as immutable joined in-memory evidence after every private proof temp child is cleaned before receipt creation",
+        "W9 records that exact already-authoritative W5 body and digest in the candidate receipt without recomputation, rebinding, or substitution; receipt recording does not create, alter, or validate proof authority"
+      ],
+      "implicit_supersession_proof_public_output": false,
+      "must_reject": [
+        "historical raw hash treated as current authority",
+        "current raw hash substituted into historical evidence",
+        "implicit resource rewrite",
+        "semantic row or partition drift",
+        "missing current request/occurrence/applicability binding",
+        "unbound supersession digest",
+        "generic fallback, path-prefix inference, unordered set reconciliation, or any successor mapping not equal to the exact four-row and seven-row ordered commitments",
+        "sealed historical projection or current projection not independently stable under repeated derivation"
+      ],
+      "sealed_and_current_stable_projection_required": true,
+      "successor_reconciliations": [
+        {
+          "historical_task_id": "A1.2c",
+          "historical_task_packet": {
+            "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2c.json",
+            "sha256": "d2f668cd0627562508849423c5df5d8e0e120a2fecc270a44699c9fe4458bf91"
+          },
+          "opening_rows": [
+            {
+              "path": "src/nbadb/core/nba_api_request_surface.py",
+              "sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+            },
+            {
+              "path": "src/nbadb/core/nba_api_request_surface_verifier.py",
+              "sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+            },
+            {
+              "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+              "sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+            },
+            {
+              "path": "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+              "sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700"
+            }
+          ],
+          "opening_rows_sha256": "a94f22cba94539250b6a1e1c8be199dcf903b102f5290ee5ed4ece343bfcac90",
+          "successor_path_count": 4,
+          "successor_paths": [
+            "src/nbadb/core/nba_api_request_surface.py",
+            "src/nbadb/core/nba_api_request_surface_verifier.py",
+            "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+            "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json"
+          ],
+          "successor_paths_sha256": "99bd793926effc6edaa01c8796c3016410d45040a54e83ff881359f4055f782b"
+        },
+        {
+          "historical_task_id": "A1.2d",
+          "historical_task_packet": {
+            "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2d.json",
+            "sha256": "acc12887aa5525a0ed9cc8047264c7efda3da92da745c5145138b4eb2a72e1bb"
+          },
+          "opening_rows": [
+            {
+              "path": "src/nbadb/core/nba_api_request_surface.py",
+              "sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+            },
+            {
+              "path": "src/nbadb/core/nba_api_request_surface_verifier.py",
+              "sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+            },
+            {
+              "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+              "sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+            },
+            {
+              "path": "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+              "sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700"
+            },
+            {
+              "path": "src/nbadb/core/nba_api_competition_applicability.py",
+              "sha256": "271bfa9855bf4c3e8f51bc3eaff82d6225c5a89569fdc319a7d43856d0085cda"
+            },
+            {
+              "path": "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+              "sha256": "a847dff632338981aa522646ce766a2e029aa43a95c4adcc3e0fb427e06a7ebd"
+            },
+            {
+              "path": "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+              "sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53"
+            }
+          ],
+          "opening_rows_sha256": "923d931c5f8e58f6a74d29aa4d245fcaa9a9df1a52b1e632e1b0a3bc772cb653",
+          "successor_path_count": 7,
+          "successor_paths": [
+            "src/nbadb/core/nba_api_request_surface.py",
+            "src/nbadb/core/nba_api_request_surface_verifier.py",
+            "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+            "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+            "src/nbadb/core/nba_api_competition_applicability.py",
+            "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+            "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json"
+          ],
+          "successor_paths_sha256": "ff9e7db0ac7f7e2d6845f36ff21facc04ca9479cf7cfe6bbc639e70e7451c2c1"
+        }
+      ],
+      "supersession_rule": "Authenticate historical bytes under their original packet and predecessor bindings, independently derive the current semantic projection from request v3 plus current occurrence/applicability authorities, require exact semantic equality, and bind both historical and current identities into one canonical receipt-to-record proof digest finalized before identity generation.",
+      "w5_double_derivation_required": true,
+      "w6_binds_finalized_proof_digest_without_receipt_dependency": true,
+      "w8_third_replay_required": true,
+      "w9_recomputation_or_rebinding_permitted": false,
+      "w9_records_but_does_not_authorize_proof": true
+    },
+    "resources": [
+      {
+        "derivation_policy_version": 1,
+        "kind": "nbadb_nba_api_terminal_state_authority",
+        "path": "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+        "schema_version": 1,
+        "upstream_resources": []
+      },
+      {
+        "final_derivation_policy_version": 6,
+        "final_schema_version": 3,
+        "opening_derivation_policy_version": 5,
+        "opening_schema_version": 2,
+        "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+        "upstream_resources": [
+          "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json"
+        ]
+      },
+      {
+        "kind": "nbadb_nba_api_competition_occurrence_authority",
+        "path": "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+        "schema_version": 1,
+        "upstream_resources": [
+          "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json"
+        ]
+      },
+      {
+        "kind": "nbadb_nba_api_competition_applicability_authority",
+        "path": "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+        "schema_version": 1,
+        "upstream_resources": [
+          "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+          "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+          "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+          "A1.2c historical endpoint-support evidence"
+        ]
+      },
+      {
+        "historical_barrier": true,
+        "kind": "nbadb_nba_api_implicit_competition_authority",
+        "opening_and_required_final_sha256": "ed75be5cf84df8975cc32d50b51215648896b618584ed5b3b3aedcb8b6dc2111",
+        "path": "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+        "schema_version": 1,
+        "upstream_resources": [
+          "sealed A1.2d packet and source inputs only"
+        ],
+        "write_permitted": false
+      },
+      {
+        "final_schema_version": 2,
+        "opening_schema_version": 1,
+        "path": "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+        "upstream_resources": [
+          "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+          "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+          "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+          "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+          "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+          "W5-finalized receipt-to-record implicit historical-supersession proof digest"
+        ]
+      }
+    ],
+    "terminal_resource_exact_keys": [
+      "accounting_state_contracts",
+      "canonicalization",
+      "domain_separators",
+      "false_green_counters",
+      "incomplete_request_states",
+      "kind",
+      "nba_api_version",
+      "optional_absent_contract",
+      "payload_sha256",
+      "release_terminal_request_states",
+      "result_occurrence_states",
+      "schema_version",
+      "source_inventory",
+      "source_inventory_sha256",
+      "task_id",
+      "terminal_policy_sha256",
+      "wire_request_states"
+    ]
+  },
+  "completion_gate_contract": {
+    "candidate_receipt_permitted_after_all_feasible_local_gates": true,
+    "candidate_status": "candidate_pass_local_offline_terminal_contract_locked_quality_gates_open_review_not_admissible",
+    "only_permitted_positive_marker": "a1_3a_local_offline_terminal_contract_candidate",
+    "required_receipt_values": {
+      "a1_3a_current": false,
+      "a1_3a_local_offline_terminal_contract_candidate": true,
+      "a1_3a_review_complete": false,
+      "a1_4_admissible": false,
+      "a1_5_admissible": false,
+      "data_green": false,
+      "docs_quality_gates_complete": false,
+      "f05_whole_complete": false,
+      "f07_terminal_partition_complete": false,
+      "global_completion": false,
+      "live_operations_admissible": false,
+      "locked_quality_gates_complete": false,
+      "model_green": false,
+      "publication_admissible": false,
+      "review_admissible": false,
+      "w0_8_current": false
+    },
+    "review_must_remain_absent_while_any_mandatory_gate_open": true
+  },
+  "consumers": [
+    "A1.4",
+    "A1.5",
+    "J1A"
+  ],
+  "dispatch_barrier": {
+    "development_dispatch_permitted_only_after": "W0",
+    "pre_W0_checks": [
+      "strict canonical packet persistence and readback",
+      "98 immutable rows and digest",
+      "20 mutable opening rows and digest",
+      "immutable/mutable disjointness",
+      "six creation paths absent",
+      "29 predecessors authentic",
+      "source edge and exact status authentic",
+      "packet-local stale-lease reconciliation effective",
+      "A1.2c exact four-path historical-successor reconciliation and both ordered digests",
+      "A1.2d exact seven-path historical-successor reconciliation and both ordered digests",
+      "generic historical-supersession fallback forbidden"
+    ]
+  },
+  "evidence_limitations": [
+    "This packet authorizes only local source/resource/test/docs development and a candidate receipt on exact bytes; it establishes no live provider availability or DATA completion.",
+    "Exact locked Ruff 0.15.21, ty 0.0.58, and all five docs gates are mandatory and currently open because their exact local executables or node_modules are absent.",
+    "A candidate receipt may record feasible local proof but cannot make review admissible or any current, downstream, MODEL, DATA, live, publication, or global marker true.",
+    "Optional absent is result-occurrence state only and cannot satisfy request success.",
+    "The A1.2d implicit checked resource remains an exact immutable historical barrier; only a strict receipt-to-record reconciliation finalized at W5 independently of any future receipt of the frozen and current stable semantic projections is admitted, with no generic fallback."
+  ],
+  "exclusive_writer_groups": {
+    "assurance_integration": {
+      "barrier": "W7",
+      "owned_paths": [
+        "src/nbadb/contracts/assurance.py",
+        "tests/unit/contracts/test_contract_assurance.py"
+      ]
+    },
+    "competition_applicability_independent": {
+      "barrier": "W4",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_competition_applicability_verifier.py"
+      ]
+    },
+    "competition_applicability_primary": {
+      "barrier": "W4",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_competition_applicability.py",
+        "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json"
+      ]
+    },
+    "competition_identity_independent": {
+      "barrier": "W6",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_competition_identity_verifier.py",
+        "tests/unit/core/test_nba_api_competition_identity_verifier.py"
+      ]
+    },
+    "competition_identity_primary": {
+      "barrier": "W6",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_competition_identity.py",
+        "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+        "tests/unit/core/test_nba_api_competition_identity.py"
+      ]
+    },
+    "competition_occurrence_successor": {
+      "barrier": "W3",
+      "owned_paths": [
+        "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json"
+      ]
+    },
+    "docs_steward": {
+      "barrier": "W1",
+      "owned_paths": [
+        "docs/content/docs/architecture.mdx"
+      ]
+    },
+    "implicit_historical_supersession": {
+      "barrier": "W5",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_implicit_competition_verifier.py"
+      ]
+    },
+    "independent_reviewer": {
+      "barrier": "post_locked_and_docs_gate_closure",
+      "owned_paths": [
+        "artifacts/assurance/complete-nba-api-sink/A1.3a/review.json"
+      ]
+    },
+    "packet_issuer": {
+      "barrier": "W0",
+      "owned_paths": [
+        "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3a.json"
+      ]
+    },
+    "receipt_coordinator": {
+      "barrier": "W9",
+      "owned_paths": [
+        "artifacts/assurance/complete-nba-api-sink/A1.3a/receipt.json"
+      ]
+    },
+    "request_runtime_integration": {
+      "barrier": "W2",
+      "owned_paths": [
+        "src/nbadb/orchestrate/request_closure_runtime.py",
+        "tests/unit/orchestrate/test_request_closure_runtime.py"
+      ]
+    },
+    "request_surface_independent": {
+      "barrier": "W2",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_request_surface_verifier.py",
+        "tests/unit/core/test_nba_api_request_surface_verifier.py"
+      ]
+    },
+    "request_surface_primary": {
+      "barrier": "W2",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_request_surface.py",
+        "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+        "tests/unit/core/test_nba_api_request_surface.py"
+      ]
+    },
+    "terminal_policy_independent": {
+      "barrier": "W1",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_terminal_state_verifier.py",
+        "tests/unit/core/test_nba_api_terminal_state_verifier.py",
+        "tests/unit/core/test_nba_api_terminal_state_mutations.py"
+      ]
+    },
+    "terminal_policy_primary": {
+      "barrier": "W1",
+      "owned_paths": [
+        "src/nbadb/core/nba_api_terminal_state.py",
+        "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+        "tests/unit/core/test_nba_api_terminal_state.py"
+      ]
+    }
+  },
+  "external_effects_admitted": {
+    "external_state_mutation": false,
+    "git_index_mutation": false,
+    "local_owned_path_writes_only": true
+  },
+  "false_green_counters": {
+    "baseline_test_deletions_or_replacements": 0,
+    "broader_completion_claims": 0,
+    "contract_blocked_promoted_to_release_terminal": 0,
+    "external_or_network_calls": 0,
+    "foreign_path_writes": 0,
+    "generic_historical_supersession_fallbacks": 0,
+    "historical_authority_rewrites": 0,
+    "incomplete_state_promotions": 0,
+    "inherited_source_changing_quality_claims": 0,
+    "locked_tool_substitutions": 0,
+    "missing_or_parametrized_focused_nodes": 0,
+    "optional_absent_request_success_promotions": 0,
+    "resource_dependency_cycles": 0,
+    "resource_double_generation_mismatches": 0,
+    "runtime_competition_imports": 0,
+    "stale_downstream_checked_authority_bindings": 0,
+    "stale_lease_concurrent_writers": 0,
+    "terminal_verifier_forbidden_imports": 0
+  },
+  "forbidden_external_effects": [
+    "network",
+    "provider calls",
+    "NBA API",
+    "VPN",
+    "GitHub Actions",
+    "Kaggle",
+    "database reads or writes",
+    "publication",
+    "Git index",
+    "commit",
+    "push",
+    "branch or worktree creation or switching",
+    "stash",
+    "dependency installation or sync",
+    "tool-version substitution"
+  ],
+  "immutable_inputs": [
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2a/receipt.json",
+      "sha256": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2a/review.json",
+      "sha256": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2b/receipt.json",
+      "sha256": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2b/review.json",
+      "sha256": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json",
+      "sha256": "1efc04501c0bc0d0d2db1f84649ef11cbd86118851d3191cfa1eb365261b16d3"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/review.json",
+      "sha256": "6fb52dd0efbf0c25007f8d6f894a1904648b4572339333a840ba51262b511421"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/competition-existence-evidence.json",
+      "sha256": "876f79c748faa1f477dee8f15071d1799ad423d7e3b32e5b38e7c56cb34ccfa6"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/endpoint-support-evidence.json",
+      "sha256": "6db164143c588092acbd2c8497b068a770ff5a39501d1c05e28ef638b6fb6cfb"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2c/source-inputs/source-review.json",
+      "sha256": "accdd459d72d58be7c8b83f9c17e2e2086c058f3112b7714f4f0ea33e588f589"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/E1/receipt.json",
+      "sha256": "e6ada86f96239ccc1bc181a2cbc56f85e9f268a598a2dc18091f9c1320b0da5f"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/E1/review.json",
+      "sha256": "64c3a5a3c59041d9a56f433d57e575a6015fae93e7cc739a92af3fb6f0f1df19"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/receipt.json",
+      "sha256": "dd13cdf86760263f6d009eedad546e81eec06696978d0367437e2ceba8ca1c41"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/review-k.json",
+      "sha256": "07fa28c7cca666b44b2fd8f12365ff47798d3ae5bcc8bdac7c010dbe6131715d"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/development-leases.json",
+      "sha256": "52d1db1336f393a095df0f4d36297f39c2dd315d98aceecf2c254a3a8c378567"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2a.json",
+      "sha256": "4340526fec94cb2107804f8a0922bfffa06d8faec9ac34dd2122240aef5b53d4"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2b.json",
+      "sha256": "5dcc66663ae8f432ec1c134b5d7f2735090352662b60c341f945f2901d71074c"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2c.json",
+      "sha256": "d2f668cd0627562508849423c5df5d8e0e120a2fecc270a44699c9fe4458bf91"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/fact-traceability.json",
+      "sha256": "ed82d5a23c05dd4cde7b91190c5f03b6c15e4fc99ab3244f35f319fbe58612c7"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/facts.md",
+      "sha256": "f4d810bc5cd83bfda11339dd64522798e0f021b24faff1065c431b1043cf8e92"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/facts.meta.json",
+      "sha256": "fc8a7d2224378296f33e4599cdf300dec14d5d7a8c54c7fcb8798899916201cf"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/goal.md",
+      "sha256": "9bc200aa01ca3d80766136afc07ba6e8797b9df03bf2191fe018837530d2beba"
+    },
+    {
+      "path": "goals/complete-nba-api-sink-and-kaggle-baseline/plan.md",
+      "sha256": "35f7eb7188e652b87eaaeda2c9bca4b5b9942a0bd2590a546c2a3f43b99326ec"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_v1_11_4.json",
+      "sha256": "cfb93458f5efb569995ddccaf33ae37c0c312e25e09d0649c307999ec0057c44"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_runtime_contract_v1_11_4.json",
+      "sha256": "114963fa48fc13c2c850f5261f368925f2e8b81c57129e6b3d7cfae6ed921790"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition.py",
+      "sha256": "b4027e2cd3bb4214be0776097e98d82481422972af60ce6fdf0761febc46e42d"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_occurrences.py",
+      "sha256": "e4d7ede67873d1becee61c1fa19d683da9acbe9a079aec73fc9d9e770b118ef1"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_occurrences_verifier.py",
+      "sha256": "97fa101b9d79d0e48508d68b3e7969ec341d67d8d090ad49d8f48be2fd589a87"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_occurrences.py",
+      "sha256": "fa3bdc722e45738e3ef7c01498084f73be2cd5b383736403573ac30e91db3635"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_occurrences_verifier.py",
+      "sha256": "95008980c23956011c70066381469cafc29ddd438a2886e1a6aea02a2a7dd26b"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_verifier.py",
+      "sha256": "df78e92626051c9d8c314b169b2816190a0cc47e802f6abff191ef2206a40598"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_runtime_contract.py",
+      "sha256": "38dd758a7c5c291c466dbc947f47330d746c60e8ba2e7286194b454eeb2c18d0"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_surface_inventory.py",
+      "sha256": "2b4634fea1115ade8a2c5c4007533806b32fbc40e143d01521a74a76e109e6d5"
+    },
+    {
+      "path": "src/nbadb/extract/registry.py",
+      "sha256": "86cb7d7e3d63d9e864480ccd44d89f3d2efb5c1b3037d8432f54df4ef9e7fe05"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_applicability.py",
+      "sha256": "81485758756d9725d75e3afa2dd51772f8e38bc2645d4af77e590cbcb71b538f"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+      "sha256": "c600a957d31da68b909fc7fb3f397d60ba96dabd1f27e73b5c9059defff4b242"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/implicit-competition-root-evidence.json",
+      "sha256": "ff848edf46d65bbfc5748e0b30a59d45e2be2a981a578fab73170089aa1c12ba"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/source-inputs/source-review.json",
+      "sha256": "d028c60baa78832991d83cbd977d0d555b32b6ebc38a281bb14e7592d76f37e8"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2d.json",
+      "sha256": "acc12887aa5525a0ed9cc8047264c7efda3da92da745c5145138b4eb2a72e1bb"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_implicit_competition.py",
+      "sha256": "df5810747e66c5578132a58839a4c36b1a32ff4d44b2f8b0a20cbc5bff1edfcd"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_implicit_competition_v1_11_4.json",
+      "sha256": "ed75be5cf84df8975cc32d50b51215648896b618584ed5b3b3aedcb8b6dc2111"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_implicit_competition.py",
+      "sha256": "7b23976cc30b0cfa1a7765d90f2c8533cf2405d9f1c4c7ae8e699d615d6db443"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_implicit_competition_verifier.py",
+      "sha256": "a678edd8e383d4c0755dccb3e27a4bcfb23784d9d471925d2da9edb2e3034c15"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/receipt.json",
+      "sha256": "fc32ce49c54b93bebd83c953d60b51d6fe6edaf2da1d9b43075c51ad01b2678a"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2d/review.json",
+      "sha256": "1b94ce7e572b669b454271fbf7ae5bf602c5268717ae252484f4b0c1a9ad0e6d"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2e.json",
+      "sha256": "d87507bb66d470dfec88626f8fc9c0b8484fa54dbb1244d564693414e18fc64c"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2e/receipt.json",
+      "sha256": "31691e5f949951b527bcee145e9ef567b11cb3bda1f83f7d697bfbb5b76ef1d9"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2e/review.json",
+      "sha256": "eb106bd46adf78e110a2cc99e6097ee54a497678d9da6a813efd1b6f54b2af68"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.1.json",
+      "sha256": "20e4fd9a9967d41ec1b9a801ae671e04c5578c6e7adfd1c8c032a2b5fb3ff5bf"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.1/receipt.json",
+      "sha256": "36ee09e17bd2bbd84a35db7fe5b55d6bebe73df982c7dccab0954febd4760bf6"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2f.json",
+      "sha256": "2c3df1bab8836410ebefcb5206ea643f6ae415e457b919af9531e57d4caab410"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2f/receipt.json",
+      "sha256": "9d435cf2b714d5b4057c39b0de5b933d6eb3c384719a4f4627a016f83b6d5455"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.2f/review.json",
+      "sha256": "80c1ea5699b5726b9ab4fe3420d475b373fbc9a8d6cdec231335cb173bafdc45"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_identity_collisions.py",
+      "sha256": "55bac29a3ef0a9941c0b2373260d2be2a8a8c747db2f2f4c3eeb6bbf25879e9f"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_identity_mutations.py",
+      "sha256": "2896473ad6dffb2891fa04ea1712e5d097d0bebf2d07478e8af56bbc8b820924"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "2be50f5a60b72dd724f4e83641abb5e7585386ab99d255005fcfb6046cac528c"
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "e99bb9d8917972acb9f01683a4714a44b575119ad03d4775db7f3415e8e7ddaf"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_provenance.py",
+      "sha256": "d7c2ae99596a3030fea24e0df7300efe0ff9f28f460962364d2b6192cce5de87"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_provenance.py",
+      "sha256": "47605dbd3c77731585ce29bf82f8b016cd73144d5e155bc2e33c3133778c354b"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_surface_inventory.py",
+      "sha256": "eff82875e130a8f8077fe3e02084dd8b4e66dae18d3e398d8755d3b522fe7695"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_runtime_contract.py",
+      "sha256": "b9309da394ab883f1579e0909ee5ca47cb4d9fbd9e1fc59c0e725a25059bd05c"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3.json",
+      "sha256": "be34541171667481b594a18e9229eebda919a3c70ef26714107d3a244c60bd20"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.3/receipt.json",
+      "sha256": "f44ef6b1e4538396635468ab2c03443d49ef81eb68b68648c716cfa26179d751"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.3/review.json",
+      "sha256": "5e28ea08a5df9ba514e7950589bffe391fda91d95b057f720fe4b125686a7794"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.1-post-A1.2f.json",
+      "sha256": "462ede995da613199f33d550559d5c0ffce861b031e77243554e8fe674fd00a9"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.1-post-A1.2f/receipt.json",
+      "sha256": "0712b83b10dba2300ca49fc2c696e7103a44a6524ab5189ecab77f8dde41f2ef"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.1-post-A1.2f/review.json",
+      "sha256": "5810bbd705b765de773d0ed8418e88c8aaa67a287c1ecdc922597255c382d885"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3-post-A1.2f.json",
+      "sha256": "d34a20bba33c612f77a6b1df7395d42c8b53aab7fb79d7c04d5ce86bed5922e4"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.3-post-A1.2f/receipt.json",
+      "sha256": "f0f337d676b2ec7e10f8f92986dd6ece7e9923e049eb26c6547800c2f86f2292"
+    },
+    {
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.3-post-A1.2f/review.json",
+      "sha256": "0f627e1d8178e5ba763c46f2298972e52ed16394c0cfc922f5f2e415342e0639"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "54da552cadae24172f9d95227f941df49babf518648a59ee09b7d0dc5fd48510"
+    },
+    {
+      "path": "docs/AGENTS.md",
+      "sha256": "8ebbeecbf368c19583938be11ee317651ce71b8bdff136615f14e891f6937b7f"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/design.md",
+      "sha256": "b63962830b5adc4a640a5e447a12d4c553af56866323511598af97db36455d37"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/proposal.md",
+      "sha256": "c403509ea89fd4113620b4110bb79443580ef02b6d67121cbf0f465d124d06fc"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/tasks.md",
+      "sha256": "fe0b6267d7bc9528b01a84e71ea2b6379496bf98a53e3afbe473826cab1e581a"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/specs/atomic-pre-extraction-assurance/spec.md",
+      "sha256": "6cd65438e6b492c064272a6b20404513280b40fb17907460620f103fcc0b6339"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/specs/generated-bronze-and-temporal-contracts/spec.md",
+      "sha256": "baa32b9e2cc2ccb059ed6976c09e51b0174a8f1b048ddb783b55b9725492eb4c"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/specs/pinned-nba-api-provider-boundary/spec.md",
+      "sha256": "ee0ba5c45480552339cf646798e49aae350f56679c4e94421a74fad3e7aa6c21"
+    },
+    {
+      "path": "openspec/changes/harden-nba-api-pre-extraction-contracts/specs/warehouse-model-contract-assurance/spec.md",
+      "sha256": "d40959db96467567ec234218d7acb45c6999fe7df6b60d0fe4cd19a8165743b4"
+    },
+    {
+      "path": "src/nbadb/core/__init__.py",
+      "sha256": "6010921f668c589d23293c7652c5a2bcfab58b2ee1a530d928d74d30776dce38"
+    },
+    {
+      "path": "src/nbadb/contracts/__init__.py",
+      "sha256": "09bf6309776043d271bd446ed64004ac89461d3ac9faed69f783f192ede21445"
+    },
+    {
+      "path": "src/nbadb/orchestrate/__init__.py",
+      "sha256": "36a4d64b9f54d6285756e542ae5554205559a35e7e2b61b93a1a32467bf582c5"
+    },
+    {
+      "path": "src/nbadb/contracts/staging_route_contract.py",
+      "sha256": "19ee24901ee90b492e2183c5d364bbd7b0e13bc286d0e2df11892ca86e1c00f4"
+    },
+    {
+      "path": "src/nbadb/contracts/temporal_availability_contract.py",
+      "sha256": "6f0cc1dee4c01dcf2041ed139edcd211f1fb659b946fb4990e8c2909a11abe36"
+    },
+    {
+      "path": "src/nbadb/orchestrate/extraction_contract.py",
+      "sha256": "963d8423aab0a13acb410a951e59d393fff1768cacc806203c088188d8badec7"
+    },
+    {
+      "path": "src/nbadb/extract/bronze.py",
+      "sha256": "406fd372b4f7c9e700c5f7c5fcf65bacaa3bf776fe1f11d96b8d2765fcc7df0e"
+    },
+    {
+      "path": "src/nbadb/orchestrate/request_closure_production.py",
+      "sha256": "f474ef36cdae74bb91cc402b02f88f58a59abc3ee51c4e20a1141fdbb47208ee"
+    },
+    {
+      "path": "src/nbadb/orchestrate/request_closure_staging.py",
+      "sha256": "c8e3d3f2321c6a26354f7641a891671c0fb819cf26612314617cb9292df38c56"
+    },
+    {
+      "path": "src/nbadb/orchestrate/scanner.py",
+      "sha256": "faecaba4b21a11a5a78d6eb38314c90b615ff64642535ca7dc9a725639ca1e36"
+    },
+    {
+      "path": "src/nbadb/orchestrate/extractor_runner.py",
+      "sha256": "04c84efd8ae61c67cf53b33a02a8b780c3cb2b21dd8ed88f3973f00425e9a79e"
+    },
+    {
+      "path": "tests/unit/contracts/test_temporal_availability_contract.py",
+      "sha256": "b5e1f80babed16f83d6361165efac8dbc34e0dd8e5d295420901efb6af650736"
+    },
+    {
+      "path": "tests/unit/orchestrate/test_request_closure_production.py",
+      "sha256": "4071a3e26a5290bb6adaef6f59ca9ab0440ddbbf25ec5e56dcf89330b787d78b"
+    },
+    {
+      "path": "tests/unit/orchestrate/test_request_closure_staging.py",
+      "sha256": "cf31db877721b2643603009ab3bbaba0cde1fbf42e78fab0b8cc4e19c7692ae7"
+    },
+    {
+      "path": "tests/unit/orchestrate/test_request_closure_scanner.py",
+      "sha256": "d0f5ef0c822fb8f618e918afad69986589ea605de2ba7a6a62f06dc995bd7f65"
+    },
+    {
+      "path": "tests/unit/orchestrate/test_request_closure_runner_integration.py",
+      "sha256": "f404b41ea0bea47347d0b44a188727152a5a3ef633359f2eae71a3d5a471a0fb"
+    },
+    {
+      "path": "docs/package.json",
+      "sha256": "96cdfaa0ef8e92208eee6bba2f2f9a8ce2479ff05196034762831ee0a32e1897"
+    },
+    {
+      "path": "docs/pnpm-lock.yaml",
+      "sha256": "86e197dea561e7252638873af96c87d4530cfd56447333608d2f39d7e9c6158f"
+    },
+    {
+      "path": "docs/content/docs/cli-reference.mdx",
+      "sha256": "4ee02af1590b1b0a6d4b07a57f4065c9c5270dad44272074c36f16e1d23ae137"
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "9afbb74dba9dbc5cdc15e3264bce9090d975e9c6c893e40d57088655e202c4c0"
+    }
+  ],
+  "immutable_inputs_digest_convention": "SHA-256 of canonical minified UTF-8 JSON for the exact ordered immutable_inputs array with object keys sorted, ensure_ascii=false, nonfinite values rejected, and no trailing newline",
+  "immutable_inputs_sha256": "29335cd8afc240e581f9bd426a46058efb3dcf50bcedd498f9c63e9f5ce710f9",
+  "independent_verifier_contract": {
+    "candidate_resource_read_last": true,
+    "imports_primary_request_or_competition_compiler": false,
+    "imports_primary_terminal_module": false,
+    "imports_request_runtime": false,
+    "independent_policy_reconstruction_required": true,
+    "module": "nbadb.core.nba_api_terminal_state_verifier",
+    "must_reject": [
+      "foreign release state",
+      "release/incomplete rebinding",
+      "missing/duplicate accounting state",
+      "contract_blocked promotion",
+      "optional-absent request promotion",
+      "resource key/type/order/digest/canonical-byte drift"
+    ],
+    "verifier_id": "nbadb_independent_terminal_state_v1"
+  },
+  "inherited_quality_evidence": {
+    "admitted": false,
+    "reason": "A1.3a changes source, tests, checked resources, assurance, and documentation; every quality gate must run freshly on final bytes."
+  },
+  "invalidated_by": [
+    "any immutable, mutable-opening, absent-path, predecessor, source-edge, status, or lease-binding drift",
+    "any wire request-state rename, missing/duplicate state, release/incomplete overlap, or accounting omission",
+    "treating contract_blocked, timeout, parser/response error, retry exhaustion, VPN/infrastructure failure, cap/budget, unattempted, or unknown as release terminal",
+    "treating absent_optional as request success or success_empty",
+    "any request/runtime/competition import cycle or forbidden independent-verifier import",
+    "any deletion, replacement, parametrization, duplicate collection, skip, xfail, or failure among the frozen baseline, six cascade regression files, and 32 focused nodes",
+    "resource generation mismatch, stale downstream predecessor binding, historical implicit rewrite, missing or invalid supersession proof, noncanonical bytes, cyclic hash binding, or checked-path no-drift failure",
+    "any write outside the active exclusive sublease or any external/Git-index effect",
+    "receipt creation before feasible gates or review creation while locked/docs gates remain open",
+    "any locked-tool substitution, install, sync, or inherited pass",
+    "any current/downstream/MODEL/DATA/live/publication/global completion claim"
+  ],
+  "issued_at_utc": "2026-08-22T16:55:00Z",
+  "issued_by": "/root",
+  "last_valid_rollback_authority": "The exact 98 immutable rows, 20 mutable opening rows, six absent creation states, 29 predecessors, main edge, 525-row status, and packet-local serial-successor lease reconciliation frozen by this packet.",
+  "mutable_opening_inputs": [
+    {
+      "path": "src/nbadb/core/nba_api_request_surface.py",
+      "sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_request_surface.py",
+      "sha256": "569540f8a226f3831f6f5f00bed9099e6b0c2935bc2ef84d6d6e36424e04d1a8"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_request_surface_verifier.py",
+      "sha256": "622da43f84ec87274d1b99aa3c1dc22f7bac87f280037746d1b618dcf9c72b26"
+    },
+    {
+      "path": "src/nbadb/orchestrate/request_closure_runtime.py",
+      "sha256": "691075a0e61db520c731a8be5f0874b6b7d2ece17a7ad340854f2be32df6bfb4"
+    },
+    {
+      "path": "tests/unit/orchestrate/test_request_closure_runtime.py",
+      "sha256": "071a608845d3abe6d7fb17e1bb2d380303454b018c9b60e0b22d43bb0867fa75"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_identity.py",
+      "sha256": "5dca0cf22b9ceb97067c0fcaaa9a2d800fd74a85df23d60d9256ba9b3f14794e"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_identity_verifier.py",
+      "sha256": "f908764fa4b760d12e49174ca53987712583575fd5c213f3db6a4aa6fdd97121"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+      "sha256": "62dd10ba517eb0967950d9167051c071eee1443cac4fbb310c7682210b4cfc7d"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_identity.py",
+      "sha256": "d2f61f3d585e9409eb4f5d9e66febe98fa039cbafdee8ed6893972c418e776f6"
+    },
+    {
+      "path": "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+      "sha256": "26156a29c4c5c7d364fcdc31d0380ab1ea3b343743124b384051532aa8d502aa"
+    },
+    {
+      "path": "src/nbadb/contracts/assurance.py",
+      "sha256": "61572cdad7c43fc067143087e61bf2e54628abf990ec753a189fa32b985f77b7"
+    },
+    {
+      "path": "tests/unit/contracts/test_contract_assurance.py",
+      "sha256": "47e970a902c22781ec577b99a54af6ffd5c32a2663f726368e17f490bc723d23"
+    },
+    {
+      "path": "docs/content/docs/architecture.mdx",
+      "sha256": "1099d6794f1e653523971fac3e47a0a8c5424b97d84f97f605dcb170a58ecf97"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_applicability.py",
+      "sha256": "271bfa9855bf4c3e8f51bc3eaff82d6225c5a89569fdc319a7d43856d0085cda"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+      "sha256": "a847dff632338981aa522646ce766a2e029aa43a95c4adcc3e0fb427e06a7ebd"
+    },
+    {
+      "path": "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53"
+    },
+    {
+      "path": "src/nbadb/core/nba_api_implicit_competition_verifier.py",
+      "sha256": "f9c31bbcacee72d918111206496187a5e0e5892f2ee01b241b4d1ddadb06e099"
+    }
+  ],
+  "mutable_opening_inputs_digest_convention": "SHA-256 of canonical minified UTF-8 JSON for the exact ordered mutable_opening_inputs array with object keys sorted, ensure_ascii=false, nonfinite values rejected, and no trailing newline",
+  "mutable_opening_inputs_sha256": "922cb0605a02a49e570c47fe575fe2b925171fc7f78cb439354d020ca4f4d462",
+  "mutation_boundary": "Create or edit only the exact active 26 development paths under the packet-frozen pairwise-disjoint W1-W7 subleases, then run W8 and allow only the W9 candidate receipt after all feasible local gates. The packet issuer owns only this packet; the reviewer owns only review.json after every mandatory locked and docs gate closes. Preserve all unrelated concurrent/user work.",
+  "opening_output_states": {
+    "artifacts/assurance/complete-nba-api-sink/A1.3a/receipt.json": "absent",
+    "artifacts/assurance/complete-nba-api-sink/A1.3a/review.json": "absent",
+    "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3a.json": "absent"
+  },
+  "output_contract": {
+    "development_path_count": 26,
+    "development_paths": [
+      "src/nbadb/core/nba_api_terminal_state.py",
+      "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+      "tests/unit/core/test_nba_api_terminal_state.py",
+      "src/nbadb/core/nba_api_terminal_state_verifier.py",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py",
+      "src/nbadb/core/nba_api_request_surface.py",
+      "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "tests/unit/core/test_nba_api_request_surface.py",
+      "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py",
+      "src/nbadb/orchestrate/request_closure_runtime.py",
+      "tests/unit/orchestrate/test_request_closure_runtime.py",
+      "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "src/nbadb/core/nba_api_competition_applicability.py",
+      "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+      "src/nbadb/core/nba_api_implicit_competition_verifier.py",
+      "src/nbadb/core/nba_api_competition_identity.py",
+      "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "src/nbadb/core/nba_api_competition_identity_verifier.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+      "src/nbadb/contracts/assurance.py",
+      "tests/unit/contracts/test_contract_assurance.py",
+      "docs/content/docs/architecture.mdx"
+    ],
+    "opening_to_final_hash_rows_required": true,
+    "receipt": {
+      "exclusive_owner": "receipt_coordinator",
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.3a/receipt.json",
+      "schema": "TaskEvidenceV1"
+    },
+    "required_receipt_fields": [
+      "pre_existing_diff_digests",
+      "opening_to_final_hashes",
+      "absent_to_created_hashes",
+      "exact_temp_inventories",
+      "exact_commands_and_durations",
+      "final_scoped_diff",
+      "final_foreign_path_diff",
+      "lease_reconciliation_readback",
+      "historical_supersession_and_downstream_rebinding_evidence",
+      "mandatory_gate_states",
+      "review_state"
+    ],
+    "review": {
+      "exclusive_owner": "independent_reviewer",
+      "path": "artifacts/assurance/complete-nba-api-sink/A1.3a/review.json",
+      "schema": "IndependentReviewV1"
+    },
+    "unknown_final_output_hashes_forbidden_in_packet": true
+  },
+  "packet_local_lease_reconciliation": {
+    "authority_file": {
+      "path": "artifacts/assurance/complete-nba-api-sink/J0F/development-leases.json",
+      "sha256": "52d1db1336f393a095df0f4d36297f39c2dd315d98aceecf2c254a3a8c378567"
+    },
+    "concurrent_old_and_successor_writer_permitted": false,
+    "development_leases_file_mutation_permitted": false,
+    "effective_only_after": [
+      "this packet is persisted as strict canonical JSON",
+      "raw packet bytes are read back and SHA-256 recorded",
+      "the authority-file hash and exact seven-path intersection are reauthenticated"
+    ],
+    "mode": "non_mutating_serial_successor",
+    "rationale": "The old A1.1/A1.3 work is sealed and its completion boundary explicitly reserved release-terminal semantics for A1.3a.",
+    "superseded_lease": {
+      "exact_transferred_path_intersection": [
+        "src/nbadb/core/nba_api_request_surface.py",
+        "src/nbadb/core/nba_api_request_surface_verifier.py",
+        "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+        "src/nbadb/contracts/assurance.py",
+        "tests/unit/core/test_nba_api_request_surface.py",
+        "tests/unit/core/test_nba_api_request_surface_verifier.py",
+        "tests/unit/contracts/test_contract_assurance.py"
+      ],
+      "intersection_count": 7,
+      "lease_id": "E1-A1.1-A1.3-source-request-authority",
+      "owner": "/root/a1_source_authority",
+      "status": "ready"
+    }
+  },
+  "phase_barriers": [
+    {
+      "completion": "packet/input/absence/predecessor/source/status/lease authentication plus exact A1.2c four-path and A1.2d seven-path ordered historical-successor reconciliations",
+      "id": "W0",
+      "kind": "serial",
+      "requirements": []
+    },
+    {
+      "completion": "primary/independent terminal semantic equality, terminal resource double-generation equality, and docs-only edit isolation",
+      "id": "W1",
+      "kind": "max_parallel",
+      "requires": [
+        "W0"
+      ],
+      "writers": [
+        "terminal_policy_primary",
+        "terminal_policy_independent",
+        "docs_steward"
+      ]
+    },
+    {
+      "completion": "request primary/independent/runtime agreement, request-v3 double-generation equality, contract_blocked false-green rejection, and runtime no-competition import",
+      "id": "W2",
+      "kind": "max_parallel",
+      "requires": [
+        "W1"
+      ],
+      "writers": [
+        "request_surface_primary",
+        "request_surface_independent",
+        "request_runtime_integration"
+      ]
+    },
+    {
+      "completion": "competition-occurrence primary/independent equality and request-v3-bound successor resource double-generation equality",
+      "id": "W3",
+      "kind": "serial",
+      "requires": [
+        "W2"
+      ],
+      "writers": [
+        "competition_occurrence_successor"
+      ]
+    },
+    {
+      "completion": "competition-applicability primary/independent equality, exact current request/occurrence rebinding, authenticated stable historical A1.2c projection, and resource double-generation equality",
+      "id": "W4",
+      "kind": "max_parallel",
+      "requires": [
+        "W3"
+      ],
+      "writers": [
+        "competition_applicability_primary",
+        "competition_applicability_independent"
+      ]
+    },
+    {
+      "completion": "immutable A1.2d implicit bytes reauthenticated; updated independent verifier derives the sealed/current stable semantic projection proof twice in distinct initially absent task-temp children, requires canonical byte+digest equality, and finalizes one receipt-to-record digest with no generic fallback or future-receipt dependency",
+      "id": "W5",
+      "kind": "serial",
+      "requires": [
+        "W4"
+      ],
+      "writers": [
+        "implicit_historical_supersession"
+      ]
+    },
+    {
+      "completion": "competition identity primary/independent equality against terminal, current request/applicability, immutable historical implicit, and the already-final W5 proof digest; identity authority never reads a receipt",
+      "id": "W6",
+      "kind": "max_parallel",
+      "requires": [
+        "W5"
+      ],
+      "writers": [
+        "competition_identity_primary",
+        "competition_identity_independent"
+      ]
+    },
+    {
+      "completion": "assurance binds exact terminal/request/competition resources after the complete successor reconciliation",
+      "id": "W7",
+      "kind": "serial",
+      "requires": [
+        "W6"
+      ],
+      "writers": [
+        "assurance_integration"
+      ]
+    },
+    {
+      "completion": "AST/import graph, exact 32-node focused collect/run, protected 103-item regression collect/run, aggregate 269, five changed-resource no-drift plus immutable implicit reauthentication and third proof replay, uv lock, OpenSpec, feasible gates, full scoped/foreign diff, lease check",
+      "id": "W8",
+      "kind": "serial_full_join",
+      "requires": [
+        "W7"
+      ]
+    },
+    {
+      "completion": "after private task-temp cleanup is already complete, record the exact coordinator-retained W5 proof body+digest in the candidate receipt without recomputation or rebinding; reviewer remains absent while locked/docs gates are open",
+      "id": "W9",
+      "kind": "serial",
+      "requires": [
+        "W8"
+      ],
+      "writers": [
+        "receipt_coordinator"
+      ]
+    }
+  ],
+  "pre_existing_diff_digests": {
+    "artifacts/assurance/complete-nba-api-sink/A1.3a/receipt.json": {
+      "opening_state": "absent"
+    },
+    "artifacts/assurance/complete-nba-api-sink/A1.3a/review.json": {
+      "opening_state": "absent"
+    },
+    "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3a.json": {
+      "opening_state": "absent"
+    },
+    "docs/content/docs/architecture.mdx": {
+      "git_binary_diff_sha256": "b1902adaa61e8aa9c9df1c5de32ffb97322a001175f2f8f92a65409a3282703e",
+      "head_sha256": "964b1a693c3d1c40c718538f4e46da3947ff5131625e86e81789b6425ad52191",
+      "opening_sha256": "1099d6794f1e653523971fac3e47a0a8c5424b97d84f97f605dcb170a58ecf97",
+      "opening_state": "tracked_modified"
+    },
+    "src/nbadb/contracts/assurance.py": {
+      "opening_sha256": "61572cdad7c43fc067143087e61bf2e54628abf990ec753a189fa32b985f77b7",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "61572cdad7c43fc067143087e61bf2e54628abf990ec753a189fa32b985f77b7"
+    },
+    "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json": {
+      "opening_sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "2542f2b0a5fd0ba3faefc8ce7b4bf2b1f1870b12beb6d98172cdd7e3857e1b53"
+    },
+    "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json": {
+      "opening_sha256": "62dd10ba517eb0967950d9167051c071eee1443cac4fbb310c7682210b4cfc7d",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "62dd10ba517eb0967950d9167051c071eee1443cac4fbb310c7682210b4cfc7d"
+    },
+    "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json": {
+      "opening_sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "28f72468be47dce5b13429e43140f96277422892ee8dc21ab723ef1c606bc700"
+    },
+    "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json": {
+      "opening_sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "c5b1de0b1e6e05541eec90df9c92ce3ca9e3c1cae490fe6723410137f947e608"
+    },
+    "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json": {
+      "opening_state": "absent"
+    },
+    "src/nbadb/core/nba_api_competition_applicability.py": {
+      "opening_sha256": "271bfa9855bf4c3e8f51bc3eaff82d6225c5a89569fdc319a7d43856d0085cda",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "271bfa9855bf4c3e8f51bc3eaff82d6225c5a89569fdc319a7d43856d0085cda"
+    },
+    "src/nbadb/core/nba_api_competition_applicability_verifier.py": {
+      "opening_sha256": "a847dff632338981aa522646ce766a2e029aa43a95c4adcc3e0fb427e06a7ebd",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "a847dff632338981aa522646ce766a2e029aa43a95c4adcc3e0fb427e06a7ebd"
+    },
+    "src/nbadb/core/nba_api_competition_identity.py": {
+      "opening_sha256": "5dca0cf22b9ceb97067c0fcaaa9a2d800fd74a85df23d60d9256ba9b3f14794e",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "5dca0cf22b9ceb97067c0fcaaa9a2d800fd74a85df23d60d9256ba9b3f14794e"
+    },
+    "src/nbadb/core/nba_api_competition_identity_verifier.py": {
+      "opening_sha256": "f908764fa4b760d12e49174ca53987712583575fd5c213f3db6a4aa6fdd97121",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "f908764fa4b760d12e49174ca53987712583575fd5c213f3db6a4aa6fdd97121"
+    },
+    "src/nbadb/core/nba_api_implicit_competition_verifier.py": {
+      "opening_sha256": "f9c31bbcacee72d918111206496187a5e0e5892f2ee01b241b4d1ddadb06e099",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "f9c31bbcacee72d918111206496187a5e0e5892f2ee01b241b4d1ddadb06e099"
+    },
+    "src/nbadb/core/nba_api_request_surface.py": {
+      "opening_sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "ff5f5bc589876a5b624f93692f8a43021cf3a2465a9cdd18475c3497dab0fc96"
+    },
+    "src/nbadb/core/nba_api_request_surface_verifier.py": {
+      "opening_sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "e85960d3577daf967136ef31f519ea03f27c849d58e1450ee86ab88cf5959308"
+    },
+    "src/nbadb/core/nba_api_terminal_state.py": {
+      "opening_state": "absent"
+    },
+    "src/nbadb/core/nba_api_terminal_state_verifier.py": {
+      "opening_state": "absent"
+    },
+    "src/nbadb/orchestrate/request_closure_runtime.py": {
+      "opening_sha256": "691075a0e61db520c731a8be5f0874b6b7d2ece17a7ad340854f2be32df6bfb4",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "691075a0e61db520c731a8be5f0874b6b7d2ece17a7ad340854f2be32df6bfb4"
+    },
+    "tests/unit/contracts/test_contract_assurance.py": {
+      "opening_sha256": "47e970a902c22781ec577b99a54af6ffd5c32a2663f726368e17f490bc723d23",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "47e970a902c22781ec577b99a54af6ffd5c32a2663f726368e17f490bc723d23"
+    },
+    "tests/unit/core/test_nba_api_competition_identity.py": {
+      "opening_sha256": "d2f61f3d585e9409eb4f5d9e66febe98fa039cbafdee8ed6893972c418e776f6",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "d2f61f3d585e9409eb4f5d9e66febe98fa039cbafdee8ed6893972c418e776f6"
+    },
+    "tests/unit/core/test_nba_api_competition_identity_verifier.py": {
+      "opening_sha256": "26156a29c4c5c7d364fcdc31d0380ab1ea3b343743124b384051532aa8d502aa",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "26156a29c4c5c7d364fcdc31d0380ab1ea3b343743124b384051532aa8d502aa"
+    },
+    "tests/unit/core/test_nba_api_request_surface.py": {
+      "opening_sha256": "569540f8a226f3831f6f5f00bed9099e6b0c2935bc2ef84d6d6e36424e04d1a8",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "569540f8a226f3831f6f5f00bed9099e6b0c2935bc2ef84d6d6e36424e04d1a8"
+    },
+    "tests/unit/core/test_nba_api_request_surface_verifier.py": {
+      "opening_sha256": "622da43f84ec87274d1b99aa3c1dc22f7bac87f280037746d1b618dcf9c72b26",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "622da43f84ec87274d1b99aa3c1dc22f7bac87f280037746d1b618dcf9c72b26"
+    },
+    "tests/unit/core/test_nba_api_terminal_state.py": {
+      "opening_state": "absent"
+    },
+    "tests/unit/core/test_nba_api_terminal_state_mutations.py": {
+      "opening_state": "absent"
+    },
+    "tests/unit/core/test_nba_api_terminal_state_verifier.py": {
+      "opening_state": "absent"
+    },
+    "tests/unit/orchestrate/test_request_closure_runtime.py": {
+      "opening_sha256": "071a608845d3abe6d7fb17e1bb2d380303454b018c9b60e0b22d43bb0867fa75",
+      "opening_state": "untracked_existing",
+      "untracked_content_sha256": "071a608845d3abe6d7fb17e1bb2d380303454b018c9b60e0b22d43bb0867fa75"
+    }
+  },
+  "predecessor_order": [
+    "A1_1_post_A1_2f_packet",
+    "A1_1_post_A1_2f_receipt",
+    "A1_1_post_A1_2f_review",
+    "A1_2a_packet",
+    "A1_2a_receipt",
+    "A1_2a_review",
+    "A1_2b_packet",
+    "A1_2b_receipt",
+    "A1_2b_review",
+    "A1_2c_packet",
+    "A1_2c_receipt",
+    "A1_2c_review",
+    "A1_2d_packet",
+    "A1_2d_receipt",
+    "A1_2d_review",
+    "A1_2e_packet",
+    "A1_2e_receipt",
+    "A1_2e_review",
+    "A1_2f_packet",
+    "A1_2f_receipt",
+    "A1_2f_review",
+    "A1_3_original_packet",
+    "A1_3_original_receipt",
+    "A1_3_original_review",
+    "A1_3_post_A1_2f_packet",
+    "A1_3_post_A1_2f_receipt",
+    "A1_3_post_A1_2f_review",
+    "J0F",
+    "J0F_review_k"
+  ],
+  "predecessor_paths": {
+    "A1_1_post_A1_2f_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.1-post-A1.2f.json",
+    "A1_1_post_A1_2f_receipt": "artifacts/assurance/complete-nba-api-sink/A1.1-post-A1.2f/receipt.json",
+    "A1_1_post_A1_2f_review": "artifacts/assurance/complete-nba-api-sink/A1.1-post-A1.2f/review.json",
+    "A1_2a_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2a.json",
+    "A1_2a_receipt": "artifacts/assurance/complete-nba-api-sink/A1.2a/receipt.json",
+    "A1_2a_review": "artifacts/assurance/complete-nba-api-sink/A1.2a/review.json",
+    "A1_2b_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2b.json",
+    "A1_2b_receipt": "artifacts/assurance/complete-nba-api-sink/A1.2b/receipt.json",
+    "A1_2b_review": "artifacts/assurance/complete-nba-api-sink/A1.2b/review.json",
+    "A1_2c_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2c.json",
+    "A1_2c_receipt": "artifacts/assurance/complete-nba-api-sink/A1.2c/receipt.json",
+    "A1_2c_review": "artifacts/assurance/complete-nba-api-sink/A1.2c/review.json",
+    "A1_2d_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2d.json",
+    "A1_2d_receipt": "artifacts/assurance/complete-nba-api-sink/A1.2d/receipt.json",
+    "A1_2d_review": "artifacts/assurance/complete-nba-api-sink/A1.2d/review.json",
+    "A1_2e_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2e.json",
+    "A1_2e_receipt": "artifacts/assurance/complete-nba-api-sink/A1.2e/receipt.json",
+    "A1_2e_review": "artifacts/assurance/complete-nba-api-sink/A1.2e/review.json",
+    "A1_2f_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.2f.json",
+    "A1_2f_receipt": "artifacts/assurance/complete-nba-api-sink/A1.2f/receipt.json",
+    "A1_2f_review": "artifacts/assurance/complete-nba-api-sink/A1.2f/review.json",
+    "A1_3_original_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3.json",
+    "A1_3_original_receipt": "artifacts/assurance/complete-nba-api-sink/A1.3/receipt.json",
+    "A1_3_original_review": "artifacts/assurance/complete-nba-api-sink/A1.3/review.json",
+    "A1_3_post_A1_2f_packet": "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3-post-A1.2f.json",
+    "A1_3_post_A1_2f_receipt": "artifacts/assurance/complete-nba-api-sink/A1.3-post-A1.2f/receipt.json",
+    "A1_3_post_A1_2f_review": "artifacts/assurance/complete-nba-api-sink/A1.3-post-A1.2f/review.json",
+    "J0F": "artifacts/assurance/complete-nba-api-sink/J0F/receipt.json",
+    "J0F_review_k": "artifacts/assurance/complete-nba-api-sink/J0F/review-k.json"
+  },
+  "predecessor_receipts": {
+    "A1_1_post_A1_2f_packet": "462ede995da613199f33d550559d5c0ffce861b031e77243554e8fe674fd00a9",
+    "A1_1_post_A1_2f_receipt": "0712b83b10dba2300ca49fc2c696e7103a44a6524ab5189ecab77f8dde41f2ef",
+    "A1_1_post_A1_2f_review": "5810bbd705b765de773d0ed8418e88c8aaa67a287c1ecdc922597255c382d885",
+    "A1_2a_packet": "4340526fec94cb2107804f8a0922bfffa06d8faec9ac34dd2122240aef5b53d4",
+    "A1_2a_receipt": "42d7bde1ff60b9d04cb7911cafc27c567e5a4641944751d11ed40cfb6fa42c21",
+    "A1_2a_review": "d7e552ab5b20047e006beedfe06b8a974fd86838bc5ebcaf38a7036ba7ec24b0",
+    "A1_2b_packet": "5dcc66663ae8f432ec1c134b5d7f2735090352662b60c341f945f2901d71074c",
+    "A1_2b_receipt": "70528aa53443c04c79d96437b04e070d0ff04519dd26792c10778b7e16fe892b",
+    "A1_2b_review": "83303efc1da1a9afa53508e7549e92d619c65ce7863ba91442c0267cbe1c5d40",
+    "A1_2c_packet": "d2f668cd0627562508849423c5df5d8e0e120a2fecc270a44699c9fe4458bf91",
+    "A1_2c_receipt": "1efc04501c0bc0d0d2db1f84649ef11cbd86118851d3191cfa1eb365261b16d3",
+    "A1_2c_review": "6fb52dd0efbf0c25007f8d6f894a1904648b4572339333a840ba51262b511421",
+    "A1_2d_packet": "acc12887aa5525a0ed9cc8047264c7efda3da92da745c5145138b4eb2a72e1bb",
+    "A1_2d_receipt": "fc32ce49c54b93bebd83c953d60b51d6fe6edaf2da1d9b43075c51ad01b2678a",
+    "A1_2d_review": "1b94ce7e572b669b454271fbf7ae5bf602c5268717ae252484f4b0c1a9ad0e6d",
+    "A1_2e_packet": "d87507bb66d470dfec88626f8fc9c0b8484fa54dbb1244d564693414e18fc64c",
+    "A1_2e_receipt": "31691e5f949951b527bcee145e9ef567b11cb3bda1f83f7d697bfbb5b76ef1d9",
+    "A1_2e_review": "eb106bd46adf78e110a2cc99e6097ee54a497678d9da6a813efd1b6f54b2af68",
+    "A1_2f_packet": "2c3df1bab8836410ebefcb5206ea643f6ae415e457b919af9531e57d4caab410",
+    "A1_2f_receipt": "9d435cf2b714d5b4057c39b0de5b933d6eb3c384719a4f4627a016f83b6d5455",
+    "A1_2f_review": "80c1ea5699b5726b9ab4fe3420d475b373fbc9a8d6cdec231335cb173bafdc45",
+    "A1_3_original_packet": "be34541171667481b594a18e9229eebda919a3c70ef26714107d3a244c60bd20",
+    "A1_3_original_receipt": "f44ef6b1e4538396635468ab2c03443d49ef81eb68b68648c716cfa26179d751",
+    "A1_3_original_review": "5e28ea08a5df9ba514e7950589bffe391fda91d95b057f720fe4b125686a7794",
+    "A1_3_post_A1_2f_packet": "d34a20bba33c612f77a6b1df7395d42c8b53aab7fb79d7c04d5ce86bed5922e4",
+    "A1_3_post_A1_2f_receipt": "f0f337d676b2ec7e10f8f92986dd6ece7e9923e049eb26c6547800c2f86f2292",
+    "A1_3_post_A1_2f_review": "0f627e1d8178e5ba763c46f2298972e52ed16394c0cfc922f5f2e415342e0639",
+    "J0F": "dd13cdf86760263f6d009eedad546e81eec06696978d0367437e2ceba8ca1c41",
+    "J0F_review_k": "07fa28c7cca666b44b2fd8f12365ff47798d3ae5bcc8bdac7c010dbe6131715d"
+  },
+  "public_api_contract": {
+    "dataclasses": {
+      "TerminalRequestBinding": [
+        "request_surface_sha256",
+        "runtime_contract_payload_sha256",
+        "provider_authority_sha256",
+        "route_manifest_sha256",
+        "scope_sha256",
+        "provider_request_sha256",
+        "source_request_sha256",
+        "competition_authority_sha256",
+        "competition_scope_sha256",
+        "competition_requirement_sha256",
+        "role_binding_sha256",
+        "source_evidence_sha256",
+        "source_family",
+        "endpoint_id",
+        "route_ids",
+        "request_binding_sha256"
+      ],
+      "TypedUpstreamUnavailableEvidence": [
+        "request_binding",
+        "support_authority",
+        "state",
+        "unavailable_evidence_sha256"
+      ],
+      "UpstreamUnavailableSupportAuthority": [
+        "authority_kind",
+        "authority_version",
+        "support_authority_sha256",
+        "support_cell_id",
+        "support_cell_sha256",
+        "provider_authority_sha256",
+        "request_surface_sha256",
+        "source_family",
+        "endpoint_id",
+        "scope_sha256",
+        "competition_scope_sha256",
+        "source_request_sha256",
+        "provider_request_sha256",
+        "status",
+        "reason_code",
+        "independent_verifier_id",
+        "independent_verifier_sha256",
+        "support_binding_sha256"
+      ]
+    },
+    "digest_domains": {
+      "request_binding": "nbadb.nba-api.terminal-request-binding.v1",
+      "support_binding": "nbadb.nba-api.upstream-unavailable-support.v1",
+      "unavailable_evidence": "nbadb.nba-api.upstream-unavailable-evidence.v1"
+    },
+    "function_signatures": [
+      "build_terminal_request_binding(*, request_surface_sha256: str, runtime_contract_payload_sha256: str, provider_authority_sha256: str, route_manifest_sha256: str, scope_sha256: str, provider_request_sha256: str, source_request_sha256: str, competition_authority_sha256: str, competition_scope_sha256: str, competition_requirement_sha256: str, role_binding_sha256: str, source_evidence_sha256: str, source_family: str, endpoint_id: str, route_ids: tuple[str, ...]) -> TerminalRequestBinding",
+      "build_typed_upstream_unavailable_evidence(request_binding: TerminalRequestBinding, support_authority: UpstreamUnavailableSupportAuthority) -> TypedUpstreamUnavailableEvidence",
+      "is_release_terminal_request_state(state: RequestAccountingState) -> bool",
+      "build_pinned_terminal_state_payload() -> dict[str, object]",
+      "load_pinned_terminal_state_payload() -> dict[str, object]",
+      "write_pinned_terminal_state(path: Path, *, check: bool = False) -> bool"
+    ],
+    "immutable_package_init_paths": [
+      "src/nbadb/core/__init__.py",
+      "src/nbadb/contracts/__init__.py",
+      "src/nbadb/orchestrate/__init__.py"
+    ],
+    "module": "nbadb.core.nba_api_terminal_state",
+    "module_local___all__": [
+      "INCOMPLETE_REQUEST_STATES",
+      "NBA_API_TERMINAL_STATE_RESOURCE",
+      "RELEASE_TERMINAL_REQUEST_STATES",
+      "REQUEST_ACCOUNTING_STATES",
+      "RESULT_OCCURRENCE_STATES",
+      "TERMINAL_STATE_SCHEMA_VERSION",
+      "IncompleteRequestState",
+      "NbaApiTerminalStateError",
+      "ReleaseTerminalRequestState",
+      "RequestAccountingState",
+      "ResultOccurrenceState",
+      "TerminalRequestBinding",
+      "TypedUpstreamUnavailableEvidence",
+      "UpstreamUnavailableSupportAuthority",
+      "build_pinned_terminal_state_payload",
+      "build_terminal_request_binding",
+      "build_typed_upstream_unavailable_evidence",
+      "is_release_terminal_request_state",
+      "load_pinned_terminal_state_payload",
+      "write_pinned_terminal_state"
+    ],
+    "package_root_exports_permitted": false,
+    "typed_unavailable_cross_bindings": [
+      "request_surface_sha256",
+      "provider_authority_sha256",
+      "provider_request_sha256",
+      "scope_sha256",
+      "competition_scope_sha256",
+      "source_request_sha256",
+      "source_family",
+      "endpoint_id"
+    ]
+  },
+  "resource_dependency_graph": {
+    "acyclic_required": true,
+    "edges": [
+      [
+        "terminal_policy_v1",
+        "request_surface_v3"
+      ],
+      [
+        "request_surface_v3",
+        "competition_occurrence_successor_v1"
+      ],
+      [
+        "competition_v1",
+        "competition_applicability_successor_v1"
+      ],
+      [
+        "request_surface_v3",
+        "competition_applicability_successor_v1"
+      ],
+      [
+        "competition_occurrence_successor_v1",
+        "competition_applicability_successor_v1"
+      ],
+      [
+        "historical_implicit_v1",
+        "sealed_implicit_reconciliation_v1"
+      ],
+      [
+        "request_surface_v3",
+        "sealed_implicit_reconciliation_v1"
+      ],
+      [
+        "competition_occurrence_successor_v1",
+        "sealed_implicit_reconciliation_v1"
+      ],
+      [
+        "competition_applicability_successor_v1",
+        "sealed_implicit_reconciliation_v1"
+      ],
+      [
+        "terminal_policy_v1",
+        "competition_identity_v2"
+      ],
+      [
+        "request_surface_v3",
+        "competition_identity_v2"
+      ],
+      [
+        "competition_v1",
+        "competition_identity_v2"
+      ],
+      [
+        "competition_applicability_successor_v1",
+        "competition_identity_v2"
+      ],
+      [
+        "historical_implicit_v1",
+        "competition_identity_v2"
+      ],
+      [
+        "sealed_implicit_reconciliation_v1",
+        "competition_identity_v2"
+      ],
+      [
+        "terminal_policy_v1",
+        "atomic_assurance"
+      ],
+      [
+        "request_surface_v3",
+        "atomic_assurance"
+      ],
+      [
+        "competition_identity_v2",
+        "atomic_assurance"
+      ]
+    ],
+    "topological_order": [
+      "competition_v1",
+      "historical_implicit_v1",
+      "terminal_policy_v1",
+      "request_surface_v3",
+      "competition_occurrence_successor_v1",
+      "competition_applicability_successor_v1",
+      "sealed_implicit_reconciliation_v1",
+      "competition_identity_v2",
+      "atomic_assurance"
+    ]
+  },
+  "retry_class": "local_repair",
+  "reviewer_contract": {
+    "admissibility": "only after fresh exact Ruff 0.15.21, ty 0.0.58, and all five docs gates pass on the same final bytes",
+    "findings_must_be_empty": true,
+    "path": "artifacts/assurance/complete-nba-api-sink/A1.3a/review.json",
+    "requirements": [
+      "bind packet, candidate receipt, all 26 final development hashes, all 98 immutable hashes, all 20 mutable openings, six absent-to-created hashes, and 29 predecessors",
+      "replay exact feasible commands and fresh exact locked/docs commands",
+      "independently verify lease reconciliation, W1-W9 phase/writer isolation, the exact A1.2c four-path and A1.2d seven-path commitments, complete successor resource graph, immutable A1.2d implicit barrier and receipt-to-record supersession proof finalized at W5 with no future-receipt dependency, stable sealed/current projections, no generic fallback, DTO fields, module-local __all__, downstream predecessor rebinding, and forbidden imports",
+      "independently collect each of 32 frozen nodes once, replay all six cascade regression files as exactly 103 current tests, and prove aggregate 269 with zero failed/skipped/xfailed/xpassed",
+      "create review only after every mandatory gate is closed; never rewrite receipt"
+    ],
+    "schema": "IndependentReviewV1"
+  },
+  "role": "writer",
+  "runtime_environment_contract": {
+    "docs_node_modules": {
+      "opening_state": "absent",
+      "path": "docs/node_modules"
+    },
+    "host_or_cached_version_substitution_permitted": false,
+    "installation_or_sync_permitted": false,
+    "openspec": {
+      "path": "/Users/ww/.local/bin/openspec",
+      "state": "present",
+      "version": "1.6.0"
+    },
+    "pytest": {
+      "state": "present",
+      "version": "9.1.1"
+    },
+    "python": {
+      "path": "/Users/ww/dev/projects/nbadb/.venv/bin/python",
+      "state": "present",
+      "version": "3.12.13"
+    },
+    "ruff": {
+      "mandatory": true,
+      "opening_state": "absent",
+      "required_path": ".venv/bin/ruff",
+      "required_version": "0.15.21"
+    },
+    "ty": {
+      "mandatory": true,
+      "opening_state": "absent",
+      "required_path": ".venv/bin/ty",
+      "required_version": "0.0.58"
+    },
+    "uv_lock": {
+      "ruff": "0.15.21",
+      "ty": "0.0.58"
+    }
+  },
+  "schema": "TaskPacketV1",
+  "source_identity": {
+    "branch": "main",
+    "full_status_command": "git status --porcelain=v1 --untracked-files=all",
+    "full_status_entry_count": 525,
+    "full_status_inventory_sha256": "d65db7cae7375cdc311eb169470e31f7a4ff797fed0dee1f253408c9565b8720",
+    "git_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5",
+    "origin_main_sha": "48abd9825ed6933b57dbac3f50f058523367b1f5",
+    "staged_path_count": 0,
+    "unmerged_path_count": 0
+  },
+  "stop_condition": "Stop before development on any W0 drift or failed packet-local lease or exact historical-successor reconciliation. Stop the affected W1-W7 wave on any sublease overlap, semantic/resource/import/test/diff violation, generic supersession fallback, unstable sealed/current projection, or external effect. A candidate receipt may be created only after every feasible W8 gate passes; W9 creates only that candidate receipt. Review remains absent and no current/downstream completion may be asserted while any exact locked or docs gate is open.",
+  "task_id": "A1.3a",
+  "terminal_state_contract": {
+    "incomplete_request_states": [
+      "contract_blocked",
+      "transient_failed",
+      "response_contract_failed",
+      "unattempted",
+      "unclassified"
+    ],
+    "incomplete_semantics": {
+      "contract_blocked": "implementation or modeled-contract gap",
+      "response_contract_failed": "parser or response-contract failure",
+      "transient_failed": "transport, timeout, retry-exhaustion, VPN, or infrastructure failure",
+      "unattempted": "budget, cap, policy, or scheduling prevented attempt",
+      "unclassified": "classification remains unknown"
+    },
+    "optional_absent_contract": "absent_optional is a result-occurrence classification only; it is not success_empty, not a request state, and never contributes to release-terminal coverage",
+    "partition_contract": "release-terminal and incomplete arrays are pairwise disjoint, duplicate-free, retain source order, and their union equals all eight wire request states exactly",
+    "release_terminal_request_states": [
+      "success_nonempty",
+      "success_empty",
+      "upstream_unavailable"
+    ],
+    "request_runtime_receipt_schema_transition": {
+      "final": 2,
+      "opening": 1
+    },
+    "result_occurrence_states": [
+      "present_nonempty",
+      "present_empty",
+      "absent_optional"
+    ],
+    "success_empty": "requires exact captured response body plus present decoded and persisted result occurrences with total row count zero; missing is not empty",
+    "success_nonempty": "requires exact captured response body plus present decoded and persisted result occurrences with positive total row count",
+    "upstream_unavailable": "requires TypedUpstreamUnavailableEvidence whose complete typed body is independently reproduced and cross-bound to exact request, scope, competition, provider, and support authorities; a bare digest is forbidden",
+    "wire_request_states": [
+      "success_nonempty",
+      "success_empty",
+      "upstream_unavailable",
+      "contract_blocked",
+      "transient_failed",
+      "response_contract_failed",
+      "unattempted",
+      "unclassified"
+    ]
+  },
+  "timeout_seconds": 14400,
+  "verification_contract": {
+    "baseline_aggregate_files": [
+      "tests/unit/core/test_nba_api_request_surface.py",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py",
+      "tests/unit/orchestrate/test_request_closure_runtime.py",
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+      "tests/unit/contracts/test_contract_assurance.py"
+    ],
+    "baseline_collected_count": 140,
+    "baseline_deletion_replacement_or_parametrization_permitted": false,
+    "cascade_regression_collected_count": 103,
+    "cascade_regression_deletion_replacement_or_parametrization_permitted": false,
+    "cascade_regression_files": [
+      "tests/unit/core/test_nba_api_competition_occurrences.py",
+      "tests/unit/core/test_nba_api_competition_occurrences_verifier.py",
+      "tests/unit/core/test_nba_api_competition_applicability.py",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+      "tests/unit/core/test_nba_api_implicit_competition.py",
+      "tests/unit/core/test_nba_api_implicit_competition_verifier.py"
+    ],
+    "docs_commands": [
+      "cd docs && pnpm format:check",
+      "cd docs && pnpm lint",
+      "cd docs && pnpm typecheck",
+      "cd docs && pnpm test",
+      "cd docs && pnpm build"
+    ],
+    "exact_invocations_required_in_receipt": true,
+    "feasible_commands": [
+      "env UV_OFFLINE=1 uv lock --check",
+      "/Users/ww/.local/bin/openspec validate harden-nba-api-pre-extraction-contracts --strict --json --no-interactive",
+      "stdlib AST parse of every final changed Python file and exact import-graph prohibition audit"
+    ],
+    "final_aggregate_expected": {
+      "collected": 269,
+      "failed": 0,
+      "passed": 269,
+      "skipped": 0,
+      "xfailed": 0,
+      "xpassed": 0
+    },
+    "final_aggregate_files": [
+      "tests/unit/core/test_nba_api_terminal_state.py",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py",
+      "tests/unit/core/test_nba_api_request_surface.py",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py",
+      "tests/unit/orchestrate/test_request_closure_runtime.py",
+      "tests/unit/core/test_nba_api_competition_occurrences.py",
+      "tests/unit/core/test_nba_api_competition_occurrences_verifier.py",
+      "tests/unit/core/test_nba_api_competition_applicability.py",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py",
+      "tests/unit/core/test_nba_api_implicit_competition.py",
+      "tests/unit/core/test_nba_api_implicit_competition_verifier.py",
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+      "tests/unit/contracts/test_contract_assurance.py"
+    ],
+    "focused_node_count": 32,
+    "focused_nodes_non_parametrized_required": true,
+    "focused_test_nodes": [
+      "tests/unit/core/test_nba_api_terminal_state.py::test_release_terminal_states_are_exactly_success_nonempty_success_empty_and_upstream_unavailable",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_success_nonempty_requires_receipt_bound_positive_row_evidence",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_success_empty_requires_present_zero_row_result_evidence",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_upstream_unavailable_requires_independent_scope_bound_evidence",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_incomplete_states_are_conserved_but_never_release_terminal",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_terminal_contract_resource_is_canonical_and_byte_idempotent",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_terminal_contract_has_no_request_or_competition_dependency",
+      "tests/unit/core/test_nba_api_terminal_state.py::test_terminal_state_module_exports_exact_public_contract",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py::test_independent_terminal_contract_matches_primary_without_importing_primary",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py::test_independent_verifier_rejects_foreign_release_terminal_state",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py::test_independent_verifier_rejects_release_and_incomplete_partition_rebinding",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py::test_independent_verifier_rejects_missing_or_duplicate_accounting_states",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py::test_independent_verifier_rejects_resource_digest_drift",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_timeout_cannot_be_relabelled_upstream_unavailable",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_parser_or_response_error_cannot_be_relabelled_upstream_unavailable",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_retry_exhaustion_cannot_be_relabelled_upstream_unavailable",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_vpn_or_infrastructure_failure_cannot_be_release_terminal",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_budget_or_cap_exhaustion_cannot_be_release_terminal",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_contract_blocked_or_implementation_gap_cannot_be_release_terminal",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py::test_optional_absent_result_cannot_be_request_success",
+      "tests/unit/core/test_nba_api_request_surface.py::test_request_surface_binds_release_terminal_contract_without_hash_cycle",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py::test_independent_request_surface_rejects_terminal_contract_drift",
+      "tests/unit/orchestrate/test_request_closure_runtime.py::test_runtime_green_accepts_only_success_nonempty_success_empty_and_upstream_unavailable",
+      "tests/unit/core/test_nba_api_competition_occurrences.py::test_competition_occurrence_resource_is_generated_without_drift",
+      "tests/unit/core/test_nba_api_competition_occurrences.py::test_independent_occurrence_authority_matches_primary",
+      "tests/unit/core/test_nba_api_competition_applicability.py::test_competition_applicability_resource_is_generated_without_drift",
+      "tests/unit/core/test_nba_api_competition_applicability_verifier.py::test_independent_applicability_authority_matches_primary",
+      "tests/unit/core/test_nba_api_implicit_competition.py::test_implicit_competition_resource_is_generated_without_drift",
+      "tests/unit/core/test_nba_api_implicit_competition_verifier.py::test_independent_implicit_competition_authority_matches_primary",
+      "tests/unit/core/test_nba_api_competition_identity.py::test_competition_qualified_terminal_observation_binds_terminal_contract",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py::test_independent_competition_verifier_rejects_terminal_scope_rebinding",
+      "tests/unit/contracts/test_contract_assurance.py::test_assurance_binds_terminal_state_child_and_independent_inventory"
+    ],
+    "historical_successor_reconciliation_digests": {
+      "A1.2c": {
+        "opening_rows_sha256": "a94f22cba94539250b6a1e1c8be199dcf903b102f5290ee5ed4ece343bfcac90",
+        "successor_paths_sha256": "99bd793926effc6edaa01c8796c3016410d45040a54e83ff881359f4055f782b"
+      },
+      "A1.2d": {
+        "opening_rows_sha256": "923d931c5f8e58f6a74d29aa4d245fcaa9a9df1a52b1e632e1b0a3bc772cb653",
+        "successor_paths_sha256": "ff9e7db0ac7f7e2d6845f36ff21facc04ca9479cf7cfe6bbc639e70e7451c2c1"
+      }
+    },
+    "import_prohibitions": {
+      "nbadb.core.nba_api_terminal_state": [
+        "nbadb.core.nba_api_request_surface",
+        "nbadb.orchestrate.request_closure_runtime",
+        "nbadb.core.nba_api_competition_identity"
+      ],
+      "nbadb.core.nba_api_terminal_state_verifier": [
+        "nbadb.core.nba_api_terminal_state",
+        "nbadb.core.nba_api_request_surface",
+        "nbadb.core.nba_api_request_surface_verifier",
+        "nbadb.orchestrate.request_closure_runtime",
+        "nbadb.core.nba_api_competition_identity",
+        "nbadb.core.nba_api_competition_identity_verifier"
+      ],
+      "nbadb.orchestrate.request_closure_runtime": [
+        "nbadb.core.nba_api_competition_identity"
+      ]
+    },
+    "locked_and_docs_gates_mandatory": true,
+    "locked_quality_commands": {
+      "ruff_check": ".venv/bin/ruff check <all-final-changed-python-and-test-paths>",
+      "ruff_format": ".venv/bin/ruff format --check <all-final-changed-python-and-test-paths>",
+      "ruff_version": ".venv/bin/ruff --version == ruff 0.15.21",
+      "ty_check": ".venv/bin/ty check <all-final-changed-python-paths>",
+      "ty_version": ".venv/bin/ty --version == ty 0.0.58"
+    },
+    "opening_locked_and_docs_gate_state": "open",
+    "pytest_command_templates": {
+      "aggregate": "env TMPDIR=<fresh-task-tmpdir> UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest --no-cov --import-mode=importlib -p no:cacheprovider --basetemp <fresh-task-tmpdir>/pytest-aggregate -q <15-final-aggregate-files-in-order>",
+      "cascade_regression_collect": "env TMPDIR=<fresh-task-tmpdir> UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest --no-cov --import-mode=importlib -p no:cacheprovider --basetemp <fresh-task-tmpdir>/pytest-cascade-collect --collect-only -q <6-cascade-regression-files-in-order>",
+      "cascade_regression_run": "env TMPDIR=<fresh-task-tmpdir> UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest --no-cov --import-mode=importlib -p no:cacheprovider --basetemp <fresh-task-tmpdir>/pytest-cascade-run -q <6-cascade-regression-files-in-order>",
+      "collect": "env TMPDIR=<fresh-task-tmpdir> UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest --no-cov --import-mode=importlib -p no:cacheprovider --basetemp <fresh-task-tmpdir>/pytest-collect --collect-only -q <32-exact-nodes-in-order>",
+      "focused_run": "env TMPDIR=<fresh-task-tmpdir> UV_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest --no-cov --import-mode=importlib -p no:cacheprovider --basetemp <fresh-task-tmpdir>/pytest-focused -q <32-exact-nodes-in-order>"
+    },
+    "resource_generation_temp_children": [
+      "terminal-pass-a",
+      "terminal-pass-b",
+      "request-pass-a",
+      "request-pass-b",
+      "occurrence-pass-a",
+      "occurrence-pass-b",
+      "applicability-pass-a",
+      "applicability-pass-b",
+      "implicit-supersession-pass-a",
+      "implicit-supersession-pass-b",
+      "competition-pass-a",
+      "competition-pass-b",
+      "final-no-drift"
+    ],
+    "substitution_or_inherited_pass_permitted": false,
+    "task_temp_lifecycle": {
+      "child_paths_must_be_distinct_and_initially_absent": true,
+      "cleanup_required_before_receipt": true,
+      "exact_path_validation_required": true,
+      "exclusive_ownership_required": true,
+      "must_be_absent_before_creation": true,
+      "receipt_records": [
+        "actual absolute root",
+        "opening absence",
+        "per-command child path",
+        "final inventory",
+        "cleanup command",
+        "cleanup result",
+        "W5 proof pass-a/pass-b byte+digest equality, W8 third replay equality, and proof cleanup result"
+      ],
+      "reuse_permitted": false,
+      "root_template": "/var/tmp/nbadb-a1-3a-<mktemp-random>"
+    }
+  },
+  "writer_lease": {
+    "development_path_count": 26,
+    "development_path_union": [
+      "src/nbadb/core/nba_api_terminal_state.py",
+      "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+      "tests/unit/core/test_nba_api_terminal_state.py",
+      "src/nbadb/core/nba_api_terminal_state_verifier.py",
+      "tests/unit/core/test_nba_api_terminal_state_verifier.py",
+      "tests/unit/core/test_nba_api_terminal_state_mutations.py",
+      "src/nbadb/core/nba_api_request_surface.py",
+      "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+      "tests/unit/core/test_nba_api_request_surface.py",
+      "src/nbadb/core/nba_api_request_surface_verifier.py",
+      "tests/unit/core/test_nba_api_request_surface_verifier.py",
+      "src/nbadb/orchestrate/request_closure_runtime.py",
+      "tests/unit/orchestrate/test_request_closure_runtime.py",
+      "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json",
+      "src/nbadb/core/nba_api_competition_applicability.py",
+      "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json",
+      "src/nbadb/core/nba_api_competition_applicability_verifier.py",
+      "src/nbadb/core/nba_api_implicit_competition_verifier.py",
+      "src/nbadb/core/nba_api_competition_identity.py",
+      "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+      "tests/unit/core/test_nba_api_competition_identity.py",
+      "src/nbadb/core/nba_api_competition_identity_verifier.py",
+      "tests/unit/core/test_nba_api_competition_identity_verifier.py",
+      "src/nbadb/contracts/assurance.py",
+      "tests/unit/contracts/test_contract_assurance.py",
+      "docs/content/docs/architecture.mdx"
+    ],
+    "development_subleases": {
+      "assurance_integration": [
+        "src/nbadb/contracts/assurance.py",
+        "tests/unit/contracts/test_contract_assurance.py"
+      ],
+      "competition_applicability_independent": [
+        "src/nbadb/core/nba_api_competition_applicability_verifier.py"
+      ],
+      "competition_applicability_primary": [
+        "src/nbadb/core/nba_api_competition_applicability.py",
+        "src/nbadb/contracts/nba_api_competition_applicability_v1_11_4.json"
+      ],
+      "competition_identity_independent": [
+        "src/nbadb/core/nba_api_competition_identity_verifier.py",
+        "tests/unit/core/test_nba_api_competition_identity_verifier.py"
+      ],
+      "competition_identity_primary": [
+        "src/nbadb/core/nba_api_competition_identity.py",
+        "src/nbadb/contracts/nba_api_competition_identity_v1_11_4.json",
+        "tests/unit/core/test_nba_api_competition_identity.py"
+      ],
+      "competition_occurrence_successor": [
+        "src/nbadb/contracts/nba_api_competition_occurrences_v1_11_4.json"
+      ],
+      "docs_steward": [
+        "docs/content/docs/architecture.mdx"
+      ],
+      "implicit_historical_supersession": [
+        "src/nbadb/core/nba_api_implicit_competition_verifier.py"
+      ],
+      "request_runtime_integration": [
+        "src/nbadb/orchestrate/request_closure_runtime.py",
+        "tests/unit/orchestrate/test_request_closure_runtime.py"
+      ],
+      "request_surface_independent": [
+        "src/nbadb/core/nba_api_request_surface_verifier.py",
+        "tests/unit/core/test_nba_api_request_surface_verifier.py"
+      ],
+      "request_surface_primary": [
+        "src/nbadb/core/nba_api_request_surface.py",
+        "src/nbadb/contracts/nba_api_request_surface_v1_11_4.json",
+        "tests/unit/core/test_nba_api_request_surface.py"
+      ],
+      "terminal_policy_independent": [
+        "src/nbadb/core/nba_api_terminal_state_verifier.py",
+        "tests/unit/core/test_nba_api_terminal_state_verifier.py",
+        "tests/unit/core/test_nba_api_terminal_state_mutations.py"
+      ],
+      "terminal_policy_primary": [
+        "src/nbadb/core/nba_api_terminal_state.py",
+        "src/nbadb/contracts/nba_api_terminal_state_v1_11_4.json",
+        "tests/unit/core/test_nba_api_terminal_state.py"
+      ]
+    },
+    "external_state_mutation_admitted": false,
+    "git_index_mutation_admitted": false,
+    "packet_issuer_owned_paths": [
+      "artifacts/assurance/complete-nba-api-sink/J0F/task-packets/A1.3a.json"
+    ],
+    "pairwise_disjoint_required": true,
+    "receipt_owner": "receipt_coordinator",
+    "review_owner": "independent_reviewer",
+    "writes_outside_active_sublease_permitted": false
+  }
+}
