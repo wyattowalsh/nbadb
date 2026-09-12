@@ -14,6 +14,18 @@ class FactShotChartLeagueAveragesSchema(BaseSchema):
         },
     )
     grid_type: str | None = pa.Field(nullable=True)
+    season_year: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Season that scoped the provider average request"},
+    )
+    season_type: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Season type that scoped the provider average request"},
+    )
+    league_id: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "League that scoped the provider average request"},
+    )
     shot_zone_basic: str | None = pa.Field(nullable=True)
     shot_zone_area: str | None = pa.Field(nullable=True)
     shot_zone_range: str | None = pa.Field(nullable=True)

@@ -2158,6 +2158,13 @@ class StagingBoxScorePlayerTrackTeamSchema(BaseSchema):
             "description": "Minutes played as string",
         },
     )
+    spd: float | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScorePlayerTrackV3.TeamStats.speed",
+            "description": "Average team speed",
+        },
+    )
     dist: float | None = pa.Field(
         nullable=True,
         metadata={

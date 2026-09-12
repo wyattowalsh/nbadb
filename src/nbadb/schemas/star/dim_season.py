@@ -27,17 +27,3 @@ class DimSeasonSchema(BaseSchema):
             "description": ("Last game date of season"),
         },
     )
-    all_star_date: str | None = pa.Field(
-        nullable=True,
-        metadata={
-            "source": ("derived.all_star_date"),
-            "description": ("All-Star game date"),
-        },
-    )
-    playoff_start_date: str | None = pa.Field(
-        nullable=True,
-        metadata={
-            "source": ("derived.playoff_start_date"),
-            "description": ("Playoff start date"),
-        },
-    )

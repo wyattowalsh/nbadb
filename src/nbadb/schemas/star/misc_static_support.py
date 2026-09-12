@@ -7,6 +7,8 @@ from nbadb.schemas.staging.misc_static_support import (
     StagingLeagueGameFinderSchema,
     StagingStaticPlayersSchema,
     StagingStaticTeamsSchema,
+    StagingStaticWnbaPlayersSchema,
+    StagingStaticWnbaTeamsSchema,
     StagingTeamStreakFinderSchema,
 )
 
@@ -61,6 +63,14 @@ class FactStaticTeamsSchema(StagingStaticTeamsSchema):
     pass
 
 
+class FactStaticWnbaPlayersSchema(StagingStaticWnbaPlayersSchema):
+    pass
+
+
+class FactStaticWnbaTeamsSchema(StagingStaticWnbaTeamsSchema):
+    pass
+
+
 class FactStreakFinderSchema(BaseSchema):
     entity_type: str = pa.Field(isin=["player", "player_game", "team"])
     player_name_last_first: str | None = pa.Field(nullable=True)
@@ -85,5 +95,7 @@ derived_output_schema()(FactLeagueGameFinderSchema)
 derived_output_schema(literal_fields={"matchup_type"})(FactSeasonMatchupsSchema)
 derived_output_schema()(FactStaticPlayersSchema)
 derived_output_schema()(FactStaticTeamsSchema)
+derived_output_schema(literal_fields={"league"})(FactStaticWnbaPlayersSchema)
+derived_output_schema(literal_fields={"league"})(FactStaticWnbaTeamsSchema)
 derived_output_schema(literal_fields={"entity_type"})(FactStreakFinderSchema)
 derived_output_schema()(FactTeamStreakFinderSchema)

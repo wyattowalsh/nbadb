@@ -14,6 +14,7 @@ import pandera.polars as pa
 import polars as pl
 from loguru import logger
 
+from nbadb.core.errors import TransformError
 from nbadb.transform.base import SqlTransformer
 from nbadb.transform.metrics import PipelineMetrics
 from nbadb.transform.schema_version import SchemaVersionTracker
@@ -45,6 +46,18 @@ class TransformResult:
     @property
     def failed_tables(self) -> list[str]:
         return [t for t, _ in self.failed]
+
+
+class TransformPipelineIncompleteError(TransformError):
+    """Raised after a strict run has collected any transform failures."""
+
+    def __init__(self, result: TransformResult) -> None:
+        self.result = result
+        failed_tables = ", ".join(result.failed_tables)
+        super().__init__(
+            "transform pipeline incomplete: "
+            f"{result.failure_count} failed table(s): {failed_tables}"
+        )
 
 
 class _ProgressReporter(Protocol):
@@ -284,6 +297,7 @@ class TransformPipeline:
         resume: bool = False,
         validate_input_schemas: bool = False,
         validate_output_schemas: bool = True,
+        require_complete: bool = False,
         on_progress: _ProgressReporter | None = None,
     ) -> dict[str, pl.DataFrame]:
         ordered = self._topological_sort()
@@ -412,6 +426,8 @@ class TransformPipeline:
             for t in self._transformers:
                 t._conn = None
 
+        if require_complete and result.failed:
+            raise TransformPipelineIncompleteError(result)
         return self._outputs
 
     def get_output(self, table: str) -> pl.DataFrame | None:

@@ -6,12 +6,13 @@ Verifies endpoint_name, category, and registry presence for every
 
 from __future__ import annotations
 
-import asyncio
 import json
+from typing import cast
 
 import polars as pl
 import pytest
-from nba_api.stats.endpoints import PlayerCareerStats
+
+from nbadb.extract.base import BaseExtractor
 
 # ── all_time ────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.all_time import AllTimeLeadersGridsExtractor
@@ -28,7 +29,7 @@ from nbadb.extract.stats.box_scores import (
     BoxScoreTraditionalExtractor,
     BoxScoreUsageExtractor,
 )
-from nbadb.extract.stats.box_summary import BoxScoreSummaryExtractor, BoxScoreSummaryV3Extractor
+from nbadb.extract.stats.box_summary import BoxScoreSummaryExtractor
 
 # ── draft ───────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.draft import (
@@ -58,8 +59,6 @@ from nbadb.extract.stats.game_log import (
 # ── hustle ──────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.hustle import (
     HustleStatsBoxScoreExtractor,
-    LeagueHustlePlayerExtractor,
-    LeagueHustleTeamExtractor,
 )
 
 # ── leaders ─────────────────────────────────────────────────────────────────
@@ -151,20 +150,12 @@ from nbadb.extract.stats.player_dashboard import (
     PlayerDashboardByTeamPerformanceExtractor,
     PlayerDashboardByYearOverYearExtractor,
     PlayerDashboardGeneralSplitsExtractor,
-    PlayerDashGameSplitsExtractor,
-    PlayerDashGeneralSplitsExtractor,
-    PlayerDashLastNGamesExtractor,
-    PlayerDashShootingSplitsExtractor,
-    PlayerDashTeamPerfExtractor,
-    PlayerDashYoyExtractor,
 )
 
 # ── player_game_log ─────────────────────────────────────────────────────────
 from nbadb.extract.stats.player_game_log import (
     PlayerGameLogsExtractor,
-    PlayerGameLogsV2Extractor,
     PlayerGameStreakFinderExtractor,
-    PlayerStreakFinderExtractor,
 )
 
 # ── player_info ─────────────────────────────────────────────────────────────
@@ -181,7 +172,6 @@ from nbadb.extract.stats.player_info import (
 from nbadb.extract.stats.player_tracking import (
     PlayerDashPtPassExtractor,
     PlayerDashPtRebExtractor,
-    PlayerDashPtShotDefendExtractor,
     PlayerDashPtShotsExtractor,
     PlayerEstimatedMetricsExtractor,
 )
@@ -195,7 +185,6 @@ from nbadb.extract.stats.shots import (
     ShotChartDetailExtractor,
     ShotChartLeagueWideExtractor,
     ShotChartLineupDetailExtractor,
-    ShotChartLineupExtractor,
 )
 
 # ── standings ───────────────────────────────────────────────────────────────
@@ -240,12 +229,19 @@ from nbadb.extract.stats.tracking_defense import (
     LeagueDashPtTeamDefendExtractor,
 )
 from nbadb.extract.stats.win_probability import WinProbabilityExtractor
+from tests.unit.extract._extractor_test_types import (
+    ExtractorCls,
+    RosterCoachesExtractor,
+    provider_kwargs,
+)
+
+_RAW_RESPONSE_UNSET = object()
 
 # ---------------------------------------------------------------------------
 # Parametrized attribute tests
 # ---------------------------------------------------------------------------
 
-_ALL_EXTRACTORS = [
+_ALL_EXTRACTORS: list[tuple[ExtractorCls, str, str]] = [
     # box_scores (9)
     (BoxScoreTraditionalExtractor, "box_score_traditional", "box_score"),
     (BoxScoreAdvancedExtractor, "box_score_advanced", "box_score"),
@@ -405,25 +401,25 @@ _ALL_EXTRACTORS = [
     ids=[t[1] for t in _ALL_EXTRACTORS],
 )
 class TestExtractorAttributes:
-    def test_endpoint_name(self, cls: type, expected_name: str, expected_category: str) -> None:
+    def test_endpoint_name(
+        self, cls: ExtractorCls, expected_name: str, expected_category: str
+    ) -> None:
         assert cls.endpoint_name == expected_name
 
-    def test_category(self, cls: type, expected_name: str, expected_category: str) -> None:
+    def test_category(self, cls: ExtractorCls, expected_name: str, expected_category: str) -> None:
         assert cls.category == expected_category
 
     def test_is_subclass_of_base(
         self,
-        cls: type,
+        cls: ExtractorCls,
         expected_name: str,
         expected_category: str,
     ) -> None:
-        from nbadb.extract.base import BaseExtractor
-
         assert issubclass(cls, BaseExtractor)
 
     def test_has_extract_method(
         self,
-        cls: type,
+        cls: ExtractorCls,
         expected_name: str,
         expected_category: str,
     ) -> None:
@@ -567,7 +563,7 @@ class TestCrossProductParameterHandling:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        ext = CommonTeamRosterExtractor()
+        ext = cast("RosterCoachesExtractor", CommonTeamRosterExtractor())
         coaches = self._common_team_roster_coaches_df()
         roster = self._common_team_roster_df()
         trailing = pl.DataFrame({"unexpected": ["trailing packet"]})
@@ -596,8 +592,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(player_id=201939, season="2024-25")
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["player_id_list"] == "201939"
         assert kwargs["vs_player_id_list"] == "201939"
         assert kwargs["season"] == "2024-25"
@@ -623,8 +618,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(player_id=201939, season="2024-25")
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["person1_id"] == 201939
         assert kwargs["person2_id"] == 201939
         assert kwargs["person1_season_year"] == 2024
@@ -647,8 +641,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(player_id=2544)
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["player_id"] == 2544
         assert "season" not in kwargs
 
@@ -664,8 +657,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(team_id=1610612744)
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["team_id"] == 1610612744
         assert "season" not in kwargs
 
@@ -684,8 +676,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(team_id=1610612737, season="2024-25", season_type="Playoffs")
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["team_id"] == 1610612737
         assert kwargs["season_nullable"] == "2024-25"
         assert kwargs["season_type_nullable"] == "Playoffs"
@@ -707,8 +698,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(team_id=1610612737, season="2024-25", season_type="Regular Season")
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["team_id_nullable"] == 1610612737
         assert kwargs["season_nullable"] == "2024-25"
         assert kwargs["season_type_nullable"] == "Regular Season"
@@ -728,8 +718,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(season="2024-25", season_type="Playoffs", timeout=(3.05, 10.0))
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["timeout"] == (3.05, 10.0)
 
     @pytest.mark.asyncio
@@ -744,8 +733,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract()
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert "season" not in kwargs
 
     @pytest.mark.asyncio
@@ -763,8 +751,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(season="2024-25", timeout=(3.05, 10.0))
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["timeout"] == (3.05, 10.0)
 
     @pytest.mark.asyncio
@@ -782,8 +769,7 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract()
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["is_only_current_season"] == 0
         assert "season" not in kwargs
 
@@ -802,12 +788,11 @@ class TestCrossProductParameterHandling:
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(season="2024-25", timeout=(3.05, 10.0))
 
-        kwargs = captured["kwargs"]
-        assert isinstance(kwargs, dict)
+        kwargs = provider_kwargs(captured)
         assert kwargs["timeout"] == (3.05, 10.0)
 
     @pytest.mark.asyncio
-    async def test_common_all_players_falls_back_to_static_players_when_unscoped_json_fails(
+    async def test_common_all_players_fails_closed_when_unscoped_json_fails(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -817,98 +802,21 @@ class TestCrossProductParameterHandling:
             raise json.JSONDecodeError("bad json", "", 0)
 
         monkeypatch.setattr(ext, "_from_nba_api", _boom)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.player_info.static_players.get_players",
-            lambda: [
-                {
-                    "id": 1,
-                    "full_name": "A One",
-                    "first_name": "A",
-                    "last_name": "One",
-                    "is_active": True,
-                },
-                {
-                    "id": 2,
-                    "full_name": "B Two",
-                    "first_name": "B",
-                    "last_name": "Two",
-                    "is_active": False,
-                },
-            ],
-        )
-
-        result = await ext.extract()
-
-        assert result.to_dicts() == [
-            {
-                "person_id": 1,
-                "display_last_comma_first": "One, A",
-                "display_first_last": "A One",
-                "roster_status": 1,
-                "from_year": None,
-                "to_year": None,
-                "playercode": None,
-                "team_id": None,
-                "team_city": None,
-                "team_name": None,
-                "team_abbreviation": None,
-                "team_code": None,
-                "games_played_flag": None,
-            },
-            {
-                "person_id": 2,
-                "display_last_comma_first": "Two, B",
-                "display_first_last": "B Two",
-                "roster_status": 0,
-                "from_year": None,
-                "to_year": None,
-                "playercode": None,
-                "team_id": None,
-                "team_city": None,
-                "team_name": None,
-                "team_abbreviation": None,
-                "team_code": None,
-                "games_played_flag": None,
-            },
-        ]
+        with pytest.raises(json.JSONDecodeError, match="bad json"):
+            await ext.extract()
 
     @pytest.mark.asyncio
-    async def test_common_all_players_fallback_can_limit_to_active_players(
+    async def test_common_all_players_rejects_explicit_static_fallback(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ext = CommonAllPlayersExtractor()
 
-        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
-            raise json.JSONDecodeError("bad json", "", 0)
-
-        monkeypatch.setattr(ext, "_from_nba_api", _boom)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.player_info.static_players.get_players",
-            lambda: [
-                {
-                    "id": 1,
-                    "full_name": "A One",
-                    "first_name": "A",
-                    "last_name": "One",
-                    "is_active": True,
-                },
-                {
-                    "id": 2,
-                    "full_name": "B Two",
-                    "first_name": "B",
-                    "last_name": "Two",
-                    "is_active": False,
-                },
-            ],
-        )
-
-        result = await ext.extract(is_only_current_season=1)
-
-        assert result.get_column("person_id").to_list() == [1]
+        with pytest.raises(ValueError, match="static_players extractor explicitly"):
+            await ext.extract(is_only_current_season=1, allow_static_fallback=True)
 
     @pytest.mark.asyncio
-    async def test_common_all_players_falls_back_to_static_players_after_retryable_error(
+    async def test_common_all_players_propagates_retryable_error(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -918,22 +826,8 @@ class TestCrossProductParameterHandling:
             raise ConnectionError("transient failure")
 
         monkeypatch.setattr(ext, "_from_nba_api", _boom)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.player_info.static_players.get_players",
-            lambda: [
-                {
-                    "id": 1,
-                    "full_name": "A One",
-                    "first_name": "A",
-                    "last_name": "One",
-                    "is_active": True,
-                }
-            ],
-        )
-
-        result = await ext.extract()
-
-        assert result.get_column("person_id").to_list() == [1]
+        with pytest.raises(ConnectionError, match="transient failure"):
+            await ext.extract()
 
     @pytest.mark.asyncio
     async def test_common_all_players_can_disable_static_fallback_after_retryable_error(
@@ -979,1673 +873,3 @@ class TestCrossProductParameterHandling:
 
         with pytest.raises(KeyError, match="resultSet"):
             await ext.extract()
-
-
-class TestPlayerCareerStatsExtractor:
-    def test_data_sets_from_raw_response_handles_missing_container(self) -> None:
-        assert PlayerCareerStatsExtractor._data_sets_from_raw_response({}) == {}
-
-    def test_data_sets_from_raw_response_normalizes_result_sets_list(self) -> None:
-        data_sets = PlayerCareerStatsExtractor._data_sets_from_raw_response(
-            {
-                "resultSets": [
-                    {
-                        "name": "CareerTotalsRegularSeason",
-                        "headers": ["PLAYER_ID", "GP"],
-                        "rowSet": [[1824, 100]],
-                    }
-                ]
-            }
-        )
-
-        assert data_sets == {
-            "CareerTotalsRegularSeason": {
-                "headers": ["PLAYER_ID", "GP"],
-                "data": [[1824, 100]],
-            }
-        }
-
-    def test_frames_from_sparse_result_sets_fills_missing_expected_sets(self) -> None:
-        frames, missing_sets = PlayerCareerStatsExtractor._frames_from_sparse_result_sets(
-            {
-                "CareerTotalsAllStarSeason": {
-                    "headers": ["PLAYER_ID", "GP"],
-                    "data": [[1824, 10]],
-                },
-                "CareerTotalsRegularSeason": {
-                    "headers": ["PLAYER_ID", "GP"],
-                    "data": [[1824, 100]],
-                },
-            }
-        )
-
-        expected_result_sets = list(PlayerCareerStats.expected_data)
-        expected_present_sets = {
-            "CareerTotalsAllStarSeason",
-            "CareerTotalsRegularSeason",
-        }
-        assert len(frames) == len(expected_result_sets)
-        assert missing_sets == [
-            result_set
-            for result_set in expected_result_sets
-            if result_set not in expected_present_sets
-        ]
-        assert frames[0].to_dicts() == [{"player_id": 1824, "gp": 10}]
-        assert frames[1].is_empty()
-        college_headers = PlayerCareerStats.expected_data["CareerTotalsCollegeSeason"]
-        assert frames[1].columns == [column.lower() for column in college_headers]
-        assert frames[3].to_dicts() == [{"player_id": 1824, "gp": 100}]
-
-    def test_extract_all_falls_back_to_sparse_result_sets_on_keyerror(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayerCareerStatsExtractor()
-
-        def _boom(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
-            raise KeyError("CareerTotalsCollegeSeason")
-
-        fallback_frames = [pl.DataFrame({"player_id": []}) for _ in PlayerCareerStats.expected_data]
-        captured: dict[str, object] = {}
-
-        def _fallback(*, player_id: int, timeout: int | None = None) -> list[pl.DataFrame]:
-            captured["player_id"] = player_id
-            captured["timeout"] = timeout
-            return fallback_frames
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom)
-        monkeypatch.setattr(ext, "_extract_sparse_result_sets", _fallback)
-
-        result = asyncio.run(ext.extract_all(player_id=1824))
-
-        assert result == fallback_frames
-        assert captured == {"player_id": 1824, "timeout": None}
-
-    def test_extract_all_falls_back_to_sparse_result_sets_on_jsondecodeerror(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayerCareerStatsExtractor()
-
-        def _boom(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
-            raise json.JSONDecodeError("bad json", "", 0)
-
-        fallback_frames = [pl.DataFrame({"player_id": []}) for _ in PlayerCareerStats.expected_data]
-        captured: dict[str, object] = {}
-
-        def _fallback(*, player_id: int, timeout: int | None = None) -> list[pl.DataFrame]:
-            captured["player_id"] = player_id
-            captured["timeout"] = timeout
-            return fallback_frames
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom)
-        monkeypatch.setattr(ext, "_extract_sparse_result_sets", _fallback)
-
-        result = asyncio.run(ext.extract_all(player_id=1629019, timeout=120))
-
-        assert result == fallback_frames
-        assert captured == {"player_id": 1629019, "timeout": 120}
-
-    def test_extract_sparse_result_sets_returns_empty_frames_on_jsondecodeerror(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayerCareerStatsExtractor()
-
-        class _FakeResponse:
-            def get_dict(self) -> dict[str, object]:
-                raise json.JSONDecodeError("bad json", "", 0)
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.player_info.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: _FakeResponse(),
-        )
-
-        frames = ext._extract_sparse_result_sets(player_id=1629019, timeout=120)
-
-        assert len(frames) == len(PlayerCareerStats.expected_data)
-        assert all(frame.is_empty() for frame in frames)
-
-
-class TestMiscLeadersExtractors:
-    class _FakeResponse:
-        def __init__(self, payload: object = None, raw_response: object = "") -> None:
-            self._payload = payload
-            self._raw_response = raw_response
-
-        def get_dict(self) -> dict[str, object]:
-            if isinstance(self._payload, Exception):
-                raise self._payload
-            assert isinstance(self._payload, dict)
-            return self._payload
-
-        def get_response(self) -> object:
-            return self._raw_response
-
-    @pytest.mark.asyncio
-    async def test_dunk_score_leaders_parses_raw_payload_with_zero_ids(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = DunkScoreLeadersExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake_send_api_request(
-            self,
-            **kwargs: object,
-        ) -> TestMiscLeadersExtractors._FakeResponse:
-            captured.update(kwargs)
-            return TestMiscLeadersExtractors._FakeResponse(
-                payload={
-                    "params": {"Season": "2025-26"},
-                    "dunks": [{"playerId": 1, "dunkScore": 8.5}],
-                }
-            )
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-
-        result = await ext.extract(season="2025-26", season_type="Regular Season")
-
-        assert result.to_dicts() == [{"player_id": 1, "dunk_score": 8.5}]
-        parameters = captured["parameters"]
-        assert isinstance(parameters, dict)
-        assert parameters["PlayerID"] == "0"
-        assert parameters["TeamID"] == "0"
-        assert parameters["Season"] == "2025-26"
-        assert parameters["SeasonType"] == "Regular Season"
-
-    @pytest.mark.asyncio
-    async def test_dunk_score_leaders_returns_empty_for_unavailable_raw_response(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = DunkScoreLeadersExtractor()
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
-                payload=json.JSONDecodeError("bad json", "", 0),
-                raw_response="",
-            ),
-        )
-
-        result = await ext.extract(season="2025-26", season_type="Playoffs")
-
-        assert result.is_empty()
-
-    @pytest.mark.asyncio
-    async def test_gravity_leaders_parses_raw_payload(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = GravityLeadersExtractor()
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
-                payload={
-                    "params": {"Season": "2025-26"},
-                    "leaders": [{"PLAYERID": 1, "GRAVITYSCORE": 1.5}],
-                }
-            ),
-        )
-
-        result = await ext.extract(season="2025-26", season_type="Regular Season")
-
-        assert result.to_dicts() == [{"playerid": 1, "gravityscore": 1.5}]
-
-    @pytest.mark.asyncio
-    async def test_gravity_leaders_returns_empty_for_forbidden_raw_response(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = GravityLeadersExtractor()
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
-                payload=json.JSONDecodeError("bad json", "", 0),
-                raw_response=(
-                    "System.Net.WebException: The remote server returned an error: (403) Forbidden."
-                ),
-            ),
-        )
-
-        result = await ext.extract(season="2024-25", season_type="Regular Season")
-
-        assert result.is_empty()
-
-
-class TestDraftBoardExtractor:
-    class _FakeResponse:
-        def __init__(
-            self,
-            data_sets: dict[str, object] | Exception,
-            raw_response: object = "",
-        ) -> None:
-            self._data_sets = data_sets
-            self._raw_response = raw_response
-
-        def get_data_sets(self) -> dict[str, object]:
-            if isinstance(self._data_sets, Exception):
-                raise self._data_sets
-            return self._data_sets
-
-        def get_response(self) -> object:
-            return self._raw_response
-
-    @pytest.mark.asyncio
-    async def test_draft_board_parses_tabular_payload(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = DraftBoardExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake_send_api_request(
-            self,
-            **kwargs: object,
-        ) -> TestDraftBoardExtractor._FakeResponse:
-            captured.update(kwargs)
-            return TestDraftBoardExtractor._FakeResponse(
-                data_sets={
-                    "DraftBoard": {
-                        "headers": ["PERSON_ID", "PLAYER_NAME"],
-                        "data": [[1, "Prospect"]],
-                    }
-                }
-            )
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-
-        result = await ext.extract(season="2025-26", season_type="Regular Season")
-
-        assert result.to_dicts() == [{"person_id": 1, "player_name": "Prospect"}]
-        parameters = captured["parameters"]
-        assert isinstance(parameters, dict)
-        assert parameters["Season"] == 2025
-        assert "SeasonType" not in parameters
-
-    @pytest.mark.parametrize(
-        "raw_response",
-        [
-            "",
-            "System.Net.WebException: The remote server returned an error: (403) Forbidden.",
-            (
-                "Sap.Data.Hana.HanaException (0x80004005): Connection failed "
-                "(RTE:[89013] Socket closed by peer)"
-            ),
-        ],
-    )
-    @pytest.mark.asyncio
-    async def test_draft_board_returns_empty_for_unavailable_response(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        raw_response: str,
-    ) -> None:
-        ext = DraftBoardExtractor()
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: TestDraftBoardExtractor._FakeResponse(
-                data_sets=json.JSONDecodeError("bad json", "", 0),
-                raw_response=raw_response,
-            ),
-        )
-
-        result = await ext.extract(season="2025-26", season_type="Playoffs")
-
-        assert result.is_empty()
-
-    @pytest.mark.asyncio
-    async def test_draft_board_reraises_unknown_jsondecodeerror(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = DraftBoardExtractor()
-
-        monkeypatch.setattr(
-            "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: TestDraftBoardExtractor._FakeResponse(
-                data_sets=json.JSONDecodeError("bad json", "", 0),
-                raw_response='{"unexpected":',
-            ),
-        )
-
-        with pytest.raises(json.JSONDecodeError, match="bad json"):
-            await ext.extract(season="2025-26", season_type="Regular Season")
-
-
-class TestISTStandingsExtractor:
-    class _FakeResponse:
-        def __init__(self, raw_response: object) -> None:
-            self._raw_response = raw_response
-
-        def get_response(self) -> object:
-            return self._raw_response
-
-    @pytest.mark.parametrize(
-        "raw_response",
-        [
-            "",
-            "System.Net.WebException: The remote server returned an error: (403) Forbidden.",
-        ],
-    )
-    @pytest.mark.asyncio
-    async def test_known_unavailable_season_returns_empty_frame(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        raw_response: str,
-    ) -> None:
-        ext = ISTStandingsExtractor()
-
-        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
-            raise json.JSONDecodeError("bad json", "", 0)
-
-        monkeypatch.setattr(ext, "_from_nba_api", _boom)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.standings.NBAStatsHTTP.send_api_request",
-            lambda self, **_kwargs: TestISTStandingsExtractor._FakeResponse(raw_response),
-        )
-
-        result = await ext.extract(season="2021-22")
-
-        assert result.is_empty()
-
-    @pytest.mark.asyncio
-    async def test_other_seasons_still_raise_jsondecodeerror(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = ISTStandingsExtractor()
-
-        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
-            raise json.JSONDecodeError("bad json", "", 0)
-
-        def _unexpected_raw_fallback(*_args: object, **_kwargs: object) -> object:
-            raise AssertionError("unexpected raw fallback")
-
-        monkeypatch.setattr(ext, "_from_nba_api", _boom)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.standings.NBAStatsHTTP.send_api_request",
-            _unexpected_raw_fallback,
-        )
-
-        with pytest.raises(json.JSONDecodeError, match="bad json"):
-            await ext.extract(season="2022-23")
-
-
-class TestScheduleIntExtractor:
-    @staticmethod
-    def _payload() -> dict[str, object]:
-        return {
-            "meta": {
-                "version": 1,
-                "request": "http://nba.cloud/league/00/2023-24/scheduleleaguev2?Format=json",
-                "time": "2025-08-11T11:51:01.511Z",
-            },
-            "leagueSchedule": {
-                "seasonYear": "2023-24",
-                "leagueId": "00",
-                "gameDates": [
-                    {
-                        "gameDate": "10/05/2023 00:00:00",
-                        "games": [
-                            {
-                                "gameId": "0012300001",
-                                "gameCode": "20231005/DALMIN",
-                                "gameStatus": 3,
-                                "gameStatusText": "Final",
-                                "gameSequence": 1,
-                                "gameDateEst": "2023-10-05T00:00:00Z",
-                                "gameTimeEst": "1900-01-01T12:00:00Z",
-                                "gameDateTimeEst": "2023-10-05T12:00:00Z",
-                                "gameDateUTC": "2023-10-05T04:00:00Z",
-                                "gameTimeUTC": "1900-01-01T16:00:00Z",
-                                "gameDateTimeUTC": "2023-10-05T16:00:00Z",
-                                "awayTeamTime": "2023-10-05T11:00:00Z",
-                                "homeTeamTime": "2023-10-05T11:00:00Z",
-                                "day": "Thu",
-                                "monthNum": 10,
-                                "weekNumber": 0,
-                                "weekName": "",
-                                "ifNecessary": False,
-                                "seriesGameNumber": "",
-                                "gameLabel": "",
-                                "gameSubLabel": "",
-                                "seriesText": "Preseason",
-                                "arenaName": "Etihad Arena",
-                                "arenaState": "",
-                                "arenaCity": "Abu Dhabi",
-                                "postponedStatus": "N",
-                                "branchLink": "https://app.link.nba.com/sTXDSduQ8Db",
-                                "gameSubtype": "",
-                                "isNeutral": False,
-                                "homeTeam": {
-                                    "teamId": 1610612750,
-                                    "teamName": "Timberwolves",
-                                    "teamCity": "Minnesota",
-                                    "teamTricode": "MIN",
-                                    "teamSlug": "timberwolves",
-                                    "wins": 0,
-                                    "losses": 1,
-                                    "score": 99,
-                                    "seed": 0,
-                                },
-                                "awayTeam": {
-                                    "teamId": 1610612742,
-                                    "teamName": "Mavericks",
-                                    "teamCity": "Dallas",
-                                    "teamTricode": "DAL",
-                                    "teamSlug": "mavericks",
-                                    "wins": 1,
-                                    "losses": 0,
-                                    "score": 111,
-                                    "seed": 0,
-                                },
-                            }
-                        ],
-                    }
-                ],
-                "weeks": [
-                    {
-                        "weekNumber": 0,
-                        "weekName": "",
-                        "startDate": "2023-10-05",
-                        "endDate": "2023-10-11",
-                    }
-                ],
-                "broadcasterList": [
-                    {
-                        "broadcasterAbbreviation": "TNT",
-                        "broadcasterDisplay": "TNT",
-                        "broadcasterId": 7,
-                        "regionId": 1,
-                    }
-                ],
-            },
-        }
-
-    @pytest.mark.asyncio
-    async def test_extract_all_falls_back_to_raw_league_schedule_payload(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = ScheduleIntExtractor()
-
-        class _FakeResponse:
-            def get_dict(self) -> dict[str, object]:
-                return TestScheduleIntExtractor._payload()
-
-        def _boom(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
-            raise ValueError("AssertionError('962 columns passed, passed data had 961 columns')")
-
-        def _fake_send_api_request(
-            self,
-            *,
-            endpoint: str,
-            parameters: dict[str, object],
-            proxy: object | None = None,
-            headers: object | None = None,
-            timeout: object | None = None,
-        ) -> _FakeResponse:
-            return _FakeResponse()
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.schedule.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-
-        games, weeks, broadcasters = await ext.extract_all(season="2023-24")
-
-        assert games.to_dicts() == [
-            {
-                "league_id": "00",
-                "season_year": "2023-24",
-                "game_date": "10/05/2023 00:00:00",
-                "game_id": "0012300001",
-                "game_code": "20231005/DALMIN",
-                "game_status": 3,
-                "game_status_text": "Final",
-                "game_sequence": 1,
-                "game_date_est": "2023-10-05T00:00:00Z",
-                "game_time_est": "1900-01-01T12:00:00Z",
-                "game_date_time_est": "2023-10-05T12:00:00Z",
-                "game_date_utc": "2023-10-05T04:00:00Z",
-                "game_time_utc": "1900-01-01T16:00:00Z",
-                "game_date_time_utc": "2023-10-05T16:00:00Z",
-                "away_team_time": "2023-10-05T11:00:00Z",
-                "home_team_time": "2023-10-05T11:00:00Z",
-                "day": "Thu",
-                "month_num": 10,
-                "week_number": 0,
-                "week_name": "",
-                "if_necessary": False,
-                "series_game_number": "",
-                "game_label": "",
-                "game_sub_label": "",
-                "series_text": "Preseason",
-                "arena_name": "Etihad Arena",
-                "arena_state": "",
-                "arena_city": "Abu Dhabi",
-                "postponed_status": "N",
-                "branch_link": "https://app.link.nba.com/sTXDSduQ8Db",
-                "game_subtype": "",
-                "is_neutral": False,
-                "home_team_team_id": 1610612750,
-                "home_team_team_name": "Timberwolves",
-                "home_team_team_city": "Minnesota",
-                "home_team_team_tricode": "MIN",
-                "home_team_team_slug": "timberwolves",
-                "home_team_wins": 0,
-                "home_team_losses": 1,
-                "home_team_score": 99,
-                "home_team_seed": 0,
-                "away_team_team_id": 1610612742,
-                "away_team_team_name": "Mavericks",
-                "away_team_team_city": "Dallas",
-                "away_team_team_tricode": "DAL",
-                "away_team_team_slug": "mavericks",
-                "away_team_wins": 1,
-                "away_team_losses": 0,
-                "away_team_score": 111,
-                "away_team_seed": 0,
-            }
-        ]
-        assert weeks.to_dicts() == [
-            {
-                "league_id": "00",
-                "season_year": "2023-24",
-                "week_number": 0,
-                "week_name": "",
-                "start_date": "2023-10-05",
-                "end_date": "2023-10-11",
-            }
-        ]
-        assert broadcasters.to_dicts() == [
-            {
-                "league_id": "00",
-                "season_year": "2023-24",
-                "broadcaster_abbreviation": "TNT",
-                "broadcaster_display": "TNT",
-                "broadcaster_id": 7,
-                "region_id": 1,
-            }
-        ]
-
-    @pytest.mark.asyncio
-    async def test_extract_returns_first_frame_when_shape_error_occurs(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = ScheduleIntExtractor()
-
-        class _FakeResponse:
-            def get_dict(self) -> dict[str, object]:
-                return TestScheduleIntExtractor._payload()
-
-        def _boom_single(*_args: object, **_kwargs: object) -> pl.DataFrame:
-            raise ValueError("AssertionError('1094 columns passed, passed data had 1093 columns')")
-
-        def _boom_multi(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
-            raise ValueError("AssertionError('1094 columns passed, passed data had 1093 columns')")
-
-        def _fake_send_api_request(
-            self,
-            *,
-            endpoint: str,
-            parameters: dict[str, object],
-            proxy: object | None = None,
-            headers: object | None = None,
-            timeout: object | None = None,
-        ) -> _FakeResponse:
-            return _FakeResponse()
-
-        monkeypatch.setattr(ext, "_from_nba_api", _boom_single)
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom_multi)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.schedule.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-
-        result = await ext.extract(season="2023-24")
-
-        assert result.get_column("game_id").to_list() == ["0012300001"]
-
-
-@pytest.mark.asyncio
-async def test_shot_chart_lineup_alias_uses_documented_default_group_id(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    extractor = ShotChartLineupExtractor()
-    captured: list[dict[str, object]] = []
-
-    def _single(_endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
-        captured.append(kwargs)
-        return pl.DataFrame()
-
-    def _multi(_endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
-        captured.append(kwargs)
-        return [pl.DataFrame(), pl.DataFrame()]
-
-    monkeypatch.setattr(extractor, "_from_nba_api", _single)
-    monkeypatch.setattr(extractor, "_from_nba_api_multi", _multi)
-
-    await extractor.extract(season="2024-25")
-    await extractor.extract_all(season="2024-25")
-
-    assert [kwargs["group_id"] for kwargs in captured] == [0, 0]
-
-
-# Per-endpoint param overrides — only entries that differ from the category default.
-_EXTRACT_PARAMS: dict[str, dict[str, object]] = {
-    # game_log: ScoreboardV2 needs game_date, not season
-    "scoreboard_v2": {"game_date": "2024-10-22"},
-    # player_info: some only need player_id (no season required by extract())
-    "common_player_info": {"player_id": 201939},
-    "player_career_stats": {"player_id": 201939},
-    "player_awards": {"player_id": 201939},
-    "player_profile_v2": {"player_id": 201939},
-    # player_info: PlayerIndex / CommonAllPlayers use optional season
-    "player_index": {"season": "2024-25"},
-    "common_all_players": {"season": "2024-25"},
-    # player_info: PlayerEstimatedMetrics only needs season (no player_id)
-    "player_estimated_metrics": {"season": "2024-25"},
-    # player_info: PlayerGameStreakFinder maps season aliases to nba_api nullable params
-    "player_game_streak_finder": {"season": "2024-25"},
-    # player_info: PlayerCareerByCollege maps season aliases to nba_api params
-    "player_career_by_college": {"season": "2024-25"},
-    "player_career_by_college_rollup": {"season": "2024-25"},
-    # player_compare special cases
-    "player_compare": {"player_id": 201939, "season": "2024-25"},
-    "player_vs_player": {
-        "player_id": 201939,
-        "vs_player_id": 201566,
-        "season": "2024-25",
-    },
-    "team_vs_player": {
-        "team_id": 1610612744,
-        "vs_player_id": 201939,
-        "season": "2024-25",
-    },
-    "team_and_players_vs_players": {
-        "team_id": 1610612744,
-        "player_id1": 201939,
-        "player_id2": 201566,
-        "season": "2024-25",
-    },
-    # leaders: TeamHistoricalLeaders needs team_id only
-    "team_historical_leaders": {"team_id": 1610612744},
-    # leaders: TeamYearByYearStats needs team_id (no season required)
-    "team_year_by_year_stats": {"team_id": 1610612744},
-    # leaders: AllTimeLeadersGrids needs no required params
-    "all_time_leaders_grids": {},
-    # league: TeamDashLineups needs team_id + season
-    "team_dash_lineups": {"team_id": 1610612744, "season": "2024-25"},
-    # league: LeaguePlayerOnDetails needs team_id + season
-    "league_player_on_details": {"team_id": 1610612744, "season": "2024-25"},
-    # misc: CumeStats* need player_id or team_id + season
-    "cume_stats_player": {"player_id": 201939, "season": "2024-25"},
-    "cume_stats_player_games": {"player_id": 201939, "season": "2024-25"},
-    "cume_stats_team": {"team_id": 1610612744, "season": "2024-25"},
-    "cume_stats_team_games": {"team_id": 1610612744, "season": "2024-25"},
-    # misc: GLAlum needs person IDs passed through
-    "gl_alum_box_score_similarity_score": {
-        "person1_id": 201939,
-        "person2_id": 201566,
-    },
-    # misc: PlayerFantasyProfile requires player_id + optional season
-    "player_fantasy_profile": {"player_id": 201939, "season": "2024-25"},
-    "video_details": {"player_id": 201939, "team_id": 1610612744, "season": "2024-25"},
-    "video_details_asset": {
-        "player_id": 201939,
-        "team_id": 1610612744,
-        "season": "2024-25",
-    },
-    # misc: LeagueGameFinder passes **params; TeamGameStreakFinder maps season aliases
-    "league_game_finder": {"season": "2024-25"},
-    "team_game_streak_finder": {"season": "2024-25"},
-    "team_game_logs": {"team_id": 1610612744, "season": "2024-25"},
-    "video_events": {"game_id": "0022400001"},
-    "video_status": {"game_date": "2024-10-22", "league_id": "00"},
-    # hustle: HustleStatsBoxScore needs game_id
-    "hustle_stats_box_score": {"game_id": "0022400001"},
-    # team_info: FranchiseHistory needs no params
-    "franchise_history": {},
-    # team_info: CommonTeamYears needs no params
-    "common_team_years": {},
-    # team_info: TeamEstimatedMetrics only needs season (no team_id)
-    "team_estimated_metrics": {"season": "2024-25"},
-    # shots: ShotChartDetail has all optional params with defaults
-    "shot_chart_detail": {"season": "2024-25"},
-    # shots: ShotChartLineupDetail needs season
-    "shot_chart_lineup_detail": {"season": "2024-25"},
-}
-
-# Category defaults — used when endpoint_name is NOT in _EXTRACT_PARAMS.
-_CATEGORY_DEFAULTS: dict[str, dict[str, object]] = {
-    "box_score": {"game_id": "0022400001"},
-    "play_by_play": {"game_id": "0022400001"},
-    "game_log": {"season": "2024-25"},
-    "player_info": {"player_id": 201939, "season": "2024-25"},
-    "team_info": {"team_id": 1610612744, "season": "2024-25"},
-    "draft": {"season": "2024-25"},
-    "standings": {"season": "2024-25"},
-    "shots": {"player_id": 201939, "season": "2024-25"},
-    "league": {"season": "2024-25"},
-    "schedule": {"season": "2024-25"},
-    "rotation": {"game_id": "0022400001"},
-    "synergy": {"season": "2024-25"},
-    "hustle": {"season": "2024-25"},
-    "tracking": {"season": "2024-25"},
-    "leaders": {"season": "2024-25"},
-    "misc": {"season": "2024-25"},
-    "franchise": {"team_id": 1610612744},
-}
-
-
-def _get_params(endpoint_name: str, category: str) -> dict[str, object]:
-    """Return the params dict for a given extractor."""
-    if endpoint_name in _EXTRACT_PARAMS:
-        return _EXTRACT_PARAMS[endpoint_name]
-    return _CATEGORY_DEFAULTS.get(category, {"season": "2024-25"})
-
-
-# Combine _ALL_EXTRACTORS + aliased extractors not in the main list.
-_ALL_WITH_ALIASES = _ALL_EXTRACTORS + [
-    (PlayerDashGameSplitsExtractor, "player_dash_game_splits", "player_info"),
-    (PlayerDashGeneralSplitsExtractor, "player_dash_general_splits", "player_info"),
-    (PlayerDashLastNGamesExtractor, "player_dash_last_n_games", "player_info"),
-    (PlayerDashShootingSplitsExtractor, "player_dash_shooting_splits", "player_info"),
-    (PlayerDashTeamPerfExtractor, "player_dash_team_perf", "player_info"),
-    (PlayerDashYoyExtractor, "player_dash_yoy", "player_info"),
-]
-
-
-@pytest.mark.parametrize(
-    "cls, endpoint_name, category",
-    _ALL_WITH_ALIASES,
-    ids=[t[1] for t in _ALL_WITH_ALIASES],
-)
-class TestExtractMethodCoverage:
-    """Verify every extractor's extract() returns a dataframe with mocked API calls."""
-
-    @pytest.mark.asyncio
-    async def test_extract_returns_dataframe(
-        self,
-        cls: type,
-        endpoint_name: str,
-        category: str,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = cls()
-        dummy_df = pl.DataFrame({"col": [1, 2, 3]})
-
-        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
-            return dummy_df
-
-        if cls is DraftBoardExtractor:
-            monkeypatch.setattr(
-                "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
-                lambda self, **_kwargs: TestDraftBoardExtractor._FakeResponse(
-                    data_sets={
-                        "DraftBoard": {
-                            "headers": ["COL"],
-                            "data": [[1], [2], [3]],
-                        }
-                    }
-                ),
-            )
-        elif cls is PlayByPlayV2Extractor:
-            monkeypatch.setattr(
-                ext,
-                "_from_nba_api_multi",
-                lambda endpoint_cls, **kwargs: [dummy_df, pl.DataFrame()],
-            )
-        elif cls is PlayerCareerStatsExtractor:
-            monkeypatch.setattr(
-                ext, "_from_nba_api_multi", lambda endpoint_cls, **kwargs: [dummy_df]
-            )
-        elif cls is CommonTeamRosterExtractor:
-            monkeypatch.setattr(
-                ext,
-                "_from_nba_api_multi",
-                lambda endpoint_cls, **kwargs: [pl.DataFrame(), dummy_df],
-            )
-            monkeypatch.setattr(ext, "_validate", lambda df: df)
-        elif cls in {
-            DraftCombineDrillResultsExtractor,
-            DraftCombineNonStationaryShootingExtractor,
-            DraftCombinePlayerAnthroExtractor,
-            DraftCombineSpotShootingExtractor,
-            LeagueSeasonMatchupsExtractor,
-            PlayerAwardsExtractor,
-        }:
-            monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [dummy_df])
-            monkeypatch.setattr(ext, "_validate", lambda df: df)
-        elif cls is DunkScoreLeadersExtractor:
-            monkeypatch.setattr(
-                "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-                lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
-                    payload={
-                        "dunks": [
-                            {
-                                "gameId": "0022400001",
-                                "playerId": 1,
-                                "dunkScore": 8.5,
-                            }
-                        ]
-                    }
-                ),
-            )
-        elif cls is GravityLeadersExtractor:
-            monkeypatch.setattr(
-                "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-                lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
-                    payload={"leaders": [{"PLAYERID": 1, "GRAVITYSCORE": 1.5}]}
-                ),
-            )
-        elif cls in {VideoDetailsExtractor, VideoDetailsAssetExtractor}:
-            monkeypatch.setattr(
-                "nbadb.extract.stats.misc._extract_video_result_sets",
-                lambda *_args, **_kwargs: dummy_df,
-            )
-        else:
-            monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        params = _get_params(endpoint_name, category)
-        result = await ext.extract(**params)
-        assert isinstance(result, pl.DataFrame)
-        if cls is PlayByPlayV2Extractor:
-            assert result.equals(dummy_df)
-
-
-# ---------------------------------------------------------------------------
-# extract_all method coverage for extractors with multi-result endpoints
-# ---------------------------------------------------------------------------
-
-# (cls, endpoint_name, params_dict)
-_TEAM_PARAMS = {"team_id": 1610612744, "season": "2024-25"}
-_GAME_PARAMS = {"game_id": "0022400001"}
-
-_EXTRACT_ALL_CASES = [
-    # team_tracking: 3 extractors with extract_all
-    (TeamDashPtShotsExtractor, "team_dash_pt_shots_all", _TEAM_PARAMS),
-    (TeamDashPtPassExtractor, "team_dash_pt_pass_all", _TEAM_PARAMS),
-    (TeamDashPtRebExtractor, "team_dash_pt_reb_all", _TEAM_PARAMS),
-    # box_summary: 2 extractors with extract_all
-    (BoxScoreSummaryExtractor, "box_score_summary_all", _GAME_PARAMS),
-    (BoxScoreSummaryV3Extractor, "box_score_summary_v3_all", _GAME_PARAMS),
-    # hustle: HustleStatsBoxScore extract_all
-    (HustleStatsBoxScoreExtractor, "hustle_box_score_all", _GAME_PARAMS),
-]
-
-
-@pytest.mark.asyncio
-async def test_player_awards_normalizes_blank_all_nba_team_number(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ext = PlayerAwardsExtractor()
-    raw = pl.DataFrame(
-        {
-            "person_id": [77907, 77917, 201939, 78017],
-            "first_name": ["Bill", "Phil", "Stephen", "John"],
-            "last_name": ["Russell", "Smith", "Curry", "Doe"],
-            "team": ["", "", "Golden State Warriors", ""],
-            "description": [
-                "NBA Champion",
-                "All-Rookie Team",
-                "All-NBA",
-                "Hall of Fame Inductee",
-            ],
-            "all_nba_team_number": ["", "1", " 2 ", None],
-            "season": ["1956-57", "1971-72", "2024-25", "1982"],
-            "month": [None, None, None, None],
-            "week": [None, None, None, None],
-            "conference": ["", "", "", ""],
-            "type": ["Award", "Award", "Award", "Award"],
-            "subtype1": ["", "", "", ""],
-            "subtype2": ["", "", "", ""],
-            "subtype3": ["", "", "", ""],
-        }
-    )
-
-    monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [raw])
-
-    result = await ext.extract(player_id=77907)
-
-    assert result.get_column("all_nba_team_number").to_list() == [None, 1, 2, None]
-
-
-@pytest.mark.parametrize(
-    "cls, test_id, params",
-    _EXTRACT_ALL_CASES,
-    ids=[t[1] for t in _EXTRACT_ALL_CASES],
-)
-class TestExtractAllMethodCoverage:
-    """Verify extract_all() on extractors that support multi-result sets."""
-
-    @pytest.mark.asyncio
-    async def test_extract_all_returns_list(
-        self,
-        cls: type,
-        test_id: str,
-        params: dict,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = cls()
-        dummy_dfs = [
-            pl.DataFrame({"col": [1]}),
-            pl.DataFrame({"col": [2]}),
-        ]
-
-        def _fake_multi(endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
-            return dummy_dfs
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
-        result = await ext.extract_all(**params)
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert all(isinstance(df, pl.DataFrame) for df in result)
-
-
-class TestPlayerTrackingTeamId:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "cls",
-        [PlayerDashPtPassExtractor, PlayerDashPtRebExtractor, PlayerDashPtShotsExtractor],
-        ids=["pass", "reb", "shots"],
-    )
-    async def test_extract_all_defaults_team_id_to_zero(
-        self,
-        cls: type,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = cls()
-        captured: dict[str, object] = {}
-
-        def _fake_multi(endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
-            captured.update(kwargs)
-            return [pl.DataFrame({"ok": [1]})]
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
-
-        await ext.extract_all(player_id=2544, season="2024-25", season_type="Playoffs")
-
-        assert captured["team_id"] == 0
-        assert captured["season_type_all_star"] == "Playoffs"
-
-    @pytest.mark.asyncio
-    async def test_shot_defend_extract_defaults_team_id_to_zero(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayerDashPtShotDefendExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
-            captured.update(kwargs)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-
-        await ext.extract(player_id=2544, season="2024-25", season_type="Playoffs")
-
-        assert captured["team_id"] == 0
-        assert captured["season_type_all_star"] == "Playoffs"
-
-
-# team_tracking: extract_all with explicit season_type param
-class TestTeamTrackingExtractAllSeasonType:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "cls",
-        [TeamDashPtShotsExtractor, TeamDashPtPassExtractor, TeamDashPtRebExtractor],
-        ids=["shots", "pass", "reb"],
-    )
-    async def test_extract_all_passes_season_type(
-        self,
-        cls: type,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = cls()
-        captured: dict[str, object] = {}
-
-        def _fake_multi(endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
-            captured.update(kwargs)
-            return [pl.DataFrame({"ok": [1]})]
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
-        await ext.extract_all(team_id=1610612744, season="2024-25", season_type="Playoffs")
-        assert captured["season_type_all_star"] == "Playoffs"
-
-
-# hustle: LeagueHustlePlayerExtractor and LeagueHustleTeamExtractor extract()
-class TestHustleExtractors:
-    @pytest.mark.asyncio
-    async def test_league_hustle_player_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        ext = LeagueHustlePlayerExtractor()
-        dummy_df = pl.DataFrame({"col": [1]})
-        monkeypatch.setattr(ext, "_from_nba_api", lambda endpoint_cls, **kw: dummy_df)
-        result = await ext.extract(season="2024-25")
-        assert isinstance(result, pl.DataFrame)
-
-    @pytest.mark.asyncio
-    async def test_league_hustle_team_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        ext = LeagueHustleTeamExtractor()
-        dummy_df = pl.DataFrame({"col": [1]})
-        monkeypatch.setattr(ext, "_from_nba_api", lambda endpoint_cls, **kw: dummy_df)
-        result = await ext.extract(season="2024-25")
-        assert isinstance(result, pl.DataFrame)
-
-    @pytest.mark.asyncio
-    async def test_league_hustle_player_extract_with_season_type(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ext = LeagueHustlePlayerExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        await ext.extract(season="2024-25", season_type="Playoffs")
-        assert captured["season_type_all_star"] == "Playoffs"
-
-    @pytest.mark.asyncio
-    async def test_league_hustle_team_extract_with_season_type(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ext = LeagueHustleTeamExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        await ext.extract(season="2024-25", season_type="Playoffs")
-        assert captured["season_type_all_star"] == "Playoffs"
-
-
-# draft: DraftCombineDrillResultsExtractor extract()
-class TestDraftCombineExtractors:
-    @pytest.mark.asyncio
-    async def test_draft_combine_drill_results_injects_season_before_validation(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = DraftCombineDrillResultsExtractor()
-        captured_call: dict[str, object] = {}
-        captured_validate: dict[str, pl.DataFrame] = {}
-
-        def _fake_call(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            captured_call.update(kw)
-            return [pl.DataFrame({"player_id": [1]})]
-
-        def _fake_validate(df: pl.DataFrame) -> pl.DataFrame:
-            captured_validate["df"] = df
-            return df
-
-        monkeypatch.setattr(ext, "_call_nba_api", _fake_call)
-        monkeypatch.setattr(ext, "_validate", _fake_validate)
-
-        result = await ext.extract(season="2024-25")
-
-        assert isinstance(result, pl.DataFrame)
-        assert captured_call["season_year"] == 2024
-        assert captured_validate["df"]["season"].to_list() == ["2024-25"]
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "cls",
-        [
-            DraftCombineNonStationaryShootingExtractor,
-            DraftCombinePlayerAnthroExtractor,
-            DraftCombineSpotShootingExtractor,
-        ],
-        ids=["non_stationary", "anthro", "spot"],
-    )
-    async def test_draft_combine_result_extractors_inject_season_before_validation(
-        self,
-        cls: type,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = cls()
-        captured_call: dict[str, object] = {}
-        captured_validate: dict[str, pl.DataFrame] = {}
-
-        def _fake_call(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            captured_call.update(kw)
-            return [pl.DataFrame({"player_id": [1]})]
-
-        def _fake_validate(df: pl.DataFrame) -> pl.DataFrame:
-            captured_validate["df"] = df
-            return df
-
-        monkeypatch.setattr(ext, "_call_nba_api", _fake_call)
-        monkeypatch.setattr(ext, "_validate", _fake_validate)
-
-        result = await ext.extract(season="2024-25")
-
-        assert isinstance(result, pl.DataFrame)
-        assert captured_call["season_year"] == 2024
-        assert captured_validate["df"]["season"].to_list() == ["2024-25"]
-
-
-class TestMatchupExtractors:
-    @pytest.mark.asyncio
-    async def test_league_season_matchups_coerces_clock_minutes_before_validation(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = LeagueSeasonMatchupsExtractor()
-        captured_call: dict[str, object] = {}
-        captured_validate: dict[str, pl.DataFrame] = {}
-
-        def _fake_call(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            captured_call.update(kw)
-            return [pl.DataFrame({"matchup_min": ["5:30", "2", None]})]
-
-        def _fake_validate(df: pl.DataFrame) -> pl.DataFrame:
-            captured_validate["df"] = df
-            return df
-
-        monkeypatch.setattr(ext, "_call_nba_api", _fake_call)
-        monkeypatch.setattr(ext, "_validate", _fake_validate)
-
-        result = await ext.extract(season="2024-25", season_type="Regular Season")
-
-        assert isinstance(result, pl.DataFrame)
-        assert captured_call["season"] == "2024-25"
-        assert captured_call["season_type_playoffs"] == "Regular Season"
-        assert captured_validate["df"]["matchup_min"].to_list() == [5.5, 2.0, None]
-
-
-# player_college: PlayerCareerByCollegeExtractor extract()
-class TestPlayerCollegeExtractors:
-    @pytest.mark.asyncio
-    async def test_player_career_by_college_extract_maps_api_params(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayerCareerByCollegeExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        result = await ext.extract(college="Duke", season="2024-25", season_type="Playoffs")
-        assert isinstance(result, pl.DataFrame)
-        assert captured["college"] == "Duke"
-        assert captured["season_nullable"] == "2024-25"
-        assert captured["season_type_all_star"] == "Playoffs"
-        assert "season" not in captured
-        assert "season_type" not in captured
-
-
-# player_game_log: PlayerGameLogsV2Extractor and PlayerStreakFinderExtractor extract()
-class TestPlayerGameLogV2Extractors:
-    @pytest.mark.asyncio
-    async def test_player_game_logs_v2_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        ext = PlayerGameLogsV2Extractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        result = await ext.extract(player_id=2544, season="2024-25", season_type="Playoffs")
-        assert isinstance(result, pl.DataFrame)
-        assert captured["player_id_nullable"] == 2544
-        assert captured["season_nullable"] == "2024-25"
-        assert captured["season_type_nullable"] == "Playoffs"
-
-    @pytest.mark.asyncio
-    async def test_player_streak_finder_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        ext = PlayerStreakFinderExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        result = await ext.extract(player_id=2544, season="2024-25")
-        assert isinstance(result, pl.DataFrame)
-        assert captured["player_id_nullable"] == 2544
-        assert captured["season_nullable"] == "2024-25"
-
-    @pytest.mark.asyncio
-    async def test_player_game_streak_finder_extract_maps_nullable_params(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayerGameStreakFinderExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        result = await ext.extract(player_id=2544, season="2024-25", season_type="Playoffs")
-        assert isinstance(result, pl.DataFrame)
-        assert captured["player_id_nullable"] == 2544
-        assert captured["season_nullable"] == "2024-25"
-        assert captured["season_type_nullable"] == "Playoffs"
-        assert "player_id" not in captured
-        assert "season" not in captured
-        assert "season_type" not in captured
-
-    @pytest.mark.asyncio
-    async def test_team_game_streak_finder_extract_maps_nullable_params(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = TeamGameStreakFinderExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
-            captured.update(kw)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        result = await ext.extract(team_id=1610612744, season="2024-25", season_type="Playoffs")
-        assert isinstance(result, pl.DataFrame)
-        assert captured["team_id_nullable"] == 1610612744
-        assert captured["season_nullable"] == "2024-25"
-        assert captured["season_type_nullable"] == "Playoffs"
-        assert "team_id" not in captured
-        assert "season" not in captured
-        assert "season_type" not in captured
-
-
-class TestPlayByPlayV2Extractor:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "missing_key",
-        ["AvailableVideo", "PlayByPlay", "resultSet", "resultSets"],
-    )
-    async def test_structural_empty_payload_returns_empty_result_sets(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        missing_key: str,
-    ) -> None:
-        ext = PlayByPlayV2Extractor()
-
-        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            raise KeyError(missing_key)
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
-
-        result = await ext.extract_all(game_id="0020000945")
-
-        assert len(result) == 2
-        assert all(isinstance(df, pl.DataFrame) and df.is_empty() for df in result)
-
-    @pytest.mark.asyncio
-    async def test_extract_returns_first_empty_frame_for_deprecated_payload(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayByPlayV2Extractor()
-
-        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            raise KeyError("AvailableVideo")
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
-
-        result = await ext.extract(game_id="0020000945")
-
-        assert isinstance(result, pl.DataFrame)
-        assert result.is_empty()
-
-    @pytest.mark.asyncio
-    async def test_extract_returns_empty_frame_when_no_result_sets(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = PlayByPlayV2Extractor()
-
-        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            return []
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
-
-        result = await ext.extract(game_id="0020000945")
-
-        assert isinstance(result, pl.DataFrame)
-        assert result.is_empty()
-
-    @pytest.mark.asyncio
-    async def test_unexpected_keyerror_still_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        ext = PlayByPlayV2Extractor()
-
-        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
-            raise KeyError("unexpected")
-
-        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
-
-        with pytest.raises(KeyError, match="unexpected"):
-            await ext.extract_all(game_id="0020000945")
-
-
-# ---------------------------------------------------------------------------
-# SynergyPlayTypesExtractor — all-combination coverage (HR-T-002)
-# ---------------------------------------------------------------------------
-
-
-class TestSynergyPlayTypesExtractor:
-    @pytest.fixture
-    def synergy_ext(self):
-        from nbadb.extract.stats.synergy import SynergyPlayTypesExtractor
-
-        return SynergyPlayTypesExtractor()
-
-    def test_tabular_payload_normalizes_columns(self):
-        from nbadb.extract.stats.synergy import _synergy_payload_to_frame
-
-        result = _synergy_payload_to_frame(
-            {
-                "resultSets": [
-                    {
-                        "name": "SynergyPlayType",
-                        "headers": ["PLAYER_ID", "PLAY_TYPE", "TYPE_GROUPING"],
-                        "rowSet": [[1, "Isolation", "offensive"]],
-                    }
-                ]
-            },
-            season_type="Playoffs",
-        )
-
-        assert result.to_dicts() == [
-            {
-                "player_id": 1,
-                "play_type": "Isolation",
-                "type_grouping": "offensive",
-                "season_type": "Playoffs",
-            }
-        ]
-
-    def test_result_set_payload_normalizes_columns(self):
-        from nbadb.extract.stats.synergy import _synergy_payload_to_frame
-
-        result = _synergy_payload_to_frame(
-            {
-                "resultSet": {
-                    "name": "SynergyPlayType",
-                    "headers": ["PLAYER_ID", "PLAY_TYPE"],
-                    "rowSet": [[1, "Isolation"]],
-                }
-            },
-            season_type="Playoffs",
-        )
-
-        assert result.to_dicts() == [
-            {
-                "player_id": 1,
-                "play_type": "Isolation",
-                "season_type": "Playoffs",
-            }
-        ]
-
-    def test_fetch_fallback_validates_raw_schema(self, synergy_ext, monkeypatch):
-        from nbadb.core.errors import ValidationError as NbaDbValidationError
-
-        class _FakeResponse:
-            def get_dict(self):
-                return {
-                    "resultSets": [
-                        {
-                            "name": "SynergyPlayType",
-                            "headers": ["PLAYER_ID", "GP"],
-                            "rowSet": [[1, "not-an-int"]],
-                        }
-                    ]
-                }
-
-        def _fake_from_nba_api(endpoint_cls, **kwargs):
-            raise KeyError("resultSet")
-
-        def _fake_send_api_request(
-            self,
-            *,
-            endpoint,
-            parameters,
-            proxy=None,
-            headers=None,
-            timeout=None,
-        ):
-            return _FakeResponse()
-
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake_from_nba_api)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.synergy.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-
-        with pytest.raises(NbaDbValidationError, match="synergy_play_types"):
-            synergy_ext._fetch_synergy_frame(
-                season="2024-25",
-                season_type="Regular Season",
-                play_type="Isolation",
-                entity_type="P",
-                grouping="offensive",
-            )
-
-    @pytest.mark.asyncio
-    async def test_known_invalid_parameter_skips_all_putbacks_combos_via_fetch_path(
-        self,
-        synergy_ext,
-        monkeypatch,
-    ):
-        reset_calls: list[None] = []
-
-        class _FakeResponse:
-            def __init__(self, payload):
-                self._payload = payload
-
-            def get_dict(self):
-                return self._payload
-
-        def _fake_from_nba_api(endpoint_cls, **kwargs):
-            if kwargs["play_type_nullable"] == "Putbacks":
-                raise KeyError("resultSet")
-            return pl.DataFrame({"val": [1]})
-
-        def _fake_send_api_request(
-            self,
-            *,
-            endpoint,
-            parameters,
-            proxy=None,
-            headers=None,
-            timeout=None,
-        ):
-            if parameters["PlayType"] == "Putbacks":
-                return _FakeResponse({"PlayType": ["Invalid Parameter"]})
-            return _FakeResponse(
-                {
-                    "resultSets": [
-                        {
-                            "name": "SynergyPlayType",
-                            "headers": ["VAL"],
-                            "rowSet": [[1]],
-                        }
-                    ]
-                }
-            )
-
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake_from_nba_api)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.synergy.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-        monkeypatch.setattr(
-            "nbadb.extract.stats.synergy._reset_nba_stats_session",
-            lambda: reset_calls.append(None),
-        )
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-
-        result = await synergy_ext.extract(season="2024-25")
-
-        assert result.shape[0] == 40
-        assert not reset_calls
-
-    @pytest.mark.asyncio
-    async def test_unknown_invalid_parameter_raises_specific_error(self, synergy_ext, monkeypatch):
-        from nbadb.extract.stats.synergy import SynergyInvalidParameterError
-
-        class _FakeResponse:
-            def get_dict(self):
-                return {"PlayType": ["Invalid Parameter"]}
-
-        def _fake_from_nba_api(endpoint_cls, **kwargs):
-            raise KeyError("resultSet")
-
-        def _fake_send_api_request(
-            self,
-            *,
-            endpoint,
-            parameters,
-            proxy=None,
-            headers=None,
-            timeout=None,
-        ):
-            return _FakeResponse()
-
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake_from_nba_api)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.synergy.NBAStatsHTTP.send_api_request",
-            _fake_send_api_request,
-        )
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-
-        with pytest.raises(SynergyInvalidParameterError, match="Isolation/P/offensive"):
-            await synergy_ext.extract(season="2024-25")
-
-    @pytest.mark.asyncio
-    async def test_iterates_all_combinations(self, synergy_ext, monkeypatch):
-        calls: list[dict] = []
-
-        monkeypatch.setattr(
-            synergy_ext,
-            "_fetch_synergy_frame",
-            lambda **kw: calls.append(kw) or pl.DataFrame({"val": [1]}),
-        )
-        # Disable the inter-call sleep for test speed
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-        result = await synergy_ext.extract(season="2024-25")
-
-        assert len(calls) == 44  # 11 play_types × 2 entity_types × 2 groupings
-        assert "play_type" in result.columns
-        assert "entity_type" in result.columns
-        assert "type_grouping" in result.columns
-        assert result.shape[0] == 44
-
-    @pytest.mark.asyncio
-    async def test_non_retryable_failure_continues(self, synergy_ext, monkeypatch):
-        call_count = 0
-
-        def _fake_fetch(**kw):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 5:
-                raise ValueError("test failure")
-            return pl.DataFrame({"val": [1]})
-
-        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-        result = await synergy_ext.extract(season="2024-25")
-
-        assert result.shape[0] == 43  # 44 - 1 failure
-        assert call_count == 44  # all combinations still attempted
-
-    @pytest.mark.asyncio
-    async def test_retryable_failure_retries_combo_and_succeeds(self, synergy_ext, monkeypatch):
-        calls: list[tuple[str, str, str]] = []
-        reset_calls: list[None] = []
-
-        def _fake_fetch(**kw):
-            combo = (
-                kw["play_type"],
-                kw["entity_type"],
-                kw["grouping"],
-            )
-            calls.append(combo)
-            if len(calls) == 5:
-                raise ConnectionError("test failure")
-            return pl.DataFrame({"val": [1]})
-
-        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.synergy._reset_nba_stats_session",
-            lambda: reset_calls.append(None),
-        )
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-
-        result = await synergy_ext.extract(season="2024-25")
-
-        assert result.shape[0] == 44
-        assert len(calls) == 45
-        assert calls[4] == calls[5]
-        assert len(reset_calls) == 1
-
-    @pytest.mark.asyncio
-    async def test_retryable_failure_after_local_retry_raises(self, synergy_ext, monkeypatch):
-        call_count = 0
-        reset_calls: list[None] = []
-
-        def _fake_fetch(**kw):
-            nonlocal call_count
-            call_count += 1
-            if call_count >= 5:
-                raise ConnectionError("still failing")
-            return pl.DataFrame({"val": [1]})
-
-        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
-        monkeypatch.setattr(
-            "nbadb.extract.stats.synergy._reset_nba_stats_session",
-            lambda: reset_calls.append(None),
-        )
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-
-        with pytest.raises(ConnectionError, match="still failing"):
-            await synergy_ext.extract(season="2024-25")
-
-        assert call_count == 6
-        assert len(reset_calls) == 1
-
-    @pytest.mark.asyncio
-    async def test_all_failures_raises(self, synergy_ext, monkeypatch):
-        def _fake_fetch(**kw):
-            raise ValueError("all fail")
-
-        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-
-        with pytest.raises(RuntimeError, match="all 44 synergy combinations failed"):
-            await synergy_ext.extract(season="2024-25")
-
-    @pytest.mark.asyncio
-    async def test_all_empty_combinations_return_empty_frame(self, synergy_ext, monkeypatch):
-        def _fake_fetch(**kw):
-            return pl.DataFrame(schema={"val": pl.Int64})
-
-        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
-        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
-
-        result = await synergy_ext.extract(season="2025-26", season_type="Playoffs")
-
-        assert result.is_empty()

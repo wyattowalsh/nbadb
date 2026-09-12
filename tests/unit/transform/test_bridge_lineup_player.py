@@ -1,8 +1,30 @@
 from __future__ import annotations
 
 import polars as pl
+import pytest
 
+from nbadb.schemas.star.bridge_lineup_player import BridgeLineupPlayerSchema
 from nbadb.transform.facts.bridge_lineup_player import BridgeLineupPlayerTransformer
+
+
+def _lineups(
+    group_ids: list[str | None],
+    *,
+    team_ids: list[int] | None = None,
+    seasons: list[str] | None = None,
+) -> pl.LazyFrame:
+    return pl.DataFrame(
+        {
+            "group_id": group_ids,
+            "team_id": team_ids or [1] * len(group_ids),
+            "season_year": seasons or ["2024-25"] * len(group_ids),
+        },
+        schema={
+            "group_id": pl.String,
+            "team_id": pl.Int64,
+            "season_year": pl.String,
+        },
+    ).lazy()
 
 
 class TestBridgeLineupPlayer:
@@ -216,3 +238,85 @@ class TestBridgeLineupPlayer:
         # Should be sorted by group_id, then position_in_lineup
         assert result["group_id"][0] == "101-102-103-104-105"
         assert result["position_in_lineup"][0] == 1
+
+
+def test_admits_one_to_five_players_and_preserves_token_positions() -> None:
+    result = BridgeLineupPlayerTransformer().transform(
+        {"stg_lineup": _lineups(["101", "203-202-201", "301-302-303-304-305"])}
+    )
+
+    assert result.columns == [
+        "group_id",
+        "player_id",
+        "team_id",
+        "position_in_lineup",
+        "season_year",
+    ]
+    assert result.height == 9
+    middle = result.filter(pl.col("group_id") == "203-202-201").sort("position_in_lineup")
+    assert middle["player_id"].to_list() == [203, 202, 201]
+    assert middle["position_in_lineup"].to_list() == [1, 2, 3]
+    assert BridgeLineupPlayerSchema.validate(result).to_dicts() == result.to_dicts()
+    assert list(BridgeLineupPlayerSchema.to_schema().columns) == result.columns
+
+
+@pytest.mark.parametrize(
+    "group_id",
+    [
+        None,
+        "",
+        "1-",
+        "1--2",
+        "1-0",
+        "1-two",
+        "9223372036854775808",
+        "1-2-3-4-5-6",
+        "1-2-1",
+        "1-01",
+    ],
+)
+def test_invalid_group_fails_before_duplicate_collapse(group_id: str | None) -> None:
+    with pytest.raises(ValueError, match="1-5 unique positive Int64"):
+        BridgeLineupPlayerTransformer().transform({"stg_lineup": _lineups([group_id, group_id])})
+
+
+def test_identical_rows_collapse_within_and_across_sources() -> None:
+    duplicate = _lineups(["101-102-103", "101-102-103"])
+
+    result = BridgeLineupPlayerTransformer().transform(
+        {"stg_lineup": duplicate, "stg_team_lineups": duplicate}
+    )
+
+    assert result.to_dicts() == [
+        {
+            "group_id": "101-102-103",
+            "player_id": player_id,
+            "team_id": 1,
+            "position_in_lineup": position,
+            "season_year": "2024-25",
+        }
+        for position, player_id in enumerate((101, 102, 103), start=1)
+    ]
+
+
+def test_same_group_player_edges_remain_distinct_across_team_and_season() -> None:
+    result = BridgeLineupPlayerTransformer().transform(
+        {
+            "stg_lineup": _lineups(
+                ["101-102", "101-102", "101-102"],
+                team_ids=[1, 2, 1],
+                seasons=["2024-25", "2024-25", "2023-24"],
+            )
+        }
+    )
+
+    assert result.height == 6
+    assert set(result.select("team_id", "season_year").iter_rows()) == {
+        (1, "2023-24"),
+        (1, "2024-25"),
+        (2, "2024-25"),
+    }
+    assert (
+        result.unique(subset=["group_id", "player_id", "team_id", "season_year"]).height
+        == result.height
+    )

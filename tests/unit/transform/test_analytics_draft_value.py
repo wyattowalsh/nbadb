@@ -108,7 +108,7 @@ class TestAnalyticsDraftValue:
                 "draft_round": [1, 1],
                 "draft_number": [4, 15],
                 "college_id": [1, None],
-                "valid_from": [2020, 2020],
+                "valid_from": [2008, 2013],
                 "valid_to": [None, None],
                 "is_current": [True, True],
             }
@@ -196,6 +196,8 @@ class TestAnalyticsDraftValue:
                 "full_name": pl.Series([], dtype=pl.Utf8),
                 "position": pl.Series([], dtype=pl.Utf8),
                 "country": pl.Series([], dtype=pl.Utf8),
+                "valid_from": pl.Series([], dtype=pl.Utf8),
+                "valid_to": pl.Series([], dtype=pl.Utf8),
                 "is_current": pl.Series([], dtype=pl.Boolean),
             }
         ).lazy()
@@ -269,6 +271,8 @@ class TestAnalyticsDraftValue:
                 "full_name": pl.Series([], dtype=pl.Utf8),
                 "position": pl.Series([], dtype=pl.Utf8),
                 "country": pl.Series([], dtype=pl.Utf8),
+                "valid_from": pl.Series([], dtype=pl.Utf8),
+                "valid_to": pl.Series([], dtype=pl.Utf8),
                 "is_current": pl.Series([], dtype=pl.Boolean),
             }
         ).lazy()
@@ -286,8 +290,8 @@ class TestAnalyticsDraftValue:
         # With COALESCE, falls back to fact_draft.player_name
         assert result["player_name"][0] == "Never Played"
 
-    def test_scd2_deduplication(self) -> None:
-        """is_current=TRUE filter prevents SCD2 fan-out from dim_player."""
+    def test_scd2_as_of_join_prevents_fan_out(self) -> None:
+        """The draft-year interval is selected instead of the current row."""
         fact_draft = pl.DataFrame(
             {
                 "person_id": [201566],
@@ -342,7 +346,7 @@ class TestAnalyticsDraftValue:
                 "player_sk": [1, 2],
                 "player_id": [201566, 201566],
                 "full_name": ["Russell Westbrook", "Russell Westbrook"],
-                "position": ["PG", "PG"],
+                "position": ["Draft PG", "Current PG"],
                 "team_id": [1610612760, 1610612746],
                 "jersey_number": ["0", "0"],
                 "height": ["6-3", "6-3"],
@@ -353,7 +357,7 @@ class TestAnalyticsDraftValue:
                 "draft_round": [1, 1],
                 "draft_number": [4, 4],
                 "college_id": [1, 1],
-                "valid_from": [2018, 2022],
+                "valid_from": [2008, 2022],
                 "valid_to": [2022, None],
                 "is_current": [False, True],
             }
@@ -366,9 +370,58 @@ class TestAnalyticsDraftValue:
         }
         result = _run(AnalyticsDraftValueTransformer(), staging)
 
-        # is_current filter prevents fan-out: only 1 row
         assert result.shape[0] == 1
         assert result["player_name"][0] == "Russell Westbrook"
+        assert result["position"][0] == "Draft PG"
+
+    def test_overlapping_draft_year_scd_rows_fail_closed(self) -> None:
+        fact_draft = pl.DataFrame(
+            {
+                "person_id": [201566],
+                "player_name": ["Russell Westbrook"],
+                "season": [2008],
+                "round_number": [1],
+                "round_pick": [4],
+                "overall_pick": [4],
+                "team_id": [1610612760],
+            }
+        ).lazy()
+        career = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "career_gp": [1000],
+                "career_pts": [24000.0],
+                "career_ppg": [24.0],
+                "career_rpg": [7.2],
+                "career_apg": [8.4],
+                "career_fg_pct": [0.438],
+                "career_fg3_pct": [0.305],
+                "seasons_played": [16],
+                "first_season": [2008],
+                "last_season": [2024],
+            }
+        ).lazy()
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566, 201566],
+                "full_name": ["Name One", "Name Two"],
+                "position": ["PG", "SG"],
+                "country": ["USA", "USA"],
+                "valid_from": ["2007-08", "2008-09"],
+                "valid_to": [None, None],
+                "is_current": [False, True],
+            }
+        ).lazy()
+
+        with pytest.raises(duckdb.InvalidInputException, match="conflicting dim_player"):
+            _run(
+                AnalyticsDraftValueTransformer(),
+                {
+                    "fact_draft": fact_draft,
+                    "agg_player_career": career,
+                    "dim_player": dim_player,
+                },
+            )
 
     def test_no_connection_before_injection(self) -> None:
         t = AnalyticsDraftValueTransformer()

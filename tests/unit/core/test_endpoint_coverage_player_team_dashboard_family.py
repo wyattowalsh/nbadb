@@ -78,4 +78,6 @@ def test_player_team_dashboard_family_support_matrix_chunk() -> None:
     ):
         row = rows[endpoint_name]
         assert row["param_patterns"] == ["player_season"], endpoint_name
-        assert row["earliest_supported_season"] == 1946, endpoint_name
+        assert row["earliest_supported_season"] is None, endpoint_name
+        assert row["planner_start_season"] == 1946, endpoint_name
+        assert row["planner_start_basis"] == "fallback_attempt_unverified", endpoint_name

@@ -16,14 +16,14 @@ class BridgePlayPlayerSchema(BaseSchema):
     event_num: int = pa.Field(
         ge=0,
         metadata={
-            "source": ("PlayByPlayV3.PlayByPlay.EVENTNUM"),
+            "source": ("PlayByPlayV3.PlayByPlay.actionNumber"),
             "description": ("Event sequence number"),
         },
     )
     player_id: int = pa.Field(
         gt=0,
         metadata={
-            "source": "derived.player_id",
+            "source": "PlayByPlayV3.PlayByPlay.personId",
             "description": ("Player involved in play"),
             "fk_ref": ("dim_player.player_id"),
         },
@@ -32,7 +32,7 @@ class BridgePlayPlayerSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": "derived.team_id",
+            "source": "PlayByPlayV3.PlayByPlay.teamId",
             "description": ("Player team identifier"),
             "fk_ref": "dim_team.team_id",
         },

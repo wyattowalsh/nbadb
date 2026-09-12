@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import duckdb
 import polars as pl
+import pytest
 
 # ---------------------------------------------------------------------------
 # Dependency declaration tests
@@ -28,7 +29,10 @@ def test_agg_player_season_has_dim_team_dependency():
 def test_agg_player_rolling_has_dim_game_dependency():
     from nbadb.transform.derived.agg_player_rolling import AggPlayerRollingTransformer
 
-    assert "dim_game" in AggPlayerRollingTransformer.depends_on
+    assert AggPlayerRollingTransformer.depends_on == [
+        "fact_player_game_traditional",
+        "dim_game",
+    ]
 
 
 def test_agg_team_season_has_dim_game_dependency():
@@ -114,6 +118,8 @@ def test_agg_player_season_includes_team_id():
         {
             "player_id": [101, 101],
             "game_id": [1001, 1002],
+            "team_id": [1, 1],
+            "poss": [45.0, 42.0],
             "off_rating": [115.0, 108.0],
             "def_rating": [105.0, 110.0],
             "net_rating": [10.0, -2.0],
@@ -179,3 +185,219 @@ def test_agg_player_season_includes_team_id():
     assert result["team_id"][0] == 1
     assert result["team_abbreviation"][0] == "TST"
     conn.close()
+
+
+_ALL_TIME_ROW = tuple[int | None, str | None, int | None, int | None]
+
+
+def _all_time_frame(
+    stat: str,
+    rows: list[_ALL_TIME_ROW],
+) -> pl.DataFrame:
+    return pl.DataFrame(
+        rows,
+        schema={
+            "player_id": pl.Int64,
+            "player_name": pl.String,
+            stat: pl.Int64,
+            f"{stat}_rank": pl.Int64,
+        },
+        orient="row",
+    )
+
+
+def _run_all_time_leaders(
+    rows_by_source: dict[str, list[_ALL_TIME_ROW]],
+) -> pl.DataFrame:
+    from nbadb.transform.derived.agg_all_time_leaders import (
+        AggAllTimeLeadersTransformer,
+    )
+
+    conn = duckdb.connect()
+    try:
+        staging: dict[str, pl.LazyFrame] = {}
+        for stat in ("pts", "ast", "reb"):
+            frame = _all_time_frame(stat, rows_by_source.get(stat, []))
+            table_name = f"stg_all_time_{stat}"
+            conn.register(table_name, frame)
+            staging[table_name] = frame.lazy()
+        transformer = AggAllTimeLeadersTransformer()
+        transformer._conn = conn
+        return transformer.transform(staging)
+    finally:
+        conn.close()
+
+
+def test_agg_all_time_leaders_uses_only_representable_sources_and_projection() -> None:
+    from nbadb.transform.derived.agg_all_time_leaders import (
+        AggAllTimeLeadersTransformer,
+    )
+
+    assert AggAllTimeLeadersTransformer.depends_on == [
+        "stg_all_time_pts",
+        "stg_all_time_ast",
+        "stg_all_time_reb",
+    ]
+    normalized_sql = " ".join(AggAllTimeLeadersTransformer._SQL.lower().split())
+    assert "select *" not in normalized_sql
+    assert "stat_category" not in normalized_sql
+    assert "from stg_all_time " not in normalized_sql
+    referenced_all_time_sources = {
+        token.strip(",()") for token in normalized_sql.split() if token.startswith("stg_all_time")
+    }
+    assert referenced_all_time_sources == set(AggAllTimeLeadersTransformer.depends_on)
+
+
+def test_agg_all_time_leaders_consolidates_three_categories_at_player_grain() -> None:
+    from nbadb.schemas.star.agg_schemas import AggAllTimeLeadersSchema
+
+    result = _run_all_time_leaders(
+        {
+            "pts": [(2544, "LeBron James", 40000, 1)],
+            "ast": [(2544, "LeBron James", 11000, 2)],
+            "reb": [(2544, "LeBron James", 11500, 3)],
+        }
+    )
+
+    assert result.columns == [
+        "player_id",
+        "player_name",
+        "pts",
+        "ast",
+        "reb",
+        "pts_rank",
+        "ast_rank",
+        "reb_rank",
+    ]
+    assert result.to_dicts() == [
+        {
+            "player_id": 2544,
+            "player_name": "LeBron James",
+            "pts": 40000,
+            "ast": 11000,
+            "reb": 11500,
+            "pts_rank": 1,
+            "ast_rank": 2,
+            "reb_rank": 3,
+        }
+    ]
+    assert result.unique(subset=["player_id"]).height == result.height
+    assert AggAllTimeLeadersSchema.validate(result).to_dicts() == result.to_dicts()
+    assert list(AggAllTimeLeadersSchema.to_schema().columns) == result.columns
+
+
+def test_agg_all_time_leaders_full_outer_join_preserves_disjoint_membership() -> None:
+    result = _run_all_time_leaders(
+        {
+            "pts": [(1, "Points", 100, 1)],
+            "ast": [(2, "Assists", 80, 2)],
+            "reb": [(3, "Rebounds", 70, 3)],
+        }
+    )
+
+    assert result.to_dicts() == [
+        {
+            "player_id": 1,
+            "player_name": "Points",
+            "pts": 100,
+            "ast": None,
+            "reb": None,
+            "pts_rank": 1,
+            "ast_rank": None,
+            "reb_rank": None,
+        },
+        {
+            "player_id": 2,
+            "player_name": "Assists",
+            "pts": None,
+            "ast": 80,
+            "reb": None,
+            "pts_rank": None,
+            "ast_rank": 2,
+            "reb_rank": None,
+        },
+        {
+            "player_id": 3,
+            "player_name": "Rebounds",
+            "pts": None,
+            "ast": None,
+            "reb": 70,
+            "pts_rank": None,
+            "ast_rank": None,
+            "reb_rank": 3,
+        },
+    ]
+
+
+def test_agg_all_time_leaders_exact_duplicates_and_null_plus_known_are_idempotent() -> None:
+    result = _run_all_time_leaders(
+        {
+            "pts": [
+                (1, None, None, None),
+                (1, "Known", 100, 1),
+                (1, "Known", 100, 1),
+            ],
+            "ast": [(1, None, None, None)],
+        }
+    )
+
+    assert result.to_dicts() == [
+        {
+            "player_id": 1,
+            "player_name": "Known",
+            "pts": 100,
+            "ast": None,
+            "reb": None,
+            "pts_rank": 1,
+            "ast_rank": None,
+            "reb_rank": None,
+        }
+    ]
+
+
+def test_agg_all_time_leaders_all_null_name_is_preserved_as_null() -> None:
+    result = _run_all_time_leaders(
+        {
+            "pts": [(1, None, 100, 1)],
+            "ast": [(1, None, 80, 2)],
+            "reb": [(1, None, 70, 3)],
+        }
+    )
+
+    assert result["player_name"].to_list() == [None]
+
+
+@pytest.mark.parametrize(
+    ("source", "rows", "message"),
+    [
+        ("pts", [(1, "Known", 100, 1), (1, "Known", 101, 1)], "points values"),
+        ("pts", [(1, "Known", 100, 1), (1, "Known", 100, 2)], "points ranks"),
+        ("ast", [(1, "Known", 80, 1), (1, "Known", 81, 1)], "assists values"),
+        ("ast", [(1, "Known", 80, 1), (1, "Known", 80, 2)], "assists ranks"),
+        ("reb", [(1, "Known", 70, 1), (1, "Known", 71, 1)], "rebounds values"),
+        ("reb", [(1, "Known", 70, 1), (1, "Known", 70, 2)], "rebounds ranks"),
+    ],
+)
+def test_agg_all_time_leaders_conflicting_metric_or_rank_fails_closed(
+    source: str,
+    rows: list[_ALL_TIME_ROW],
+    message: str,
+) -> None:
+    with pytest.raises(duckdb.Error, match=message):
+        _run_all_time_leaders({source: rows})
+
+
+def test_agg_all_time_leaders_conflicting_name_across_sources_fails_closed() -> None:
+    with pytest.raises(duckdb.Error, match="conflicting all-time player names"):
+        _run_all_time_leaders(
+            {
+                "pts": [(1, "First Name", 100, 1)],
+                "ast": [(1, "Second Name", 80, 1)],
+            }
+        )
+
+
+@pytest.mark.parametrize("source", ["pts", "ast", "reb"])
+def test_agg_all_time_leaders_null_player_id_fails_closed(source: str) -> None:
+    with pytest.raises(duckdb.Error, match="null player_id"):
+        _run_all_time_leaders({source: [(None, "Unknown", 1, 1)]})

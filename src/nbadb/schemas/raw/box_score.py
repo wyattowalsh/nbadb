@@ -1621,6 +1621,7 @@ class RawBoxScorePlayerTrackSchema(BaseSchema):
     )
     pass_: float | None = pa.Field(
         nullable=True,
+        alias="pass",
         metadata={
             "source": ("BoxScorePlayerTrackV3.PlayerStats.PASS"),
             "description": "Passes made",

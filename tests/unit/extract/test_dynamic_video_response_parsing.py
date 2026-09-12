@@ -1,335 +1,288 @@
 from __future__ import annotations
 
+import json
+import socket
 from typing import Any
 
 import polars as pl
 import pytest
+import requests
 
-from nbadb.core.errors import ExtractionError, TransientError
-from nbadb.extract.stats import misc
+from nbadb.core.errors import ResponseContractError
+from nbadb.extract.nba_api_adapter import NbaDbStatsHTTP
+from nbadb.extract.stats.misc import (
+    VideoDetailsAssetExtractor,
+    VideoDetailsExtractor,
+    VideoEventsAssetExtractor,
+    VideoEventsExtractor,
+)
 
 
 class _FakeResponse:
-    def __init__(self, payload: object, *, status_code: int = 200) -> None:
-        self._payload = payload
+    def __init__(self, parser_input: str, *, status_code: int = 200) -> None:
+        self._parser_input = parser_input
         self._status_code = status_code
 
+    def get_response(self) -> str:
+        return self._parser_input
+
     def get_dict(self) -> object:
-        if isinstance(self._payload, BaseException):
-            raise self._payload
-        return self._payload
+        return json.loads(self._parser_input)
+
+
+@pytest.fixture(autouse=True)
+def _deny_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _blocked(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("network access is forbidden in video extractor tests")
+
+    monkeypatch.setattr(socket, "create_connection", _blocked)
+    monkeypatch.setattr(socket.socket, "connect", _blocked)
 
 
 def _install_response(
     monkeypatch: pytest.MonkeyPatch,
     payload: object,
-    *,
-    status_code: int = 200,
 ) -> dict[str, Any]:
-    captured: dict[str, Any] = {}
+    request: dict[str, Any] = {}
+    parser_input = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
     def _send(_self: object, **kwargs: Any) -> _FakeResponse:
-        captured.update(kwargs)
-        return _FakeResponse(payload, status_code=status_code)
+        request.update(kwargs)
+        return _FakeResponse(parser_input)
 
-    monkeypatch.setattr(misc.NBAStatsHTTP, "send_api_request", _send)
-    return captured
+    monkeypatch.setattr(NbaDbStatsHTTP, "send_api_request", _send)
+    return request
 
 
-def test_multiple_standard_result_sets_include_names_indexes_and_request_provenance(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured = _install_response(
-        monkeypatch,
+_VIDEO_EXTRACTORS = (
+    (
+        VideoDetailsExtractor,
         {
-            "resultSets": [
-                {
-                    "name": "Playlist",
-                    "headers": ["GAME_ID", "EVENT_ID", "CONTEXT_MEASURE"],
-                    "rowSet": [
-                        ["0051900001", 1, "upstream-pts"],
-                        ["0051900001", 2, "upstream-ast"],
-                    ],
-                },
-                {
-                    "name": "VideoUrls",
-                    "headers": ["VIDEO_URL", "RESULT_SET_NAME", "RESULT_SET_INDEX"],
-                    "data": [["https://cdn.nba.example/clip.mp4", "upstream", 99]],
-                },
-            ]
+            "player_id": 2,
+            "team_id": 1,
+            "season": "2024-25",
+            "season_type": "Regular Season",
+            "context_measure": "PTS",
         },
-    )
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
-    monkeypatch.setattr(extractor, "_validate", lambda frame: frame)
-
-    result = misc._extract_video_result_sets(
-        extractor,
-        misc.VideoDetails,
-        player_id=2544,
-        team_id=1610612739,
-        season="2019-20",
-        season_type="PlayIn",
-        context_measure="OPP_FGM",
-    )
-
-    assert result.get_column("result_set_name").to_list() == [
-        "Playlist",
-        "Playlist",
-        "VideoUrls",
-    ]
-    assert result.get_column("result_set_index").to_list() == [0, 0, 1]
-    assert result.get_column("upstream_context_measure").to_list() == [
-        "upstream-pts",
-        "upstream-ast",
-        None,
-    ]
-    assert result.get_column("upstream_result_set_name").to_list() == [None, None, "upstream"]
-    assert result.get_column("upstream_result_set_index").to_list() == [None, None, 99]
-
-    expected_provenance = {
-        "context_measure": "OPP_FGM",
-        "context_measure_provenance": "docs",
-        "season_type_provenance": "runtime",
-        "nba_api_contract_version": misc.NBA_API_VIDEO_CONTEXT_MEASURE_VERSION,
-        "request_player_id": 2544,
-        "request_team_id": 1610612739,
-        "request_season": "2019-20",
-        "request_season_type": "PlayIn",
-    }
-    for column, expected in expected_provenance.items():
-        assert result.get_column(column).unique().to_list() == [expected]
-
-    assert captured["endpoint"] == "videodetails"
-    for parameter, expected in {
-        "PlayerID": 2544,
-        "TeamID": 1610612739,
-        "Season": "2019-20",
-        "SeasonType": "PlayIn",
-        "ContextMeasure": "OPP_FGM",
-    }.items():
-        assert captured["parameters"][parameter] == expected
-
-
-def test_nested_result_sets_use_stable_path_names() -> None:
-    frames = misc._video_result_set_frames(
+        "VideoDetails",
+        "videodetails",
+    ),
+    (
+        VideoDetailsAssetExtractor,
         {
-            "resultSets": {
-                "playlist": [
-                    {"gameId": "0022400001", "eventId": 7},
-                    {"gameId": "0022400001", "eventId": 8},
-                ],
-                "assets": {
-                    "urls": [{"videoUrl": "https://cdn.nba.example/clip.mp4"}],
-                    "metadata": {"provider": "NBA", "count": 1},
-                },
-            }
-        }
-    )
-
-    assert [name for name, _frame in frames] == [
-        "playlist",
-        "assets.urls",
-        "assets.metadata",
-    ]
-    frames_by_name = dict(frames)
-    assert frames_by_name["playlist"].to_dicts() == [
-        {"gameId": "0022400001", "eventId": 7},
-        {"gameId": "0022400001", "eventId": 8},
-    ]
-    assert frames_by_name["assets.urls"].to_dicts() == [
-        {"videoUrl": "https://cdn.nba.example/clip.mp4"}
-    ]
-    assert frames_by_name["assets.metadata"].to_dicts() == [{"provider": "NBA", "count": 1}]
-
-
-def test_heterogeneous_result_set_list_recurses_into_standard_and_dynamic_items() -> None:
-    frames = misc._video_result_set_frames(
-        {
-            "resultSets": [
-                {"name": "Standard", "headers": ["ID"], "rowSet": [[1]]},
-                {"clips": [{"url": "https://cdn.nba.example/clip.mp4"}]},
-                [["0022400001"], ["0022400002", 2]],
-            ]
-        }
-    )
-
-    assert [name for name, _frame in frames] == [
-        "Standard",
-        "result_set_1.clips",
-        "result_set_2",
-    ]
-    assert frames[0][1].to_dicts() == [{"ID": 1}]
-    assert frames[1][1].to_dicts() == [{"url": "https://cdn.nba.example/clip.mp4"}]
-    assert frames[2][1].to_dicts() == [
-        {"value_0": "0022400001", "value_1": None},
-        {"value_0": "0022400002", "value_1": 2},
-    ]
+            "player_id": 2,
+            "team_id": 1,
+            "season": "2024-25",
+            "season_type": "Regular Season",
+            "context_measure": "PTS",
+        },
+        "VideoDetailsAsset",
+        "videodetailsasset",
+    ),
+    (
+        VideoEventsExtractor,
+        {"game_id": "0022400001", "game_event_id": 37},
+        "VideoEvents",
+        "videoevents",
+    ),
+    (
+        VideoEventsAssetExtractor,
+        {"game_id": "0022400001", "game_event_id": 37},
+        "VideoEventsAsset",
+        "videoeventsasset",
+    ),
+)
 
 
 @pytest.mark.parametrize(
-    "payload",
-    [{"resultSet": []}, {"resultSets": []}, {"resultSets": {}}],
-    ids=["empty-singular", "empty-list", "empty-mapping"],
+    ("extractor_cls", "params", "endpoint_id", "endpoint_slug"),
+    _VIDEO_EXTRACTORS,
+    ids=("details", "details-asset", "events", "events-asset"),
 )
-def test_empty_responses_return_typed_provenance_frame(
+@pytest.mark.asyncio
+async def test_exact_four_retain_generic_json_without_invented_relational_columns(
     monkeypatch: pytest.MonkeyPatch,
-    payload: dict[str, Any],
+    extractor_cls: type[
+        VideoDetailsExtractor
+        | VideoDetailsAssetExtractor
+        | VideoEventsExtractor
+        | VideoEventsAssetExtractor
+    ],
+    params: dict[str, Any],
+    endpoint_id: str,
+    endpoint_slug: str,
 ) -> None:
-    _install_response(monkeypatch, payload)
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
-    monkeypatch.setattr(
-        extractor,
-        "_validate",
-        lambda _frame: pytest.fail("empty responses must not enter schema validation"),
+    request = _install_response(
+        monkeypatch,
+        {
+            "playlist": [{"gameId": "0022400001", "eventId": 37}],
+            "asset": {"url": None, "metadata": {}},
+        },
     )
+    extractor = extractor_cls()
 
-    result = misc._extract_video_result_sets(
-        extractor,
-        misc.VideoDetails,
-        player_id=1,
-        team_id=10,
+    result = await extractor.extract(**params)
+    observations = extractor.unknown_response_snapshot()
+
+    assert result.equals(pl.DataFrame())
+    assert result.columns == []
+    assert len(observations) == 1
+    observation = observations[0]
+    assert observation.endpoint_id == endpoint_id
+    assert observation.endpoint_slug == endpoint_slug
+    assert observation.state == "generic_nested_json"
+    assert observation.response_receipt_sha256 is None
+    assert observation.canonical_payload_json == (
+        '{"asset":{"metadata":{},"url":null},"playlist":[{"eventId":37,"gameId":"0022400001"}]}'
+    )
+    assert observation.occurrences == ()
+    assert extractor.lossless_fallback_snapshot() == ()
+    assert request["endpoint"] == endpoint_slug
+    if "game_event_id" in params:
+        assert request["parameters"]["GameEventID"] == params["game_event_id"]
+    else:
+        assert request["parameters"]["PlayerID"] == params["player_id"]
+        assert request["parameters"]["TeamID"] == params["team_id"]
+        assert request["parameters"]["Season"] == params["season"]
+        assert request["parameters"]["SeasonType"] == params["season_type"]
+        assert request["parameters"]["ContextMeasure"] == params["context_measure"]
+
+
+@pytest.mark.asyncio
+async def test_details_legacy_occurrence_remains_typed_and_out_of_band(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_response(
+        monkeypatch,
+        {
+            "resultSet": {
+                "name": "Observed",
+                "headers": ["VALUE", "VALUE"],
+                "rowSet": [[1, None], [True, "clip"]],
+            }
+        },
+    )
+    extractor = VideoDetailsExtractor()
+
+    result = await extractor.extract(
+        player_id=2,
+        team_id=1,
         season="2024-25",
         season_type="Regular Season",
         context_measure="PTS",
     )
+    observation = extractor.unknown_response_snapshot()[0]
 
-    assert result.is_empty()
-    assert result.schema == {
-        "result_set_name": pl.String,
-        "result_set_index": pl.Int64,
-        "context_measure": pl.String,
-        "context_measure_provenance": pl.String,
-        "season_type_provenance": pl.String,
-        "nba_api_contract_version": pl.String,
-        "request_player_id": pl.Int64,
-        "request_team_id": pl.Int64,
-        "request_season": pl.String,
-        "request_season_type": pl.String,
-    }
+    assert result.columns == []
+    assert observation.state == "legacy_present_nonempty"
+    assert observation.legacy_envelope_name == "resultSet"
+    assert len(observation.occurrences) == 1
+    occurrence = observation.occurrences[0]
+    assert occurrence.name == "Observed"
+    assert occurrence.headers == ("VALUE", "VALUE")
+    assert occurrence.receipt.row_count == 2
+    assert [cell.canonical_json for cell in occurrence.rows[0]] == ["1", "null"]
 
 
-@pytest.mark.parametrize("status_code", [429, 500, 503])
-def test_retryable_non_2xx_response_is_rejected_as_transient_before_json_parsing(
+@pytest.mark.asyncio
+async def test_details_asset_present_empty_is_not_fixed_result_coverage(
     monkeypatch: pytest.MonkeyPatch,
-    status_code: int,
 ) -> None:
-    _install_response(
-        monkeypatch,
-        AssertionError("JSON parsing must not run"),
-        status_code=status_code,
+    _install_response(monkeypatch, {"resultSets": []})
+    extractor = VideoDetailsAssetExtractor()
+
+    result = await extractor.extract(
+        player_id=2,
+        team_id=1,
+        season="2024-25",
+        season_type="Regular Season",
+        context_measure="PTS",
     )
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
+    observation = extractor.unknown_response_snapshot()[0]
 
-    with pytest.raises(TransientError, match=f"upstream HTTP status {status_code}"):
-        misc._extract_video_result_sets(
-            extractor,
-            misc.VideoDetails,
-            player_id=1,
-            team_id=10,
-            season="2024-25",
-            season_type="Regular Season",
-            context_measure="PTS",
-        )
-
-
-def test_nonretryable_non_2xx_response_is_irrecoverable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_response(monkeypatch, {}, status_code=400)
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
-
-    with pytest.raises(ExtractionError, match="upstream HTTP status 400"):
-        misc._extract_video_result_sets(
-            extractor,
-            misc.VideoDetails,
-            player_id=1,
-            team_id=10,
-            season="2024-25",
-            season_type="Regular Season",
-            context_measure="PTS",
-        )
+    assert result.equals(pl.DataFrame())
+    assert observation.state == "legacy_present_empty"
+    assert observation.occurrences == ()
+    assert observation.result_set_receipts == ()
 
 
 @pytest.mark.parametrize(
-    "payload",
-    [
-        {"Message": "An error has occurred."},
-        {"Message": "An error has occurred.", "resultSets": []},
-        {"statusCode": 400, "message": "upstream failed"},
-        {"error": {"code": "InvalidRequest"}},
-    ],
-    ids=["message", "message-with-results", "status", "error-field"],
+    "extractor_cls",
+    (VideoEventsExtractor, VideoEventsAssetExtractor),
+    ids=("events", "events-asset"),
 )
-def test_http_200_error_envelopes_are_rejected_before_result_parsing(
+@pytest.mark.asyncio
+async def test_video_events_require_caller_game_event_id_before_transport(
     monkeypatch: pytest.MonkeyPatch,
-    payload: dict[str, Any],
+    extractor_cls: type[VideoEventsExtractor | VideoEventsAssetExtractor],
 ) -> None:
-    _install_response(monkeypatch, payload)
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
+    def _transport_forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("missing game_event_id must fail before transport")
+
+    monkeypatch.setattr(NbaDbStatsHTTP, "send_api_request", _transport_forbidden)
+
+    with pytest.raises(KeyError, match="game_event_id"):
+        await extractor_cls().extract(game_id="0022400001")
+
+
+@pytest.mark.asyncio
+async def test_contract_failure_does_not_create_unknown_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
-        misc,
-        "_video_result_set_frames",
-        lambda _payload: pytest.fail("error envelopes must not enter result-set parsing"),
+        NbaDbStatsHTTP,
+        "send_api_request",
+        lambda _self, **_kwargs: _FakeResponse('{"resultSets":null}'),
     )
+    extractor = VideoDetailsExtractor()
 
-    with pytest.raises(ExtractionError, match="upstream JSON error envelope"):
-        misc._extract_video_result_sets(
-            extractor,
-            misc.VideoDetails,
-            player_id=1,
-            team_id=10,
+    with pytest.raises(ResponseContractError, match="legacy envelope"):
+        await extractor.extract(
+            player_id=2,
+            team_id=1,
             season="2024-25",
             season_type="Regular Season",
             context_measure="PTS",
         )
 
+    assert extractor.unknown_response_snapshot() == ()
 
-@pytest.mark.parametrize("status_code", [429, 500, 503])
-def test_http_200_retryable_error_envelopes_are_transient(
+
+@pytest.mark.asyncio
+async def test_transport_failure_does_not_create_unknown_observation(
     monkeypatch: pytest.MonkeyPatch,
-    status_code: int,
 ) -> None:
-    _install_response(monkeypatch, {"statusCode": status_code, "message": "upstream failed"})
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
+    def _fail(_self: object, **_kwargs: Any) -> _FakeResponse:
+        raise requests.Timeout("fixture timeout")
 
-    with pytest.raises(TransientError, match="upstream JSON error envelope"):
-        misc._extract_video_result_sets(
-            extractor,
-            misc.VideoDetails,
-            player_id=1,
-            team_id=10,
+    monkeypatch.setattr(NbaDbStatsHTTP, "send_api_request", _fail)
+    extractor = VideoEventsExtractor()
+
+    with pytest.raises(requests.Timeout, match="fixture timeout"):
+        await extractor.extract(game_id="0022400001", game_event_id=37)
+
+    assert extractor.unknown_response_snapshot() == ()
+
+
+@pytest.mark.asyncio
+async def test_invalid_context_measure_fails_before_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _transport_forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("invalid context measure must fail before transport")
+
+    monkeypatch.setattr(NbaDbStatsHTTP, "send_api_request", _transport_forbidden)
+
+    with pytest.raises(ValueError, match="not a valid VideoContextMeasure"):
+        await VideoDetailsExtractor().extract(
+            player_id=2,
+            team_id=1,
             season="2024-25",
             season_type="Regular Season",
-            context_measure="PTS",
-        )
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [{}, [], {"resultSets": "invalid"}, {"unexpected": "scalar"}],
-    ids=["empty-object", "array-root", "scalar-container", "scalar-object"],
-)
-def test_malformed_video_roots_fail_closed(
-    monkeypatch: pytest.MonkeyPatch,
-    payload: object,
-) -> None:
-    _install_response(monkeypatch, payload)
-    extractor = misc.VideoDetailsExtractor()
-    monkeypatch.setattr(extractor, "_inject_timeout", lambda _kwargs: None)
-
-    with pytest.raises(ExtractionError, match="malformed video response root"):
-        misc._extract_video_result_sets(
-            extractor,
-            misc.VideoDetails,
-            player_id=1,
-            team_id=10,
-            season="2024-25",
-            season_type="Regular Season",
-            context_measure="PTS",
+            context_measure="UNKNOWN",
         )

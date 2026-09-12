@@ -116,6 +116,7 @@ class TestCanonicalizeEndpointColumnName:
         )
 
     def test_box_score_tracking_defense_hustle_alias_verbose_metrics(self) -> None:
+        assert _canonicalize_endpoint_column_name("BoxScorePlayerTrackV3", 0, "passes") == "pass"
         assert (
             _canonicalize_endpoint_column_name(
                 "BoxScorePlayerTrackV3",

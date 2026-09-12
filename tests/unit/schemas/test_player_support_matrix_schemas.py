@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import polars as pl
+from nba_api.stats.endpoints.leagueplayerondetails import LeaguePlayerOnDetails
 
 from nbadb.schemas.registry import get_input_schema, get_output_schema
 from nbadb.schemas.staging.player_support_matrix import (
@@ -74,6 +75,9 @@ from nbadb.schemas.staging.player_support_matrix import (
     StagingPvpShotDistOverallSchema,
     StagingPvpVsPlayerInfoSchema,
     StagingWinProbPbpSchema,
+)
+from nbadb.schemas.star.fact_league_player_on_details import (
+    FactLeaguePlayerOnDetailsSchema,
 )
 from nbadb.schemas.star.player_support_matrix import (
     FactCollegeRollupSchema,
@@ -173,6 +177,7 @@ def test_player_family_input_schema_registry_covers_remaining_support_keys() -> 
 def test_player_family_output_schema_registry_covers_remaining_support_tables() -> None:
     expected = {
         "fact_college_rollup": FactCollegeRollupSchema,
+        "fact_league_player_on_details": FactLeaguePlayerOnDetailsSchema,
         "fact_player_career": FactPlayerCareerSchema,
         "fact_player_game_log": FactPlayerGameLogSchema,
         "fact_player_matchups": FactPlayerMatchupsSchema,
@@ -189,6 +194,18 @@ def test_player_family_output_schema_registry_covers_remaining_support_tables() 
 
     for table_name, schema_cls in expected.items():
         assert get_output_schema(table_name) is schema_cls, table_name
+
+
+def test_league_player_on_details_schemas_cover_exact_provider_and_scope_fields() -> None:
+    provider_columns = [
+        column.lower()
+        for column in LeaguePlayerOnDetails.expected_data["PlayersOnCourtLeaguePlayerDetails"]
+    ]
+    expected_columns = [*provider_columns, "season_year", "season_type"]
+
+    assert list(StagingLeaguePlayerOnDetailsSchema.to_schema().columns) == expected_columns
+    assert list(StagingPlayerOnDetailsSchema.to_schema().columns) == expected_columns
+    assert list(FactLeaguePlayerOnDetailsSchema.to_schema().columns) == expected_columns
 
 
 def test_player_family_schemas_validate_representative_rows() -> None:

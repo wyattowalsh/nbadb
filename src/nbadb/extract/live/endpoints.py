@@ -7,6 +7,10 @@ if TYPE_CHECKING:
     import polars as pl
 from nba_api.live.nba.endpoints import BoxScore, Odds, PlayByPlay, ScoreBoard
 
+from nbadb.core.nba_api_runtime_contract import (
+    LiveResultSetContract,
+    pinned_live_contracts,
+)
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
 
@@ -17,10 +21,27 @@ class LivePacketContract:
     attr: str
     source_endpoint: str
     natural_keys: tuple[str, ...]
-    json_root: str
+    result_set_name: str
     staging_key: str
     star_tables: tuple[str, ...]
     typed_projections: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def provider_result_set(self) -> LiveResultSetContract:
+        endpoint = pinned_live_contracts().get(self.upstream_endpoint)
+        if endpoint is None:
+            raise ValueError("live packet endpoint lacks pinned nbadb authority")
+        result_set = next(
+            (item for item in endpoint.result_sets if item.name == self.result_set_name),
+            None,
+        )
+        if result_set is None:
+            raise ValueError("live packet result set lacks pinned nbadb authority")
+        return result_set
+
+    @property
+    def json_root(self) -> str:
+        return self.provider_result_set.json_path
 
     @property
     def snapshot_spec(self) -> tuple[str, str, tuple[str, ...]]:
@@ -33,7 +54,7 @@ LIVE_PACKET_CONTRACTS = (
         "games",
         "live_score_board",
         ("game_id",),
-        "$.scoreboard.games",
+        "scoreboard_games",
         "stg_live_score_board",
         ("fact_live_score_board",),
     ),
@@ -42,7 +63,7 @@ LIVE_PACKET_CONTRACTS = (
         "games",
         "live_odds",
         ("game_id",),
-        "$.games",
+        "games",
         "stg_live_odds",
         ("fact_live_odds",),
     ),
@@ -51,7 +72,7 @@ LIVE_PACKET_CONTRACTS = (
         "actions",
         "live_play_by_play",
         ("game_id", "action_number"),
-        "$.game.actions",
+        "game_actions",
         "stg_live_play_by_play",
         ("fact_live_play_by_play",),
     ),
@@ -60,7 +81,7 @@ LIVE_PACKET_CONTRACTS = (
         "game_details",
         "live_box_score.game_details",
         ("game_id",),
-        "$.game",
+        "game",
         "stg_live_box_score_game_details",
         ("fact_live_box_score_game",),
     ),
@@ -69,7 +90,7 @@ LIVE_PACKET_CONTRACTS = (
         "arena",
         "live_box_score.arena",
         ("game_id",),
-        "$.game.arena",
+        "game_arena",
         "stg_live_box_score_arena",
         ("fact_live_box_score_arena",),
     ),
@@ -78,7 +99,7 @@ LIVE_PACKET_CONTRACTS = (
         "officials",
         "live_box_score.officials",
         ("game_id", "person_id"),
-        "$.game.officials",
+        "game_officials",
         "stg_live_box_score_officials",
         ("bridge_live_box_score_official",),
     ),
@@ -87,7 +108,7 @@ LIVE_PACKET_CONTRACTS = (
         "home_team_stats",
         "live_box_score.home_team_stats",
         ("game_id", "team_id"),
-        "$.game.homeTeam",
+        "game_hometeam",
         "stg_live_box_score_team_stats_home",
         ("fact_live_box_score_team",),
     ),
@@ -96,7 +117,7 @@ LIVE_PACKET_CONTRACTS = (
         "away_team_stats",
         "live_box_score.away_team_stats",
         ("game_id", "team_id"),
-        "$.game.awayTeam",
+        "game_awayteam",
         "stg_live_box_score_team_stats_away",
         ("fact_live_box_score_team",),
     ),
@@ -105,7 +126,7 @@ LIVE_PACKET_CONTRACTS = (
         "home_team_player_stats",
         "live_box_score.home_team_player_stats",
         ("game_id", "person_id"),
-        "$.game.homeTeam.players",
+        "game_hometeam_players",
         "stg_live_box_score_player_stats_home",
         ("fact_live_box_score_player",),
         (("statistics.points", "points"),),
@@ -115,7 +136,7 @@ LIVE_PACKET_CONTRACTS = (
         "away_team_player_stats",
         "live_box_score.away_team_player_stats",
         ("game_id", "person_id"),
-        "$.game.awayTeam.players",
+        "game_awayteam_players",
         "stg_live_box_score_player_stats_away",
         ("fact_live_box_score_player",),
         (("statistics.points", "points"),),

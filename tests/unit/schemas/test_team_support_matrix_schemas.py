@@ -10,6 +10,10 @@ from nbadb.schemas.staging.team_support_matrix import (
     StagingTapvpTeamVsOffSchema,
     StagingTapvpTeamVsSchema,
     StagingTeamAndPlayersVsPlayersSchema,
+    StagingTeamAndPlayersVsPlayersTeamOffSchema,
+    StagingTeamAndPlayersVsPlayersTeamOnSchema,
+    StagingTeamAndPlayersVsPlayersTeamVsOffSchema,
+    StagingTeamAndPlayersVsPlayersTeamVsSchema,
     StagingTeamAndPlayersVsSchema,
     StagingTeamLineupsOverallSchema,
     StagingTeamLineupsSchema,
@@ -72,6 +76,12 @@ def test_team_family_input_schema_registry_covers_remaining_support_keys() -> No
         "stg_tvp_vs_player_overall": StagingTvpVsPlayerOverallSchema,
         "stg_team_and_players_vs": StagingTeamAndPlayersVsSchema,
         "stg_team_and_players_vs_players": StagingTeamAndPlayersVsPlayersSchema,
+        "stg_team_and_players_vs_players_team_off": (StagingTeamAndPlayersVsPlayersTeamOffSchema),
+        "stg_team_and_players_vs_players_team_on": (StagingTeamAndPlayersVsPlayersTeamOnSchema),
+        "stg_team_and_players_vs_players_team_vs": (StagingTeamAndPlayersVsPlayersTeamVsSchema),
+        "stg_team_and_players_vs_players_team_vs_off": (
+            StagingTeamAndPlayersVsPlayersTeamVsOffSchema
+        ),
         "stg_tapvp_players_vs": StagingTapvpPlayersVsSchema,
         "stg_tapvp_team_off": StagingTapvpTeamOffSchema,
         "stg_tapvp_team_on": StagingTapvpTeamOnSchema,
@@ -400,6 +410,11 @@ def test_team_family_schemas_validate_representative_rows() -> None:
     assert StagingTeamPtShotsTouchTimeSchema.validate(shots_row).shape[0] == 1
     assert StagingTeamVsPlayerSchema.validate(matchup_row).shape[0] == 1
     assert StagingTeamAndPlayersVsSchema.validate(matchup_row).shape[0] == 1
+    assert StagingTeamAndPlayersVsPlayersSchema.validate(matchup_row).shape[0] == 1
+    assert StagingTeamAndPlayersVsPlayersTeamOffSchema.validate(matchup_row).shape[0] == 1
+    assert StagingTeamAndPlayersVsPlayersTeamOnSchema.validate(matchup_row).shape[0] == 1
+    assert StagingTeamAndPlayersVsPlayersTeamVsSchema.validate(matchup_row).shape[0] == 1
+    assert StagingTeamAndPlayersVsPlayersTeamVsOffSchema.validate(matchup_row).shape[0] == 1
     assert StagingTapvpTeamOnSchema.validate(matchup_row).shape[0] == 1
     assert StagingTvpShotAreaOffSchema.validate(shot_split_row).shape[0] == 1
     assert FactTeamLineupsDetailSchema.validate(team_lineups).shape[0] == 1

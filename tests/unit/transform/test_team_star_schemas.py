@@ -504,57 +504,58 @@ class TestTeamDashboardStarSchemas:
             "stg_team_dash_general_splits": _frame(_team_general_row()).lazy(),
             "stg_team_dash_shooting_splits": _frame(_team_shooting_row()).lazy(),
         }
+        detail_row = {
+            "vs_player_id": 1628369,
+            "team_id": 1610612738,
+            "season_year": "2024-25",
+            "season_type": "Regular Season",
+            "gp": 65,
+            "min": 2100.0,
+            "w": 48,
+            "l": 17,
+            "w_pct": 0.738,
+            "fgm": 900.0,
+            "fga": 1800.0,
+            "fg_pct": 0.5,
+            "fg3m": 300.0,
+            "fg3a": 800.0,
+            "fg3_pct": 0.375,
+            "ftm": 350.0,
+            "fta": 420.0,
+            "ft_pct": 0.833,
+            "oreb": 200.0,
+            "dreb": 600.0,
+            "reb": 800.0,
+            "ast": 550.0,
+            "tov": 240.0,
+            "stl": 120.0,
+            "blk": 90.0,
+            "blka": 70.0,
+            "pf": 310.0,
+            "pfd": 330.0,
+            "pts": 2450.0,
+            "plus_minus": 8.0,
+        }
+        summary_row = {
+            "vs_player_id": 1628369,
+            "team_id": 1610612738,
+            "season_year": "2024-25",
+            "season_type": "Regular Season",
+            "gp": 65,
+            "min": 2100.0,
+            "plus_minus": 8.0,
+            "off_rating": 120.3,
+            "def_rating": 111.4,
+            "net_rating": 8.9,
+        }
+        overall_row = dict(detail_row)
+        overall_row.pop("vs_player_id")
         on_off_staging = {
-            "stg_team_dashboard_on_off": _frame(
-                {
-                    "team_id": 1610612738,
-                    "season_year": "2024-25",
-                    "season_type": "Regular Season",
-                    "on_off": "overall",
-                    "gp": 82,
-                    "min": 48.0,
-                    "pts": 118.7,
-                    "reb": 44.4,
-                    "ast": 27.1,
-                    "off_rating": 121.8,
-                    "def_rating": 110.5,
-                    "net_rating": 11.3,
-                }
-            ).lazy(),
-            "stg_on_off": _frame(
-                {
-                    "player_id": 1628369,
-                    "team_id": 1610612738,
-                    "season_year": "2024-25",
-                    "season_type": "Regular Season",
-                    "on_off": "on",
-                    "gp": 65,
-                    "min": 35.1,
-                    "pts": 117.2,
-                    "reb": 43.0,
-                    "ast": 26.0,
-                    "off_rating": 120.3,
-                    "def_rating": 111.4,
-                    "net_rating": 8.9,
-                }
-            ).lazy(),
-            "stg_player_on_details": _frame(
-                {
-                    "player_id": 1627759,
-                    "team_id": 1610612738,
-                    "season_year": "2024-25",
-                    "season_type": "Regular Season",
-                    "on_off": "off",
-                    "gp": 60,
-                    "min": 31.8,
-                    "pts": 111.4,
-                    "reb": 41.7,
-                    "ast": 24.2,
-                    "off_rating": 114.2,
-                    "def_rating": 112.1,
-                    "net_rating": 2.1,
-                }
-            ).lazy(),
+            "stg_on_off_details_overall": _frame(overall_row).lazy(),
+            "stg_on_off_details_off_court": _frame(detail_row).lazy(),
+            "stg_on_off_details_on_court": _frame(detail_row).lazy(),
+            "stg_on_off_summary_off_court": _frame(summary_row).lazy(),
+            "stg_on_off_summary_on_court": _frame(summary_row).lazy(),
         }
 
         splits = _run(FactTeamSplitsTransformer(), split_staging)

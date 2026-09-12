@@ -9,7 +9,7 @@ def test_export_includes_consumer_metadata_for_enriched_schemas() -> None:
 
     assert payload["table_count"] > 0
     player_season = next(item for item in payload["tables"] if item["table"] == "agg_player_season")
-    assert player_season["grain"] == "player-season"
+    assert player_season["grain"] == "player-team-season-season_type"
     assert "scoring" in player_season["agent_intents"]
     assert player_season["schema_class"] == AggPlayerSeasonSchema.__name__
 

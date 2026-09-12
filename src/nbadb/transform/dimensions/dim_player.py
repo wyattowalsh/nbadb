@@ -10,17 +10,13 @@ class DimPlayerTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = ["stg_player_info"]
 
     _SQL: ClassVar[str] = """
-        WITH versioned AS (
-            SELECT
+        WITH distinct_observations AS (
+            SELECT DISTINCT
                 player_id,
                 full_name,
                 first_name,
                 last_name,
-                CASE
-                    WHEN CAST(roster_status AS VARCHAR) IN ('Active', '1')
-                        THEN TRUE
-                    ELSE FALSE
-                END AS is_active,
+                roster_status,
                 team_id,
                 position,
                 jersey_number,
@@ -32,25 +28,42 @@ class DimPlayerTransformer(SqlTransformer):
                 draft_round,
                 draft_number,
                 college_id,
-                TRY_CAST(from_year AS INTEGER) AS from_year,
-                TRY_CAST(to_year AS INTEGER) AS to_year,
-                season AS valid_from,
-                LAG(team_id) OVER w AS prev_team,
-                LAG(position) OVER w AS prev_pos,
-                LAG(jersey_number) OVER w AS prev_jersey
+                from_year,
+                to_year
             FROM stg_player_info
-            WINDOW w AS (PARTITION BY player_id ORDER BY season)
+            WHERE player_id IS NOT NULL
         ),
-        changes AS (
-            SELECT *
-            FROM versioned
-            WHERE prev_team IS NULL
-               OR team_id IS DISTINCT FROM prev_team
-               OR position IS DISTINCT FROM prev_pos
-               OR jersey_number IS DISTINCT FROM prev_jersey
+        authoritative AS (
+            SELECT
+                player_id,
+                CASE WHEN COUNT(*) > 1
+                    THEN error('conflicting current player identity observations')
+                    ELSE MIN(full_name) END AS full_name,
+                MIN(first_name) AS first_name,
+                MIN(last_name) AS last_name,
+                CASE
+                    WHEN MIN(CAST(roster_status AS VARCHAR)) IN ('Active', '1')
+                        THEN TRUE
+                    ELSE FALSE
+                END AS is_active,
+                NULLIF(MIN(team_id), 0) AS team_id,
+                MIN(position) AS position,
+                MIN(jersey_number) AS jersey_number,
+                MIN(height) AS height,
+                MIN(weight) AS weight,
+                MIN(birth_date) AS birth_date,
+                MIN(country) AS country,
+                MIN(draft_year) AS draft_year,
+                MIN(draft_round) AS draft_round,
+                MIN(draft_number) AS draft_number,
+                MIN(college_id) AS college_id,
+                TRY_CAST(MIN(from_year) AS INTEGER) AS from_year,
+                TRY_CAST(MIN(to_year) AS INTEGER) AS to_year
+            FROM distinct_observations
+            GROUP BY player_id
         )
         SELECT
-            ROW_NUMBER() OVER (ORDER BY player_id, valid_from) AS player_sk,
+            ROW_NUMBER() OVER (ORDER BY player_id) AS player_sk,
             player_id,
             full_name,
             first_name,
@@ -69,12 +82,8 @@ class DimPlayerTransformer(SqlTransformer):
             college_id,
             from_year,
             to_year,
-            valid_from,
-            LEAD(valid_from) OVER (
-                PARTITION BY player_id ORDER BY valid_from
-            ) AS valid_to,
-            CASE WHEN LEAD(valid_from) OVER (
-                PARTITION BY player_id ORDER BY valid_from
-            ) IS NULL THEN TRUE ELSE FALSE END AS is_current
-        FROM changes
+            COALESCE(CAST(from_year AS VARCHAR), 'unknown') AS valid_from,
+            CAST(NULL AS VARCHAR) AS valid_to,
+            TRUE AS is_current
+        FROM authoritative
     """

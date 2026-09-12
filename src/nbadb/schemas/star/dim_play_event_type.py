@@ -20,10 +20,3 @@ class DimPlayEventTypeSchema(BaseSchema):
             "description": ("Event type name (e.g. made_shot)"),
         },
     )
-    event_category: str | None = pa.Field(
-        nullable=True,
-        metadata={
-            "source": ("derived.event_category"),
-            "description": ("Event category grouping"),
-        },
-    )

@@ -6,6 +6,11 @@ from nbadb.core.types import (
     VIDEO_CONTEXT_MEASURES,
     classify_season_type_availability,
 )
+from nbadb.orchestrate.cume_workload_contract import (
+    CumeEntityKind,
+    CumeWorkloadDisposition,
+    CumeWorkloadValue,
+)
 from nbadb.orchestrate.staging_map import StagingEntry, get_by_pattern
 
 type PlanParams = dict[str, int | str]
@@ -38,6 +43,20 @@ _CURRENT_TEAM_ONLY_ENDPOINTS = frozenset(
         "team_details",
         "team_historical_leaders",
         "team_info_common",
+    }
+)
+CUME_FOUNDATION_BY_DEPENDENT_ENDPOINT: dict[str, str] = {
+    "cume_stats_player": "cume_stats_player_games",
+    "cume_stats_team": "cume_stats_team_games",
+}
+_CUME_ENTITY_KIND_BY_DEPENDENT_ENDPOINT: dict[str, CumeEntityKind] = {
+    "cume_stats_player": CumeEntityKind.PLAYER,
+    "cume_stats_team": CumeEntityKind.TEAM,
+}
+_CUME_ENDPOINTS = frozenset(
+    {
+        *CUME_FOUNDATION_BY_DEPENDENT_ENDPOINT,
+        *CUME_FOUNDATION_BY_DEPENDENT_ENDPOINT.values(),
     }
 )
 
@@ -217,6 +236,24 @@ def _filter_cross_product_params(
 
 
 @dataclass(frozen=True, slots=True)
+class CumeFoundationDependency:
+    """Planner metadata for one fail-closed cumulative-stat dependency."""
+
+    dependent_entries: tuple[StagingEntry, ...]
+    entity_kind: CumeEntityKind
+
+    def __post_init__(self) -> None:
+        if not self.dependent_entries:
+            raise ValueError("cumulative-stat dependency requires dependent routes")
+        dependent_endpoint = self.dependent_entries[0].endpoint_name
+        if any(entry.endpoint_name != dependent_endpoint for entry in self.dependent_entries):
+            raise ValueError("cumulative-stat dependent routes must share one endpoint")
+        expected_kind = _CUME_ENTITY_KIND_BY_DEPENDENT_ENDPOINT.get(dependent_endpoint)
+        if expected_kind is None or expected_kind is not self.entity_kind:
+            raise ValueError("invalid cumulative-stat dependent endpoint contract")
+
+
+@dataclass(frozen=True, slots=True)
 class ExtractionPlanItem:
     """One pattern-specific extraction workload.
 
@@ -230,10 +267,121 @@ class ExtractionPlanItem:
     entries: list[StagingEntry]
     params: list[PlanParams]
     priority: int
+    cume_dependency: CumeFoundationDependency | None = None
+
+    def __post_init__(self) -> None:
+        dependency = self.cume_dependency
+        if dependency is None:
+            return
+        expected_foundation = CUME_FOUNDATION_BY_DEPENDENT_ENDPOINT[
+            dependency.dependent_entries[0].endpoint_name
+        ]
+        if len(self.entries) != 1 or self.entries[0].endpoint_name != expected_foundation:
+            raise ValueError(
+                "cumulative-stat dependency must contain exactly its paired foundation entry"
+            )
+
+    @property
+    def coverage_entries(self) -> tuple[StagingEntry, ...]:
+        """Return concrete routes represented by this semantic plan slice."""
+
+        dependency = self.cume_dependency
+        if dependency is None:
+            return tuple(self.entries)
+        return (*self.entries, *dependency.dependent_entries)
 
     @property
     def task_count(self) -> int:
-        return len(self.entries) * len(self.params)
+        return len(self.coverage_entries) * len(self.params)
+
+
+def cume_workload_execution_params(workload: CumeWorkloadValue) -> PlanParams:
+    """Serialize a complete workload into runner-safe, journal-bound parameters."""
+
+    if workload.disposition is not CumeWorkloadDisposition.COMPLETE:
+        raise ValueError("typed-zero cumulative-stat workloads are not executable")
+    entity_key = f"{workload.entity_kind.value}_id"
+    params: PlanParams = {
+        entity_key: workload.entity_id,
+        "season": workload.season,
+        "season_type": workload.season_type,
+        "game_ids": workload.encoded_game_ids,
+        "cume_workload_sha256": workload.content_sha256,
+    }
+    if workload.foundation_receipt_sha256 is not None:
+        params["foundation_receipt_sha256"] = workload.foundation_receipt_sha256
+    if workload.provider_authority_sha256 is not None:
+        params["provider_authority_sha256"] = workload.provider_authority_sha256
+    return params
+
+
+def _build_cume_foundation_plan_items(
+    *,
+    entries: list[StagingEntry],
+    entity_kind: CumeEntityKind,
+    entity_ids: list[int],
+    seasons: list[str],
+    requested_season_types: list[str] | None,
+    base_label: str,
+    pattern: str,
+) -> list[ExtractionPlanItem]:
+    """Build isolated foundation slices; dependent params are derived at runtime."""
+
+    by_endpoint: dict[str, list[StagingEntry]] = {}
+    for entry in entries:
+        if entry.endpoint_name in _CUME_ENDPOINTS:
+            by_endpoint.setdefault(entry.endpoint_name, []).append(entry)
+
+    dependent_endpoint = f"cume_stats_{entity_kind.value}"
+    foundation_endpoint = CUME_FOUNDATION_BY_DEPENDENT_ENDPOINT[dependent_endpoint]
+    dependent_entries = by_endpoint.get(dependent_endpoint, [])
+    foundation_entries = by_endpoint.get(foundation_endpoint, [])
+    if not dependent_entries and not foundation_entries:
+        return []
+    if not dependent_entries or len(foundation_entries) != 1:
+        raise ValueError(f"{dependent_endpoint} requires exactly one {foundation_endpoint} route")
+
+    foundation_entry = foundation_entries[0]
+    foundation_types = _resolved_season_types(foundation_entry, requested_season_types)
+    dependent_types = _resolved_season_types(dependent_entries[0], requested_season_types)
+    season_types = (
+        [value for value in foundation_types if value in dependent_types]
+        if _season_type_capability(dependent_entries[0]) == "supported"
+        else foundation_types
+    )
+    if not season_types:
+        return []
+    start_year = max(
+        *(_historical_start_year(entry) for entry in dependent_entries),
+        _historical_start_year(foundation_entry),
+    )
+    grouped_seasons = _filter_seasons_for_start_year(seasons, start_year)
+    if not grouped_seasons:
+        return []
+    entity_key = f"{entity_kind.value}_id"
+    params = _build_historical_params(
+        seasons=grouped_seasons,
+        season_types=season_types,
+        base_params=[{entity_key: entity_id} for entity_id in entity_ids],
+    )
+    if not params:
+        return []
+    return [
+        ExtractionPlanItem(
+            label=_label_with_contract(
+                f"{base_label} ({dependent_endpoint})",
+                season_types,
+            ),
+            pattern=pattern,
+            entries=[foundation_entry],
+            params=params,
+            priority=PATTERN_PRIORITY[pattern],
+            cume_dependency=CumeFoundationDependency(
+                dependent_entries=tuple(dependent_entries),
+                entity_kind=entity_kind,
+            ),
+        )
+    ]
 
 
 def executable_entries_by_pattern() -> dict[str, list[StagingEntry]]:
@@ -380,8 +528,11 @@ def build_extraction_plan(
 
     player_season_entries = entries_by_pattern["player_season"]
     if player_season_entries and player_ids and seasons:
+        ordinary_player_season_entries = [
+            entry for entry in player_season_entries if entry.endpoint_name not in _CUME_ENDPOINTS
+        ]
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
-            player_season_entries, season_types
+            ordinary_player_season_entries, season_types
         ):
             grouped_seasons = _filter_seasons_for_start_year(seasons, start_year)
             if not grouped_seasons:
@@ -399,11 +550,25 @@ def build_extraction_plan(
                     priority=PATTERN_PRIORITY["player_season"],
                 )
             )
+        plan.extend(
+            _build_cume_foundation_plan_items(
+                entries=player_season_entries,
+                entity_kind=CumeEntityKind.PLAYER,
+                entity_ids=player_ids,
+                seasons=seasons,
+                requested_season_types=season_types,
+                base_label="player x season",
+                pattern="player_season",
+            )
+        )
 
     team_season_entries = entries_by_pattern["team_season"]
     if team_season_entries and team_ids and seasons:
+        ordinary_team_season_entries = [
+            entry for entry in team_season_entries if entry.endpoint_name not in _CUME_ENDPOINTS
+        ]
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
-            team_season_entries, season_types
+            ordinary_team_season_entries, season_types
         ):
             grouped_seasons = _filter_seasons_for_start_year(seasons, start_year)
             if not grouped_seasons:
@@ -421,6 +586,17 @@ def build_extraction_plan(
                     priority=PATTERN_PRIORITY["team_season"],
                 )
             )
+        plan.extend(
+            _build_cume_foundation_plan_items(
+                entries=team_season_entries,
+                entity_kind=CumeEntityKind.TEAM,
+                entity_ids=team_ids,
+                seasons=seasons,
+                requested_season_types=season_types,
+                base_label="team x season",
+                pattern="team_season",
+            )
+        )
 
     player_team_season_entries = entries_by_pattern["player_team_season"]
     if player_team_season_entries and player_team_season_params:

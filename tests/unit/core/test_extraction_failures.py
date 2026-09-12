@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import json
 
-from nbadb.core.errors import ExtractionError, TransientError
+from nbadb.core.errors import (
+    ExtractionError,
+    ParserInputCaptureIntegrityError,
+    ResponseContractError,
+    TransientError,
+)
 from nbadb.core.extraction_failures import (
     classify_error_name,
     classify_exception,
@@ -10,6 +15,7 @@ from nbadb.core.extraction_failures import (
     exception_chain,
     http_status_code,
     root_error_type,
+    safe_root_error_type,
 )
 
 
@@ -67,8 +73,21 @@ def test_response_contract_names_cover_parser_arrow_and_result_shapes() -> None:
         "ArrowTypeError",
         "MissingRequiredResultSet:stg_box_score:4",
         "task_exception:UnexpectedNonListResult",
+        "ResponseContractError",
     ):
         assert classify_error_name(name) == "response_contract"
+
+
+def test_owned_response_contract_exception_is_not_retryable() -> None:
+    exc = ResponseContractError("shape drift")
+
+    assert classify_exception(exc) == "response_contract"
+
+
+def test_parser_input_integrity_is_local_runner_infrastructure() -> None:
+    exc = ParserInputCaptureIntegrityError("private evidence is incomplete")
+
+    assert classify_exception(exc) == "runner_infrastructure"
 
 
 def test_unknown_and_non_retryable_http_errors_are_application_failures() -> None:
@@ -81,3 +100,25 @@ def test_description_never_serializes_exception_messages() -> None:
     payload = describe_exception(ValueError(secret))
 
     assert secret not in json.dumps(payload)
+
+
+def test_safe_root_type_normalizes_unknown_dynamic_exception_class() -> None:
+    dynamic_provider_failure = type("token_super_secret", (Exception,), {})
+
+    assert safe_root_error_type(dynamic_provider_failure("do not persist")) == ("UnclassifiedError")
+
+
+def test_description_normalizes_unknown_dynamic_exception_class() -> None:
+    dynamic_provider_failure = type("token_super_secret", (Exception,), {})
+
+    payload = describe_exception(dynamic_provider_failure("do not persist"))
+
+    assert payload["root_error_type"] == "UnclassifiedError"
+    assert payload["error_chain"] == ["UnclassifiedError"]
+    assert "token_super_secret" not in json.dumps(payload)
+
+
+def test_safe_root_type_retains_recognized_wrapped_root() -> None:
+    exc = _wrapped(ExtractionError, TimeoutError("secret-url"))
+
+    assert safe_root_error_type(exc) == "TimeoutError"

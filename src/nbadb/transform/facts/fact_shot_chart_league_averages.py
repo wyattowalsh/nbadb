@@ -13,9 +13,31 @@ class FactShotChartLeagueAveragesTransformer(SqlTransformer):
     ]
 
     _SQL: ClassVar[str] = """
-        SELECT *, 'shot_chart_detail' AS average_source
+        SELECT
+            grid_type,
+            season_year,
+            season_type,
+            league_id,
+            shot_zone_basic,
+            shot_zone_area,
+            shot_zone_range,
+            fga,
+            fgm,
+            fg_pct,
+            'shot_chart_detail' AS average_source
         FROM stg_shot_chart_league_averages
         UNION ALL BY NAME
-        SELECT *, 'shot_chart_lineup_detail' AS average_source
+        SELECT
+            grid_type,
+            season_year,
+            season_type,
+            league_id,
+            shot_zone_basic,
+            shot_zone_area,
+            shot_zone_range,
+            fga,
+            fgm,
+            fg_pct,
+            'shot_chart_lineup_detail' AS average_source
         FROM stg_shot_chart_lineup_league_avg
     """

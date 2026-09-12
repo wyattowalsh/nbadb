@@ -57,7 +57,10 @@ def _synthetic_valid_row(table: str) -> dict[str, object]:
     row: dict[str, object] = {}
     for name, column in schema.columns.items():
         dtype_name = str(column.dtype)
-        if dtype_name.startswith("Int"):
+        isin_check = next((check for check in column.checks if check.name == "isin"), None)
+        if isin_check is not None:
+            row[name] = next(iter(isin_check.statistics["allowed_values"]))
+        elif dtype_name.startswith("Int"):
             row[name] = 1
         elif dtype_name.startswith("Float"):
             row[name] = 1.0
@@ -100,7 +103,10 @@ class TestAnalyticsClutchPerformanceSchema:
                 "player_id": 2544,
                 "team_id": 1610612747,
                 "season_year": "2024-25",
+                "season_type": "Regular Season",
                 "clutch_window": "Last 5 Minutes",
+                "group_set": "Overall",
+                "group_value": "2024-25",
                 "player_name": "LeBron James",
                 "team_abbreviation": "LAL",
                 "gp": 71,
@@ -140,7 +146,10 @@ class TestAnalyticsClutchPerformanceSchema:
                 "player_id": 201935,
                 "team_id": 1610612745,
                 "season_year": "2024-25",
+                "season_type": "Playoffs",
                 "clutch_window": "Last 5 Minutes",
+                "group_set": None,
+                "group_value": None,
                 "player_name": None,
                 "team_abbreviation": None,
                 "gp": None,
@@ -815,9 +824,12 @@ class TestAnalyticsShootingEfficiencySchema:
             {
                 "player_id": 2544,
                 "game_id": "0022401000",
+                "game_event_id": 42,
                 "team_id": 1610612747,
                 "player_name": "LeBron James",
+                "league_id": "00",
                 "season_year": "2024-25",
+                "season_type": "Regular Season",
                 "game_date": "2025-01-15",
                 "shot_zone_basic": "Mid-Range",
                 "shot_zone_area": "Center(C)",
@@ -830,6 +842,10 @@ class TestAnalyticsShootingEfficiencySchema:
                 "league_avg_fgm": 3200.0,
                 "league_avg_fga": 7500.0,
                 "league_avg_fg_pct": 0.427,
+                "shot_value": 2.0,
+                "actual_points": 2.0,
+                "empirical_zone_expected_points": 0.854,
+                "points_above_empirical_zone_expectation": 1.146,
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -840,9 +856,12 @@ class TestAnalyticsShootingEfficiencySchema:
             {
                 "player_id": 201935,
                 "game_id": "0022400001",
-                "team_id": 1610612745,
+                "game_event_id": None,
+                "team_id": None,
                 "player_name": None,
+                "league_id": None,
                 "season_year": None,
+                "season_type": None,
                 "game_date": None,
                 "shot_zone_basic": None,
                 "shot_zone_area": None,
@@ -855,6 +874,10 @@ class TestAnalyticsShootingEfficiencySchema:
                 "league_avg_fgm": None,
                 "league_avg_fga": None,
                 "league_avg_fg_pct": None,
+                "shot_value": None,
+                "actual_points": None,
+                "empirical_zone_expected_points": None,
+                "points_above_empirical_zone_expectation": None,
             },
         )
         assert isinstance(result, pl.DataFrame)

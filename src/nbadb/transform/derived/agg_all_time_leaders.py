@@ -8,67 +8,113 @@ from nbadb.transform.base import SqlTransformer
 class AggAllTimeLeadersTransformer(SqlTransformer):
     output_table: ClassVar[str] = "agg_all_time_leaders"
     depends_on: ClassVar[list[str]] = [
-        "stg_all_time",
-        "stg_all_time_ast",
-        "stg_all_time_blk",
-        "stg_all_time_dreb",
-        "stg_all_time_fg3a",
-        "stg_all_time_fg3m",
-        "stg_all_time_fg3_pct",
-        "stg_all_time_fga",
-        "stg_all_time_fgm",
-        "stg_all_time_fg_pct",
-        "stg_all_time_fta",
-        "stg_all_time_ftm",
-        "stg_all_time_ft_pct",
-        "stg_all_time_gp",
-        "stg_all_time_oreb",
-        "stg_all_time_pf",
         "stg_all_time_pts",
+        "stg_all_time_ast",
         "stg_all_time_reb",
-        "stg_all_time_stl",
-        "stg_all_time_tov",
     ]
 
     _SQL: ClassVar[str] = """
-        SELECT *, 'combined' AS stat_category
-        FROM stg_all_time
-        UNION ALL BY NAME
-        SELECT *, 'ast' AS stat_category FROM stg_all_time_ast
-        UNION ALL BY NAME
-        SELECT *, 'blk' AS stat_category FROM stg_all_time_blk
-        UNION ALL BY NAME
-        SELECT *, 'dreb' AS stat_category FROM stg_all_time_dreb
-        UNION ALL BY NAME
-        SELECT *, 'fg3a' AS stat_category FROM stg_all_time_fg3a
-        UNION ALL BY NAME
-        SELECT *, 'fg3m' AS stat_category FROM stg_all_time_fg3m
-        UNION ALL BY NAME
-        SELECT *, 'fg3_pct' AS stat_category FROM stg_all_time_fg3_pct
-        UNION ALL BY NAME
-        SELECT *, 'fga' AS stat_category FROM stg_all_time_fga
-        UNION ALL BY NAME
-        SELECT *, 'fgm' AS stat_category FROM stg_all_time_fgm
-        UNION ALL BY NAME
-        SELECT *, 'fg_pct' AS stat_category FROM stg_all_time_fg_pct
-        UNION ALL BY NAME
-        SELECT *, 'fta' AS stat_category FROM stg_all_time_fta
-        UNION ALL BY NAME
-        SELECT *, 'ftm' AS stat_category FROM stg_all_time_ftm
-        UNION ALL BY NAME
-        SELECT *, 'ft_pct' AS stat_category FROM stg_all_time_ft_pct
-        UNION ALL BY NAME
-        SELECT *, 'gp' AS stat_category FROM stg_all_time_gp
-        UNION ALL BY NAME
-        SELECT *, 'oreb' AS stat_category FROM stg_all_time_oreb
-        UNION ALL BY NAME
-        SELECT *, 'pf' AS stat_category FROM stg_all_time_pf
-        UNION ALL BY NAME
-        SELECT *, 'pts' AS stat_category FROM stg_all_time_pts
-        UNION ALL BY NAME
-        SELECT *, 'reb' AS stat_category FROM stg_all_time_reb
-        UNION ALL BY NAME
-        SELECT *, 'stl' AS stat_category FROM stg_all_time_stl
-        UNION ALL BY NAME
-        SELECT *, 'tov' AS stat_category FROM stg_all_time_tov
+        WITH pts_rows AS (
+            SELECT DISTINCT
+                player_id,
+                player_name,
+                pts,
+                pts_rank
+            FROM stg_all_time_pts
+        ), ast_rows AS (
+            SELECT DISTINCT
+                player_id,
+                player_name,
+                ast,
+                ast_rank
+            FROM stg_all_time_ast
+        ), reb_rows AS (
+            SELECT DISTINCT
+                player_id,
+                player_name,
+                reb,
+                reb_rank
+            FROM stg_all_time_reb
+        ), pts_source AS (
+            SELECT
+                CASE WHEN player_id IS NULL
+                    THEN error('all-time points source has null player_id')
+                    ELSE player_id END AS player_id,
+                CASE WHEN COUNT(DISTINCT pts) > 1
+                    THEN error('conflicting all-time points values')
+                    ELSE MIN(pts) END AS pts,
+                CASE WHEN COUNT(DISTINCT pts_rank) > 1
+                    THEN error('conflicting all-time points ranks')
+                    ELSE MIN(pts_rank) END AS pts_rank
+            FROM pts_rows
+            GROUP BY player_id
+        ), ast_source AS (
+            SELECT
+                CASE WHEN player_id IS NULL
+                    THEN error('all-time assists source has null player_id')
+                    ELSE player_id END AS player_id,
+                CASE WHEN COUNT(DISTINCT ast) > 1
+                    THEN error('conflicting all-time assists values')
+                    ELSE MIN(ast) END AS ast,
+                CASE WHEN COUNT(DISTINCT ast_rank) > 1
+                    THEN error('conflicting all-time assists ranks')
+                    ELSE MIN(ast_rank) END AS ast_rank
+            FROM ast_rows
+            GROUP BY player_id
+        ), reb_source AS (
+            SELECT
+                CASE WHEN player_id IS NULL
+                    THEN error('all-time rebounds source has null player_id')
+                    ELSE player_id END AS player_id,
+                CASE WHEN COUNT(DISTINCT reb) > 1
+                    THEN error('conflicting all-time rebounds values')
+                    ELSE MIN(reb) END AS reb,
+                CASE WHEN COUNT(DISTINCT reb_rank) > 1
+                    THEN error('conflicting all-time rebounds ranks')
+                    ELSE MIN(reb_rank) END AS reb_rank
+            FROM reb_rows
+            GROUP BY player_id
+        ), name_rows AS (
+            SELECT player_id, player_name FROM pts_rows
+            UNION ALL
+            SELECT player_id, player_name FROM ast_rows
+            UNION ALL
+            SELECT player_id, player_name FROM reb_rows
+        ), name_authority AS (
+            SELECT
+                player_id,
+                CASE WHEN COUNT(DISTINCT player_name) > 1
+                    THEN error('conflicting all-time player names')
+                    ELSE MIN(player_name) END AS player_name
+            FROM name_rows
+            GROUP BY player_id
+        ), metric_authority AS (
+            SELECT
+                COALESCE(pts_source.player_id, ast_source.player_id, reb_source.player_id)
+                    AS player_id,
+                pts_source.pts,
+                ast_source.ast,
+                reb_source.reb,
+                pts_source.pts_rank,
+                ast_source.ast_rank,
+                reb_source.reb_rank
+            FROM pts_source
+            FULL OUTER JOIN ast_source
+                ON pts_source.player_id = ast_source.player_id
+            FULL OUTER JOIN reb_source
+                ON COALESCE(pts_source.player_id, ast_source.player_id) = reb_source.player_id
+        )
+        SELECT
+            metric_authority.player_id,
+            name_authority.player_name,
+            metric_authority.pts,
+            metric_authority.ast,
+            metric_authority.reb,
+            metric_authority.pts_rank,
+            metric_authority.ast_rank,
+            metric_authority.reb_rank
+        FROM metric_authority
+        LEFT JOIN name_authority
+            ON metric_authority.player_id = name_authority.player_id
+        ORDER BY metric_authority.player_id
     """

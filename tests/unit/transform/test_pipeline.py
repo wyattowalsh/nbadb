@@ -5,10 +5,15 @@ from typing import ClassVar
 import duckdb
 import pandera.polars as pa
 import polars as pl
+import pytest
 
 from nbadb.schemas.base import BaseSchema
 from nbadb.transform.base import BaseTransformer
-from nbadb.transform.pipeline import TransformPipeline, _input_schema_for
+from nbadb.transform.pipeline import (
+    TransformPipeline,
+    TransformPipelineIncompleteError,
+    _input_schema_for,
+)
 from nbadb.transform.schema_version import SchemaVersionTracker
 
 
@@ -146,7 +151,7 @@ class TestTransformPipeline:
         assert _input_schema_for("stg_schedule").__name__ == "StagingScheduleLeagueV2Schema"
         assert _input_schema_for("stg_player_info").__name__ == "RawCommonPlayerInfoSchema"
 
-    def test_validates_input_schema_before_transform(self, monkeypatch) -> None:
+    def test_validates_input_schema_without_stripping_provider_extras(self, monkeypatch) -> None:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(_TransA())
@@ -156,12 +161,15 @@ class TestTransformPipeline:
         )
 
         outputs = pipeline.run(
-            {"raw_input": pl.DataFrame({"val": [42], "extra": ["drop-me"]}).lazy()},
+            {"raw_input": pl.DataFrame({"val": [42], "extra": ["keep-me"]}).lazy()},
             validate_input_schemas=True,
         )
 
-        assert outputs["table_a"].columns == ["val", "val_a"]
-        assert conn.execute("SELECT * FROM raw_input").pl().columns == ["val"]
+        assert outputs["table_a"].columns == ["val", "extra", "val_a"]
+        assert outputs["table_a"]["extra"].to_list() == ["keep-me"]
+        validated_input = conn.execute("SELECT * FROM raw_input").pl()
+        assert validated_input.columns == ["val", "extra"]
+        assert validated_input["extra"].to_list() == ["keep-me"]
         conn.close()
 
     def test_input_schema_validation_failure_marks_dependents_failed(self, monkeypatch) -> None:
@@ -253,6 +261,41 @@ class TestTransformPipeline:
         # The error log should contain the transformer class name
         all_messages = "\n".join(log_messages)
         assert "_BrokenTransformer" in all_messages or "broken_table" in all_messages
+
+    def test_strict_pipeline_collects_every_failure_then_raises(self) -> None:
+        class _FirstBrokenTransformer(BaseTransformer):
+            output_table: ClassVar[str] = "first_broken"
+            depends_on: ClassVar[list[str]] = []
+
+            def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+                raise ValueError("first failure")
+
+        class _SecondBrokenTransformer(BaseTransformer):
+            output_table: ClassVar[str] = "second_broken"
+            depends_on: ClassVar[list[str]] = []
+
+            def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+                raise RuntimeError("second failure")
+
+        conn = duckdb.connect()
+        pipeline = TransformPipeline(conn)
+        pipeline.register(_FirstBrokenTransformer())
+        pipeline.register(_TransA())
+        pipeline.register(_SecondBrokenTransformer())
+
+        with pytest.raises(
+            TransformPipelineIncompleteError,
+            match="2 failed table.*first_broken, second_broken",
+        ) as exc_info:
+            pipeline.run(
+                {"raw_input": pl.DataFrame({"val": [1]}).lazy()},
+                require_complete=True,
+            )
+
+        assert exc_info.value.result is pipeline.last_result
+        assert exc_info.value.result.failed_tables == ["first_broken", "second_broken"]
+        assert pipeline.get_output("table_a") is not None
+        conn.close()
 
     # ------------------------------------------------------------------
     # Checkpoint / resume tests

@@ -31,7 +31,7 @@ class TestDimArenaTransformer:
         assert result.shape[0] == 3
         assert "arena_id" in result.columns
         assert "arena_name" in result.columns
-        assert "arena_timezone" in result.columns
+        assert "timezone" in result.columns
 
     def test_deduplicates_arenas(self) -> None:
         from nbadb.transform.dimensions.dim_arena import DimArenaTransformer
@@ -178,6 +178,7 @@ class TestDimTeamTransformer:
                     "city": ["Boston", "Los Angeles"],
                     "state": ["Massachusetts", "California"],
                     "year_founded": [1946, 1947],
+                    "championship_years_json": ["[]", "[1949,1950]"],
                 }
             ).lazy(),
             "stg_team_details": pl.DataFrame({"team_id": [1], "arena": ["TD Garden"]}).lazy(),
@@ -198,6 +199,7 @@ class TestDimTeamTransformer:
         assert result.filter(pl.col("team_id") == 1)["arena"][0] == "TD Garden"
         assert result.filter(pl.col("team_id") == 1)["conference"][0] == "East"
         assert result.filter(pl.col("team_id") == 1)["division"][0] == "Atlantic"
+        assert "championship_years_json" not in result.columns
 
     def test_deduplicates_by_team_id(self) -> None:
         from nbadb.transform.dimensions.dim_team import DimTeamTransformer

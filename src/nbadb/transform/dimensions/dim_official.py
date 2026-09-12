@@ -13,13 +13,15 @@ class DimOfficialTransformer(BaseTransformer):
     depends_on: ClassVar[list[str]] = ["stg_officials"]
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+        import polars as pl
+
         off = staging["stg_officials"]
         return (
             off.select(
                 "official_id",
                 "first_name",
                 "last_name",
-                "jersey_number",
+                pl.col("jersey_number").alias("jersey_num"),
             )
             .unique(subset=["official_id"], keep="last")
             .sort("official_id")

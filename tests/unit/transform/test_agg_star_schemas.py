@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
+from pandera.errors import SchemaError
 
 from nbadb.transform.pipeline import _star_schema_map
 
@@ -80,13 +81,13 @@ class TestAggAllTimeLeadersSchema:
             "agg_all_time_leaders",
             {
                 "player_id": 201935,
-                "player_name": "James Harden",
+                "player_name": None,
                 "pts": None,
                 "ast": None,
                 "reb": None,
-                "pts_rank": 5,
-                "ast_rank": 1,
-                "reb_rank": 10,
+                "pts_rank": None,
+                "ast_rank": None,
+                "reb_rank": None,
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -204,37 +205,109 @@ class TestAggLeagueLeadersSchema:
 
 
 class TestAggLineupEfficiencySchema:
-    def test_valid_row(self) -> None:
-        result = _validate(
-            "agg_lineup_efficiency",
-            {
-                "group_id": "1627759-1628369-1628400-1629057-203954",
-                "team_id": 1610612738,
-                "season_year": "2024-25",
-                "total_gp": 34,
-                "total_min": 315.4,
-                "pts_per48": 112.5,
-                "avg_net_rating": 9.8,
-                "total_plus_minus": 42.0,
-            },
-        )
-        assert isinstance(result, pl.DataFrame)
+    _COVERAGE_FIELDS = (
+        "gp_covered_observations",
+        "minutes_covered_observations",
+        "estimated_possessions_covered_observations",
+        "win_pct_covered_observations",
+        "fg_pct_covered_observations",
+        "fg3_pct_covered_observations",
+        "ft_pct_covered_observations",
+        "efg_pct_covered_observations",
+        "ts_pct_covered_observations",
+        "fg3a_per_fga_covered_observations",
+        "fta_per_fga_covered_observations",
+        "ast_tov_ratio_covered_observations",
+        "pts_per48_covered_observations",
+        "reb_per48_covered_observations",
+        "ast_per48_covered_observations",
+        "tov_per48_covered_observations",
+        "stl_per48_covered_observations",
+        "blk_per48_covered_observations",
+        "plus_minus_per48_covered_observations",
+        "estimated_off_rating_covered_observations",
+        "estimated_def_rating_covered_observations",
+        "estimated_net_rating_covered_observations",
+    )
+    _TOTAL_FIELDS = (
+        "total_gp",
+        "total_w",
+        "total_l",
+        "total_min",
+        "total_fgm",
+        "total_fga",
+        "total_fg3m",
+        "total_fg3a",
+        "total_ftm",
+        "total_fta",
+        "total_oreb",
+        "total_dreb",
+        "total_reb",
+        "total_ast",
+        "total_tov",
+        "total_stl",
+        "total_blk",
+        "total_blka",
+        "total_pf",
+        "total_pfd",
+        "total_pts",
+        "total_plus_minus",
+    )
+    _METRIC_FIELDS = (
+        "win_pct",
+        "fg_pct",
+        "fg3_pct",
+        "ft_pct",
+        "efg_pct",
+        "ts_pct",
+        "fg3a_per_fga",
+        "fta_per_fga",
+        "ast_tov_ratio",
+        "estimated_possessions",
+        "pts_per48",
+        "reb_per48",
+        "ast_per48",
+        "tov_per48",
+        "stl_per48",
+        "blk_per48",
+        "plus_minus_per48",
+        "estimated_off_rating",
+        "estimated_def_rating",
+        "estimated_net_rating",
+    )
 
-    def test_nullable_stats(self) -> None:
-        result = _validate(
-            "agg_lineup_efficiency",
-            {
-                "group_id": "A-B-C-D-E",
-                "team_id": 1610612740,
-                "season_year": "2023-24",
-                "total_gp": None,
-                "total_min": None,
-                "pts_per48": None,
-                "avg_net_rating": None,
-                "total_plus_minus": None,
-            },
+    @classmethod
+    def _row(cls, *, covered: bool) -> dict[str, object]:
+        row: dict[str, object] = {
+            "group_id": "1-2-3-4-5",
+            "team_id": 1610612738,
+            "season_year": "2024-25",
+            "season_type": "Regular Season",
+            "lineup_source": "league",
+            "lineup_source_count": 1,
+            "lineup_source_coverage": "league",
+            "canonical_observation_count": 1,
+            **{field: int(covered) for field in cls._COVERAGE_FIELDS},
+            **{field: (1 if covered else None) for field in cls._TOTAL_FIELDS},
+            **{field: (1.0 if covered else None) for field in cls._METRIC_FIELDS},
+        }
+        return row
+
+    def test_valid_row(self) -> None:
+        assert isinstance(
+            _validate("agg_lineup_efficiency", self._row(covered=True)),
+            pl.DataFrame,
         )
-        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_stats_have_zero_metric_local_coverage(self) -> None:
+        row = self._row(covered=False)
+        row.update(
+            lineup_source="team",
+            lineup_source_count=1,
+            lineup_source_coverage="team",
+        )
+
+        assert isinstance(_validate("agg_lineup_efficiency", row), pl.DataFrame)
 
 
 class TestAggPlayerBioSchema:
@@ -249,7 +322,7 @@ class TestAggPlayerBioSchema:
                 "age": 39.0,
                 "player_height": "6-9",
                 "player_height_inches": 81.0,
-                "player_weight": "250",
+                "player_weight": 250.0,
                 "college": None,
                 "country": "USA",
                 "draft_year": "2003",
@@ -266,6 +339,7 @@ class TestAggPlayerBioSchema:
                 "ts_pct": 0.621,
                 "ast_pct": 0.43,
                 "season_year": "2024-25",
+                "season_type": "Regular Season",
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -372,6 +446,13 @@ class TestAggPlayerSeasonSchema:
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
                 "gp": 71,
+                "minutes_covered_games": 71,
+                "scoring_covered_games": 71,
+                "rebounding_covered_games": 71,
+                "playmaking_covered_games": 71,
+                "shooting_covered_games": 71,
+                "advanced_covered_games": 70,
+                "advanced_possessions": 5100.0,
                 "total_min": 2400.0,
                 "avg_min": 33.8,
                 "total_pts": 1825.0,
@@ -386,6 +467,10 @@ class TestAggPlayerSeasonSchema:
                 "avg_blk": 0.6,
                 "total_tov": 254.0,
                 "avg_tov": 3.6,
+                "total_oreb": 80.0,
+                "total_dreb": 438.0,
+                "total_pf": 120.0,
+                "total_plus_minus": 320.0,
                 "total_fgm": 680.0,
                 "total_fga": 1258.0,
                 "fg_pct": 0.540,
@@ -395,12 +480,27 @@ class TestAggPlayerSeasonSchema:
                 "total_ftm": 283.0,
                 "total_fta": 380.0,
                 "ft_pct": 0.745,
+                "efg_pct": 0.613,
+                "three_point_attempt_rate": 0.353,
+                "free_throw_attempt_rate": 0.302,
+                "ast_tov_ratio": 2.323,
+                "rating_covered_games": 70,
+                "rating_possessions": 5100.0,
                 "avg_off_rating": 121.3,
                 "avg_def_rating": 110.5,
                 "avg_net_rating": 10.8,
                 "avg_ts_pct": 0.621,
+                "provider_ts_covered_games": 70,
+                "provider_ts_possessions": 5100.0,
+                "provider_avg_ts_pct": 0.619,
+                "usage_covered_games": 70,
+                "usage_possessions": 5100.0,
                 "avg_usg_pct": 0.290,
+                "pie_covered_games": 70,
+                "pie_possessions": 5100.0,
                 "avg_pie": 0.168,
+                "shooting_efficiency_source": "derived_traditional_totals",
+                "advanced_metric_weight": "provider_possessions",
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -480,20 +580,54 @@ class TestAggPlayerSeasonAdvancedSchema:
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
                 "gp": 71,
+                "minutes_covered_games": 71,
+                "total_min": 2400.0,
+                "possession_covered_games": 71,
+                "total_possessions": 5200.0,
+                "pace_covered_games": 71,
+                "pace_covered_minutes": 2400.0,
+                "off_rating_covered_games": 71,
+                "off_rating_covered_possessions": 5200.0,
                 "avg_off_rating": 121.3,
+                "def_rating_covered_games": 71,
+                "def_rating_covered_possessions": 5200.0,
                 "avg_def_rating": 110.5,
+                "net_rating_covered_games": 71,
+                "net_rating_covered_possessions": 5200.0,
                 "avg_net_rating": 10.8,
+                "ts_pct_covered_games": 71,
+                "ts_pct_covered_possessions": 5200.0,
                 "avg_ts_pct": 0.621,
+                "usg_pct_covered_games": 71,
+                "usg_pct_covered_possessions": 5200.0,
                 "avg_usg_pct": 0.290,
+                "efg_pct_covered_games": 71,
+                "efg_pct_covered_possessions": 5200.0,
                 "avg_efg_pct": 0.575,
+                "ast_pct_covered_games": 71,
+                "ast_pct_covered_possessions": 5200.0,
                 "avg_ast_pct": 0.430,
+                "ast_ratio_covered_games": 71,
+                "ast_ratio_covered_possessions": 5200.0,
                 "avg_ast_ratio": 0.350,
+                "oreb_pct_covered_games": 71,
+                "oreb_pct_covered_possessions": 5200.0,
                 "avg_oreb_pct": 0.050,
+                "dreb_pct_covered_games": 71,
+                "dreb_pct_covered_possessions": 5200.0,
                 "avg_dreb_pct": 0.190,
+                "reb_pct_covered_games": 71,
+                "reb_pct_covered_possessions": 5200.0,
                 "avg_reb_pct": 0.120,
+                "tov_pct_covered_games": 71,
+                "tov_pct_covered_possessions": 5200.0,
                 "avg_tov_pct": 0.130,
                 "avg_pace": 99.5,
+                "pie_covered_games": 71,
+                "pie_covered_possessions": 5200.0,
                 "avg_pie": 0.168,
+                "advanced_metric_source": "provider_possession_weighted",
+                "pace_source": "provider_minute_weighted",
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -507,20 +641,54 @@ class TestAggPlayerSeasonAdvancedSchema:
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
                 "gp": 0,
+                "minutes_covered_games": 0,
+                "total_min": None,
+                "possession_covered_games": 0,
+                "total_possessions": None,
+                "pace_covered_games": 0,
+                "pace_covered_minutes": None,
+                "off_rating_covered_games": 0,
+                "off_rating_covered_possessions": None,
                 "avg_off_rating": None,
+                "def_rating_covered_games": 0,
+                "def_rating_covered_possessions": None,
                 "avg_def_rating": None,
+                "net_rating_covered_games": 0,
+                "net_rating_covered_possessions": None,
                 "avg_net_rating": None,
+                "ts_pct_covered_games": 0,
+                "ts_pct_covered_possessions": None,
                 "avg_ts_pct": None,
+                "usg_pct_covered_games": 0,
+                "usg_pct_covered_possessions": None,
                 "avg_usg_pct": None,
+                "efg_pct_covered_games": 0,
+                "efg_pct_covered_possessions": None,
                 "avg_efg_pct": None,
+                "ast_pct_covered_games": 0,
+                "ast_pct_covered_possessions": None,
                 "avg_ast_pct": None,
+                "ast_ratio_covered_games": 0,
+                "ast_ratio_covered_possessions": None,
                 "avg_ast_ratio": None,
+                "oreb_pct_covered_games": 0,
+                "oreb_pct_covered_possessions": None,
                 "avg_oreb_pct": None,
+                "dreb_pct_covered_games": 0,
+                "dreb_pct_covered_possessions": None,
                 "avg_dreb_pct": None,
+                "reb_pct_covered_games": 0,
+                "reb_pct_covered_possessions": None,
                 "avg_reb_pct": None,
+                "tov_pct_covered_games": 0,
+                "tov_pct_covered_possessions": None,
                 "avg_tov_pct": None,
                 "avg_pace": None,
+                "pie_covered_games": 0,
+                "pie_covered_possessions": None,
                 "avg_pie": None,
+                "advanced_metric_source": "provider_possession_weighted",
+                "pace_source": "provider_minute_weighted",
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -559,81 +727,265 @@ class TestAggShotZonesSchema:
             {
                 "player_id": 2544,
                 "season_year": "2024-25",
+                "season_type": "Regular Season",
                 "shot_zone_basic": "Mid-Range",
                 "shot_zone_area": "Center(C)",
                 "shot_zone_range": "16-24 ft.",
-                "attempts": 120,
-                "makes": 55,
-                "fg_pct": 0.458,
-                "avg_distance": 18.3,
+                "shot_event_count": 120,
+                "outcome_observed_attempt_count": 119,
+                "made_shot_count_of_observed_outcomes": 55,
+                "fg_pct_of_observed_outcomes": 0.462,
+                "distance_observed_attempt_count": 118,
+                "mean_observed_shot_distance": 18.3,
             },
         )
         assert isinstance(result, pl.DataFrame)
 
-    def test_nullable_zone_fields(self) -> None:
+    def test_unobserved_metrics_remain_null(self) -> None:
         result = _validate(
             "agg_shot_zones",
             {
                 "player_id": 201935,
                 "season_year": "2023-24",
-                "shot_zone_basic": None,
-                "shot_zone_area": None,
-                "shot_zone_range": None,
-                "attempts": None,
-                "makes": None,
-                "fg_pct": None,
-                "avg_distance": None,
+                "season_type": "Playoffs",
+                "shot_zone_basic": "Restricted Area",
+                "shot_zone_area": "Center(C)",
+                "shot_zone_range": "Less Than 8 ft.",
+                "shot_event_count": 2,
+                "outcome_observed_attempt_count": 0,
+                "made_shot_count_of_observed_outcomes": 0,
+                "fg_pct_of_observed_outcomes": None,
+                "distance_observed_attempt_count": 0,
+                "mean_observed_shot_distance": None,
             },
         )
         assert isinstance(result, pl.DataFrame)
+
+
+def _team_defense_row(**updates: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "team_id": 1610612738,
+        "season_year": "2024-25",
+        "season_type": "Regular Season",
+        "observed_game_count": 3,
+        "def_rating_coverage_game_count": 2,
+        "mean_observed_game_def_rating": 107.5,
+        "net_rating_coverage_game_count": 2,
+        "mean_observed_game_net_rating": 4.2,
+        "four_factors_observed_game_count": 2,
+        "opp_effective_field_goal_percentage_coverage_game_count": 2,
+        "mean_observed_game_opp_effective_field_goal_percentage": 0.505,
+        "opp_free_throw_attempt_rate_coverage_game_count": 2,
+        "mean_observed_game_opp_free_throw_attempt_rate": 0.242,
+        "opp_team_turnover_percentage_coverage_game_count": 1,
+        "mean_observed_game_opp_team_turnover_percentage": 0.138,
+        "opp_offensive_rebound_percentage_coverage_game_count": 1,
+        "mean_observed_game_opp_offensive_rebound_percentage": 0.260,
+        "hustle_observed_game_count": 2,
+        "contested_shots_coverage_game_count": 2,
+        "total_observed_game_contested_shots": 90.6,
+        "mean_observed_game_contested_shots": 45.3,
+        "deflections_coverage_game_count": 2,
+        "total_observed_game_deflections": 25.6,
+        "mean_observed_game_deflections": 12.8,
+        "loose_balls_recovered_coverage_game_count": 2,
+        "total_observed_game_loose_balls_recovered": 14.2,
+        "mean_observed_game_loose_balls_recovered": 7.1,
+        "charges_drawn_coverage_game_count": 2,
+        "total_observed_game_charges_drawn": 3.8,
+        "mean_observed_game_charges_drawn": 1.9,
+        "screen_assists_coverage_game_count": 2,
+        "total_observed_game_screen_assists": 18.8,
+        "mean_observed_game_screen_assists": 9.4,
+    }
+    row.update(updates)
+    return row
+
+
+_TEAM_DEFENSE_MEAN_COVERAGE_BINDINGS = (
+    ("def_rating_coverage_game_count", "mean_observed_game_def_rating"),
+    ("net_rating_coverage_game_count", "mean_observed_game_net_rating"),
+    (
+        "opp_effective_field_goal_percentage_coverage_game_count",
+        "mean_observed_game_opp_effective_field_goal_percentage",
+    ),
+    (
+        "opp_free_throw_attempt_rate_coverage_game_count",
+        "mean_observed_game_opp_free_throw_attempt_rate",
+    ),
+    (
+        "opp_team_turnover_percentage_coverage_game_count",
+        "mean_observed_game_opp_team_turnover_percentage",
+    ),
+    (
+        "opp_offensive_rebound_percentage_coverage_game_count",
+        "mean_observed_game_opp_offensive_rebound_percentage",
+    ),
+)
+
+_TEAM_DEFENSE_HUSTLE_COVERAGE_BINDINGS = (
+    (
+        "contested_shots_coverage_game_count",
+        "total_observed_game_contested_shots",
+        "mean_observed_game_contested_shots",
+    ),
+    (
+        "deflections_coverage_game_count",
+        "total_observed_game_deflections",
+        "mean_observed_game_deflections",
+    ),
+    (
+        "loose_balls_recovered_coverage_game_count",
+        "total_observed_game_loose_balls_recovered",
+        "mean_observed_game_loose_balls_recovered",
+    ),
+    (
+        "charges_drawn_coverage_game_count",
+        "total_observed_game_charges_drawn",
+        "mean_observed_game_charges_drawn",
+    ),
+    (
+        "screen_assists_coverage_game_count",
+        "total_observed_game_screen_assists",
+        "mean_observed_game_screen_assists",
+    ),
+)
 
 
 class TestAggTeamDefenseSchema:
     def test_valid_row(self) -> None:
-        result = _validate(
-            "agg_team_defense",
-            {
-                "team_id": 1610612738,
-                "season_year": "2024-25",
-                "season_type": "Regular Season",
-                "gp": 82,
-                "avg_def_rating": 107.5,
-                "avg_net_rating": 4.2,
-                "avg_opp_efg_pct": 0.505,
-                "avg_opp_fta_rate": 0.242,
-                "avg_opp_tov_pct": 0.138,
-                "avg_opp_oreb_pct": 0.260,
-                "avg_contested_shots": 45.3,
-                "avg_deflections": 12.8,
-                "avg_loose_balls_recovered": 7.1,
-                "avg_charges_drawn": 1.9,
-                "avg_screen_assists": 9.4,
-            },
-        )
+        result = _validate("agg_team_defense", _team_defense_row())
+
         assert isinstance(result, pl.DataFrame)
 
-    def test_nullable_hustle_fields(self) -> None:
+    def test_absent_optional_sources_keep_nullable_measures_unknown(self) -> None:
         result = _validate(
             "agg_team_defense",
-            {
-                "team_id": 1610612762,
-                "season_year": "2015-16",
-                "season_type": "Playoffs",
-                "gp": 5,
-                "avg_def_rating": 108.0,
-                "avg_net_rating": None,
-                "avg_opp_efg_pct": None,
-                "avg_opp_fta_rate": None,
-                "avg_opp_tov_pct": None,
-                "avg_opp_oreb_pct": None,
-                "avg_contested_shots": None,
-                "avg_deflections": None,
-                "avg_loose_balls_recovered": None,
-                "avg_charges_drawn": None,
-                "avg_screen_assists": None,
-            },
+            _team_defense_row(
+                team_id=1610612762,
+                season_year="2015-16",
+                season_type="Playoffs",
+                observed_game_count=5,
+                def_rating_coverage_game_count=5,
+                mean_observed_game_def_rating=108.0,
+                net_rating_coverage_game_count=0,
+                mean_observed_game_net_rating=None,
+                four_factors_observed_game_count=0,
+                opp_effective_field_goal_percentage_coverage_game_count=0,
+                mean_observed_game_opp_effective_field_goal_percentage=None,
+                opp_free_throw_attempt_rate_coverage_game_count=0,
+                mean_observed_game_opp_free_throw_attempt_rate=None,
+                opp_team_turnover_percentage_coverage_game_count=0,
+                mean_observed_game_opp_team_turnover_percentage=None,
+                opp_offensive_rebound_percentage_coverage_game_count=0,
+                mean_observed_game_opp_offensive_rebound_percentage=None,
+                hustle_observed_game_count=0,
+                contested_shots_coverage_game_count=0,
+                total_observed_game_contested_shots=None,
+                mean_observed_game_contested_shots=None,
+                deflections_coverage_game_count=0,
+                total_observed_game_deflections=None,
+                mean_observed_game_deflections=None,
+                loose_balls_recovered_coverage_game_count=0,
+                total_observed_game_loose_balls_recovered=None,
+                mean_observed_game_loose_balls_recovered=None,
+                charges_drawn_coverage_game_count=0,
+                total_observed_game_charges_drawn=None,
+                mean_observed_game_charges_drawn=None,
+                screen_assists_coverage_game_count=0,
+                total_observed_game_screen_assists=None,
+                mean_observed_game_screen_assists=None,
+            ),
         )
+
         assert isinstance(result, pl.DataFrame)
+
+    def test_coverage_count_cannot_exceed_source_denominator(self) -> None:
+        with pytest.raises(SchemaError, match="coverage_counts_do_not_exceed_denominators"):
+            _validate(
+                "agg_team_defense",
+                _team_defense_row(
+                    hustle_observed_game_count=1,
+                    contested_shots_coverage_game_count=2,
+                ),
+            )
+
+    @pytest.mark.parametrize(
+        ("coverage_count", "mean_value", "is_valid"),
+        [
+            pytest.param(0, None, True, id="zero-null"),
+            pytest.param(0, 1.0, False, id="zero-nonnull"),
+            pytest.param(1, None, False, id="positive-null"),
+            pytest.param(1, 1.0, True, id="positive-nonnull"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("coverage_column", "mean_column"),
+        _TEAM_DEFENSE_MEAN_COVERAGE_BINDINGS,
+        ids=[item[0] for item in _TEAM_DEFENSE_MEAN_COVERAGE_BINDINGS],
+    )
+    def test_mean_nullability_matches_exact_metric_coverage(
+        self,
+        coverage_column: str,
+        mean_column: str,
+        coverage_count: int,
+        mean_value: float | None,
+        is_valid: bool,
+    ) -> None:
+        row = _team_defense_row(
+            **{
+                coverage_column: coverage_count,
+                mean_column: mean_value,
+            }
+        )
+
+        if is_valid:
+            assert isinstance(_validate("agg_team_defense", row), pl.DataFrame)
+            return
+        with pytest.raises(SchemaError, match="aggregate_nullability_matches_coverage"):
+            _validate("agg_team_defense", row)
+
+    @pytest.mark.parametrize(
+        ("coverage_count", "total_value", "mean_value", "is_valid"),
+        [
+            pytest.param(0, None, None, True, id="zero-null-null"),
+            pytest.param(0, None, 1.0, False, id="zero-null-nonnull"),
+            pytest.param(0, 1.0, None, False, id="zero-nonnull-null"),
+            pytest.param(0, 1.0, 1.0, False, id="zero-nonnull-nonnull"),
+            pytest.param(1, None, None, False, id="positive-null-null"),
+            pytest.param(1, None, 1.0, False, id="positive-null-nonnull"),
+            pytest.param(1, 1.0, None, False, id="positive-nonnull-null"),
+            pytest.param(1, 1.0, 1.0, True, id="positive-nonnull-nonnull"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("coverage_column", "total_column", "mean_column"),
+        _TEAM_DEFENSE_HUSTLE_COVERAGE_BINDINGS,
+        ids=[item[0] for item in _TEAM_DEFENSE_HUSTLE_COVERAGE_BINDINGS],
+    )
+    def test_hustle_total_and_mean_nullability_match_exact_metric_coverage(
+        self,
+        coverage_column: str,
+        total_column: str,
+        mean_column: str,
+        coverage_count: int,
+        total_value: float | None,
+        mean_value: float | None,
+        is_valid: bool,
+    ) -> None:
+        row = _team_defense_row(
+            **{
+                coverage_column: coverage_count,
+                total_column: total_value,
+                mean_column: mean_value,
+            }
+        )
+
+        if is_valid:
+            assert isinstance(_validate("agg_team_defense", row), pl.DataFrame)
+            return
+        with pytest.raises(SchemaError, match="aggregate_nullability_matches_coverage"):
+            _validate("agg_team_defense", row)
 
 
 class TestAggTeamFranchiseSchema:
@@ -695,6 +1047,13 @@ class TestAggTeamPaceAndEfficiencySchema:
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
                 "gp": 82,
+                "total_possessions": 8088.0,
+                "rating_covered_games": 81,
+                "rating_possessions": 7990.0,
+                "pace_covered_games": 82,
+                "pace_actual_minutes_games": 80,
+                "pace_inferred_minutes_games": 2,
+                "pace_covered_minutes": 3945.0,
                 "avg_pace": 98.4,
                 "avg_ortg": 121.8,
                 "avg_drtg": 110.5,
@@ -711,6 +1070,13 @@ class TestAggTeamPaceAndEfficiencySchema:
                 "season_year": "2024-25",
                 "season_type": "Playoffs",
                 "gp": 6,
+                "total_possessions": None,
+                "rating_covered_games": 0,
+                "rating_possessions": None,
+                "pace_covered_games": 0,
+                "pace_actual_minutes_games": 0,
+                "pace_inferred_minutes_games": 0,
+                "pace_covered_minutes": None,
                 "avg_pace": None,
                 "avg_ortg": None,
                 "avg_drtg": None,
@@ -807,23 +1173,7 @@ class TestAggTeamSeasonSchema:
         ),
         (
             "agg_team_defense",
-            {
-                "team_id": 0,
-                "season_year": "2024-25",
-                "season_type": "Regular Season",
-                "gp": 82,
-                "avg_def_rating": 107.5,
-                "avg_net_rating": None,
-                "avg_opp_efg_pct": None,
-                "avg_opp_fta_rate": None,
-                "avg_opp_tov_pct": None,
-                "avg_opp_oreb_pct": None,
-                "avg_contested_shots": None,
-                "avg_deflections": None,
-                "avg_loose_balls_recovered": None,
-                "avg_charges_drawn": None,
-                "avg_screen_assists": None,
-            },
+            _team_defense_row(team_id=0),
             "agg_team_defense team_id must be > 0",
         ),
         (
@@ -857,27 +1207,61 @@ class TestAggTeamSeasonSchema:
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
                 "gp": 71,
+                "minutes_covered_games": 0,
+                "total_min": None,
+                "possession_covered_games": 0,
+                "total_possessions": None,
+                "pace_covered_games": 0,
+                "pace_covered_minutes": None,
+                "off_rating_covered_games": 0,
+                "off_rating_covered_possessions": None,
                 "avg_off_rating": None,
+                "def_rating_covered_games": 0,
+                "def_rating_covered_possessions": None,
                 "avg_def_rating": None,
+                "net_rating_covered_games": 0,
+                "net_rating_covered_possessions": None,
                 "avg_net_rating": None,
+                "ts_pct_covered_games": 0,
+                "ts_pct_covered_possessions": None,
                 "avg_ts_pct": None,
+                "usg_pct_covered_games": 0,
+                "usg_pct_covered_possessions": None,
                 "avg_usg_pct": None,
+                "efg_pct_covered_games": 0,
+                "efg_pct_covered_possessions": None,
                 "avg_efg_pct": None,
+                "ast_pct_covered_games": 0,
+                "ast_pct_covered_possessions": None,
                 "avg_ast_pct": None,
+                "ast_ratio_covered_games": 0,
+                "ast_ratio_covered_possessions": None,
                 "avg_ast_ratio": None,
+                "oreb_pct_covered_games": 0,
+                "oreb_pct_covered_possessions": None,
                 "avg_oreb_pct": None,
+                "dreb_pct_covered_games": 0,
+                "dreb_pct_covered_possessions": None,
                 "avg_dreb_pct": None,
+                "reb_pct_covered_games": 0,
+                "reb_pct_covered_possessions": None,
                 "avg_reb_pct": None,
+                "tov_pct_covered_games": 0,
+                "tov_pct_covered_possessions": None,
                 "avg_tov_pct": None,
                 "avg_pace": None,
+                "pie_covered_games": 0,
+                "pie_covered_possessions": None,
                 "avg_pie": None,
+                "advanced_metric_source": "provider_possession_weighted",
+                "pace_source": "provider_minute_weighted",
             },
             "agg_player_season_advanced player_id must be > 0",
         ),
         (
             "agg_game_totals",
             {
-                "game_id": -1,
+                "game_id": "",
                 "game_date": "2024-01-15",
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
@@ -893,7 +1277,7 @@ class TestAggTeamSeasonSchema:
                 "home_fg_pct": 0.471,
                 "away_fg_pct": 0.438,
             },
-            "game_id must be > 0",
+            "game_id must be nonblank",
         ),
     ],
 )

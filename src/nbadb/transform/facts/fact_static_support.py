@@ -23,3 +23,23 @@ class FactStaticTeamsTransformer(SqlTransformer):
         SELECT *
         FROM stg_static_teams
     """
+
+
+class FactStaticWnbaPlayersTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_static_wnba_players"
+    depends_on: ClassVar[list[str]] = ["stg_static_wnba_players"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_static_wnba_players
+    """
+
+
+class FactStaticWnbaTeamsTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_static_wnba_teams"
+    depends_on: ClassVar[list[str]] = ["stg_static_wnba_teams"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_static_wnba_teams
+    """

@@ -129,13 +129,17 @@ def derived_output_schema(
 
 
 class BaseSchema(pa.DataFrameModel):
-    """Two-tier validation schema.
+    """Tier-aware validation schema.
 
     - Hard-fail on missing required columns and wrong data types.
-    - Soft-warn and strip unexpected extra columns.
+    - Preserve unexpected provider columns at raw/staging boundaries.
+    - Project curated star outputs back to their declared public contract.
 
-    Uses ``strict=False`` so pandera does not reject extra columns outright,
-    then explicitly drops them after logging a warning.
+    Uses ``strict=False`` so Pandera validates the declared contract without
+    treating additive provider fields as an error. Raw and staging validation
+    never become lossy admission boundaries; star schemas intentionally expose
+    only reviewed fields and are also checked by the compiled table contract
+    and publication scan.
     """
 
     class Config:
@@ -220,7 +224,9 @@ class BaseSchema(pa.DataFrameModel):
         schema_obj = cls.to_schema()
         expected_columns: set[str] = set(schema_obj.columns)
 
-        # Detect extra columns present in the data but not in the schema
+        # Additive provider fields must survive raw/staging validation so the
+        # landing and field-fate layers can classify them. Curated star outputs
+        # intentionally project to their reviewed public schema.
         if isinstance(data, (pl.DataFrame, pl.LazyFrame)):
             if isinstance(data, pl.LazyFrame):
                 actual_columns = set(data.collect_schema().names())
@@ -229,10 +235,17 @@ class BaseSchema(pa.DataFrameModel):
 
             extra = sorted(actual_columns - expected_columns)
             if extra:
-                logger.warning(
-                    f"{cls.__name__}: stripping {len(extra)} unexpected column(s): {extra}"
-                )
-                data = data.drop(extra)
+                if cls.__module__.startswith("nbadb.schemas.star."):
+                    logger.warning(
+                        f"{cls.__name__}: excluding {len(extra)} unreviewed curated "
+                        f"column(s): {extra}"
+                    )
+                    data = data.drop(extra)
+                else:
+                    logger.warning(
+                        f"{cls.__name__}: preserving {len(extra)} unexpected "
+                        f"provider column(s): {extra}"
+                    )
 
         # Pandera validates required columns + types (hard-fail)
         return super().validate(data, *args, **kwargs)

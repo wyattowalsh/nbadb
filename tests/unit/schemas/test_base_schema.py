@@ -11,6 +11,13 @@ class _TestSchema(BaseSchema):
     value: int = pa.Field(gt=0)
 
 
+class _TestStarSchema(BaseSchema):
+    __module__ = "nbadb.schemas.star._test"
+
+    name: str = pa.Field()
+    value: int = pa.Field(gt=0)
+
+
 class TestBaseSchema:
     def test_coerce_enabled(self) -> None:
         assert _TestSchema.Config.coerce is True
@@ -23,7 +30,7 @@ class TestBaseSchema:
         result = _TestSchema.validate(df)
         assert result.shape == (2, 2)
 
-    def test_extra_columns_stripped_with_warning(self) -> None:
+    def test_extra_columns_are_preserved(self) -> None:
         df = pl.DataFrame(
             {
                 "name": ["a"],
@@ -32,5 +39,33 @@ class TestBaseSchema:
             }
         )
         result = _TestSchema.validate(df)
-        assert "extra" not in result.columns
-        assert result.shape == (1, 2)
+        assert result.columns == ["name", "value", "extra"]
+        assert result["extra"].to_list() == [True]
+        assert result.shape == (1, 3)
+
+    def test_lazy_frame_extra_columns_are_preserved(self) -> None:
+        lazy = pl.DataFrame(
+            {
+                "name": ["a"],
+                "value": [1],
+                "provider_addition": ["kept"],
+            }
+        ).lazy()
+
+        result = _TestSchema.validate(lazy).collect()
+
+        assert result.columns == ["name", "value", "provider_addition"]
+        assert result["provider_addition"].to_list() == ["kept"]
+
+    def test_curated_star_schema_excludes_unreviewed_columns(self) -> None:
+        df = pl.DataFrame(
+            {
+                "name": ["a"],
+                "value": [1],
+                "unreviewed_provider_field": ["landing-only"],
+            }
+        )
+
+        result = _TestStarSchema.validate(df)
+
+        assert result.columns == ["name", "value"]

@@ -84,65 +84,23 @@ class EndpointSupportRule:
         }
 
 
+POST_FOUNDATION_DEPENDENT_ENDPOINTS: frozenset[str] = frozenset(
+    {
+        "player_vs_player",
+        "team_vs_player",
+        "team_and_players_vs",
+        "team_and_players_vs_players",
+    }
+)
+"""Endpoints planned only from receipt-bound observed matchup evidence.
+
+These routes are executable full-extraction coverage, not exclusions.  They are
+intentionally absent from the foundation matrix because a season/entity Cartesian
+product would invent comparisons that were never observed upstream.
+"""
+
+
 FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
-    ExtractionExclusion(
-        endpoint_name="player_vs_player",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "PlayerVsPlayer requires both PlayerID and VsPlayerID, but the durable "
-            "player-team-season workload records affiliations rather than observed "
-            "player matchup pairs. Expanding affiliations into every possible pair "
-            "would be quadratic and would not represent an evidence-backed matchup."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Build a durable observed player-matchup workload from game, rotation, or "
-            "lineup evidence, then add a dedicated planner route and completeness gate."
-        ),
-    ),
-    ExtractionExclusion(
-        endpoint_name="team_vs_player",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "TeamVsPlayer requires TeamID and VsPlayerID. The current "
-            "player-team-season workload does not identify which player comparison "
-            "targets are semantically valid for each team and season."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Define and persist an observed team-player matchup workload, then add a "
-            "dedicated planner route and parameter-level completeness accounting."
-        ),
-    ),
-    ExtractionExclusion(
-        endpoint_name="team_and_players_vs",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "TeamAndPlayersVsPlayers requires two team IDs plus two lineups of up to "
-            "five player IDs. Player-team-season affiliations cannot reconstruct valid "
-            "opposing lineup combinations without game or rotation evidence."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Build a durable observed lineup-matchup workload from game and rotation "
-            "data, then add a dedicated planner route and completeness gate."
-        ),
-    ),
-    ExtractionExclusion(
-        endpoint_name="team_and_players_vs_players",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "The extractor-only TeamAndPlayersVsPlayers alias currently supplies one "
-            "team and two player IDs, while nba_api requires two team IDs and ten "
-            "player slots. It cannot construct the upstream request, and the current "
-            "affiliation workload cannot supply evidence-backed opposing lineups."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Route the alias through the canonical observed lineup-matchup workload "
-            "once that workload and its completeness contract are implemented."
-        ),
-    ),
     ExtractionExclusion(
         endpoint_name="team_historical_leaders",
         classification="upstream_bug_blocked",

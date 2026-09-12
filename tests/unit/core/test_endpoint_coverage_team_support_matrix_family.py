@@ -57,5 +57,12 @@ def test_team_support_matrix_family_chunk_is_complete() -> None:
     extraction_rows = {row["endpoint_name"]: row for row in artifacts["extraction_matrix"]}
     for endpoint_name in ("team_and_players_vs", "team_vs_player"):
         row = extraction_rows[endpoint_name]
-        assert row["extractability_status"] == "excluded", endpoint_name
-        assert row["exclusion"]["classification"] == "contract_not_modeled_yet", endpoint_name
+        assert row["extractability_status"] == "post_foundation_dependent", endpoint_name
+        assert row["exclusion"] is None, endpoint_name
+        assert (
+            row["foundation_historical_fanout_exclusion"]["classification"]
+            == "contract_not_modeled_yet"
+        ), endpoint_name
+        assert (
+            row["foundation_historical_fanout_exclusion"]["scope"] == "foundation_historical_fanout"
+        ), endpoint_name

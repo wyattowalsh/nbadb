@@ -10,8 +10,8 @@ class DimShotZoneSchema(BaseSchema):
         gt=0,
         unique=True,
         metadata={
-            "source": "derived.zone_id",
-            "description": ("Surrogate shot zone identifier"),
+            "source": "derived.sha256_shot_zone_basic_area_range_v1",
+            "description": "Deterministic surrogate shot zone identifier",
         },
     )
     shot_zone_basic: str = pa.Field(

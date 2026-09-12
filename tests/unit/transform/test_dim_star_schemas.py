@@ -335,9 +335,9 @@ class TestDimPlayerSchema:
                 "draft_number": None,
                 "from_year": None,
                 "to_year": None,
-                "valid_from": "2009-10",
-                "valid_to": "2024-25",
-                "is_current": False,
+                "valid_from": "unknown",
+                "valid_to": None,
+                "is_current": True,
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -351,7 +351,7 @@ class TestDimPlayerSchema:
                     "first_name": ["Player", "Player", "Player"],
                     "last_name": ["A", "A", "B"],
                     "roster_status": ["Active", "Active", "Inactive"],
-                    "team_id": [10, 20, 30],
+                    "team_id": [10, 10, 30],
                     "position": ["G", "G", "F"],
                     "jersey_number": ["1", "1", "5"],
                     "height": ["6-3", "6-3", "6-8"],
@@ -364,18 +364,17 @@ class TestDimPlayerSchema:
                     "college_id": [None, None, None],
                     "from_year": ["2012", "2012", "2013"],
                     "to_year": ["2025", "2025", "2020"],
-                    "season": ["2023-24", "2024-25", "2024-25"],
                 }
             ).lazy()
         }
 
         result = _run_sql_transform(DimPlayerTransformer(), staging)
         validated = _validate_frame("dim_player", result)
-        player_one = result.filter(pl.col("player_id") == 1).sort("valid_from")
+        player_one = result.filter(pl.col("player_id") == 1)
 
-        assert result.shape[0] == 3
-        assert player_one["is_current"].to_list() == [False, True]
-        assert player_one["valid_to"][0] == "2024-25"
+        assert result.shape[0] == 2
+        assert player_one["is_current"].to_list() == [True]
+        assert player_one["valid_to"][0] is None
         assert validated.shape == result.shape
 
 

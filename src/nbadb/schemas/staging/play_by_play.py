@@ -166,6 +166,13 @@ class StagingPlayByPlayV3Schema(BaseSchema):
             "description": "Video availability flag",
         },
     )
+    shot_value: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("PlayByPlayV3.PlayByPlay.shotValue"),
+            "description": "Point value of the shot action",
+        },
+    )
     action_id: int | None = pa.Field(
         nullable=True,
         metadata={

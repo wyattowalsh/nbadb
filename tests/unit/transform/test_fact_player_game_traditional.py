@@ -87,6 +87,26 @@ class TestMinCast:
         assert isinstance(row["min"], float)
         assert row["min"] == pytest.approx(32.5)
 
+    @pytest.mark.parametrize(
+        ("provider_min", "expected"),
+        [("32:30", 32.5), ("PT32M30.00S", 32.5), ("unavailable", None)],
+    )
+    def test_minute_formats_are_parsed_without_truncation(
+        self,
+        provider_min: str,
+        expected: float | None,
+    ) -> None:
+        stg = _traditional_rows(min=[provider_min])
+        result = _run(
+            FactPlayerGameTraditionalTransformer(),
+            {"stg_box_score_traditional": stg, "dim_game": _games()},
+        )
+        actual = result["min"][0]
+        if expected is None:
+            assert actual is None
+        else:
+            assert actual == pytest.approx(expected)
+
     def test_min_null_preserved(self) -> None:
         stg = pl.DataFrame(
             {
@@ -166,3 +186,77 @@ class TestMinCast:
 
         assert result.shape[0] == 1
         assert result["player_id"][0] == 101
+
+
+def _traditional_rows(**overrides: object) -> pl.DataFrame:
+    payload: dict[str, object] = {
+        "game_id": ["G1"],
+        "player_id": [101],
+        "team_id": [1],
+        "start_position": ["G"],
+        "comment": [None],
+        "min": ["30:00"],
+        "fgm": [5.0],
+        "fga": [10.0],
+        "fg_pct": [0.5],
+        "fg3m": [2.0],
+        "fg3a": [5.0],
+        "fg3_pct": [0.4],
+        "ftm": [3.0],
+        "fta": [4.0],
+        "ft_pct": [0.75],
+        "oreb": [1.0],
+        "dreb": [4.0],
+        "reb": [5.0],
+        "ast": [6.0],
+        "stl": [2.0],
+        "blk": [1.0],
+        "tov": [3.0],
+        "pf": [2.0],
+        "pts": [15.0],
+        "plus_minus": [5.0],
+    }
+    payload.update(overrides)
+    return pl.DataFrame(payload)
+
+
+def _games(**overrides: object) -> pl.DataFrame:
+    payload: dict[str, object] = {
+        "game_id": ["G1"],
+        "season_year": ["2024-25"],
+    }
+    payload.update(overrides)
+    return pl.DataFrame(payload)
+
+
+def test_exact_duplicate_provider_rows_are_idempotent() -> None:
+    row = _traditional_rows()
+    result = _run(
+        FactPlayerGameTraditionalTransformer(),
+        {"stg_box_score_traditional": pl.concat([row, row]), "dim_game": _games()},
+    )
+    assert result.shape[0] == 1
+
+
+def test_conflicting_provider_rows_fail_closed() -> None:
+    with pytest.raises(duckdb.InvalidInputException, match="conflicting player-game"):
+        _run(
+            FactPlayerGameTraditionalTransformer(),
+            {
+                "stg_box_score_traditional": pl.concat(
+                    [_traditional_rows(), _traditional_rows(pts=[999.0])]
+                ),
+                "dim_game": _games(),
+            },
+        )
+
+
+def test_conflicting_game_dimension_rows_fail_closed() -> None:
+    with pytest.raises(duckdb.InvalidInputException, match="conflicting game-dimension"):
+        _run(
+            FactPlayerGameTraditionalTransformer(),
+            {
+                "stg_box_score_traditional": _traditional_rows(),
+                "dim_game": pl.concat([_games(), _games(season_year=["2023-24"])]),
+            },
+        )

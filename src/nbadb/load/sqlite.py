@@ -6,6 +6,7 @@ from loguru import logger
 
 from nbadb.core.types import validate_sql_identifier
 from nbadb.load.base import BaseLoader
+from nbadb.load.csv_loader import _project_raw_authority_convenience_frame
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -26,7 +27,8 @@ class SQLiteLoader(BaseLoader):
     ) -> None:
         validate_sql_identifier(table)
         if_exists = "replace" if mode == "replace" else "append"
-        df.write_database(
+        projected = _project_raw_authority_convenience_frame(table, df)
+        projected.write_database(
             table,
             self._connection_string,
             engine="adbc",

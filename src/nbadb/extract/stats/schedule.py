@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 from nba_api.stats.endpoints import ScheduleLeagueV2
 from nba_api.stats.endpoints.scheduleleaguev2int import ScheduleLeagueV2Int
-from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
@@ -148,53 +147,27 @@ class ScheduleIntExtractor(BaseExtractor):
     endpoint_name = "schedule_int"
     category = "schedule"
 
-    @staticmethod
-    def _is_schedule_int_shape_error(exc: Exception) -> bool:
-        return isinstance(exc, ValueError) and "columns passed" in str(exc)
-
     def _fetch_schedule_int_payload(self, *, season: str, league_id: str) -> dict[str, Any]:
-        request_kwargs: dict[str, Any] = {"season": season, "league_id": league_id}
-        self._inject_timeout(request_kwargs)
-        endpoint = ScheduleLeagueV2Int(get_request=False, **request_kwargs)
-        return (
-            NBAStatsHTTP()
-            .send_api_request(
-                endpoint=endpoint.endpoint,
-                parameters=endpoint.parameters,
-                proxy=endpoint.proxy,
-                headers=endpoint.headers,
-                timeout=endpoint.timeout,
-            )
-            .get_dict()
+        return self._fetch_nba_api_payload(
+            ScheduleLeagueV2Int,
+            season=season,
+            league_id=league_id,
         )
 
-    def _extract_all_with_fallback(self, *, season: str, league_id: str) -> list[pl.DataFrame]:
-        try:
-            return self._from_nba_api_multi(ScheduleLeagueV2Int, season=season, league_id=league_id)
-        except Exception as exc:
-            if not self._is_schedule_int_shape_error(exc):
-                raise
-        logger.warning(
-            "schedule_int: falling back to raw leagueSchedule payload for {}",
-            season,
-        )
+    def _extract_all_owned(self, *, season: str, league_id: str) -> list[pl.DataFrame]:
+        """Parse the pinned nested schedule packet without the broken upstream frame path."""
+
         payload = self._fetch_schedule_int_payload(season=season, league_id=league_id)
         return _schedule_int_payload_to_frames(payload)
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        # Single-result fallback (returns SeasonGames only).
+        # Single-result form returns SeasonGames only.
         # All staging entries use use_multi=True, so the orchestrator calls extract_all().
         season: str = params["season"]
         league_id: str = params.get("league_id", "00")
-        logger.debug(f"Extracting international schedule for {season}")
-        try:
-            return self._from_nba_api(ScheduleLeagueV2Int, season=season, league_id=league_id)
-        except Exception as exc:
-            if not self._is_schedule_int_shape_error(exc):
-                raise
-        return self._extract_all_with_fallback(season=season, league_id=league_id)[0]
+        return self._extract_all_owned(season=season, league_id=league_id)[0]
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
         season: str = params["season"]
         league_id: str = params.get("league_id", "00")
-        return self._extract_all_with_fallback(season=season, league_id=league_id)
+        return self._extract_all_owned(season=season, league_id=league_id)

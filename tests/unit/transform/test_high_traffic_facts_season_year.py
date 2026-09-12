@@ -91,14 +91,16 @@ class TestFactTeamGameSeasonYear:
         stg_box = pl.DataFrame(
             {
                 "game_id": [1001, 1001],
-                "player_id": [100, 200],
                 "team_id": [10, 20],
                 "fgm": [5, 4],
                 "fga": [10, 9],
+                "fg_pct": [0.5, 4 / 9],
                 "fg3m": [2, 1],
                 "fg3a": [5, 4],
+                "fg3_pct": [0.4, 0.25],
                 "ftm": [3, 2],
                 "fta": [4, 3],
+                "ft_pct": [0.75, 2 / 3],
                 "oreb": [1, 2],
                 "dreb": [3, 4],
                 "reb": [4, 6],
@@ -121,7 +123,7 @@ class TestFactTeamGameSeasonYear:
             }
         )
         return {
-            "stg_box_score_traditional": stg_box,
+            "stg_box_score_traditional_team": stg_box,
             "stg_line_score": stg_line,
             "dim_game": _DIM_GAME,
         }
@@ -176,6 +178,7 @@ class TestFactPlayerGameAdvancedSeasonYear:
                 "e_net_rating": [8.0],
                 "e_usg_pct": [0.24],
                 "e_pace": [101.0],
+                "pace_per40": [83.33],
             }
         )
         return {"stg_box_score_advanced": stg, "dim_game": _DIM_GAME}
@@ -402,12 +405,20 @@ class TestFactShotChartSeasonYear:
     def _tables():
         stg = pl.DataFrame(
             {
+                "grid_type": ["Shot Chart Detail"],
                 "game_id": [1001],
+                "game_event_id": [17],
                 "player_id": [100],
+                "player_name": ["Test Player"],
                 "team_id": [10],
+                "team_name": ["Test Team"],
+                "league_id": ["00"],
+                "season_year": ["2024-25"],
+                "season_type": ["Regular Season"],
                 "period": [1],
                 "minutes_remaining": [8],
                 "seconds_remaining": [30],
+                "event_type": ["Made Shot"],
                 "action_type": ["Jump Shot"],
                 "shot_type": ["2PT Field Goal"],
                 "shot_zone_basic": ["Mid-Range"],
@@ -416,7 +427,11 @@ class TestFactShotChartSeasonYear:
                 "shot_distance": [12],
                 "loc_x": [5],
                 "loc_y": [80],
+                "shot_attempted_flag": [1],
                 "shot_made_flag": [1],
+                "game_date": ["20241105"],
+                "htm": ["HME"],
+                "vtm": ["AWY"],
             }
         )
         return {"stg_shot_chart": stg, "dim_game": _DIM_GAME}
@@ -427,10 +442,10 @@ class TestFactShotChartSeasonYear:
 
     def test_season_year_value(self):
         result = _run_sql(FactShotChartTransformer(), self._tables())
-        assert result["season_year"][0] == 2024
+        assert result["season_year"][0] == "2024-25"
 
-    def test_season_year_null_when_no_dim_game(self):
+    def test_request_season_survives_when_no_dim_game(self):
         tables = self._tables()
         tables["dim_game"] = _DIM_GAME.filter(pl.col("game_id") == -1)
         result = _run_sql(FactShotChartTransformer(), tables)
-        assert result["season_year"].null_count() == 1
+        assert result["season_year"].to_list() == ["2024-25"]

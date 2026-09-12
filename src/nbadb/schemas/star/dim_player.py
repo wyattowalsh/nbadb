@@ -7,10 +7,13 @@ from nbadb.schemas.base import BaseSchema
 
 class DimPlayerSchema(BaseSchema):
     __consumer_metadata__ = {
-        "grain": "player-scd2",
+        "grain": "player-current-identity-snapshot",
         "agent_intents": ["player_lookup"],
-        "scd2_notes": "Use is_current = TRUE for present-day player identity.",
-        "join_hints": {"dim_all_players": "Use dim_player for SCD2-aware joins."},
+        "scd2_notes": (
+            "CommonPlayerInfo is a current snapshot, not historical SCD evidence. "
+            "Use season-bearing roster/career facts for historical affiliation."
+        ),
+        "join_hints": {"dim_all_players": "Use player_id for current identity enrichment only."},
     }
 
     player_sk: int = pa.Field(
@@ -18,7 +21,7 @@ class DimPlayerSchema(BaseSchema):
         unique=True,
         metadata={
             "source": "derived.ROW_NUMBER",
-            "description": ("Surrogate key for SCD2 player"),
+            "description": "Surrogate key for the current player snapshot",
         },
     )
     player_id: int = pa.Field(
@@ -153,20 +156,22 @@ class DimPlayerSchema(BaseSchema):
     )
     valid_from: str = pa.Field(
         metadata={
-            "source": "derived.valid_from",
-            "description": ("SCD2 valid-from season"),
+            "source": "CommonPlayerInfo.CommonPlayerInfo.FROM_YEAR",
+            "description": (
+                "Career-start year retained as compatibility metadata; not SCD authority"
+            ),
         },
     )
     valid_to: str | None = pa.Field(
         nullable=True,
         metadata={
             "source": "derived.valid_to",
-            "description": ("SCD2 valid-to season"),
+            "description": "Always null for the current-only identity snapshot",
         },
     )
     is_current: bool = pa.Field(
         metadata={
             "source": "derived.is_current",
-            "description": ("Whether this is the current record"),
+            "description": "Always true for the current identity snapshot",
         },
     )

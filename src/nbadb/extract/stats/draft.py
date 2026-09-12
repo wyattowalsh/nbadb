@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import polars as pl
@@ -14,28 +13,9 @@ from nba_api.stats.endpoints import (
     DraftCombineStats,
     DraftHistory,
 )
-from nba_api.stats.library.http import NBAStatsHTTP
 
-from nbadb.extract.base import BaseExtractor, _safe_from_pandas, _to_snake_case
+from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
-
-
-def _response_text(response: Any) -> str:
-    raw = response.get_response()
-    if isinstance(raw, str):
-        return raw
-    return getattr(raw, "text", str(raw))
-
-
-def _is_unavailable_response(text: str) -> bool:
-    normalized = text.strip()
-    return (
-        not normalized
-        or "(403) Forbidden" in normalized
-        or "System.Net.WebException" in normalized
-        or "Sap.Data.Hana.HanaException" in normalized
-        or "Socket closed by peer" in normalized
-    )
 
 
 def _first_result_with_season(
@@ -90,32 +70,11 @@ class DraftBoardExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         season_year = int(season[:4])
-        request_kwargs: dict[str, Any] = {"season_year": season_year}
-        self._inject_timeout(request_kwargs)
-        endpoint = DraftBoard(get_request=False, **request_kwargs)
-        response = NBAStatsHTTP().send_api_request(
-            endpoint=endpoint.endpoint,
-            parameters=endpoint.parameters,
-            proxy=endpoint.proxy,
-            headers=endpoint.headers,
-            timeout=endpoint.timeout,
-        )
-        try:
-            endpoint.nba_response = response
-            endpoint.load_response()
-        except json.JSONDecodeError:
-            if _is_unavailable_response(_response_text(response)):
-                logger.info(
-                    "draft_board unavailable for {} ({}); returning empty frame",
-                    season,
-                    season_type,
-                )
-                return pl.DataFrame()
-            raise
-
-        df = _safe_from_pandas(endpoint.draft_board.get_data_frame())
-        if df.columns:
-            df = df.rename({c: _to_snake_case(c) for c in df.columns})
+        df = self._from_nba_api(DraftBoard, season_year=season_year)
+        if "season" not in df.columns:
+            df = df.with_columns(pl.lit(season).alias("season"))
+        if "season_type" not in df.columns:
+            df = df.with_columns(pl.lit(season_type).alias("season_type"))
         return df
 
 

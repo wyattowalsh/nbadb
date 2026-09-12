@@ -14,6 +14,51 @@ class AnalyticsDraftValueTransformer(SqlTransformer):
     ]
 
     _SQL: ClassVar[str] = """
+        WITH draft_enriched AS (
+            SELECT
+                d.*,
+                p.full_name AS as_of_player_name,
+                p.position AS as_of_position,
+                p.country AS as_of_country
+            FROM fact_draft d
+            LEFT JOIN LATERAL (
+                SELECT
+                    CASE
+                        WHEN COUNT(*) > 1
+                            THEN error('conflicting dim_player SCD rows')
+                        ELSE MIN(full_name)
+                    END AS full_name,
+                    CASE
+                        WHEN COUNT(*) > 1
+                            THEN error('conflicting dim_player SCD rows')
+                        ELSE MIN(position)
+                    END AS position,
+                    CASE
+                        WHEN COUNT(*) > 1
+                            THEN error('conflicting dim_player SCD rows')
+                        ELSE MIN(country)
+                    END AS country
+                FROM (
+                    SELECT DISTINCT
+                        full_name,
+                        position,
+                        country,
+                        valid_from,
+                        valid_to
+                    FROM dim_player p0
+                    WHERE p0.player_id = d.person_id
+                      AND TRY_CAST(d.season AS INTEGER) >= TRY_CAST(
+                          LEFT(CAST(p0.valid_from AS VARCHAR), 4) AS INTEGER
+                      )
+                      AND (
+                          p0.valid_to IS NULL
+                          OR TRY_CAST(d.season AS INTEGER) < TRY_CAST(
+                              LEFT(CAST(p0.valid_to AS VARCHAR), 4) AS INTEGER
+                          )
+                      )
+                ) matching_player_rows
+            ) p ON TRUE
+        )
         SELECT
             d.person_id,
             d.season,
@@ -21,10 +66,9 @@ class AnalyticsDraftValueTransformer(SqlTransformer):
             d.round_pick,
             d.overall_pick,
             d.team_id,
-            -- is_current=TRUE: player name from current record; team_id from fact table
-            COALESCE(p.full_name, d.player_name) AS player_name,
-            p.position,
-            p.country,
+            COALESCE(d.as_of_player_name, d.player_name) AS player_name,
+            d.as_of_position AS position,
+            d.as_of_country AS country,
             c.career_gp,
             c.career_pts,
             c.career_ppg,
@@ -35,7 +79,6 @@ class AnalyticsDraftValueTransformer(SqlTransformer):
             c.seasons_played,
             c.first_season,
             c.last_season
-        FROM fact_draft d
+        FROM draft_enriched d
         LEFT JOIN agg_player_career c ON d.person_id = c.player_id
-        LEFT JOIN dim_player p ON d.person_id = p.player_id AND p.is_current = TRUE
     """

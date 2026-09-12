@@ -6,6 +6,17 @@ from nbadb.schemas.base import BaseSchema
 
 
 class FactLineupStatsSchema(BaseSchema):
+    """Canonical lineup totals reconciled across the two lineup endpoints."""
+
+    __consumer_metadata__ = {
+        "grain": "lineup-team-season-season_type",
+        "agent_intents": ["lineups", "lineup_stats", "lineup_efficiency"],
+        "join_hints": {
+            "dim_team": "team_id",
+            "bridge_lineup_player": "group_id + team_id + season_year",
+        },
+    }
+
     group_set: str = pa.Field(
         metadata={
             "source": ("LeagueDashLineups.Lineups.GROUP_SET"),
@@ -55,6 +66,15 @@ class FactLineupStatsSchema(BaseSchema):
         metadata={
             "source": ("LeagueDashLineups.Lineups.L"),
             "description": "Losses",
+        },
+    )
+    w_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashLineups.Lineups.W_PCT",
+            "description": "Provider lineup win percentage",
         },
     )
     min: float | None = pa.Field(
@@ -190,6 +210,30 @@ class FactLineupStatsSchema(BaseSchema):
             "description": "Blocks",
         },
     )
+    blka: int | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": "LeagueDashLineups.Lineups.BLKA",
+            "description": "Lineup field-goal attempts blocked",
+        },
+    )
+    pf: int | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": "LeagueDashLineups.Lineups.PF",
+            "description": "Lineup personal fouls",
+        },
+    )
+    pfd: int | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": "LeagueDashLineups.Lineups.PFD",
+            "description": "Lineup personal fouls drawn",
+        },
+    )
     pts: int | None = pa.Field(
         nullable=True,
         ge=0,
@@ -208,13 +252,44 @@ class FactLineupStatsSchema(BaseSchema):
     net_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": ("LeagueDashLineups.Lineups.NET_RATING"),
-            "description": "Net rating",
+            "source": "LeagueDashLineups.Lineups.NET_RATING",
+            "description": (
+                "Provider advanced net rating; null until the Advanced measure request "
+                "surface is captured"
+            ),
+        },
+    )
+    season_type: str = pa.Field(
+        metadata={
+            "source": "request.season_type",
+            "description": "Season type (Regular Season, Playoffs, etc.)",
+        },
+    )
+    lineup_source: str = pa.Field(
+        isin=["league", "team"],
+        metadata={
+            "source": "derived.lineup_source",
+            "description": "Selected source after league-first exact reconciliation",
+        },
+    )
+    lineup_source_count: int = pa.Field(
+        ge=1,
+        le=2,
+        metadata={
+            "source": "derived.lineup_source_count",
+            "description": "Number of agreeing lineup endpoints observed",
+        },
+    )
+    lineup_source_coverage: str = pa.Field(
+        isin=["league", "team", "league+team"],
+        metadata={
+            "source": "derived.lineup_source_coverage",
+            "description": "Ordered inventory of agreeing lineup endpoints",
         },
     )
     season_year: str = pa.Field(
         metadata={
-            "source": "derived.season_year",
+            "source": "request.season",
             "description": ("Season year (e.g. 2024-25)"),
         },
     )

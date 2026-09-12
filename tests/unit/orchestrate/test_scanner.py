@@ -6,6 +6,8 @@ from unittest.mock import patch
 import duckdb
 import pytest
 
+from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.orchestrate.public_value_authority_store import PUBLIC_VALUE_AUTHORITY_TABLES
 from nbadb.orchestrate.scanner import (
     DataScanner,
     ScanCategory,
@@ -14,6 +16,12 @@ from nbadb.orchestrate.scanner import (
     ScanSeverity,
     validate_full_publication_checkpoint_report,
 )
+from nbadb.orchestrate.w2_database_assurance import verify_w2_database_authority
+from tests.unit.orchestrate.test_w2_database_assurance import (
+    _complete_one_call,
+    _relation_counts,
+)
+from tests.unit.orchestrate.test_w2_operation_coordinator import _candidate, _coordinate
 
 _VALIDATOR = "nbadb.orchestrate.transformers.require_complete_transformer_universe"
 
@@ -271,6 +279,128 @@ def _stub_transformer(output_table: str, depends_on: list[str] | None = None):
     s.output_table = output_table
     s.depends_on = depends_on or []
     return s
+
+
+def _scan_w2_only(connection: duckdb.DuckDBPyConnection) -> ScanReport:
+    with (
+        patch.object(DataScanner, "_assure_transformer_discovery"),
+        patch.object(
+            DataScanner,
+            "_check_full_publication_raw_authority_tables",
+            return_value=False,
+        ),
+        patch.object(DataScanner, "_check_request_closure_inventory", return_value=None),
+        patch.object(DataScanner, "_check_full_publication_anchors"),
+        patch.object(DataScanner, "_check_full_publication_cardinality"),
+    ):
+        return DataScanner(connection).scan(
+            categories=["w2_database_authority_only"],
+            full_publication=True,
+        )
+
+
+def _w2_errors(report: ScanReport) -> list[ScanFinding]:
+    return [
+        finding
+        for finding in report.findings
+        if finding.check == "w2_database_authority_unverified"
+    ]
+
+
+def test_full_publication_binds_exact_six_w2_database_authority(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> None:
+    connection = duckdb_memory_with_pipeline_tables
+    _complete_one_call(connection)
+    before = _relation_counts(connection)
+    expected = verify_w2_database_authority(connection, require_w2=True)
+
+    report = _scan_w2_only(connection)
+
+    assert _w2_errors(report) == []
+    assert report.evidence == {"w2_database_authority": expected.to_dict()}
+    assert len(expected.w2_relation_row_counts) == 6
+    assert dict(expected.w2_relation_row_counts) == before
+    assert _relation_counts(connection) == before
+
+
+def test_generic_scan_does_not_require_or_emit_w2_database_authority(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> None:
+    with (
+        patch.object(DataScanner, "_assure_transformer_discovery"),
+        patch(
+            "nbadb.orchestrate.w2_database_assurance.verify_w2_database_authority",
+            side_effect=AssertionError("generic scan reached W2 verifier"),
+        ) as verifier,
+    ):
+        report = DataScanner(duckdb_memory_with_pipeline_tables).scan(
+            categories=["w2_database_authority_only"]
+        )
+
+    assert report.evidence == {}
+    assert _w2_errors(report) == []
+    verifier.assert_not_called()
+
+
+def test_full_publication_rejects_missing_w2_database_authority(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> None:
+    PipelineJournal(duckdb_memory_with_pipeline_tables)
+
+    report = _scan_w2_only(duckdb_memory_with_pipeline_tables)
+
+    assert report.evidence == {}
+    assert len(_w2_errors(report)) == 1
+
+
+def test_full_publication_rejects_partial_exact_six_w2_database_authority(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> None:
+    connection = duckdb_memory_with_pipeline_tables
+    _complete_one_call(connection)
+    relation_counts = _relation_counts(connection)
+    nonempty_public = next(
+        table_name
+        for table_name in PUBLIC_VALUE_AUTHORITY_TABLES
+        if relation_counts[table_name] > 0
+    )
+    connection.execute(f'DELETE FROM "{nonempty_public}"')
+
+    report = _scan_w2_only(connection)
+
+    assert report.evidence == {}
+    assert len(_w2_errors(report)) == 1
+
+
+def test_full_publication_rejects_orphan_w2_database_authority(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> None:
+    connection = duckdb_memory_with_pipeline_tables
+    PipelineJournal(connection)
+    candidate, public_store, operation_store = _candidate(connection)
+    _coordinate(candidate, public_store, operation_store)
+
+    report = _scan_w2_only(connection)
+
+    assert report.evidence == {}
+    assert len(_w2_errors(report)) == 1
+
+
+def test_full_publication_rejects_mutated_w2_database_authority(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> None:
+    connection = duckdb_memory_with_pipeline_tables
+    _complete_one_call(connection)
+    connection.execute(
+        "UPDATE raw_nba_api_request_observation SET observation_record_sha256 = ?",
+        ["f" * 64],
+    )
+
+    report = _scan_w2_only(connection)
+
+    assert report.evidence == {}
+    assert len(_w2_errors(report)) == 1
 
 
 class _FailingSchemaIntrospectionConnection:
@@ -585,7 +715,11 @@ class TestMissingTableChecks:
                 full_publication=True,
             )
 
-        errors = empty.filter(severity=ScanSeverity.ERROR)
+        errors = [
+            finding
+            for finding in empty.filter(severity=ScanSeverity.ERROR)
+            if finding.check == "empty_publication_domain"
+        ]
         assert len(errors) == 1
         assert errors[0].table == "publication_domain:representative"
         assert errors[0].check == "empty_publication_domain"
@@ -620,7 +754,11 @@ class TestMissingTableChecks:
                 full_publication=True,
             )
 
-        errors = report.filter(severity=ScanSeverity.ERROR)
+        errors = [
+            finding
+            for finding in report.filter(severity=ScanSeverity.ERROR)
+            if finding.check == "publication_cardinality_mismatch"
+        ]
         assert len(errors) == 1
         assert errors[0].check == "publication_cardinality_mismatch"
         assert errors[0].details["source_row_count"] == 2

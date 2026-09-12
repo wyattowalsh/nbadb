@@ -4,6 +4,8 @@ import ast
 import json
 from typing import TYPE_CHECKING
 
+import pytest
+
 from nbadb.orchestrate.staging_map import StagingEntry
 
 if TYPE_CHECKING:
@@ -426,6 +428,27 @@ class _OpenPassthroughSchema:
 
 class StagingFooSchema(_OpenPassthroughSchema):
     foo_id: int
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_pinned_result_set_contract_staging_schema(project_root: Path) -> None:
+    staging_dir = project_root / "src" / "nbadb" / "schemas" / "staging"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    (staging_dir / "__init__.py").write_text("", encoding="utf-8")
+    (staging_dir / "legacy_versions.py").write_text(
+        """
+class _PinnedLegacyResultSetSchema:
+    @classmethod
+    def to_schema(cls):
+        raise NotImplementedError
+
+
+class StagingFooSchema(_PinnedLegacyResultSetSchema):
+    runtime_class_name = "FooEndpoint"
+    result_set_name = "PrimarySet"
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -859,6 +882,9 @@ class BlockedSeasonExtractor(BaseExtractor):
 
     supported_regular = rows["historical_season:stg_historical_season:Regular Season:0"]
     assert supported_regular["historical_start_season"] == 2001
+    assert supported_regular["planner_start_season"] == 2001
+    assert supported_regular["planner_start_basis"] == "declared_provider_floor"
+    assert supported_regular["availability_state"] == "unknown"
     assert supported_regular["season_type_capability"] == "supported"
     assert supported_regular["supported_season_types"] == [
         "Regular Season",
@@ -870,6 +896,9 @@ class BlockedSeasonExtractor(BaseExtractor):
     assert blocked_row["season_type"] is None
     assert blocked_row["season_type_capability"] == "blocked"
     assert blocked_row["historical_start_season"] == 2010
+    assert blocked_row["planner_start_season"] == 2010
+    assert blocked_row["planner_start_basis"] == "declared_provider_floor"
+    assert blocked_row["availability_state"] == "unknown"
 
 
 def test_build_artifacts_canonicalizes_aliases_and_keeps_extractor_only_endpoints(
@@ -1420,6 +1449,10 @@ def test_build_artifacts_keeps_canonical_contract_for_alias_only_runtime_filter(
             "parameters": [],
             "required_parameters": [],
             "nullable_parameters": [],
+            "parameter_defaults": [],
+            "parameter_query_names": [],
+            "request_method": "GET",
+            "parser_kind": "legacy_result_sets",
             "deprecated": False,
             "warnings": [],
             "result_sets": [],
@@ -1554,6 +1587,10 @@ def test_build_artifacts_includes_upstream_contracts_and_diff(
             "parameters": ["season"],
             "required_parameters": ["season"],
             "nullable_parameters": [],
+            "parameter_defaults": [],
+            "parameter_query_names": [],
+            "request_method": "GET",
+            "parser_kind": "legacy_result_sets",
             "deprecated": False,
             "warnings": ["synthetic_warning"],
             "result_sets": [
@@ -2404,6 +2441,59 @@ def test_upstream_field_fate_detects_open_passthrough_schema_base(
     assert fate_by_field["extra_metric"]["schema_behavior"] == "passthrough"
 
 
+def test_upstream_field_fate_recognizes_pinned_dynamic_result_set_schema(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import nbadb.core.endpoint_coverage as endpoint_coverage
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    _write_pinned_result_set_contract_staging_schema(project_root)
+    contract = NbaApiEndpointContract(
+        runtime_class_name="FooEndpoint",
+        module_name="nba_api.stats.endpoints.fooendpoint",
+        endpoint_slug="fooendpoint",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="FooEndpoint",
+                result_set_index=0,
+                result_set_name="PrimarySet",
+                expected_columns=("FOO_ID", "EXTRA_METRIC"),
+                source="expected_data",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        endpoint_coverage,
+        "discover_runtime_endpoint_contracts",
+        lambda: {"FooEndpoint": contract},
+    )
+
+    artifacts = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=[StagingEntry("foo_endpoint", "stg_foo", "season")],
+    ).build_artifacts(
+        runtime_endpoint_classes={"FooEndpoint"},
+        runtime_version="contract-runtime",
+    )
+
+    assert artifacts["summary"]["upstream_contract"]["field_gap_count"] == 0
+    assert artifacts["summary"]["upstream_field_fate"]["missing_sink_count"] == 0
+    fate_by_field = {row["field_name"]: row for row in artifacts["upstream_field_fate"]["matrix"]}
+    assert fate_by_field["foo_id"]["field_fate"] == "sink_declared_staging_only"
+    assert fate_by_field["extra_metric"]["field_fate"] == "sink_declared_staging_only"
+    assert fate_by_field["extra_metric"]["schema_behavior"] == "pinned_contract"
+
+
 def test_upstream_field_fate_resolves_result_sets_by_schema_when_order_differs() -> None:
     from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
     from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
@@ -3148,6 +3238,67 @@ def test_model_ownership_decision_maps_do_not_overlap() -> None:
     } <= statuses
 
 
+@pytest.mark.parametrize(
+    ("runtime_class", "expected_surface"),
+    [
+        ("LeagueStandings", "league_standings_legacy"),
+        ("PlayByPlay", "play_by_play_legacy"),
+        ("LeagueStandingsV3", "league_standings"),
+        ("PlayByPlayV3", "play_by_play"),
+    ],
+)
+def test_runtime_surface_names_preserve_physical_legacy_classes(
+    runtime_class: str,
+    expected_surface: str,
+) -> None:
+    from nbadb.core.endpoint_coverage import _runtime_class_to_surface_name
+
+    known_surfaces = {
+        "league_standings",
+        "league_standings_legacy",
+        "play_by_play",
+        "play_by_play_legacy",
+    }
+
+    assert _runtime_class_to_surface_name(runtime_class, known_surfaces) == expected_surface
+
+
+def test_runtime_static_surface_discovery_includes_all_pinned_datasets() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    assert EndpointCoverageGenerator._discover_runtime_static_surfaces() == {
+        "players",
+        "teams",
+        "wnba_players",
+        "wnba_teams",
+    }
+
+
+@pytest.mark.parametrize(
+    "endpoint_name",
+    [
+        "box_score_advanced_v2",
+        "box_score_four_factors_v2",
+        "box_score_misc_v2",
+        "box_score_scoring_v2",
+        "box_score_traditional_v2",
+        "box_score_usage_v2",
+        "league_standings_legacy",
+        "play_by_play_legacy",
+    ],
+)
+def test_legacy_and_v2_surfaces_have_explicit_silver_only_ownership(
+    endpoint_name: str,
+) -> None:
+    from nbadb.core.endpoint_coverage import _ownership_override_for_endpoint
+
+    status, reason = _ownership_override_for_endpoint(endpoint_name)
+
+    assert status == "compatibility_reference_only"
+    assert reason is not None
+    assert "silver" in reason
+
+
 def test_temporal_coverage_matrix_expands_supported_seasons(
     tmp_path: Path,
     monkeypatch,
@@ -3181,6 +3332,64 @@ def test_temporal_coverage_matrix_expands_supported_seasons(
     assert {row["season"] for row in matrix} == {"2024-25"}
     assert {row["actual_status"] for row in matrix} == {"staged"}
     assert artifacts["summary"]["temporal_coverage"]["required_temporal_missing_count"] == 0
+
+
+def test_temporal_coverage_projects_upstream_unavailable_and_support_rules(
+    monkeypatch,
+) -> None:
+    import nbadb.core.endpoint_coverage as endpoint_coverage
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    ledger_summary = {
+        "full_extraction_support_rule_count": len(endpoint_coverage.FULL_EXTRACTION_SUPPORT_RULES),
+        "full_extraction_support_rule_digest": "rule-digest",
+    }
+    ledger = {
+        "summary": ledger_summary,
+        "ledger": [
+            {
+                "endpoint_name": "foo_endpoint",
+                "staging_key": "stg_foo",
+                "result_set_index": 0,
+                "param_pattern": "season",
+                "historical_start_season": None,
+                "planner_start_season": 1946,
+                "planner_start_basis": "fallback_attempt_unverified",
+                "availability_state": "unknown",
+                "deprecated_after": None,
+                "season_type": "PlayIn",
+                "input_schema_present": False,
+            },
+            {
+                "endpoint_name": "video_details",
+                "staging_key": "stg_video_details",
+                "result_set_index": 0,
+                "param_pattern": "player_team_season",
+                "historical_start_season": None,
+                "planner_start_season": 1946,
+                "planner_start_basis": "fallback_attempt_unverified",
+                "availability_state": "unknown",
+                "deprecated_after": None,
+                "season_type": "Regular Season",
+                "input_schema_present": False,
+            },
+        ],
+    }
+    monkeypatch.setattr(endpoint_coverage, "season_range", lambda start, end=None: ["1946-47"])
+
+    result = EndpointCoverageGenerator._build_temporal_coverage_matrix(ledger)
+
+    by_endpoint = {row["endpoint_name"]: row for row in result["matrix"]}
+    assert by_endpoint["foo_endpoint"]["expected_status"] == "upstream_unavailable"
+    assert by_endpoint["foo_endpoint"]["reason"] == "competition_not_held_before_2019_20"
+    assert by_endpoint["video_details"]["expected_status"] == "contract_blocked"
+    assert by_endpoint["video_details"]["support_rule_ids"]
+    assert result["summary"]["required_temporal_missing_count"] == 0
+    assert result["summary"]["expected_status_breakdown"] == {
+        "contract_blocked": 1,
+        "upstream_unavailable": 1,
+    }
+    assert result["summary"]["full_extraction_support_rule_digest"] == "rule-digest"
 
 
 def test_build_artifacts_writes_upstream_contract_artifacts(
@@ -3377,7 +3586,10 @@ def test_build_artifacts_includes_strict_support_contract_summary(tmp_path: Path
     assert support_rows["foo_endpoint"]["param_patterns"] == ["season"]
     assert support_rows["foo_endpoint"]["contract_status"] == "gap"
     assert support_rows["foo_endpoint"]["season_type_contract_status"] == "supported"
-    assert support_rows["foo_endpoint"]["earliest_supported_season"] == 1946
+    assert support_rows["foo_endpoint"]["earliest_supported_season"] is None
+    assert support_rows["foo_endpoint"]["planner_start_season"] == 1946
+    assert support_rows["foo_endpoint"]["planner_start_basis"] == "fallback_attempt_unverified"
+    assert support_rows["foo_endpoint"]["availability_state"] == "unknown"
     assert support_rows["foo_endpoint"]["contract_gaps"] == ["input_schema_missing"]
     assert support_rows["static_players"]["execution_semantics"] == "reference_snapshot"
     assert support_rows["static_players"]["contract_status"] == "gap"
@@ -3404,6 +3616,26 @@ def test_build_artifacts_includes_strict_support_contract_summary(tmp_path: Path
     assert support_summary["season_type_contract_open_count"] == 2
     assert support_summary["season_type_contract_untracked_count"] == 2
     assert "staging_only" not in support_summary["gap_breakdown"]
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "param_patterns", "expected"),
+    [
+        ("stats", {"season"}, "historical_backfill"),
+        ("stats", {"player"}, "reference_snapshot"),
+        ("stats", {"team"}, "reference_snapshot"),
+        ("static", {"season"}, "reference_snapshot"),
+        ("live", {"game"}, "live_snapshot"),
+    ],
+)
+def test_execution_semantics_do_not_promote_reference_scopes_to_history(
+    source_kind: str,
+    param_patterns: set[str],
+    expected: str,
+) -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    assert EndpointCoverageGenerator._execution_semantics(source_kind, param_patterns) == expected
 
 
 def test_support_matrix_merges_runtime_and_staging_param_patterns(tmp_path: Path) -> None:

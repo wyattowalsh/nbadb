@@ -1,11 +1,30 @@
-"""CommonAllPlayers year-window snapshot for discovery seed fallback."""
+"""Legacy CommonAllPlayers year-window snapshot for discovery diagnostics.
+
+The payload remains preserved because prior full-extraction planning consumed
+it, but its original response and generator receipt are unavailable.  The
+exact pinned v1.11.4 fixture does not reproduce this inventory, so this module
+must not authorize a new extraction until that evidence is recovered or the
+snapshot is replaced through an explicit contract decision.
+"""
 
 from __future__ import annotations
+
+import hashlib
+import json
+from typing import Any
 
 SNAPSHOT_SOURCE = "nba_api CommonAllPlayers"
 SNAPSHOT_NBA_API_VERSION = "1.11.4"
 SNAPSHOT_COMPLETE_THROUGH_SEASON = "2025-26"
 SNAPSHOT_COMPLETE_THROUGH_YEAR = 2025
+SNAPSHOT_AUTHORITY_STATUS = "blocked_pending_evidence"
+SNAPSHOT_ROW_COUNT = 5_197
+SNAPSHOT_CANONICAL_SHA256 = "bfeb064aa8c3db7a008fada249b06654a59ed216e639220ab68e8bf39831462a"
+SNAPSHOT_BLOCKING_REASON = (
+    "The original CommonAllPlayers response, request receipt, capture time, and "
+    "deterministic generator are unavailable; the exact nba_api v1.11.4 fixture "
+    "does not reproduce this snapshot."
+)
 
 PLAYER_YEAR_WINDOWS: tuple[tuple[int, int, int], ...] = (
     (2, 1983, 1996),
@@ -5208,6 +5227,50 @@ PLAYER_YEAR_WINDOWS: tuple[tuple[int, int, int], ...] = (
 )
 
 
+def player_directory_snapshot_authority() -> dict[str, Any]:
+    """Return deterministic integrity evidence and the explicit authority status."""
+
+    encoded = json.dumps(PLAYER_YEAR_WINDOWS, separators=(",", ":")).encode("utf-8")
+    observed_digest = hashlib.sha256(encoded).hexdigest()
+    unique_ids = {person_id for person_id, _from_year, _to_year in PLAYER_YEAR_WINDOWS}
+    integrity_errors: list[str] = []
+    if len(PLAYER_YEAR_WINDOWS) != SNAPSHOT_ROW_COUNT:
+        integrity_errors.append("snapshot_row_count_mismatch")
+    if len(unique_ids) != SNAPSHOT_ROW_COUNT:
+        integrity_errors.append("snapshot_person_id_duplicate")
+    if tuple(sorted(PLAYER_YEAR_WINDOWS)) != PLAYER_YEAR_WINDOWS:
+        integrity_errors.append("snapshot_order_mismatch")
+    if observed_digest != SNAPSHOT_CANONICAL_SHA256:
+        integrity_errors.append("snapshot_digest_mismatch")
+    if any(
+        person_id <= 0 or from_year > to_year
+        for person_id, from_year, to_year in PLAYER_YEAR_WINDOWS
+    ):
+        integrity_errors.append("snapshot_value_invariant_failed")
+    return {
+        "schema_version": 1,
+        "status": SNAPSHOT_AUTHORITY_STATUS,
+        "source_claim": SNAPSHOT_SOURCE,
+        "claimed_nba_api_version": SNAPSHOT_NBA_API_VERSION,
+        "complete_through_season": SNAPSHOT_COMPLETE_THROUGH_SEASON,
+        "row_count": len(PLAYER_YEAR_WINDOWS),
+        "canonical_sha256": observed_digest,
+        "integrity_verified": not integrity_errors,
+        "integrity_errors": integrity_errors,
+        "blocking_reason": SNAPSHOT_BLOCKING_REASON,
+    }
+
+
+def require_player_directory_snapshot_authority() -> None:
+    """Fail closed while provenance cannot independently authorize this snapshot."""
+
+    authority = player_directory_snapshot_authority()
+    if authority["status"] != "verified" or not authority["integrity_verified"]:
+        raise RuntimeError(
+            f"player directory snapshot is not extraction-authoritative: {SNAPSHOT_BLOCKING_REASON}"
+        )
+
+
 def _season_start_year(season: str) -> int | None:
     try:
         return int(str(season)[:4])
@@ -5216,6 +5279,10 @@ def _season_start_year(season: str) -> int | None:
 
 
 def player_ids_by_season_from_snapshot(seasons: list[str]) -> dict[str, list[int]]:
+    """Return snapshot rows only after the artifact is extraction-authoritative."""
+
+    require_player_directory_snapshot_authority()
+
     ids_by_season: dict[str, list[int]] = {}
     for season in sorted({season for season in seasons if season}):
         start_year = _season_start_year(season)

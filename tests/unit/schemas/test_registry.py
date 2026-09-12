@@ -29,8 +29,16 @@ from nbadb.schemas.staging.live import StagingLiveScoreBoardSchema
 from nbadb.schemas.staging.misc import (
     StagingVideoDetailsAssetSchema,
     StagingVideoDetailsSchema,
+    StagingVideoEventsAssetSchema,
     StagingVideoEventsSchema,
     StagingVideoStatusSchema,
+)
+from nbadb.schemas.staging.misc_static_support import (
+    StagingStaticWnbaPlayersSchema,
+    StagingStaticWnbaTeamsSchema,
+)
+from nbadb.schemas.staging.nba_api_lossless import (
+    StagingNbaApiLosslessResultCellsSchema,
 )
 from nbadb.schemas.staging.play_by_play import StagingPlayByPlayV2VideoAvailableSchema
 from nbadb.schemas.staging.schedule import (
@@ -81,10 +89,15 @@ from nbadb.schemas.star.player_team_family_support import (
 from nbadb.schemas.star.fact_video_support import (
     FactVideoDetailsAssetSchema,
     FactVideoDetailsSchema,
+    FactVideoEventsAssetSchema,
     FactVideoEventsSchema,
     FactVideoStatusSchema,
 )
 from nbadb.schemas.star.live import FactLiveScoreBoardSchema
+from nbadb.schemas.star.misc_static_support import (
+    FactStaticWnbaPlayersSchema,
+    FactStaticWnbaTeamsSchema,
+)
 
 
 def test_get_input_schema_returns_direct_staging_schema() -> None:
@@ -108,6 +121,18 @@ def test_get_input_schema_returns_live_staging_schema() -> None:
     assert get_input_schema("stg_live_score_board") is StagingLiveScoreBoardSchema
 
 
+def test_get_input_schema_returns_wnba_static_staging_schemas() -> None:
+    assert get_input_schema("stg_static_wnba_players") is StagingStaticWnbaPlayersSchema
+    assert get_input_schema("stg_static_wnba_teams") is StagingStaticWnbaTeamsSchema
+
+
+def test_get_input_schema_discovers_lossless_nba_api_fallback() -> None:
+    assert (
+        get_input_schema("stg_nba_api_lossless_result_cells")
+        is StagingNbaApiLosslessResultCellsSchema
+    )
+
+
 def test_get_input_schema_returns_alias_target_schema() -> None:
     assert get_input_schema("stg_player_info") is RawCommonPlayerInfoSchema
 
@@ -122,6 +147,11 @@ def test_get_output_schema_returns_star_schema() -> None:
 
 def test_get_output_schema_returns_live_star_schema() -> None:
     assert get_output_schema("fact_live_score_board") is FactLiveScoreBoardSchema
+
+
+def test_get_output_schema_returns_wnba_static_star_schemas() -> None:
+    assert get_output_schema("fact_static_wnba_players") is FactStaticWnbaPlayersSchema
+    assert get_output_schema("fact_static_wnba_teams") is FactStaticWnbaTeamsSchema
 
 
 def test_all_staging_map_keys_resolve_to_input_schemas() -> None:
@@ -170,6 +200,7 @@ def test_all_discovered_transform_outputs_have_star_schemas() -> None:
         ("stg_video_details", StagingVideoDetailsSchema),
         ("stg_video_details_asset", StagingVideoDetailsAssetSchema),
         ("stg_video_events", StagingVideoEventsSchema),
+        ("stg_video_events_asset", StagingVideoEventsAssetSchema),
         ("stg_video_status", StagingVideoStatusSchema),
     ],
 )
@@ -214,6 +245,7 @@ def test_get_input_schema_returns_leader_family_support_contracts(
         ("fact_video_details", FactVideoDetailsSchema),
         ("fact_video_details_asset", FactVideoDetailsAssetSchema),
         ("fact_video_events", FactVideoEventsSchema),
+        ("fact_video_events_asset", FactVideoEventsAssetSchema),
         ("fact_video_status", FactVideoStatusSchema),
     ],
 )
@@ -222,3 +254,14 @@ def test_get_output_schema_returns_leader_family_star_contracts(
     expected_schema: type,
 ) -> None:
     assert get_output_schema(table_name) is expected_schema
+
+
+def test_video_event_schemas_reuse_exact_stats_lossless_columns_only() -> None:
+    lossless_columns = tuple(StagingNbaApiLosslessResultCellsSchema.to_schema().columns)
+
+    assert tuple(StagingVideoEventsSchema.to_schema().columns) == lossless_columns
+    assert tuple(StagingVideoEventsAssetSchema.to_schema().columns) == lossless_columns
+    assert tuple(FactVideoEventsSchema.to_schema().columns) == lossless_columns
+    assert tuple(FactVideoEventsAssetSchema.to_schema().columns) == lossless_columns
+    assert tuple(StagingVideoDetailsSchema.to_schema().columns) != lossless_columns
+    assert tuple(StagingVideoDetailsAssetSchema.to_schema().columns) != lossless_columns

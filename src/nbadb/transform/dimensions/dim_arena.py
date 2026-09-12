@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import TYPE_CHECKING, ClassVar
 
 from nbadb.transform.base import BaseTransformer
 
 if TYPE_CHECKING:
     import polars as pl
+
+_MAX_SIGNED_BIGINT = (1 << 63) - 1
+
+
+def _stable_arena_id(value: dict[str, str | None]) -> int:
+    """Return a reproducible positive BIGINT for one exact name/city identity."""
+
+    identity = json.dumps(
+        [value["arena_name"], value["arena_city"]],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+    return int.from_bytes(hashlib.sha256(identity).digest()[:8], "big") % _MAX_SIGNED_BIGINT + 1
 
 
 class DimArenaTransformer(BaseTransformer):
@@ -42,20 +57,23 @@ class DimArenaTransformer(BaseTransformer):
         )
 
         arenas = arenas.with_columns(
-            (pl.concat_str(["arena_name", "arena_city"], separator="|").hash() % 2_147_483_647 + 1)
-            .cast(pl.Int32)
+            pl.struct("arena_name", "arena_city")
+            .map_elements(_stable_arena_id, return_dtype=pl.Int64)
             .alias("arena_id")
         )
 
-        return (
+        result = (
             arenas.select(
-                pl.col("arena_id").cast(pl.Int32),
+                pl.col("arena_id").cast(pl.Int64),
                 "arena_name",
-                "arena_city",
-                "arena_state",
-                "arena_country",
-                "arena_timezone",
+                pl.col("arena_city").alias("city"),
+                pl.col("arena_state").alias("state"),
+                pl.col("arena_country").alias("country"),
+                pl.col("arena_timezone").alias("timezone"),
             )
             .sort("arena_name")
             .collect()
         )
+        if result["arena_id"].n_unique() != result.height:
+            raise ValueError("deterministic arena surrogate collision")
+        return result

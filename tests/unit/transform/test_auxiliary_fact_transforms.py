@@ -38,6 +38,9 @@ class TestFactShotChartLeagueAverages:
             "stg_shot_chart_league_averages": pl.DataFrame(
                 {
                     "grid_type": ["Shot Chart Detail"],
+                    "season_year": ["2024-25"],
+                    "season_type": ["Regular Season"],
+                    "league_id": ["00"],
                     "shot_zone_basic": ["Restricted Area"],
                     "shot_zone_area": ["Center(C)"],
                     "shot_zone_range": ["Less Than 8 ft."],
@@ -49,6 +52,9 @@ class TestFactShotChartLeagueAverages:
             "stg_shot_chart_lineup_league_avg": pl.DataFrame(
                 {
                     "grid_type": ["Shot Chart Lineup Detail"],
+                    "season_year": ["2024-25"],
+                    "season_type": ["Regular Season"],
+                    "league_id": ["00"],
                     "shot_zone_basic": ["Above the Break 3"],
                     "shot_zone_area": ["Center(C)"],
                     "shot_zone_range": ["24+ ft."],

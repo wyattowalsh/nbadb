@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import MagicMock
 
 import pandas as pd
 import polars as pl
+import pytest
 
-from nbadb.extract.base import BaseExtractor
+from nbadb.extract.nba_api_adapter import NbaApiResultPacket
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -34,12 +34,36 @@ def _fixture_to_pandas(fixture: dict[str, Any], result_set_idx: int = 0) -> pd.D
     return pd.DataFrame(rs["rowSet"], columns=rs["headers"])
 
 
-def _mock_endpoint(fixture: dict[str, Any]) -> MagicMock:
-    """Create a MagicMock endpoint that returns fixture data as pandas DFs."""
-    mock = MagicMock()
-    dfs = [_fixture_to_pandas(fixture, i) for i in range(len(fixture["resultSets"]))]
-    mock.return_value.get_data_frames.return_value = dfs
-    return mock
+def _mock_endpoint(fixture: dict[str, Any]) -> type:
+    """Build a callable endpoint class that returns fixture data as pandas DFs."""
+    frames = [_fixture_to_pandas(fixture, i) for i in range(len(fixture["resultSets"]))]
+
+    class _FixtureEndpoint:
+        def __init__(self, **_kwargs: object) -> None:
+            self._frames = frames
+
+        def get_data_frames(self) -> list[pd.DataFrame]:
+            return list(self._frames)
+
+    return _FixtureEndpoint
+
+
+@pytest.fixture(autouse=True)
+def _adapt_fixture_endpoint_mocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fetch(endpoint_cls: type, **kwargs: Any) -> tuple[NbaApiResultPacket, ...]:
+        endpoint = endpoint_cls(**kwargs)
+        return tuple(
+            NbaApiResultPacket(
+                name=f"Result{index}",
+                provider_index=index,
+                canonical_index=index,
+                headers=tuple(str(column) for column in frame.columns),
+                frame=pl.from_pandas(frame),
+            )
+            for index, frame in enumerate(endpoint.get_data_frames())
+        )
+
+    monkeypatch.setattr("nbadb.extract.base.fetch_stats_packets", _fetch)
 
 
 # ---------------------------------------------------------------------------
@@ -55,8 +79,6 @@ class TestBoxScoreTraditionalExtract:
         mock_ep = _mock_endpoint(fixture)
 
         ext = BoxScoreTraditionalExtractor()
-        ext._from_nba_api = lambda ep_cls, **kw: BaseExtractor._from_nba_api(ext, mock_ep, **kw)
-
         result = ext._from_nba_api(mock_ep, game_id="0022400001")
         assert isinstance(result, pl.DataFrame)
         assert result.shape[0] == 2

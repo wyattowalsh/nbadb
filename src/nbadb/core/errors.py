@@ -84,6 +84,30 @@ class ExtractionError(IrrecoverableError):
     pass
 
 
+class ResponseContractError(ExtractionError):
+    """Upstream response violated an nbadb-owned extraction contract.
+
+    This exception is intentionally distinct from :class:`ValidationError`.
+    It covers malformed JSON/envelopes, missing or reordered result sets,
+    invalid headers, and row-shape drift at the provider boundary.  The
+    orchestration layer classifies it as ``response_contract`` and must not
+    treat it as a retryable transport failure.
+    """
+
+    pass
+
+
+class ParserInputCaptureIntegrityError(ExtractionError):
+    """Private parser-input evidence is incomplete or inconsistent.
+
+    This is an nbadb-local durability failure, not evidence that the upstream
+    response contract changed. It must fail the runner without feeding provider
+    response-contract circuits or server quarantine.
+    """
+
+    pass
+
+
 class TransformError(IrrecoverableError):
     """Transform-specific error.
 

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import polars as pl
 import pytest
 
+from nbadb.extract.nba_api_adapter import NbaApiResultPacket
 from nbadb.extract.stats.box_scores import BoxScoreTraditionalExtractor
 
 FIXTURE_PATH = "tests/fixtures/raw_box_score_traditional.json"
@@ -25,6 +26,24 @@ def _mock_nba_api_response(fixture: dict) -> MagicMock:
     mock_cls = MagicMock()
     mock_cls.return_value.get_data_frames.return_value = [pdf]
     return mock_cls
+
+
+@pytest.fixture(autouse=True)
+def _adapt_fixture_endpoint_mocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fetch(endpoint_cls: type, **kwargs: object) -> tuple[NbaApiResultPacket, ...]:
+        endpoint = endpoint_cls(**kwargs)
+        return tuple(
+            NbaApiResultPacket(
+                name=f"Result{index}",
+                provider_index=index,
+                canonical_index=index,
+                headers=tuple(str(column) for column in frame.columns),
+                frame=pl.from_pandas(frame),
+            )
+            for index, frame in enumerate(endpoint.get_data_frames())
+        )
+
+    monkeypatch.setattr("nbadb.extract.base.fetch_stats_packets", _fetch)
 
 
 class TestBoxScoreTraditionalExtractor:

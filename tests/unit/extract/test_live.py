@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Any, Protocol, cast
 from unittest.mock import patch
 
 import polars as pl
@@ -13,6 +14,30 @@ from nbadb.extract.live.endpoints import (
     LivePlayByPlayExtractor,
     LiveScoreBoardExtractor,
 )
+
+
+class _LiveBoxScoreAll(Protocol):
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]: ...
+
+
+@pytest.fixture(autouse=True)
+def _adapt_live_endpoint_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fetch(
+        endpoint_cls: type,
+        packet_roots: dict[str, str],
+        **kwargs: object,
+    ) -> dict[str, object]:
+        endpoint = endpoint_cls(**kwargs)
+        return {
+            attr: (
+                getattr(endpoint, attr).get_dict()
+                if hasattr(getattr(endpoint, attr), "get_dict")
+                else getattr(endpoint, attr)
+            )
+            for attr in packet_roots
+        }
+
+    monkeypatch.setattr("nbadb.extract.base.fetch_live_payloads", _fetch)
 
 
 class _FakeDataSet:
@@ -125,7 +150,7 @@ class TestLiveBoxScoreExtractor:
         snapshot_at = datetime(2026, 4, 17, 12, 0, tzinfo=UTC)
 
         with patch("nbadb.extract.live.endpoints.BoxScore", _FakeBoxScore):
-            extractor = LiveBoxScoreExtractor()
+            extractor = cast("_LiveBoxScoreAll", LiveBoxScoreExtractor())
             frames = await extractor.extract_all(game_id="001", snapshot_at=snapshot_at)
         assert len(frames) == 7
         assert all(isinstance(frame, pl.DataFrame) for frame in frames)

@@ -229,19 +229,11 @@ class PlayerTeamSeasonWorkloadStore:
         self,
         params: list[PlanParams],
         *,
-        seasons: list[str],
-        season_types: list[str],
-        covered_pairs: set[tuple[str, str]] | None = None,
+        covered_pairs: set[tuple[str, str]],
     ) -> None:
+        target_pairs = self._validated_covered_pairs(covered_pairs)
         if not self.is_available():
             return
-
-        target_pairs: set[tuple[str, str]] = (
-            {(str(pair[0]), str(pair[1])) for pair in covered_pairs}
-            if covered_pairs is not None
-            else self._normalized_pairs(seasons, season_types)
-        )
-        self._validate_pair_names(target_pairs)
 
         existing = self._read_existing_frame_for_update()
         retained = self._exclude_pairs(existing, target_pairs)
@@ -754,15 +746,27 @@ class PlayerTeamSeasonWorkloadStore:
         ).sort(["season", "season_type", "player_id", "team_id"])
 
     @staticmethod
-    def _normalized_pairs(seasons: list[str], season_types: list[str]) -> set[tuple[str, str]]:
-        return {
-            (str(season), str(season_type)) for season in seasons for season_type in season_types
-        }
+    def _validated_covered_pairs(
+        covered_pairs: set[tuple[str, str]],
+    ) -> set[tuple[str, str]]:
+        if not isinstance(covered_pairs, set) or not covered_pairs:
+            raise ValueError(
+                "workload covered_pairs must be a non-empty set of season/season-type pairs"
+            )
 
-    @staticmethod
-    def _validate_pair_names(pairs: set[tuple[str, str]]) -> None:
-        if any(not season.strip() or not season_type.strip() for season, season_type in pairs):
-            raise ValueError("workload covered pairs require non-empty season values")
+        validated: set[tuple[str, str]] = set()
+        for pair in covered_pairs:
+            if (
+                not isinstance(pair, tuple)
+                or len(pair) != 2
+                or not isinstance(pair[0], str)
+                or not pair[0].strip()
+                or not isinstance(pair[1], str)
+                or not pair[1].strip()
+            ):
+                raise ValueError("workload covered_pairs must contain exact non-empty string pairs")
+            validated.add(pair)
+        return validated
 
     @staticmethod
     def _exclude_pairs(

@@ -326,7 +326,10 @@ class TestAnalyticsClutchPerformance:
                 "player_id": [201566],
                 "team_id": [1610612738],
                 "season_year": ["2024-25"],
+                "season_type": ["Regular Season"],
                 "clutch_window": ["last5min_5pt"],
+                "group_set": ["Overall"],
+                "group_value": ["2024-25"],
                 "gp": [50],
                 "w": [30],
                 "l": [20],
@@ -360,6 +363,8 @@ class TestAnalyticsClutchPerformance:
             {
                 "player_id": [201566],
                 "full_name": ["Russell Westbrook"],
+                "valid_from": ["2020-21"],
+                "valid_to": [None],
                 "is_current": [True],
             }
         ).lazy()
@@ -381,18 +386,22 @@ class TestAnalyticsClutchPerformance:
         assert result.shape[0] == 1
         assert result["player_name"][0] == "Russell Westbrook"
         assert result["team_abbreviation"][0] == "BOS"
+        assert result["season_type"][0] == "Regular Season"
         assert result["clutch_window"][0] == "last5min_5pt"
+        assert result["group_set"][0] == "Overall"
         assert result["pts"][0] == pytest.approx(9.0)
         assert result["net_rating"][0] == pytest.approx(8.0)
 
-    def test_null_player_name_when_not_current(self) -> None:
-        """dim_player join requires is_current = TRUE; non-current yields NULL."""
+    def test_historical_player_name_uses_matching_scd_interval(self) -> None:
         fact = pl.DataFrame(
             {
                 "player_id": [201566],
                 "team_id": [1610612738],
                 "season_year": ["2024-25"],
+                "season_type": ["Playoffs"],
                 "clutch_window": ["overall"],
+                "group_set": ["Overall"],
+                "group_value": ["2024-25"],
                 "gp": [50],
                 "w": [30],
                 "l": [20],
@@ -426,6 +435,8 @@ class TestAnalyticsClutchPerformance:
             {
                 "player_id": [201566],
                 "full_name": ["Russell Westbrook"],
+                "valid_from": ["2020-21"],
+                "valid_to": ["2025-26"],
                 "is_current": [False],
             }
         ).lazy()
@@ -445,7 +456,8 @@ class TestAnalyticsClutchPerformance:
         result = _run(AnalyticsClutchPerformanceTransformer(), staging)
 
         assert result.shape[0] == 1
-        assert result["player_name"][0] is None
+        assert result["player_name"][0] == "Russell Westbrook"
+        assert result["season_type"][0] == "Playoffs"
 
 
 # ---------------------------------------------------------------------------
@@ -458,15 +470,13 @@ class TestAnalyticsShootingEfficiency:
 
     def test_depends_on_count(self) -> None:
         t = AnalyticsShootingEfficiencyTransformer()
-        assert len(t.depends_on) == 4
+        assert len(t.depends_on) == 2
 
     def test_depends_on_contents(self) -> None:
         t = AnalyticsShootingEfficiencyTransformer()
         assert set(t.depends_on) == {
             "fact_shot_chart",
             "fact_shot_chart_league_averages",
-            "dim_player",
-            "dim_game",
         }
 
     def test_join_enriches_shots_with_league_averages(self) -> None:
@@ -474,7 +484,13 @@ class TestAnalyticsShootingEfficiency:
             {
                 "player_id": [201566],
                 "game_id": ["0022400001"],
+                "game_event_id": [42],
                 "team_id": [1610612738],
+                "player_name": ["Russell Westbrook"],
+                "league_id": ["00"],
+                "season_year": ["2024-25"],
+                "season_type": ["Playoffs"],
+                "game_date": ["2025-01-15"],
                 "shot_zone_basic": ["Mid-Range"],
                 "shot_zone_area": ["Left Side(L)"],
                 "shot_zone_range": ["8-16 ft."],
@@ -491,33 +507,19 @@ class TestAnalyticsShootingEfficiency:
                 "shot_zone_basic": ["Mid-Range"],
                 "shot_zone_area": ["Left Side(L)"],
                 "shot_zone_range": ["8-16 ft."],
+                "season_year": ["2024-25"],
+                "season_type": ["Playoffs"],
+                "league_id": ["00"],
+                "average_source": ["shot_chart_detail"],
                 "fgm": [4.2],
                 "fga": [10.5],
                 "fg_pct": [0.400],
             }
         ).lazy()
 
-        dim_player = pl.DataFrame(
-            {
-                "player_id": [201566],
-                "full_name": ["Russell Westbrook"],
-                "is_current": [True],
-            }
-        ).lazy()
-
-        dim_game = pl.DataFrame(
-            {
-                "game_id": ["0022400001"],
-                "season_year": ["2024-25"],
-                "game_date": ["2025-01-15"],
-            }
-        ).lazy()
-
         staging = {
             "fact_shot_chart": fact_shot,
             "fact_shot_chart_league_averages": fact_league_avg,
-            "dim_player": dim_player,
-            "dim_game": dim_game,
         }
         result = _run(AnalyticsShootingEfficiencyTransformer(), staging)
 
@@ -527,6 +529,10 @@ class TestAnalyticsShootingEfficiency:
         assert result["league_avg_fg_pct"][0] == pytest.approx(0.400)
         assert result["season_year"][0] == "2024-25"
         assert result["shot_made_flag"][0] == 1
+        assert result["shot_value"][0] == 2
+        assert result["actual_points"][0] == pytest.approx(2.0)
+        assert result["empirical_zone_expected_points"][0] == pytest.approx(0.8)
+        assert result["points_above_empirical_zone_expectation"][0] == pytest.approx(1.2)
 
 
 # ---------------------------------------------------------------------------

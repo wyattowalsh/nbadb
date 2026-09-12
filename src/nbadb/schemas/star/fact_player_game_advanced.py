@@ -29,6 +29,21 @@ class FactPlayerGameAdvancedSchema(BaseSchema):
             "fk_ref": "dim_team.team_id",
         },
     )
+    min: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.MIN",
+            "description": "Parsed player minutes",
+        },
+    )
+    season_year: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "derived.season_year",
+            "description": "Season identifier from the game dimension",
+        },
+    )
     off_rating: float | None = pa.Field(
         nullable=True,
         metadata={
@@ -57,7 +72,7 @@ class FactPlayerGameAdvancedSchema(BaseSchema):
             "description": "Assist percentage",
         },
     )
-    ast_to: float | None = pa.Field(
+    ast_tov: float | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("BoxScoreAdvancedV3.PlayerStats.AST_TOV"),
@@ -92,6 +107,13 @@ class FactPlayerGameAdvancedSchema(BaseSchema):
             "description": ("Total rebound percentage"),
         },
     )
+    tov_pct: float | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.TOV_PCT",
+            "description": "Turnover percentage",
+        },
+    )
     efg_pct: float | None = pa.Field(
         nullable=True,
         metadata={
@@ -121,19 +143,27 @@ class FactPlayerGameAdvancedSchema(BaseSchema):
             "description": "Pace factor",
         },
     )
+    pace_per40: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.PACE_PER40",
+            "description": "Provider pace normalized to 40 minutes",
+        },
+    )
+    poss: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": ("BoxScoreAdvancedV3.PlayerStats.POSS"),
+            "description": "Possessions",
+        },
+    )
     pie: float | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("BoxScoreAdvancedV3.PlayerStats.PIE"),
             "description": ("Player impact estimate"),
-        },
-    )
-    poss: int | None = pa.Field(
-        nullable=True,
-        ge=0,
-        metadata={
-            "source": ("BoxScoreAdvancedV3.PlayerStats.POSS"),
-            "description": "Possessions",
         },
     )
     fta_rate: float | None = pa.Field(
@@ -143,9 +173,39 @@ class FactPlayerGameAdvancedSchema(BaseSchema):
             "description": ("Free throw attempt rate"),
         },
     )
-    season_year: str = pa.Field(
+    e_off_rating: float | None = pa.Field(
+        nullable=True,
         metadata={
-            "source": "derived.season_year",
-            "description": ("Season year (e.g. 2024-25)"),
+            "source": "BoxScoreAdvancedV3.PlayerStats.E_OFF_RATING",
+            "description": "Provider estimated offensive rating",
+        },
+    )
+    e_def_rating: float | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.E_DEF_RATING",
+            "description": "Provider estimated defensive rating",
+        },
+    )
+    e_net_rating: float | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.E_NET_RATING",
+            "description": "Provider estimated net rating",
+        },
+    )
+    e_usg_pct: float | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.E_USG_PCT",
+            "description": "Provider estimated usage percentage",
+        },
+    )
+    e_pace: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreAdvancedV3.PlayerStats.E_PACE",
+            "description": "Provider estimated pace",
         },
     )

@@ -232,6 +232,22 @@ class StagingTeamAndPlayersVsPlayersSchema(_TeamComparisonStatsSchema):
     pass
 
 
+class StagingTeamAndPlayersVsPlayersTeamOffSchema(_TeamComparisonStatsSchema):
+    pass
+
+
+class StagingTeamAndPlayersVsPlayersTeamOnSchema(_TeamComparisonStatsSchema):
+    pass
+
+
+class StagingTeamAndPlayersVsPlayersTeamVsSchema(_TeamComparisonStatsSchema):
+    pass
+
+
+class StagingTeamAndPlayersVsPlayersTeamVsOffSchema(_TeamComparisonStatsSchema):
+    pass
+
+
 class StagingTapvpPlayersVsSchema(_TeamComparisonStatsSchema):
     pass
 

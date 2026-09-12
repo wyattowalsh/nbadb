@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from nbadb.core.types import SeasonType
+from nbadb.extract.live_lossless import LIVE_LOSSLESS_STAGING_KEY
 
 type ParamPattern = Literal[
     "season",
@@ -23,6 +24,11 @@ type ParamPattern = Literal[
 
 type SeasonTypeCapability = Literal["supported", "blocked", "not_applicable"]
 type SupportedSeasonTypes = tuple[str, ...]
+
+LOSSLESS_FALLBACK_STAGING_KEY = "stg_nba_api_lossless_result_cells"
+CONDITIONAL_STAGING_KEYS: frozenset[str] = frozenset(
+    {LIVE_LOSSLESS_STAGING_KEY, LOSSLESS_FALLBACK_STAGING_KEY}
+)
 
 _SEASON_TYPE_CAPABILITY_BY_PATTERN: dict[ParamPattern, SeasonTypeCapability] = {
     "season": "supported",
@@ -288,6 +294,13 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry("league_standings", "stg_standings", "season"),
+    StagingEntry(
+        "league_standings_legacy",
+        "stg_league_standings_legacy",
+        "season",
+        result_set_index=0,
+        use_multi=True,
+    ),
     StagingEntry("draft_history", "stg_draft", "season"),
     StagingEntry("draft_combine_stats", "stg_draft_combine", "season"),
     StagingEntry(
@@ -337,10 +350,45 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry(
+        "box_score_traditional_v2",
+        "stg_box_score_traditional_v2_player",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_traditional_v2",
+        "stg_box_score_traditional_v2_starter_bench",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_traditional_v2",
+        "stg_box_score_traditional_v2_team",
+        "game",
+        result_set_index=2,
+        use_multi=True,
+    ),
+    StagingEntry(
         "box_score_advanced",
         "stg_box_score_advanced",
         "game",
         result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_advanced_v2",
+        "stg_box_score_advanced_v2_player",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_advanced_v2",
+        "stg_box_score_advanced_v2_team",
+        "game",
+        result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
@@ -351,10 +399,38 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry(
+        "box_score_misc_v2",
+        "stg_box_score_misc_v2_player",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_misc_v2",
+        "stg_box_score_misc_v2_team",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
         "box_score_scoring",
         "stg_box_score_scoring",
         "game",
         result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_scoring_v2",
+        "stg_box_score_scoring_v2_player",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_scoring_v2",
+        "stg_box_score_scoring_v2_team",
+        "game",
+        result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
@@ -365,10 +441,38 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry(
+        "box_score_usage_v2",
+        "stg_box_score_usage_v2_player",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_usage_v2",
+        "stg_box_score_usage_v2_team",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
         "box_score_four_factors",
         "stg_box_score_four_factors_player",
         "game",
         result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_four_factors_v2",
+        "stg_box_score_four_factors_v2_player",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_four_factors_v2",
+        "stg_box_score_four_factors_v2_team",
+        "game",
+        result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
@@ -393,6 +497,20 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry("play_by_play", "stg_play_by_play", "game", result_set_index=1, use_multi=True),
+    StagingEntry(
+        "play_by_play_legacy",
+        "stg_play_by_play_legacy_video_available",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "play_by_play_legacy",
+        "stg_play_by_play_legacy",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry(
         "win_probability",
         "stg_win_probability",
@@ -733,6 +851,8 @@ STAGING_MAP: list[StagingEntry] = [
     # ── Static (4) ────────────────────────────────────────────────
     StagingEntry("static_players", "stg_static_players", "static"),
     StagingEntry("static_teams", "stg_static_teams", "static"),
+    StagingEntry("static_wnba_players", "stg_static_wnba_players", "static"),
+    StagingEntry("static_wnba_teams", "stg_static_wnba_teams", "static"),
     StagingEntry(
         "franchise_history",
         "stg_franchise",
@@ -1407,6 +1527,42 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_team_and_players_vs_players",
         "player_team_season",
         result_set_index=0,
+        use_multi=True,
+        season_type_capability="supported",
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
+    ),
+    StagingEntry(
+        "team_and_players_vs_players",
+        "stg_team_and_players_vs_players_team_off",
+        "player_team_season",
+        result_set_index=1,
+        use_multi=True,
+        season_type_capability="supported",
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
+    ),
+    StagingEntry(
+        "team_and_players_vs_players",
+        "stg_team_and_players_vs_players_team_on",
+        "player_team_season",
+        result_set_index=2,
+        use_multi=True,
+        season_type_capability="supported",
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
+    ),
+    StagingEntry(
+        "team_and_players_vs_players",
+        "stg_team_and_players_vs_players_team_vs",
+        "player_team_season",
+        result_set_index=3,
+        use_multi=True,
+        season_type_capability="supported",
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
+    ),
+    StagingEntry(
+        "team_and_players_vs_players",
+        "stg_team_and_players_vs_players_team_vs_off",
+        "player_team_season",
+        result_set_index=4,
         use_multi=True,
         season_type_capability="supported",
         supported_season_types=_PLAYOFF_SEASON_TYPES,
@@ -2753,9 +2909,13 @@ def get_by_staging_key(key: str) -> StagingEntry | None:
     return None
 
 
-def get_all_staging_keys() -> list[str]:
-    """Return all staging key names."""
-    return [e.staging_key for e in STAGING_MAP]
+def get_all_staging_keys(*, present_keys: set[str] | frozenset[str] | None = None) -> list[str]:
+    """Return static keys plus response-conditional keys that actually exist."""
+
+    keys = [e.staging_key for e in STAGING_MAP]
+    if present_keys is not None:
+        keys.extend(sorted(CONDITIONAL_STAGING_KEYS & present_keys))
+    return keys
 
 
 def get_multi_entries() -> dict[str, list[StagingEntry]]:

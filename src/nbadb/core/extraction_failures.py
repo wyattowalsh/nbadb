@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from nbadb.core.errors import ParserInputCaptureIntegrityError
+
 type ExtractionFailureClass = Literal[
     "transport_transient",
     "response_contract",
@@ -21,6 +23,11 @@ TRANSPORT_ERROR_NAMES = frozenset(
         "ConnectionError",
         "ConnectionResetError",
         "NetworkError",
+        "NameResolutionError",
+        "NewConnectionError",
+        "MaxRetryError",
+        "ProtocolError",
+        "ProxyError",
         "ReadError",
         "ReadTimeout",
         "RemoteDisconnected",
@@ -28,6 +35,7 @@ TRANSPORT_ERROR_NAMES = frozenset(
         "Timeout",
         "TimeoutError",
         "TransientError",
+        "gaierror",
     }
 )
 RESPONSE_CONTRACT_ERROR_NAMES = frozenset(
@@ -37,10 +45,33 @@ RESPONSE_CONTRACT_ERROR_NAMES = frozenset(
         "JSONDecodeError",
         "KeyError",
         "MissingRequiredResultSet",
+        "ResponseContractError",
         "UnexpectedElementType",
         "UnexpectedListResult",
         "UnexpectedNonListResult",
         "UnexpectedResultShape",
+    }
+)
+SAFE_ROOT_ERROR_NAMES = frozenset(
+    set(TRANSPORT_ERROR_NAMES)
+    | set(RESPONSE_CONTRACT_ERROR_NAMES)
+    | {
+        "AttributeError",
+        "CancelledError",
+        "ExtractionError",
+        "HTTPError",
+        "IndexError",
+        "ParserInputCapacityError",
+        "ParserInputCaptureIntegrityError",
+        "TypeError",
+        "UnicodeDecodeError",
+        "UnicodeEncodeError",
+        "UnclassifiedError",
+        "UpstreamApplicationError",
+        "UpstreamHttpError",
+        "UpstreamTransientHttpError",
+        "ValueError",
+        "WebException",
     }
 )
 
@@ -66,6 +97,30 @@ def root_exception(exc: BaseException) -> BaseException:
 
 def root_error_type(exc: BaseException) -> str:
     return type(root_exception(exc)).__name__
+
+
+def safe_root_error_type(exc: BaseException) -> str:
+    """Return a fixed, secret-safe root class for durable receipts.
+
+    Operational diagnostics may retain :func:`root_error_type`, but durable
+    provider receipts admit only this repository-owned vocabulary. Unknown
+    third-party or dynamically named exception classes collapse to a stable
+    sentinel rather than leaking an attacker-controlled class name.
+    """
+
+    chain = exception_chain(exc)
+    for candidate in (chain[-1], chain[0]):
+        name = type(candidate).__name__
+        if name in SAFE_ROOT_ERROR_NAMES:
+            return name
+    return "UnclassifiedError"
+
+
+def safe_error_type(exc: BaseException) -> str:
+    """Return a fixed, secret-safe class name for one exception object."""
+
+    name = type(exc).__name__
+    return name if name in SAFE_ROOT_ERROR_NAMES else "UnclassifiedError"
 
 
 def http_status_code(exc: BaseException) -> int | None:
@@ -111,6 +166,8 @@ def classify_error_name(
 
 
 def classify_exception(exc: BaseException) -> ExtractionFailureClass:
+    if any(isinstance(item, ParserInputCaptureIntegrityError) for item in exception_chain(exc)):
+        return "runner_infrastructure"
     status = http_status_code(exc)
     root_name = root_error_type(exc)
     root_class = classify_error_name(root_name, status_code=status)
@@ -128,7 +185,7 @@ def describe_exception(exc: BaseException) -> dict[str, Any]:
     chain = exception_chain(exc)
     return {
         "failure_class": classify_exception(exc),
-        "root_error_type": type(chain[-1]).__name__,
-        "error_chain": [type(item).__name__ for item in chain],
+        "root_error_type": safe_root_error_type(exc),
+        "error_chain": [safe_error_type(item) for item in chain],
         "http_status": http_status_code(exc),
     }

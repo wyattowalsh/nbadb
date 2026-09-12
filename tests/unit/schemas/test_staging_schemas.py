@@ -4,12 +4,22 @@ import pandera.errors as pa_errors
 import polars as pl
 import pytest
 
-from nbadb.schemas.staging.box_score import StagingBoxScoreTraditionalPlayerSchema
+from nbadb.schemas.staging.box_score import (
+    StagingBoxScorePlayerTrackSchema,
+    StagingBoxScoreTraditionalPlayerSchema,
+)
 from nbadb.schemas.staging.draft import StagingDraftHistorySchema
 from nbadb.schemas.staging.game_log import StagingLeagueGameLogSchema
 from nbadb.schemas.staging.leaders import (
+    StagingCumePlayerGameByGameSchema,
+    StagingCumePlayerTotalsSchema,
+    StagingCumeTeamGameByGameSchema,
+    StagingCumeTeamTotalsSchema,
     StagingDefenseHubStat10Schema,
     StagingDraftBoardSchema,
+    StagingDunkScoreLeadersSchema,
+    StagingGravityLeadersSchema,
+    StagingLeagueLeadersSchema,
 )
 from nbadb.schemas.staging.player import (
     StagingCommonAllPlayersSchema,
@@ -228,22 +238,63 @@ class TestStagingDraftHistorySchema:
 # -- Leader Family Staging Schemas --------------------------------------------
 
 
+def _provider_sentinel(column_name: str, dtype: object) -> object:
+    if dtype is None:
+        if column_name.endswith("id") or column_name in {
+            "event_num",
+            "frames",
+            "gamesplayed",
+        }:
+            return 9_007_199_254_740_993
+        if any(
+            token in column_name
+            for token in (
+                "name",
+                "city",
+                "team",
+                "hand",
+                "foot",
+                "matchup",
+                "date",
+                "position",
+                "organization",
+                "height",
+                "weight",
+            )
+        ):
+            return "Jokić — 東京 🏀"
+        return 0.123456789012345
+    dtype_name = str(dtype)
+    if dtype_name.startswith(("Int", "UInt")):
+        return 2025 if column_name == "season" else 1
+    if dtype_name.startswith("Float"):
+        return 0.5
+    if dtype_name == "Boolean":
+        return False
+    return "Jokić — 東京 🏀"
+
+
+def _schema_sentinel_rows(schema_cls: type) -> pl.DataFrame:
+    schema = schema_cls.to_schema()
+    provider_columns = set(getattr(schema_cls, "_lossless_provider_columns", ()))
+    first = {
+        name: _provider_sentinel(name, column.dtype) for name, column in schema.columns.items()
+    }
+    second = {
+        name: None if name in provider_columns else _provider_sentinel(name, column.dtype)
+        for name, column in schema.columns.items()
+    }
+    return pl.DataFrame([first, second], infer_schema_length=None)
+
+
 class TestLeaderFamilyStagingSchemas:
     def test_draft_board_validates_core_columns(self) -> None:
-        df = pl.DataFrame(
-            {
-                "person_id": [1],
-                "player_name": ["Prospect"],
-                "season": [2025],
-                "overall_pick": [1],
-                "height": ["6-8"],
-            }
-        )
+        df = _schema_sentinel_rows(StagingDraftBoardSchema)
 
         result = StagingDraftBoardSchema.validate(df)
 
-        assert result.shape[0] == 1
-        assert result.columns == ["person_id", "player_name", "season", "overall_pick", "height"]
+        assert result.shape[0] == 2
+        assert result.columns == df.columns
 
     def test_defense_hub_stat10_preserves_unknown_metric_columns(self) -> None:
         df = pl.DataFrame(
@@ -261,6 +312,50 @@ class TestLeaderFamilyStagingSchemas:
 
         assert result.shape[0] == 1
         assert "contested_shots" in result.columns
+
+    @pytest.mark.parametrize(
+        "schema_cls",
+        [
+            StagingLeagueLeadersSchema,
+            StagingDunkScoreLeadersSchema,
+            StagingGravityLeadersSchema,
+            StagingCumePlayerGameByGameSchema,
+            StagingCumePlayerTotalsSchema,
+            StagingCumeTeamGameByGameSchema,
+            StagingCumeTeamTotalsSchema,
+            StagingDraftBoardSchema,
+        ],
+    )
+    def test_declared_provider_columns_preserve_dtype_values_and_nulls(
+        self,
+        schema_cls: type,
+    ) -> None:
+        schema = schema_cls.to_schema()
+        provider_columns = schema_cls._lossless_provider_columns
+        frame = _schema_sentinel_rows(schema_cls)
+        before_schema = frame.schema
+        before_rows = frame.to_dicts()
+
+        result = schema_cls.validate(frame)
+
+        assert result.schema == before_schema
+        assert result.to_dicts() == before_rows
+        assert all(schema.columns[name].dtype is None for name in provider_columns)
+        assert all(schema.columns[name].nullable for name in provider_columns)
+        assert len(provider_columns) == len(set(provider_columns))
+
+    def test_player_track_passes_use_the_warehouse_canonical_column(self) -> None:
+        schema = StagingBoxScorePlayerTrackSchema.to_schema()
+        row = {
+            name: _provider_sentinel(name, column.dtype) for name, column in schema.columns.items()
+        }
+        frame = pl.DataFrame(row)
+
+        result = StagingBoxScorePlayerTrackSchema.validate(frame)
+
+        assert "pass" in result.columns
+        assert "pass_" not in result.columns
+        assert result["pass"].to_list() == frame["pass"].to_list()
 
     def test_round_number_must_be_1_or_2(self) -> None:
         df = pl.DataFrame(

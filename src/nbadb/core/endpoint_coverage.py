@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import importlib
 import inspect
 import json
@@ -21,8 +22,16 @@ from nbadb.core.nba_api_contract import (
     discover_endpoint_analysis_doc_contracts,
     discover_runtime_endpoint_contracts,
 )
+from nbadb.core.nba_api_provenance import validate_nba_api_provider_evidence
+from nbadb.core.nba_api_runtime_contract import load_pinned_runtime_contract_payload
 from nbadb.extract.base import _canonicalize_endpoint_column_name
-from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
+from nbadb.orchestrate.extraction_contract import (
+    FULL_EXTRACTION_CONTRACT_ALIASES,
+    FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
+    FULL_EXTRACTION_SUPPORT_RULES,
+    POST_FOUNDATION_DEPENDENT_ENDPOINTS,
+    matching_support_rules,
+)
 from nbadb.orchestrate.seasons import season_range
 from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
 from nbadb.schemas.registry import _INPUT_SCHEMA_ALIASES
@@ -50,6 +59,7 @@ _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
 _CAMEL_RE_1 = re.compile(r"(.)([A-Z][a-z]+)")
 _CAMEL_RE_2 = re.compile(r"([a-z0-9])([A-Z])")
 _DEFAULT_HISTORICAL_START_SEASON = 1946
+_REFERENCE_PARAM_PATTERNS = frozenset({"static", "player", "team"})
 _HISTORICAL_PARAM_PATTERNS = {
     "season",
     "game",
@@ -138,9 +148,20 @@ _RUNTIME_CLASS_ALIASES: dict[str, str] = {
     "TeamAndPlayersVs": "TeamAndPlayersVsPlayers",
 }
 
+# Physical legacy classes are distinct provider surfaces even when nba_api also
+# exposes a newer version with the unversioned product name.  Keep these names
+# separate for exact source/result-set accounting; the alias table above is
+# still used only to prove compatible runtime references.
+_PHYSICAL_RUNTIME_SURFACE_NAMES: dict[str, str] = {
+    "LeagueStandings": "league_standings_legacy",
+    "PlayByPlay": "play_by_play_legacy",
+}
+
 _STATIC_SURFACE_ALIASES: dict[str, str] = {
     "static_players": "players",
     "static_teams": "teams",
+    "static_wnba_players": "wnba_players",
+    "static_wnba_teams": "wnba_teams",
 }
 
 _LIVE_SURFACE_ALIASES: dict[str, str] = {
@@ -159,6 +180,48 @@ _LIVE_SURFACE_ENDPOINT_NAMES: dict[str, str] = {
 }
 
 _MODEL_OWNERSHIP_STATS_ENDPOINTS: dict[str, _ModelOwnershipDecision] = {
+    "box_score_advanced_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The exact V2 player/team packets remain losslessly queryable in silver; "
+            "curated box-score analytics use the canonical V3 advanced source."
+        ),
+    },
+    "box_score_four_factors_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The exact V2 player/team packets remain losslessly queryable in silver; "
+            "curated box-score analytics use the canonical V3 four-factors source."
+        ),
+    },
+    "box_score_misc_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The exact V2 player/team packets remain losslessly queryable in silver; "
+            "curated box-score analytics use the canonical V3 miscellaneous source."
+        ),
+    },
+    "box_score_scoring_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The exact V2 player/team packets remain losslessly queryable in silver; "
+            "curated box-score analytics use the canonical V3 scoring source."
+        ),
+    },
+    "box_score_traditional_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The exact V2 player/team/starter-bench packets remain losslessly queryable "
+            "in silver; curated box-score analytics use the canonical V3 traditional source."
+        ),
+    },
+    "box_score_usage_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The exact V2 player/team packets remain losslessly queryable in silver; "
+            "curated box-score analytics use the canonical V3 usage source."
+        ),
+    },
     "gl_alum_box_score_similarity_score": {
         "status": "compatibility_reference_only",
         "reason": (
@@ -171,6 +234,20 @@ _MODEL_OWNERSHIP_STATS_ENDPOINTS: dict[str, _ModelOwnershipDecision] = {
         "reason": (
             "Legacy play-by-play source is retained for compatibility; the analytical "
             "model uses the canonical play_by_play surface."
+        ),
+    },
+    "league_standings_legacy": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The physical legacy standings packet remains losslessly queryable in silver; "
+            "curated standings models use the canonical LeagueStandingsV3 surface."
+        ),
+    },
+    "play_by_play_legacy": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "The physical legacy play-by-play packets remain losslessly queryable in silver; "
+            "event analytics use the canonical PlayByPlayV3 surface."
         ),
     },
     "player_index": {
@@ -414,6 +491,7 @@ def _runtime_class_to_surface_name(name: str, known_surfaces: set[str] | None = 
     versioned_name = _to_snake_case(name)
     unversioned_name = re.sub(r"_v\d+$", "", versioned_name)
     candidates = [
+        _PHYSICAL_RUNTIME_SURFACE_NAMES.get(name, versioned_name),
         _ENDPOINT_ALIASES.get(versioned_name, versioned_name),
         versioned_name,
         _ENDPOINT_ALIASES.get(unversioned_name, unversioned_name),
@@ -1293,6 +1371,35 @@ class EndpointCoverageGenerator:
                     return True
             return False
 
+        def _is_pinned_contract_schema(class_name: str, seen: set[str] | None = None) -> bool:
+            """Identify schemas whose exact columns are generated from the pin.
+
+            These schemas are neither an unbounded passthrough nor a closed
+            hand-authored projection. Their ``to_schema`` implementation
+            requires every field from one exact pinned result-set contract, so
+            the later route audit may treat the upstream contract fields as
+            sink-declared even though an AST walk cannot enumerate them here.
+            """
+
+            if class_name == "_PinnedLegacyResultSetSchema":
+                return True
+            if class_name not in class_nodes:
+                return False
+            seen = set(seen or set())
+            if class_name in seen:
+                return False
+            seen.add(class_name)
+
+            for base in class_nodes[class_name].bases:
+                base_name: str | None = None
+                if isinstance(base, ast.Name):
+                    base_name = base.id
+                elif isinstance(base, ast.Attribute):
+                    base_name = base.attr
+                if base_name is not None and _is_pinned_contract_schema(base_name, seen):
+                    return True
+            return False
+
         for name, node in class_nodes.items():
             if not class_is_target_schema.get(name, False):
                 continue
@@ -1306,7 +1413,12 @@ class EndpointCoverageGenerator:
             if class_prefix:
                 stem = stem.removeprefix(class_prefix)
             table_name = f"{table_prefix}{_camel_to_snake(stem)}"
-            behavior = "passthrough" if _is_passthrough_schema(node.name) else "closed"
+            if _is_pinned_contract_schema(node.name):
+                behavior = "pinned_contract"
+            elif _is_passthrough_schema(node.name):
+                behavior = "passthrough"
+            else:
+                behavior = "closed"
             table_info[table_name] = {
                 "columns": _resolve_columns(node.name),
                 "behavior": behavior,
@@ -1376,7 +1488,19 @@ class EndpointCoverageGenerator:
         package_path = getattr(static_pkg, "__path__", None)
         if package_path is None:
             return set()
-        return {module.name for module in pkgutil.iter_modules(package_path)}
+        runtime_modules = {module.name for module in pkgutil.iter_modules(package_path)}
+        surfaces = set(runtime_modules)
+        pinned_contracts = load_pinned_runtime_contract_payload().get("static_contracts", {})
+        for endpoint_name, contract in pinned_contracts.items():
+            provider_module = str(contract.get("provider_module", "")).rsplit(".", 1)[-1]
+            if provider_module in runtime_modules:
+                surfaces.add(
+                    _STATIC_SURFACE_ALIASES.get(
+                        endpoint_name,
+                        endpoint_name.removeprefix("static_"),
+                    )
+                )
+        return surfaces
 
     @staticmethod
     def _discover_runtime_live_endpoint_classes() -> set[str]:
@@ -1758,7 +1882,7 @@ class EndpointCoverageGenerator:
                 ):
                     if input_columns is None:
                         route_status = "missing_input_schema"
-                    elif normalized_column in input_columns:
+                    elif normalized_column in input_columns or schema_behavior == "pinned_contract":
                         route_status = "declared"
                     elif schema_behavior == "passthrough":
                         route_status = "open_passthrough"
@@ -1909,7 +2033,7 @@ class EndpointCoverageGenerator:
                     else:
                         missing_columns = sorted(set(expected_columns) - input_columns)
                         if missing_columns:
-                            if schema_behavior == "passthrough":
+                            if schema_behavior in {"passthrough", "pinned_contract"}:
                                 missing_columns = []
                             else:
                                 status = "field_gaps"
@@ -2064,7 +2188,7 @@ class EndpointCoverageGenerator:
                         reason = (
                             "No raw or staging input schema is registered for this staging key."
                         )
-                    elif field_name not in input_columns:
+                    elif field_name not in input_columns and schema_behavior != "pinned_contract":
                         if schema_behavior == "passthrough":
                             field_fate = "sunk_passthrough"
                             reason = (
@@ -2230,7 +2354,7 @@ class EndpointCoverageGenerator:
         pattern_set = {str(pattern) for pattern in param_patterns}
         if source_kind == "live":
             return "live_snapshot"
-        if pattern_set and pattern_set <= {"static"}:
+        if source_kind == "static" or (pattern_set and pattern_set <= _REFERENCE_PARAM_PATTERNS):
             return "reference_snapshot"
         return "historical_backfill"
 
@@ -2466,6 +2590,13 @@ class EndpointCoverageGenerator:
                     "param_pattern": entry.param_pattern,
                     "result_set_index": entry.result_set_index,
                     "min_season": entry.min_season,
+                    "planner_start_season": (entry.min_season or _DEFAULT_HISTORICAL_START_SEASON),
+                    "planner_start_basis": (
+                        "declared_provider_floor"
+                        if entry.min_season is not None
+                        else "fallback_attempt_unverified"
+                    ),
+                    "availability_state": "unknown",
                     "deprecated_after": entry.deprecated_after,
                     "season_type_capability": entry.season_type_capability,
                     "supported_season_types": list(entry.supported_season_types or ()),
@@ -2498,10 +2629,21 @@ class EndpointCoverageGenerator:
             ]
 
             earliest_supported_season: int | None = None
+            planner_start_season: int | None = None
+            planner_start_basis: str | None = None
             if execution_semantics == "historical_backfill" and entries:
-                earliest_supported_season = min(
+                planner_start_season = min(
                     (entry.min_season or _DEFAULT_HISTORICAL_START_SEASON) for entry in entries
                 )
+                planner_start_basis = (
+                    "declared_provider_floor"
+                    if all(entry.min_season is not None for entry in entries)
+                    else "fallback_attempt_unverified"
+                )
+                if all(entry.min_season is not None for entry in entries):
+                    earliest_supported_season = min(
+                        int(entry.min_season) for entry in entries if entry.min_season is not None
+                    )
 
             contract_gaps = list(coverage_gaps)
             contract_gaps.extend(season_type_value_gaps)
@@ -2550,6 +2692,9 @@ class EndpointCoverageGenerator:
                     "output_schema_missing_tables": output_schema_missing_tables,
                     "staging_status_details": staging_status_details,
                     "earliest_supported_season": earliest_supported_season,
+                    "planner_start_season": planner_start_season,
+                    "planner_start_basis": planner_start_basis,
+                    "availability_state": "unknown",
                     "support_windows": support_windows,
                 }
             )
@@ -2642,6 +2787,11 @@ class EndpointCoverageGenerator:
                 source_kind=source_kind,
                 extraction_gaps=extraction_gaps,
             )
+            foundation_fanout_exclusion = (
+                cls._post_foundation_fanout_exclusion(endpoint_name)
+                if endpoint_name in POST_FOUNDATION_DEPENDENT_ENDPOINTS
+                else None
+            )
             if exclusion_detail is not None:
                 exclusion_breakdown[str(exclusion_detail["classification"])] += 1
 
@@ -2666,6 +2816,7 @@ class EndpointCoverageGenerator:
                     "earliest_supported_season": support_row.get("earliest_supported_season"),
                     "support_windows": list(support_row.get("support_windows", [])),
                     "exclusion": exclusion_detail,
+                    "foundation_historical_fanout_exclusion": foundation_fanout_exclusion,
                 }
             )
 
@@ -2686,6 +2837,9 @@ class EndpointCoverageGenerator:
             "partial_endpoint_count": extractability_breakdown.get("partial", 0),
             "blocked_endpoint_count": extractability_breakdown.get("blocked", 0),
             "excluded_endpoint_count": extractability_breakdown.get("excluded", 0),
+            "post_foundation_dependent_endpoint_count": extractability_breakdown.get(
+                "post_foundation_dependent", 0
+            ),
             "in_scope_endpoint_count": len(extraction_matrix)
             - extractability_breakdown.get("excluded", 0),
             "season_type_contract_open_count": sum(
@@ -2719,6 +2873,7 @@ class EndpointCoverageGenerator:
                     extraction_summary["extractable_endpoint_count"]
                     + extraction_summary["partial_endpoint_count"]
                     + extraction_summary["blocked_endpoint_count"]
+                    + extraction_summary["post_foundation_dependent_endpoint_count"]
                 ),
             },
             {
@@ -2765,6 +2920,24 @@ class EndpointCoverageGenerator:
             "scope": "full_extraction",
         }
 
+    @staticmethod
+    def _post_foundation_fanout_exclusion(endpoint_name: str) -> dict[str, str]:
+        return {
+            "endpoint_name": endpoint_name,
+            "classification": "contract_not_modeled_yet",
+            "reason": (
+                "Generic historical fan-out cannot prove comparison pairs or opposing "
+                "lineups; this endpoint may run only from receipt-bound observed "
+                "post-foundation intervals."
+            ),
+            "owner": "orchestrate",
+            "revalidation_path": (
+                "Compile and independently verify the post-foundation dependent workload "
+                "from committed game, roster, matchup, and lineup evidence."
+            ),
+            "scope": "foundation_historical_fanout",
+        }
+
     @classmethod
     def _evaluate_extraction_status(
         cls,
@@ -2789,6 +2962,8 @@ class EndpointCoverageGenerator:
             return "partial", None
         if extraction_gaps:
             return "blocked", None
+        if endpoint_name in POST_FOUNDATION_DEPENDENT_ENDPOINTS:
+            return "post_foundation_dependent", None
         return "extractable", None
 
     @staticmethod
@@ -2816,6 +2991,18 @@ class EndpointCoverageGenerator:
                 supported_season_types = list(window["supported_season_types"])
                 season_types = supported_season_types or [None]
                 for season_type in season_types:
+                    endpoint_names = {
+                        row["endpoint_name"],
+                        FULL_EXTRACTION_CONTRACT_ALIASES.get(
+                            row["endpoint_name"], row["endpoint_name"]
+                        ),
+                    }
+                    applicable_rules = [
+                        rule
+                        for rule in FULL_EXTRACTION_SUPPORT_RULES
+                        if rule.endpoint_name in endpoint_names
+                        and (rule.pattern is None or rule.pattern == window["param_pattern"])
+                    ]
                     ledger.append(
                         {
                             "ledger_key": (
@@ -2828,18 +3015,30 @@ class EndpointCoverageGenerator:
                             "param_pattern": window["param_pattern"],
                             "staging_key": window["staging_key"],
                             "result_set_index": window["result_set_index"],
-                            "historical_start_season": (
-                                window["min_season"] or _DEFAULT_HISTORICAL_START_SEASON
-                            ),
+                            "historical_start_season": window["min_season"],
+                            "planner_start_season": window["planner_start_season"],
+                            "planner_start_basis": window["planner_start_basis"],
+                            "availability_state": window["availability_state"],
                             "deprecated_after": window["deprecated_after"],
                             "season_type": season_type,
                             "season_type_capability": window["season_type_capability"],
                             "supported_season_types": supported_season_types,
                             "input_schema_present": window["input_schema_present"],
                             "transform_outputs": window["transform_outputs"],
+                            "support_rule_ids": [
+                                hashlib.sha256(
+                                    json.dumps(
+                                        rule.to_dict(),
+                                        sort_keys=True,
+                                        separators=(",", ":"),
+                                    ).encode("utf-8")
+                                ).hexdigest()
+                                for rule in applicable_rules
+                            ],
                         }
                     )
 
+        support_rule_payload = [rule.to_dict() for rule in FULL_EXTRACTION_SUPPORT_RULES]
         summary = {
             "endpoint_count": len({row["endpoint_name"] for row in ledger}),
             "ledger_row_count": len(ledger),
@@ -2857,6 +3056,14 @@ class EndpointCoverageGenerator:
                     ).items()
                 )
             ),
+            "full_extraction_support_rule_count": len(FULL_EXTRACTION_SUPPORT_RULES),
+            "full_extraction_support_rule_digest": hashlib.sha256(
+                json.dumps(
+                    support_rule_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest(),
         }
 
         return {"ledger": ledger, "summary": summary}
@@ -2875,17 +3082,48 @@ class EndpointCoverageGenerator:
         cls,
         temporal_support_ledger: dict[str, Any],
     ) -> dict[str, Any]:
+        from nbadb.core.types import season_type_upstream_unavailable_reason
+
         matrix: list[dict[str, Any]] = []
         missing_count = 0
+        expected_status_counts: Counter[str] = Counter()
 
         for row in temporal_support_ledger["ledger"]:
-            start_year = int(row["historical_start_season"])
+            start_year = int(row["planner_start_season"])
             end_year = cls._deprecated_after_end_year(row["deprecated_after"])
             for season in season_range(start_year, end_year):
                 input_schema_present = bool(row["input_schema_present"])
-                actual_status = "staged" if input_schema_present else "missing_input_schema"
-                if actual_status != "staged":
-                    missing_count += 1
+                season_start = int(season[:4])
+                unavailable_reason = (
+                    season_type_upstream_unavailable_reason(season_start, row["season_type"])
+                    if row["season_type"] is not None
+                    else None
+                )
+                support_rules = matching_support_rules(
+                    endpoint_name=row["endpoint_name"],
+                    patterns=(row["param_pattern"],),
+                    season_start=season_start,
+                    season_end=season_start,
+                )
+                if unavailable_reason is not None:
+                    expected_status = "upstream_unavailable"
+                    actual_status = "upstream_unavailable"
+                    reason = unavailable_reason
+                elif support_rules:
+                    expected_status = "contract_blocked"
+                    actual_status = "contract_blocked"
+                    reason = "; ".join(rule.reason for rule in support_rules)
+                else:
+                    expected_status = "required"
+                    actual_status = "staged" if input_schema_present else "missing_input_schema"
+                    reason = (
+                        "Input schema exists for this required support-window row."
+                        if input_schema_present
+                        else "Input schema is missing for this required support-window row."
+                    )
+                    if actual_status != "staged":
+                        missing_count += 1
+                expected_status_counts[expected_status] += 1
                 matrix.append(
                     {
                         "endpoint_name": row["endpoint_name"],
@@ -2894,13 +3132,19 @@ class EndpointCoverageGenerator:
                         "param_pattern": row["param_pattern"],
                         "season": season,
                         "season_type": row["season_type"],
-                        "expected_status": "required",
+                        "planner_start_basis": row["planner_start_basis"],
+                        "availability_state": row["availability_state"],
+                        "expected_status": expected_status,
                         "actual_status": actual_status,
-                        "reason": (
-                            "Input schema exists for this required support-window row."
-                            if input_schema_present
-                            else "Input schema is missing for this required support-window row."
-                        ),
+                        "reason": reason,
+                        "support_rule_ids": [
+                            hashlib.sha256(
+                                json.dumps(
+                                    rule.to_dict(), sort_keys=True, separators=(",", ":")
+                                ).encode("utf-8")
+                            ).hexdigest()
+                            for rule in support_rules
+                        ],
                     }
                 )
 
@@ -2910,6 +3154,13 @@ class EndpointCoverageGenerator:
             "endpoint_count": len({row["endpoint_name"] for row in matrix}),
             "season_count": len({row["season"] for row in matrix}),
             "season_type_row_count": sum(1 for row in matrix if row["season_type"] is not None),
+            "expected_status_breakdown": dict(sorted(expected_status_counts.items())),
+            "full_extraction_support_rule_count": temporal_support_ledger["summary"].get(
+                "full_extraction_support_rule_count", 0
+            ),
+            "full_extraction_support_rule_digest": temporal_support_ledger["summary"].get(
+                "full_extraction_support_rule_digest"
+            ),
         }
         return {"matrix": matrix, "summary": summary}
 
@@ -3506,10 +3757,46 @@ class EndpointCoverageGenerator:
             docs_contracts_by_endpoint
         )
         nba_api_upstream_contract_bundle = build_nba_api_upstream_contract_bundle(
-            self.endpoint_analysis_docs_root
+            self.endpoint_analysis_docs_root,
+            project_root=self.project_root,
         )
         nba_api_bronze_contracts = build_nba_api_bronze_contracts_from_bundle(
             nba_api_upstream_contract_bundle
+        )
+        runtime_contract_payload = {
+            name: contract_to_json(contract) for name, contract in sorted(runtime_contracts.items())
+        }
+        runtime_contract_digest = hashlib.sha256(
+            json.dumps(
+                runtime_contract_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        pinned_runtime_payload = load_pinned_runtime_contract_payload()
+        pinned_runtime_summary = pinned_runtime_payload["summary"]
+        provider_evidence = validate_nba_api_provider_evidence(
+            provider_provenance=nba_api_upstream_contract_bundle.get("provider_provenance"),
+            runtime_endpoint_contract_count=len(runtime_contract_payload),
+            runtime_endpoint_contract_sha256=runtime_contract_digest,
+            live_endpoint_contract_count=pinned_runtime_summary["live_endpoint_contract_count"],
+            live_result_set_contract_count=pinned_runtime_summary["live_result_set_contract_count"],
+            live_column_contract_count=pinned_runtime_summary["live_column_contract_count"],
+            live_parsed_column_contract_count=pinned_runtime_summary[
+                "live_parsed_column_contract_count"
+            ],
+            live_contract_sha256=pinned_runtime_payload["live_contracts_sha256"],
+            static_dataset_contract_count=pinned_runtime_summary["static_dataset_contract_count"],
+            static_modeled_field_contract_count=pinned_runtime_summary[
+                "static_modeled_field_contract_count"
+            ],
+            static_contract_sha256=pinned_runtime_payload["static_contracts_sha256"],
+            runtime_contract_payload_sha256=pinned_runtime_payload["payload_sha256"],
+            docs_tools_bundle_sha256=nba_api_upstream_contract_bundle.get("bundle_digest"),
+            bronze_contract_sha256=nba_api_bronze_contracts.get("bronze_contract_digest"),
+            metadata_ledger_sha256=nba_api_upstream_contract_bundle.get("metadata_ledger", {}).get(
+                "metadata_digest"
+            ),
         )
         endpoint_analysis_doc_diff = self._build_endpoint_analysis_doc_diff(
             runtime_contracts_by_endpoint=contracts_by_endpoint,
@@ -3572,6 +3859,10 @@ class EndpointCoverageGenerator:
         summary["endpoint_analysis_docs"]["upstream_git_sha"] = (
             nba_api_upstream_contract_bundle.get("upstream_git_sha")
         )
+        summary["endpoint_analysis_docs"]["provider_provenance"] = (
+            nba_api_upstream_contract_bundle.get("provider_provenance", {})
+        )
+        summary["endpoint_analysis_docs"]["provider_evidence"] = provider_evidence
         summary["endpoint_analysis_docs"]["source_inventory"] = (
             nba_api_upstream_contract_bundle.get("source_inventory", {})
         )
@@ -3587,6 +3878,11 @@ class EndpointCoverageGenerator:
             "bronze_contract_digest"
         )
         summary["temporal_coverage"] = temporal_coverage_matrix["summary"]
+        from nbadb.orchestrate.player_directory_snapshot import (
+            player_directory_snapshot_authority,
+        )
+
+        summary["player_directory_snapshot"] = player_directory_snapshot_authority()
         summary["coverage_truth"] = {
             "in_scope_endpoint_count": extraction_contract["summary"].get(
                 "in_scope_endpoint_count", 0

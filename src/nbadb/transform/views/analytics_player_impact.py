@@ -28,13 +28,40 @@ class AnalyticsPlayerImpactTransformer(SqlTransformer):
                    net_rating AS off_net_rating
             FROM agg_on_off_splits
             WHERE entity_type = 'player' AND on_off = 'Off'
+        ),
+        player_season AS (
+            SELECT
+                s.*,
+                p.player_name
+            FROM agg_player_season s
+            LEFT JOIN LATERAL (
+                SELECT
+                    CASE
+                        WHEN COUNT(*) > 1
+                            THEN error('conflicting dim_player SCD rows')
+                        ELSE MIN(full_name)
+                    END AS player_name
+                FROM (
+                    SELECT DISTINCT
+                        full_name,
+                        valid_from,
+                        valid_to
+                    FROM dim_player p0
+                    WHERE p0.player_id = s.player_id
+                      AND s.season_year >= p0.valid_from
+                      AND (
+                          p0.valid_to IS NULL
+                          OR s.season_year < p0.valid_to
+                      )
+                ) matching_player_rows
+            ) p ON TRUE
         )
         SELECT
             s.player_id,
             s.team_id,
             s.season_year,
             s.season_type,
-            p.full_name AS player_name,
+            s.player_name,
             tm.abbreviation AS team_abbreviation,
             s.gp, s.avg_min, s.avg_pts, s.avg_reb, s.avg_ast,
             s.fg_pct, s.fg3_pct, s.ft_pct,
@@ -45,7 +72,7 @@ class AnalyticsPlayerImpactTransformer(SqlTransformer):
             o.on_pts, o.on_reb, o.on_ast,
             f.off_off_rating, f.off_def_rating, f.off_net_rating,
             o.on_net_rating - f.off_net_rating AS net_rating_diff
-        FROM agg_player_season s
+        FROM player_season s
         LEFT JOIN on_court o
             ON s.player_id = o.player_id AND s.team_id = o.team_id
             AND s.season_year = o.season_year
@@ -54,7 +81,5 @@ class AnalyticsPlayerImpactTransformer(SqlTransformer):
             ON s.player_id = f.player_id AND s.team_id = f.team_id
             AND s.season_year = f.season_year
             AND s.season_type = f.season_type
-        LEFT JOIN dim_player p
-            ON s.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_team tm ON s.team_id = tm.team_id
     """

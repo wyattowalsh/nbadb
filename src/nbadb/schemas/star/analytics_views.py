@@ -128,14 +128,27 @@ class AnalyticsClutchPerformanceSchema(_MinutesStatMixin, _TraditionalStatsMixin
     """Clutch performance stats joined with player and team dimensions."""
 
     __consumer_metadata__ = {
-        "grain": "player-season-clutch",
+        "grain": "player-team-season-season_type-clutch_window-group",
         "agent_intents": ["clutch", "clutch_performance"],
+        "scd2_notes": (
+            "Player identity uses the half-open dim_player interval containing "
+            "the clutch row's season. Clutch windows remain provider-defined."
+        ),
     }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
-    clutch_window: str = pa.Field(metadata={"description": "Clutch window definition"})
+    season_type: str = pa.Field(metadata={"description": "Queried season type"})
+    clutch_window: str = pa.Field(
+        metadata={"description": "Opaque nba_api result-set clutch definition"}
+    )
+    group_set: str | None = pa.Field(
+        nullable=True, metadata={"description": "Provider clutch grouping set"}
+    )
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Provider clutch grouping value"}
+    )
     player_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Player display name"}
     )
@@ -156,6 +169,10 @@ class AnalyticsDraftValueSchema(BaseSchema):
     __consumer_metadata__ = {
         "grain": "draft-pick",
         "agent_intents": ["draft", "draft_value"],
+        "scd2_notes": (
+            "Player attributes use the half-open dim_player interval containing "
+            "the draft year; career totals are explicitly post-draft outcomes."
+        ),
     }
 
     person_id: int = pa.Field(gt=0, metadata={"description": "Drafted player identifier"})
@@ -529,8 +546,12 @@ class AnalyticsPlayerImpactSchema(BaseSchema):
     """Player impact combining season stats with on/off court splits."""
 
     __consumer_metadata__ = {
-        "grain": "player-season",
+        "grain": "player-team-season-season_type",
         "agent_intents": ["player_impact", "on_off", "net_rating"],
+        "scd2_notes": (
+            "Player names are joined to the half-open dim_player season interval "
+            "valid_from <= season_year < valid_to; current-only identity is not used."
+        ),
     }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
@@ -768,21 +789,30 @@ class AnalyticsPlayerSeasonCompleteSchema(BaseSchema):
 
 
 class AnalyticsShootingEfficiencySchema(BaseSchema):
-    """Shot chart data enriched with league averages by zone."""
+    """Shot observations enriched with request-scoped empirical zone baselines."""
 
     __consumer_metadata__ = {
-        "grain": "player-season-shot-profile",
+        "grain": "shot-attempt-observation",
         "agent_intents": ["shot_chart", "shooting_efficiency", "shot_zones"],
     }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
-    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    game_event_id: int | None = pa.Field(
+        nullable=True, gt=0, metadata={"description": "Provider event identifier within the game"}
+    )
+    team_id: int | None = pa.Field(nullable=True, gt=0, metadata={"description": "Team identifier"})
     player_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Player display name"}
     )
     season_year: str | None = pa.Field(
         nullable=True, metadata={"description": "Season year (e.g. 2024-25)"}
+    )
+    season_type: str | None = pa.Field(
+        nullable=True, metadata={"description": "Provider request season type"}
+    )
+    league_id: str | None = pa.Field(
+        nullable=True, metadata={"description": "Provider request league identifier"}
     )
     game_date: str | None = pa.Field(nullable=True, metadata={"description": "Game date"})
     shot_zone_basic: str | None = pa.Field(
@@ -816,6 +846,28 @@ class AnalyticsShootingEfficiencySchema(BaseSchema):
     )
     league_avg_fg_pct: float | None = pa.Field(
         nullable=True, metadata={"description": "League average FG% in zone"}
+    )
+    shot_value: float | None = pa.Field(
+        nullable=True,
+        isin=[2.0, 3.0],
+        metadata={"description": "Point value of the shot attempt"},
+    )
+    actual_points: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Points scored by this attempt"}
+    )
+    empirical_zone_expected_points: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "description": (
+                "Expected points from the matching observed league zone baseline; "
+                "not an optical-tracking shot-quality model"
+            )
+        },
+    )
+    points_above_empirical_zone_expectation: float | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Actual points minus request-scoped empirical zone expectation"},
     )
 
 

@@ -73,7 +73,9 @@ def test_player_support_matrix_family_chunk() -> None:
     ):
         row = rows[endpoint_name]
         assert row["param_patterns"] == ["player_season"], endpoint_name
-        assert row["earliest_supported_season"] == 1946, endpoint_name
+        assert row["earliest_supported_season"] is None, endpoint_name
+        assert row["planner_start_season"] == 1946, endpoint_name
+        assert row["planner_start_basis"] == "fallback_attempt_unverified", endpoint_name
         assert row["season_type_contract_status"] == "supported", endpoint_name
         assert row["declared_supported_season_types"] == [
             "Regular Season",
@@ -85,11 +87,13 @@ def test_player_support_matrix_family_chunk() -> None:
 
     split_row = rows["player_dash_shooting_splits"]
     assert split_row["param_patterns"] == ["player_season"]
-    assert split_row["earliest_supported_season"] == 1946
+    assert split_row["earliest_supported_season"] is None
+    assert split_row["planner_start_season"] == 1946
 
     game_logs_row = rows["player_game_logs_v2"]
     assert game_logs_row["param_patterns"] == ["player_season", "season"]
-    assert game_logs_row["earliest_supported_season"] == 1946
+    assert game_logs_row["earliest_supported_season"] is None
+    assert game_logs_row["planner_start_season"] == 1946
     assert game_logs_row["season_type_contract_status"] == "supported"
     assert game_logs_row["declared_supported_season_types"] == [
         "Regular Season",
@@ -101,11 +105,13 @@ def test_player_support_matrix_family_chunk() -> None:
 
     next_games_row = rows["player_next_games"]
     assert next_games_row["param_patterns"] == ["player_season"]
-    assert next_games_row["earliest_supported_season"] == 1946
+    assert next_games_row["earliest_supported_season"] is None
+    assert next_games_row["planner_start_season"] == 1946
 
     streak_row = rows["player_streak_finder"]
     assert streak_row["param_patterns"] == ["player_season", "season"]
-    assert streak_row["earliest_supported_season"] == 1946
+    assert streak_row["earliest_supported_season"] is None
+    assert streak_row["planner_start_season"] == 1946
 
     player_vs_player = rows["player_vs_player"]
     assert player_vs_player["contract_status"] == "complete"

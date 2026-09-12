@@ -9,6 +9,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from nbadb.contracts.staging_route_contract import (
+    staging_route_contract_bundle,
+    validate_staging_route_contract_bundle,
+)
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
 from nbadb.core.field_docs import resolved_field_description
 from nbadb.core.nba_api_contract import (
@@ -644,38 +648,33 @@ def _resolved_input_schema_table(
 
 
 def _staging_route_rows() -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for ordinal, entry in enumerate(STAGING_MAP):
-        schema_cls = get_input_schema(entry.staging_key)
-        resolved_tier, resolved_table = _resolved_input_schema_table(schema_cls)
-        schema = schema_cls.to_schema() if schema_cls is not None else None
-        route_status = "unresolved"
-        if resolved_table == entry.staging_key:
-            route_status = f"direct_{resolved_tier}"
-        elif resolved_table is not None:
-            route_status = f"alias_to_{resolved_tier}"
-        rows.append(
-            {
-                "route_id": f"{entry.endpoint_name}:{entry.staging_key}:{entry.result_set_index}",
-                "ordinal": ordinal,
-                "endpoint_name": entry.endpoint_name,
-                "staging_key": entry.staging_key,
-                "param_pattern": entry.param_pattern,
-                "result_set_index": entry.result_set_index,
-                "use_multi": entry.use_multi,
-                "deprecated_after": entry.deprecated_after,
-                "min_season": entry.min_season,
-                "season_type_capability": entry.season_type_capability,
-                "supported_season_types": list(entry.supported_season_types or ()),
-                "allow_missing_result_set": entry.allow_missing_result_set,
-                "resolved_schema_tier": resolved_tier,
-                "resolved_schema_table": resolved_table,
-                "resolved_schema_class": schema_cls.__name__ if schema_cls else None,
-                "route_status": route_status,
-                "column_count": len(schema.columns) if schema is not None else 0,
-            }
-        )
-    return rows
+    bundle = staging_route_contract_bundle()
+    validate_staging_route_contract_bundle(bundle)
+    return [route.to_dict() for route in bundle.routes]
+
+
+def _staging_route_bundle_summary(route_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return bundle identity only when rows are the exact compiled inventory."""
+
+    expected_route_ids = [
+        f"{entry.endpoint_name}:{entry.staging_key}:{entry.result_set_index}"
+        for entry in STAGING_MAP
+    ]
+    observed_route_ids = [str(row.get("route_id")) for row in route_rows]
+    if observed_route_ids != expected_route_ids:
+        return {}
+    bundle = staging_route_contract_bundle()
+    validate_staging_route_contract_bundle(bundle)
+    return {
+        "contract_digest": bundle.digest,
+        "provider_authority_sha256": bundle.provider_authority_sha256,
+        "pinned_contract_payload_sha256": bundle.pinned_contract_payload_sha256,
+        "source_family_counts": dict(bundle.source_family_counts),
+        "classified_status_counts": dict(bundle.status_counts),
+        "endpoint_role_counts": dict(bundle.endpoint_role_counts),
+        "storage_role_counts": dict(bundle.storage_role_counts),
+        "storage_mapping_status_counts": dict(bundle.storage_mapping_status_counts),
+    }
 
 
 def _staging_route_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -1415,7 +1414,10 @@ def _bronze_fate_rows(
     if bronze_contracts_path is not None:
         bronze_contracts = json.loads(Path(bronze_contracts_path).read_text(encoding="utf-8"))
     elif endpoint_analysis_docs_root is not None:
-        bundle = build_nba_api_upstream_contract_bundle(endpoint_analysis_docs_root)
+        bundle = build_nba_api_upstream_contract_bundle(
+            endpoint_analysis_docs_root,
+            project_root=Path.cwd(),
+        )
         bronze_contracts = build_nba_api_bronze_contracts_from_bundle(bundle)
     else:
         return [], None
@@ -1773,6 +1775,7 @@ def build_schema_annotation_artifacts(
         require_bronze_contracts=require_bronze_contracts,
     )
     route_status_counts = Counter(str(row["route_status"]) for row in route_rows)
+    route_bundle_summary = _staging_route_bundle_summary(route_rows)
     fate_counts = Counter(str(row["fate"]) for row in fate_rows)
 
     return {
@@ -1797,6 +1800,7 @@ def build_schema_annotation_artifacts(
                 "route_count": len(route_rows),
                 "route_status_counts": dict(sorted(route_status_counts.items())),
                 "unresolved_route_count": route_status_counts.get("unresolved", 0),
+                **route_bundle_summary,
             },
             "routes": route_rows,
         },

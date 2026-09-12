@@ -55,5 +55,13 @@ def test_final_exception_endpoints_are_support_matrix_complete() -> None:
 
     extraction_rows = {row["endpoint_name"]: row for row in artifacts["extraction_matrix"]}
     player_vs_player = extraction_rows["player_vs_player"]
-    assert player_vs_player["extractability_status"] == "excluded"
-    assert player_vs_player["exclusion"]["classification"] == "contract_not_modeled_yet"
+    assert player_vs_player["extractability_status"] == "post_foundation_dependent"
+    assert player_vs_player["exclusion"] is None
+    assert (
+        player_vs_player["foundation_historical_fanout_exclusion"]["classification"]
+        == "contract_not_modeled_yet"
+    )
+    assert (
+        player_vs_player["foundation_historical_fanout_exclusion"]["scope"]
+        == "foundation_historical_fanout"
+    )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import duckdb
 import polars as pl
+import pytest
 
 from nbadb.transform.derived.agg_player_bio import AggPlayerBioTransformer
 from nbadb.transform.dimensions.dim_team_extended import DimTeamExtendedTransformer
@@ -76,27 +77,252 @@ class TestDimTeamExtended:
 
 
 # ---------------------------------------------------------------------------
-# 2. agg_player_bio — SELECT * passthrough
+# 2. agg_player_bio — pinned player-team-season projection
 # ---------------------------------------------------------------------------
-class TestAggPlayerBio:
-    def test_class_attrs(self) -> None:
-        assert AggPlayerBioTransformer.output_table == "agg_player_bio"
-        assert "stg_league_player_bio" in AggPlayerBioTransformer.depends_on
+_BIO_PUBLIC_COLUMNS = [
+    "player_id",
+    "player_name",
+    "team_id",
+    "team_abbreviation",
+    "age",
+    "player_height",
+    "player_height_inches",
+    "player_weight",
+    "college",
+    "country",
+    "draft_year",
+    "draft_round",
+    "draft_number",
+    "gp",
+    "pts",
+    "reb",
+    "ast",
+    "net_rating",
+    "oreb_pct",
+    "dreb_pct",
+    "usg_pct",
+    "ts_pct",
+    "ast_pct",
+    "season_year",
+    "season_type",
+]
 
-    def test_transform_passthrough(self) -> None:
-        staging = {
-            "stg_league_player_bio": pl.DataFrame(
-                {
-                    "player_id": [101, 102],
-                    "player_name": ["Jokic", "Embiid"],
-                    "age": [28, 29],
-                    "height": ["6-11", "7-0"],
-                }
-            ).lazy(),
-        }
-        result = _run(AggPlayerBioTransformer(), staging)
-        assert result.shape[0] == 2
-        assert set(result.columns) == {"player_id", "player_name", "age", "height"}
+_BIO_DTYPES = {
+    "player_id": pl.Int64,
+    "player_name": pl.String,
+    "team_id": pl.Int64,
+    "team_abbreviation": pl.String,
+    "age": pl.Float64,
+    "player_height": pl.String,
+    "player_height_inches": pl.Float64,
+    "player_weight": pl.Float64,
+    "college": pl.String,
+    "country": pl.String,
+    "draft_year": pl.String,
+    "draft_round": pl.String,
+    "draft_number": pl.String,
+    "gp": pl.Int64,
+    "pts": pl.Float64,
+    "reb": pl.Float64,
+    "ast": pl.Float64,
+    "net_rating": pl.Float64,
+    "oreb_pct": pl.Float64,
+    "dreb_pct": pl.Float64,
+    "usg_pct": pl.Float64,
+    "ts_pct": pl.Float64,
+    "ast_pct": pl.Float64,
+    "season_year": pl.String,
+    "season_type": pl.String,
+}
+
+
+def _bio_row(**updates: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "player_id": 101,
+        "player_name": "Nikola Jokic",
+        "team_id": 1610612743,
+        "team_abbreviation": "DEN",
+        "age": 29.0,
+        "player_height": "6-11",
+        "player_height_inches": 83.0,
+        "player_weight": 284.0,
+        "college": None,
+        "country": "Serbia",
+        "draft_year": "2014",
+        "draft_round": "2",
+        "draft_number": "41",
+        "gp": 79,
+        "pts": 26.4,
+        "reb": 12.4,
+        "ast": 9.0,
+        "net_rating": 10.1,
+        "oreb_pct": 0.09,
+        "dreb_pct": 0.31,
+        "usg_pct": 0.29,
+        "ts_pct": 0.65,
+        "ast_pct": 0.42,
+        "season_year": "2024-25",
+        "season_type": "Regular Season",
+    }
+    row.update(updates)
+    return row
+
+
+def _run_player_bio(rows: list[dict[str, object]]) -> pl.DataFrame:
+    frame = pl.DataFrame(rows, schema_overrides=_BIO_DTYPES)
+    staging = {"stg_league_player_bio": frame.lazy()}
+    transformer = AggPlayerBioTransformer()
+    conn = duckdb.connect()
+    try:
+        conn.register("stg_league_player_bio", frame)
+        transformer._conn = conn
+        return transformer.transform(staging)
+    finally:
+        conn.close()
+
+
+class TestAggPlayerBio:
+    def test_exact_pinned_provider_projection_and_dependency(self) -> None:
+        import nba_api
+        from nba_api.stats.endpoints.leaguedashplayerbiostats import (
+            LeagueDashPlayerBioStats,
+        )
+
+        from nbadb.extract.base import _inject_request_scope_columns
+        from nbadb.schemas.staging.league_support import StagingLeaguePlayerBioSchema
+        from nbadb.schemas.star.agg_schemas import AggPlayerBioSchema
+
+        assert nba_api.__version__ == "1.11.4"
+        expected_provider_columns = LeagueDashPlayerBioStats.expected_data[
+            "LeagueDashPlayerBioStats"
+        ]
+        assert [column.lower() for column in expected_provider_columns] + [
+            "season_year",
+            "season_type",
+        ] == _BIO_PUBLIC_COLUMNS
+        injected = _inject_request_scope_columns(
+            pl.DataFrame({"player_id": [101]}),
+            {"season": "2024-25", "season_type_all_star": "Playoffs"},
+        )
+        assert injected.columns == ["player_id", "season_year", "season_type"]
+        assert injected.select("season_year", "season_type").row(0) == (
+            "2024-25",
+            "Playoffs",
+        )
+        assert AggPlayerBioTransformer.output_table == "agg_player_bio"
+        assert AggPlayerBioTransformer.depends_on == ["stg_league_player_bio"]
+        normalized_sql = " ".join(AggPlayerBioTransformer._SQL.lower().split())
+        assert "select *" not in normalized_sql
+        assert normalized_sql.count("from stg_league_player_bio") == 1
+        staging_weight = StagingLeaguePlayerBioSchema.to_schema().columns["player_weight"]
+        public_weight = AggPlayerBioSchema.to_schema().columns["player_weight"]
+        assert str(staging_weight.dtype) == str(public_weight.dtype) == "Float64"
+
+    def test_exact_projection_preserves_team_stints_and_excludes_staging_extras(self) -> None:
+        from nbadb.schemas.star.agg_schemas import AggPlayerBioSchema
+
+        first_stint = _bio_row(
+            player_id=7,
+            player_name="Two Team Player",
+            team_id=1610612737,
+            team_abbreviation="ATL",
+            gp=20,
+            height="legacy-height",
+            weight=999.0,
+            league_id="transport-only",
+            transport_extra="discard-me",
+        )
+        second_stint = _bio_row(
+            player_id=7,
+            player_name="Two Team Player",
+            team_id=1610612738,
+            team_abbreviation="BOS",
+            gp=30,
+            height="legacy-height",
+            weight=999.0,
+            league_id="transport-only",
+            transport_extra="discard-me",
+        )
+        playoff_same_team = _bio_row(
+            player_id=7,
+            player_name="Two Team Player",
+            team_id=1610612737,
+            team_abbreviation="ATL",
+            gp=6,
+            season_type="Playoffs",
+            height="legacy-height",
+            weight=999.0,
+            transport_extra="discard-me",
+        )
+
+        result = _run_player_bio([second_stint, playoff_same_team, first_stint])
+
+        assert result.columns == _BIO_PUBLIC_COLUMNS
+        assert result.select("player_id", "team_id", "season_year", "season_type").to_dicts() == [
+            {
+                "player_id": 7,
+                "team_id": 1610612737,
+                "season_year": "2024-25",
+                "season_type": "Playoffs",
+            },
+            {
+                "player_id": 7,
+                "team_id": 1610612737,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 7,
+                "team_id": 1610612738,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+            },
+        ]
+        assert result["player_weight"].dtype == pl.Float64
+        assert list(AggPlayerBioSchema.to_schema().columns) == result.columns
+        assert AggPlayerBioSchema.validate(result).to_dicts() == result.to_dicts()
+
+    def test_exact_duplicates_collapse_at_player_team_season_type_grain(self) -> None:
+        row = _bio_row()
+        result = _run_player_bio([row, row.copy(), row.copy()])
+
+        assert result.shape == (1, len(_BIO_PUBLIC_COLUMNS))
+
+    def test_null_player_name_and_unknown_team_identity_are_preserved(self) -> None:
+        from nbadb.schemas.star.agg_schemas import AggPlayerBioSchema
+
+        result = _run_player_bio([_bio_row(player_name=None, team_id=None)])
+
+        assert result.select("player_name", "team_id").row(0) == (None, None)
+        assert AggPlayerBioSchema.validate(result).to_dicts() == result.to_dicts()
+
+    def test_conflicting_tuple_at_same_key_fails_closed(self) -> None:
+        with pytest.raises(duckdb.Error, match="conflicting player bio tuple"):
+            _run_player_bio([_bio_row(pts=26.4), _bio_row(pts=27.1)])
+
+    @pytest.mark.parametrize(
+        ("updates", "message"),
+        [
+            ({"player_id": None}, "invalid player_id"),
+            ({"player_id": 0}, "invalid player_id"),
+            ({"player_id": -1}, "invalid player_id"),
+            ({"team_id": 0}, "invalid team_id"),
+            ({"team_id": -1}, "invalid team_id"),
+            ({"season_year": None}, "invalid season_year"),
+            ({"season_year": ""}, "invalid season_year"),
+            ({"season_year": "   "}, "invalid season_year"),
+            ({"season_type": None}, "invalid season_type"),
+            ({"season_type": ""}, "invalid season_type"),
+            ({"season_type": "   "}, "invalid season_type"),
+        ],
+    )
+    def test_null_or_invalid_grain_key_fails_closed(
+        self,
+        updates: dict[str, object],
+        message: str,
+    ) -> None:
+        with pytest.raises(duckdb.Error, match=message):
+            _run_player_bio([_bio_row(**updates)])
 
 
 # ---------------------------------------------------------------------------

@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING, Any
 import pandera.polars as pa
 import pytest
 
-from nbadb.core import schema_annotations as annotations
+import nbadb.core.schema_annotations as schema_annotations
 from nbadb.core.field_docs import generated_field_description, humanize_field_name
 from nbadb.core.schema_annotations import (
     ARTIFACT_FILENAMES,
+    _bronze_fate_rows,
+    _semantic_category,
     build_schema_annotation_artifacts,
     schema_annotation_strict_issues,
 )
@@ -32,12 +34,12 @@ def _patch_schema_annotation_sources(
     staging: dict[str, type[BaseSchema]],
     star: dict[str, type[BaseSchema]] | None = None,
 ) -> None:
-    monkeypatch.setattr(annotations, "_raw_schema_registry", lambda: raw)
-    monkeypatch.setattr(annotations, "_staging_schema_registry", lambda: staging)
-    monkeypatch.setattr(annotations, "_star_schema_registry", lambda: star or {})
-    monkeypatch.setattr(annotations, "_staging_route_rows", lambda: [])
+    monkeypatch.setattr(schema_annotations, "_raw_schema_registry", lambda: raw)
+    monkeypatch.setattr(schema_annotations, "_staging_schema_registry", lambda: staging)
+    monkeypatch.setattr(schema_annotations, "_star_schema_registry", lambda: star or {})
+    monkeypatch.setattr(schema_annotations, "_staging_route_rows", lambda: [])
     monkeypatch.setattr(
-        annotations,
+        schema_annotations,
         "_schema_helper_reconciliation",
         lambda: {
             "summary": {
@@ -55,7 +57,7 @@ def _patch_schema_annotation_sources(
         },
     )
     monkeypatch.setattr(
-        annotations,
+        schema_annotations,
         "_transform_schema_parity",
         lambda: {
             "schema_table_count": len(star or {}),
@@ -90,6 +92,29 @@ def test_schema_annotation_audit_reports_live_registry_gates(
     }
     assert payload["staging_route_inventory"]["summary"]["route_count"] == len(STAGING_MAP)
     assert payload["staging_route_inventory"]["summary"]["unresolved_route_count"] == 0
+    assert payload["staging_route_inventory"]["summary"]["source_family_counts"] == {
+        "live": 10,
+        "static": 4,
+        "stats": 424,
+    }
+    assert payload["staging_route_inventory"]["summary"]["classified_status_counts"] == {
+        "bound_provider_packet": 432,
+        "classified_provider_columns_absent": 2,
+        "classified_provider_packet_absent": 4,
+    }
+    assert payload["staging_route_inventory"]["summary"]["storage_mapping_status_counts"] == {
+        "complete": 422,
+        "lossless_payload_json": 10,
+        "provider_columns_absent": 6,
+    }
+    assert len(payload["staging_route_inventory"]["summary"]["contract_digest"]) == 64
+    first_route = payload["staging_route_inventory"]["routes"][0]
+    assert first_route["route_id"] == "league_game_log:stg_league_game_log:0"
+    assert first_route["provider_runtime_class"] == "LeagueGameLog"
+    assert first_route["provider_result_set_name"] == "LeagueGameLog"
+    assert first_route["provider_columns"][0] == "SEASON_ID"
+    assert first_route["canonical_columns"][0] == "season_id"
+    assert first_route["storage_columns"][0] == "season_id"
     assert payload["raw_silver_gold_field_fate"]["summary"]["field_count"] > 0
     assert payload["silver_gold_feature_inventory"]["summary"]["column_count"] > 0
 
@@ -370,9 +395,13 @@ def test_stats_bronze_fates_use_authoritative_route_provenance(
         },
         star={},
     )
-    monkeypatch.setattr(annotations, "EndpointCoverageGenerator", FakeEndpointCoverageGenerator)
+    monkeypatch.setattr(
+        schema_annotations,
+        "EndpointCoverageGenerator",
+        FakeEndpointCoverageGenerator,
+    )
 
-    rows, _ = annotations._bronze_fate_rows(
+    rows, _ = _bronze_fate_rows(
         ("staging", "star"),
         tmp_path / "endpoint-analysis",
         bronze_path,
@@ -477,7 +506,7 @@ def test_live_bronze_fates_require_exact_packet_json_roots(
         star={"fact_live_box_score_player": FactLivePlayerSchema},
     )
 
-    rows, _ = annotations._bronze_fate_rows(("staging", "star"), None, bronze_path)
+    rows, _ = _bronze_fate_rows(("staging", "star"), None, bronze_path)
     rows_by_path = {row["json_path"]: row for row in rows}
 
     points = rows_by_path["$.game.homeTeam.players.statistics.points"]
@@ -602,7 +631,7 @@ def test_schema_annotation_classifies_plural_stat_columns() -> None:
     }
 
     for column_name, expected in expected_primary.items():
-        semantic_primary, _ = annotations._semantic_category(
+        semantic_primary, _ = _semantic_category(
             tier="star",
             table_name="fact_plural_stats",
             column_name=column_name,

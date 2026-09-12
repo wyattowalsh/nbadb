@@ -25,7 +25,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.fgm",
+            "source": "BoxScoreTraditionalV3.TeamStats.FGM",
             "description": ("Team field goals made"),
         },
     )
@@ -33,14 +33,14 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.fga",
+            "source": "BoxScoreTraditionalV3.TeamStats.FGA",
             "description": ("Team field goals attempted"),
         },
     )
     fg_pct: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "derived.team_agg.fg_pct",
+            "source": "BoxScoreTraditionalV3.TeamStats.FG_PCT",
             "description": ("Team field goal percentage"),
         },
     )
@@ -48,7 +48,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.fg3m",
+            "source": "BoxScoreTraditionalV3.TeamStats.FG3M",
             "description": ("Team three-pointers made"),
         },
     )
@@ -56,14 +56,14 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.fg3a",
+            "source": "BoxScoreTraditionalV3.TeamStats.FG3A",
             "description": ("Team three-pointers attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "derived.team_agg.fg3_pct",
+            "source": "BoxScoreTraditionalV3.TeamStats.FG3_PCT",
             "description": ("Team three-point percentage"),
         },
     )
@@ -71,7 +71,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.ftm",
+            "source": "BoxScoreTraditionalV3.TeamStats.FTM",
             "description": ("Team free throws made"),
         },
     )
@@ -79,14 +79,14 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.fta",
+            "source": "BoxScoreTraditionalV3.TeamStats.FTA",
             "description": ("Team free throws attempted"),
         },
     )
     ft_pct: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "derived.team_agg.ft_pct",
+            "source": "BoxScoreTraditionalV3.TeamStats.FT_PCT",
             "description": ("Team free throw percentage"),
         },
     )
@@ -94,7 +94,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.oreb",
+            "source": "BoxScoreTraditionalV3.TeamStats.OREB",
             "description": ("Team offensive rebounds"),
         },
     )
@@ -102,7 +102,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.dreb",
+            "source": "BoxScoreTraditionalV3.TeamStats.DREB",
             "description": ("Team defensive rebounds"),
         },
     )
@@ -110,7 +110,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.reb",
+            "source": "BoxScoreTraditionalV3.TeamStats.REB",
             "description": "Team total rebounds",
         },
     )
@@ -118,7 +118,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.ast",
+            "source": "BoxScoreTraditionalV3.TeamStats.AST",
             "description": "Team assists",
         },
     )
@@ -126,7 +126,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.stl",
+            "source": "BoxScoreTraditionalV3.TeamStats.STL",
             "description": "Team steals",
         },
     )
@@ -134,7 +134,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.blk",
+            "source": "BoxScoreTraditionalV3.TeamStats.BLK",
             "description": "Team blocks",
         },
     )
@@ -142,7 +142,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.tov",
+            "source": "BoxScoreTraditionalV3.TeamStats.TOV",
             "description": "Team turnovers",
         },
     )
@@ -150,7 +150,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.pf",
+            "source": "BoxScoreTraditionalV3.TeamStats.PF",
             "description": "Team personal fouls",
         },
     )
@@ -158,7 +158,7 @@ class FactTeamGameSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": "derived.team_agg.pts",
+            "source": "BoxScoreTraditionalV3.TeamStats.PTS",
             "description": "Team total points",
         },
     )

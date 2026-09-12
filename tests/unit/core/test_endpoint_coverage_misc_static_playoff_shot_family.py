@@ -40,7 +40,9 @@ def test_misc_static_playoff_shot_support_matrix_gaps_are_closed() -> None:
 
     shot_chart = rows["shot_chart_detail"]
     assert shot_chart["param_patterns"] == ["player_season"]
-    assert shot_chart["earliest_supported_season"] == 1946
+    assert shot_chart["earliest_supported_season"] is None
+    assert shot_chart["planner_start_season"] == 1946
+    assert shot_chart["planner_start_basis"] == "fallback_attempt_unverified"
     assert shot_chart["season_type_contract_status"] == "supported"
     assert shot_chart["declared_supported_season_types"] == [
         "Regular Season",

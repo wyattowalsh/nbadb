@@ -10,8 +10,8 @@ class DimCollegeSchema(BaseSchema):
         gt=0,
         unique=True,
         metadata={
-            "source": "derived.college_id",
-            "description": ("Surrogate college identifier"),
+            "source": "derived.sha256_college_name_v1",
+            "description": "Deterministic surrogate college identifier",
         },
     )
     college_name: str = pa.Field(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import polars as pl
+from nba_api.stats.endpoints import TeamPlayerOnOffDetails, TeamPlayerOnOffSummary
 
 from nbadb.schemas.registry import get_input_schema, get_output_schema
 from nbadb.schemas.staging.team_heavy_support import (
@@ -76,6 +77,21 @@ def test_team_heavy_output_schema_registry_covers_requested_tables() -> None:
     assert get_output_schema("fact_on_off_detail") is FactOnOffDetailSchema
     assert get_output_schema("fact_team_historical") is FactTeamHistoricalSchema
     assert get_output_schema("fact_team_history_detail") is FactTeamHistoryDetailSchema
+
+
+def test_on_off_overall_schemas_match_pinned_provider_column_order() -> None:
+    request_scope = ["season_year", "season_type"]
+    expected_details = [
+        column.lower()
+        for column in TeamPlayerOnOffDetails.expected_data["OverallTeamPlayerOnOffDetails"]
+    ] + request_scope
+    expected_summary = [
+        column.lower()
+        for column in TeamPlayerOnOffSummary.expected_data["OverallTeamPlayerOnOffSummary"]
+    ] + request_scope
+
+    assert list(StagingTeamDashboardOnOffSchema.to_schema().columns) == expected_details
+    assert list(StagingOnOffSchema.to_schema().columns) == expected_summary
 
 
 def test_team_heavy_schemas_validate_representative_rows() -> None:
@@ -364,39 +380,6 @@ def test_team_heavy_schemas_validate_representative_rows() -> None:
             "plus_minus_rank": [1],
         }
     )
-    on_off_team = pl.DataFrame(
-        {
-            "team_id": [1610612738],
-            "season_year": ["2024-25"],
-            "season_type": ["Regular Season"],
-            "on_off": ["overall"],
-            "gp": [82],
-            "min": [48.0],
-            "pts": [118.7],
-            "reb": [44.4],
-            "ast": [27.1],
-            "off_rating": [121.8],
-            "def_rating": [110.5],
-            "net_rating": [11.3],
-        }
-    )
-    on_off_player = pl.DataFrame(
-        {
-            "player_id": [1628369],
-            "team_id": [1610612738],
-            "season_year": ["2024-25"],
-            "season_type": ["Regular Season"],
-            "on_off": ["on"],
-            "gp": [65],
-            "min": [35.1],
-            "pts": [117.2],
-            "reb": [43.0],
-            "ast": [26.0],
-            "off_rating": [120.3],
-            "def_rating": [111.4],
-            "net_rating": [8.9],
-        }
-    )
     on_off_detail = pl.DataFrame(
         {
             "group_set": ["OnOffCourt"],
@@ -457,6 +440,10 @@ def test_team_heavy_schemas_validate_representative_rows() -> None:
             "pts_rank": [2],
             "plus_minus_rank": [1],
         }
+    )
+    on_off_overall = on_off_detail.with_columns(
+        pl.lit("2024-25").alias("season_year"),
+        pl.lit("Regular Season").alias("season_type"),
     )
     on_off_summary = pl.DataFrame(
         {
@@ -567,8 +554,11 @@ def test_team_heavy_schemas_validate_representative_rows() -> None:
         1,
         team_overall.width,
     )
-    assert StagingTeamDashboardOnOffSchema.validate(on_off_team).shape == (1, on_off_team.width)
-    assert StagingOnOffSchema.validate(on_off_player).shape == (1, on_off_player.width)
+    assert StagingTeamDashboardOnOffSchema.validate(on_off_overall).shape == (
+        1,
+        on_off_overall.width,
+    )
+    assert StagingOnOffSchema.validate(on_off_overall).shape == (1, on_off_overall.width)
     assert StagingOnOffDetailsOverallSchema.validate(on_off_detail).shape == (
         1,
         on_off_detail.width,

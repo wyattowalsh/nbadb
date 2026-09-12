@@ -102,12 +102,16 @@ def _make_agg_player_season(
 def _make_dim_player(
     player_id: int = 201566,
     full_name: str = "Russell Westbrook",
+    valid_from: str = "2008-09",
+    valid_to: str | None = None,
     is_current: bool = True,
 ) -> pl.LazyFrame:
     return pl.DataFrame(
         {
             "player_id": [player_id],
             "full_name": [full_name],
+            "valid_from": [valid_from],
+            "valid_to": [valid_to],
             "is_current": [is_current],
         }
     ).lazy()
@@ -217,13 +221,68 @@ class TestDimensionJoins:
         assert result["player_name"][0] == "Russell Westbrook"
         assert result["team_abbreviation"][0] == "BOS"
 
-    def test_null_player_name_when_not_current(self) -> None:
-        """dim_player join requires is_current = TRUE."""
+    def test_historical_player_name_uses_matching_scd_interval(self) -> None:
+        """Historical aggregates resolve names without using the current row."""
         staging = _staging(dim_player=_make_dim_player(is_current=False))
         result = _run(AnalyticsPlayerImpactTransformer(), staging)
 
         assert result.shape[0] == 1
+        assert result["player_name"][0] == "Russell Westbrook"
+
+    def test_player_name_is_null_outside_scd_interval(self) -> None:
+        staging = _staging(dim_player=_make_dim_player(valid_from="2025-26", is_current=True))
+        result = _run(AnalyticsPlayerImpactTransformer(), staging)
+
+        assert result.shape[0] == 1
         assert result["player_name"][0] is None
+
+    def test_half_open_scd_boundary_selects_new_record(self) -> None:
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566, 201566],
+                "full_name": ["Earlier Name", "Boundary Name"],
+                "valid_from": ["2020-21", "2024-25"],
+                "valid_to": ["2024-25", None],
+                "is_current": [False, True],
+            }
+        ).lazy()
+
+        result = _run(
+            AnalyticsPlayerImpactTransformer(),
+            _staging(dim_player=dim_player),
+        )
+
+        assert result.shape[0] == 1
+        assert result["player_name"][0] == "Boundary Name"
+
+    def test_exact_duplicate_scd_rows_are_idempotent(self) -> None:
+        row = _make_dim_player().collect()
+        dim_player = pl.concat([row, row]).lazy()
+
+        result = _run(
+            AnalyticsPlayerImpactTransformer(),
+            _staging(dim_player=dim_player),
+        )
+
+        assert result.shape[0] == 1
+        assert result["player_name"][0] == "Russell Westbrook"
+
+    def test_overlapping_scd_rows_fail_closed(self) -> None:
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566, 201566],
+                "full_name": ["Name One", "Name Two"],
+                "valid_from": ["2020-21", "2023-24"],
+                "valid_to": [None, None],
+                "is_current": [False, True],
+            }
+        ).lazy()
+
+        with pytest.raises(duckdb.InvalidInputException, match="conflicting dim_player"):
+            _run(
+                AnalyticsPlayerImpactTransformer(),
+                _staging(dim_player=dim_player),
+            )
 
     def test_null_team_abbreviation_when_no_team_match(self) -> None:
         """Unmatched team_id yields NULL abbreviation."""

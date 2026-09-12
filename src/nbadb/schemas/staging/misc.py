@@ -6,6 +6,7 @@ from pandera.errors import SchemaError
 
 from nbadb.core.types import VIDEO_CONTEXT_MEASURES, SeasonType
 from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.staging.nba_api_lossless import StagingNbaApiLosslessResultCellsSchema
 
 
 class StagingLeagueStandingsV3Schema(BaseSchema):
@@ -1494,11 +1495,11 @@ class StagingVideoDetailsAssetSchema(_VideoDetailsPassthroughSchema):
         return schema
 
 
-class StagingVideoEventsSchema(_OpenPassthroughSchema):
+class StagingVideoEventsSchema(StagingNbaApiLosslessResultCellsSchema):
     pass
 
 
-class StagingVideoEventsAssetSchema(_OpenPassthroughSchema):
+class StagingVideoEventsAssetSchema(StagingNbaApiLosslessResultCellsSchema):
     pass
 
 

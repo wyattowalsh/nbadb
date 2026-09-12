@@ -752,35 +752,35 @@ class StagingStaticPlayersSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": "nba_api.stats.static.players.get_players.id",
+            "source": "players.players_shape_1.id",
             "description": "Static player identifier",
         },
     )
     full_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.players.get_players.full_name",
+            "source": "players.players_shape_1.full_name",
             "description": "Player full name",
         },
     )
     first_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.players.get_players.first_name",
+            "source": "players.players_shape_1.first_name",
             "description": "Player first name",
         },
     )
     last_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.players.get_players.last_name",
+            "source": "players.players_shape_1.last_name",
             "description": "Player last name",
         },
     )
     is_active: bool | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.players.get_players.is_active",
+            "source": "players.players_shape_1.is_active",
             "description": "Whether the player is currently active",
         },
     )
@@ -791,42 +791,42 @@ class StagingStaticTeamsSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.id",
+            "source": "teams.teams_shape_1.id",
             "description": "Static team identifier",
         },
     )
     full_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.full_name",
+            "source": "teams.teams_shape_1.full_name",
             "description": "Team full name",
         },
     )
     abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.abbreviation",
+            "source": "teams.teams_shape_1.abbreviation",
             "description": "Team abbreviation",
         },
     )
     nickname: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.nickname",
+            "source": "teams.teams_shape_1.nickname",
             "description": "Team nickname",
         },
     )
     city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.city",
+            "source": "teams.teams_shape_1.city",
             "description": "Team city",
         },
     )
     state: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.state",
+            "source": "teams.teams_shape_1.state",
             "description": "Team state or province",
         },
     )
@@ -834,7 +834,138 @@ class StagingStaticTeamsSchema(BaseSchema):
         nullable=True,
         ge=1900,
         metadata={
-            "source": "nba_api.stats.static.teams.get_teams.year_founded",
+            "source": "teams.teams_shape_1.year_founded",
             "description": "Franchise founding year",
+        },
+    )
+    championship_years_json: str = pa.Field(
+        nullable=False,
+        str_matches=r"^\[(?:\d{4}(?:,\d{4})*)?\]$",
+        metadata={
+            "source": "teams.teams_shape_1.championship_year",
+            "description": (
+                "Exact pinned static-provider championship-year list serialized as compact JSON; "
+                "source snapshot limitations apply"
+            ),
+        },
+    )
+
+
+class StagingStaticWnbaPlayersSchema(BaseSchema):
+    id: int = pa.Field(
+        gt=0,
+        nullable=False,
+        metadata={
+            "source": "wnba_players.wnba_players_shape_1.id",
+            "description": "WNBA static player identifier",
+        },
+    )
+    last_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_players.wnba_players_shape_1.last_name",
+            "description": "WNBA player last name",
+        },
+    )
+    first_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_players.wnba_players_shape_1.first_name",
+            "description": "WNBA player first name",
+        },
+    )
+    full_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_players.wnba_players_shape_1.full_name",
+            "description": "WNBA player full name",
+        },
+    )
+    is_active: bool | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_players.wnba_players_shape_1.is_active",
+            "description": "Whether the WNBA player is currently active",
+        },
+    )
+    league: str = pa.Field(
+        nullable=False,
+        isin=["WNBA"],
+        metadata={
+            "source": "literal.WNBA",
+            "description": "League namespace for the embedded static identifier",
+        },
+    )
+
+
+class StagingStaticWnbaTeamsSchema(BaseSchema):
+    id: int = pa.Field(
+        gt=0,
+        nullable=False,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.id",
+            "description": "WNBA static team identifier",
+        },
+    )
+    abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.abbreviation",
+            "description": "WNBA team abbreviation",
+        },
+    )
+    nickname: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.nickname",
+            "description": "WNBA team nickname",
+        },
+    )
+    year_founded: int | None = pa.Field(
+        nullable=True,
+        ge=1900,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.year_founded",
+            "description": "WNBA franchise founding year",
+        },
+    )
+    city: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.city",
+            "description": "WNBA team city",
+        },
+    )
+    full_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.full_name",
+            "description": "WNBA team full name",
+        },
+    )
+    state: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.state",
+            "description": "WNBA team state or province",
+        },
+    )
+    championship_years_json: str = pa.Field(
+        nullable=False,
+        str_matches=r"^\[(?:\d{4}(?:,\d{4})*)?\]$",
+        metadata={
+            "source": "wnba_teams.wnba_teams_shape_1.championship_year",
+            "description": (
+                "Exact pinned WNBA static-provider championship-year list serialized as compact "
+                "JSON; source snapshot limitations apply"
+            ),
+        },
+    )
+    league: str = pa.Field(
+        nullable=False,
+        isin=["WNBA"],
+        metadata={
+            "source": "literal.WNBA",
+            "description": "League namespace for the embedded static identifier",
         },
     )

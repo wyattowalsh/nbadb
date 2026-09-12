@@ -9,12 +9,14 @@ import os
 import pkgutil
 import re
 import subprocess
+import textwrap
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from nbadb.core.field_docs import resolved_field_description
+from nbadb.core.nba_api_provenance import verify_nba_api_provider
 
 ContractSource = Literal[
     "expected_data",
@@ -24,6 +26,53 @@ ContractSource = Literal[
     "endpoint_analysis_docs",
 ]
 Confidence = Literal["high", "medium", "low"]
+ParserKind = Literal["legacy_result_sets", "custom_nested"]
+ResponseContractMode = Literal["declared_result_sets", "unknown_dynamic_response"]
+ObservedPacketMode = Literal[
+    "declared_result_sets_only",
+    "fail_closed_json_object_or_legacy_result_sets",
+]
+ProviderResultInventory = Literal[
+    "named_result_sets",
+    "endpoint_expected_data_empty_unknown",
+]
+EndpointDocStatus = Literal[
+    "documented_empty_result_inventory",
+    "endpoint_doc_absent",
+]
+PackageExportStatus = Literal["package_exported", "direct_import_only"]
+ParameterDefaultAuthority = Literal[
+    "provider_literal_or_required_v1",
+    "provider_dynamic_default_expression_v1",
+]
+ParameterValueType = Literal["str", "int", "float", "bool", "NoneType"]
+
+_DYNAMIC_DEFAULT_EXPRESSION_TYPES: dict[str, ParameterValueType] = {
+    "GameDate.default": "str",
+    "Season.default": "str",
+    "SeasonAll.default": "str",
+    "SeasonAll_Time.default": "str",
+    "SeasonID.default": "str",
+    "SeasonYear.default": "int",
+}
+_DYNAMIC_DEFAULT_CLASS_NAMES = frozenset(
+    expression.partition(".")[0] for expression in _DYNAMIC_DEFAULT_EXPRESSION_TYPES
+)
+
+
+class NbaApiContractDiscoveryError(RuntimeError):
+    """Stable, secret-safe failure from exact provider contract discovery."""
+
+    def __init__(self, stage: str, source: str, error_type: str) -> None:
+        self.stage = stage
+        self.source = source
+        self.error_type = (
+            error_type if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", error_type) else "Exception"
+        )
+        super().__init__(
+            "nba_api contract discovery failed: "
+            f"stage={stage} source={json.dumps(source)} error_type={self.error_type}"
+        )
 
 
 @dataclass(frozen=True)
@@ -34,6 +83,74 @@ class NbaApiResultSetContract:
     expected_columns: tuple[str, ...]
     source: ContractSource
     confidence: Confidence
+
+
+@dataclass(frozen=True)
+class NbaApiParameterDefaultContract:
+    """Stable source authority for one provider constructor default.
+
+    Dynamic provider defaults such as ``GameDate.default`` are evaluated when
+    the provider module is imported.  Persisting that ambient value makes an
+    otherwise exact release contract change with the calendar.  The contract
+    therefore retains the source expression and its observed scalar type while
+    deliberately omitting the evaluated value.  Request materialization must
+    bind those parameters explicitly.
+    """
+
+    name: str
+    value: str | int | float | bool | None
+    value_type: ParameterValueType
+    default_authority: ParameterDefaultAuthority
+    default_expression: str
+
+
+@dataclass(frozen=True)
+class NbaApiResponseModeContract:
+    """Typed parser admission for one exact stats endpoint contract.
+
+    ``unknown_dynamic_response`` does not assert that any provider result set,
+    name, header, row, or nested field exists.  It permits a later adapter to
+    retain an exact JSON object and to recognize the generic legacy envelope
+    only when that observed packet passes its independent fail-closed grammar.
+    """
+
+    runtime_class_name: str
+    module_name: str
+    endpoint_slug: str
+    response_mode: ResponseContractMode
+    provider_result_inventory: ProviderResultInventory
+    observed_packet_mode: ObservedPacketMode
+    endpoint_doc_status: EndpointDocStatus | None
+    package_export_status: PackageExportStatus | None
+    endpoint_contract_sha256: str
+
+    def to_json(self) -> dict[str, str | None]:
+        """Return the complete canonical response-mode authority payload."""
+
+        return {
+            "runtime_class_name": self.runtime_class_name,
+            "module_name": self.module_name,
+            "endpoint_slug": self.endpoint_slug,
+            "response_mode": self.response_mode,
+            "provider_result_inventory": self.provider_result_inventory,
+            "observed_packet_mode": self.observed_packet_mode,
+            "endpoint_doc_status": self.endpoint_doc_status,
+            "package_export_status": self.package_export_status,
+            "endpoint_contract_sha256": self.endpoint_contract_sha256,
+        }
+
+    @property
+    def authority_sha256(self) -> str:
+        """Bind the typed mode and its exact endpoint-contract identity."""
+
+        encoded = json.dumps(
+            self.to_json(),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -54,9 +171,251 @@ class NbaApiEndpointContract:
     source_path: str | None = None
     source_family: str | None = None
     status: str | None = None
+    parameter_defaults: tuple[NbaApiParameterDefaultContract, ...] = ()
+    parameter_query_names: tuple[tuple[str, str], ...] = ()
+    request_method: str = "GET"
+    parser_kind: ParserKind = "legacy_result_sets"
+
+    @property
+    def response_contract(self) -> NbaApiResponseModeContract:
+        """Return the exact typed response-mode authority for this endpoint."""
+
+        return endpoint_response_mode_contract(self)
+
+    @property
+    def response_mode(self) -> ResponseContractMode:
+        """Expose the response-mode discriminator used by provider adapters."""
+
+        return self.response_contract.response_mode
+
+
+@dataclass(frozen=True)
+class _UnknownDynamicResponsePin:
+    endpoint_contract_sha256: str
+    endpoint_doc_status: EndpointDocStatus
+    package_export_status: PackageExportStatus
+
+
+# The pinned release exposes exactly these four endpoint-level
+# ``expected_data = {}`` declarations.  They are not equivalent to a named
+# result-set declaration whose expected column list is empty.  Full endpoint
+# contract digests bind parameters and parser identity as well as the explicit
+# class/module/slug tuple below.
+_EXACT_UNKNOWN_DYNAMIC_RESPONSE_PINS: dict[tuple[str, str, str], _UnknownDynamicResponsePin] = {
+    (
+        "VideoDetails",
+        "nba_api.stats.endpoints.videodetails",
+        "videodetails",
+    ): _UnknownDynamicResponsePin(
+        endpoint_contract_sha256=(
+            "b50a6fdc8978b112fff011711af4ce944411c02be4840c2c1ad0c2f3d2065db0"
+        ),
+        endpoint_doc_status="documented_empty_result_inventory",
+        package_export_status="package_exported",
+    ),
+    (
+        "VideoDetailsAsset",
+        "nba_api.stats.endpoints.videodetailsasset",
+        "videodetailsasset",
+    ): _UnknownDynamicResponsePin(
+        endpoint_contract_sha256=(
+            "e211f645130087ed25bc93454a8d75a3ac48ae7d85981f15b2fd1a52bbcde609"
+        ),
+        endpoint_doc_status="documented_empty_result_inventory",
+        package_export_status="package_exported",
+    ),
+    (
+        "VideoEvents",
+        "nba_api.stats.endpoints.videoevents",
+        "videoevents",
+    ): _UnknownDynamicResponsePin(
+        endpoint_contract_sha256=(
+            "6635877fbe55e7e3d1ac42628299bd090cbfc0a3fa70d035c7fdab17785aab87"
+        ),
+        endpoint_doc_status="documented_empty_result_inventory",
+        package_export_status="package_exported",
+    ),
+    (
+        "VideoEventsAsset",
+        "nba_api.stats.endpoints.videoeventsasset",
+        "videoeventsasset",
+    ): _UnknownDynamicResponsePin(
+        endpoint_contract_sha256=(
+            "983ff8abdba00ec041a13fac6da9b93ffac695693224e46f5c5152df3f0760d3"
+        ),
+        endpoint_doc_status="endpoint_doc_absent",
+        package_export_status="direct_import_only",
+    ),
+}
+_UNKNOWN_DYNAMIC_RUNTIME_CLASS_NAMES = frozenset(
+    identity[0] for identity in _EXACT_UNKNOWN_DYNAMIC_RESPONSE_PINS
+)
+_UNKNOWN_DYNAMIC_MODULE_NAMES = frozenset(
+    identity[1] for identity in _EXACT_UNKNOWN_DYNAMIC_RESPONSE_PINS
+)
+_UNKNOWN_DYNAMIC_ENDPOINT_SLUGS = frozenset(
+    identity[2] for identity in _EXACT_UNKNOWN_DYNAMIC_RESPONSE_PINS
+)
 
 
 _AUX_PARAMETER_NAMES = {"proxy", "headers", "timeout", "get_request"}
+
+
+def _discovery_error(
+    stage: str,
+    source: str,
+    error: BaseException | str,
+) -> NbaApiContractDiscoveryError:
+    error_type = error if isinstance(error, str) else type(error).__name__
+    return NbaApiContractDiscoveryError(stage, source, error_type)
+
+
+def _read_discovery_text(path: Path, *, stage: str, source: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise _discovery_error(stage, source, exc) from exc
+
+
+def _read_discovery_bytes(path: Path, *, stage: str, source: str) -> bytes:
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise _discovery_error(stage, source, exc) from exc
+
+
+def _runtime_source_path(runtime_cls: type, *, stage: str) -> tuple[Path, str]:
+    source = f"{runtime_cls.__module__}.{runtime_cls.__name__}"
+    try:
+        raw_path = inspect.getsourcefile(runtime_cls)
+    except TypeError as exc:
+        raise _discovery_error(stage, source, exc) from exc
+    if not raw_path:
+        raise _discovery_error(stage, source, "FileNotFoundError")
+    path = Path(raw_path)
+    if not path.is_file():
+        raise _discovery_error(stage, source, "FileNotFoundError")
+    return path, source
+
+
+def _import_discovery_module(module_name: str, *, stage: str) -> Any:
+    try:
+        return importlib.import_module(module_name)
+    except Exception as exc:
+        raise _discovery_error(stage, module_name, exc) from exc
+
+
+def _package_module_inventory(package_name: str, *, stage: str) -> tuple[Any, tuple[str, ...]]:
+    package = _import_discovery_module(package_name, stage=f"{stage}_package_import")
+    package_path = getattr(package, "__path__", None)
+    if package_path is None:
+        raise _discovery_error(stage, package_name, "AttributeError")
+    try:
+        package_roots = tuple(Path(item) for item in package_path)
+    except (TypeError, ValueError) as exc:
+        raise _discovery_error(stage, package_name, exc) from exc
+    if not package_roots:
+        raise _discovery_error(stage, package_name, "InventoryMismatch")
+
+    physical_names: set[str] = set()
+    for package_root in package_roots:
+        try:
+            children = tuple(package_root.iterdir())
+        except OSError as exc:
+            raise _discovery_error(stage, package_name, exc) from exc
+        for child in children:
+            try:
+                if child.is_file() and child.suffix == ".py" and child.name != "__init__.py":
+                    physical_names.add(child.stem)
+                elif child.is_dir() and child.joinpath("__init__.py").is_file():
+                    physical_names.add(child.name)
+            except OSError as exc:
+                raise _discovery_error(stage, package_name, exc) from exc
+
+    try:
+        iterated_names = tuple(module.name for module in pkgutil.iter_modules(package_path))
+    except Exception as exc:
+        raise _discovery_error(stage, package_name, exc) from exc
+    if (
+        not physical_names
+        or len(iterated_names) != len(set(iterated_names))
+        or set(iterated_names) != physical_names
+    ):
+        raise _discovery_error(stage, package_name, "InventoryMismatch")
+
+    declared_names = getattr(package, "__all__", None)
+    if (
+        not isinstance(declared_names, list | tuple)
+        or not declared_names
+        or any(not isinstance(name, str) or not name for name in declared_names)
+        or not set(declared_names) <= physical_names
+    ):
+        raise _discovery_error(stage, package_name, "InventoryMismatch")
+    return package, tuple(sorted(physical_names))
+
+
+# Exact declaration/parser differences independently established from the
+# immutable v1.11.4 parser fixtures.  They are contract data, not extractor
+# index workarounds, and are consumed by both generation and runtime.
+PINNED_PROVIDER_COLUMN_INSERTIONS: dict[tuple[str, str], tuple[tuple[int, str], ...]] = {
+    ("playbyplayv3", "PlayByPlay"): ((22, "shotValue"),),
+    ("boxscoreplayertrackv3", "TeamStats"): ((7, "speed"),),
+}
+
+
+def _validated_custom_parser_registry() -> dict[str, type]:
+    _parsers = _import_discovery_module(
+        "nba_api.stats.endpoints._parsers",
+        stage="stats_parser_registry_import",
+    )
+    registry = getattr(_parsers, "_PARSER_REGISTRY", None)
+    if not isinstance(registry, dict) or not registry:
+        raise _discovery_error(
+            "stats_parser_registry_inventory",
+            "nba_api.stats.endpoints._parsers",
+            "InventoryMismatch",
+        )
+    if any(
+        not isinstance(slug, str)
+        or not slug
+        or not inspect.isclass(parser_cls)
+        or not parser_cls.__module__.startswith("nba_api.stats.endpoints._parsers.")
+        for slug, parser_cls in registry.items()
+    ):
+        raise _discovery_error(
+            "stats_parser_registry_inventory",
+            "nba_api.stats.endpoints._parsers",
+            "InventoryMismatch",
+        )
+    return cast("dict[str, type]", registry)
+
+
+@lru_cache(maxsize=1)
+def custom_parser_endpoint_slugs() -> frozenset[str]:
+    """Return the exact installed parser registry after provider verification."""
+
+    return frozenset(_validated_custom_parser_registry())
+
+
+def _normalise_expected_data(value: object) -> dict[str, list[str]] | None:
+    if not isinstance(value, dict):
+        return None
+
+    expected_data: dict[str, list[str]] = {}
+    for key, columns in value.items():
+        if not isinstance(key, str) or not key or not isinstance(columns, list):
+            return None
+        if all(isinstance(column, str) and column for column in columns):
+            expected_data[key] = [cast("str", column) for column in columns]
+            continue
+        if columns and all(isinstance(column, dict) for column in columns):
+            structured_columns = list(structured_data_set_columns(columns))
+            if not structured_columns:
+                return None
+            expected_data[key] = structured_columns
+            continue
+        return None
+    return expected_data
 
 
 def _literal_expected_data(node: ast.AST) -> dict[str, list[str]] | None:
@@ -64,15 +423,127 @@ def _literal_expected_data(node: ast.AST) -> dict[str, list[str]] | None:
         value = ast.literal_eval(node)
     except (ValueError, TypeError, SyntaxError, MemoryError):
         return None
-    if not isinstance(value, dict):
+    return _normalise_expected_data(value)
+
+
+def _import_binding(
+    tree: ast.Module,
+    *,
+    local_name: str,
+    module_name: str,
+    symbol_name: str,
+) -> bool:
+    matches = [
+        alias
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == module_name
+        for alias in node.names
+        if alias.name == symbol_name and (alias.asname or alias.name) == local_name
+    ]
+    return len(matches) == 1
+
+
+def _imported_expected_data(
+    tree: ast.Module,
+    value: ast.AST,
+    runtime_cls: type,
+    runtime_expected: object,
+    expected_data: dict[str, list[str]],
+) -> dict[str, list[str]] | None:
+    if not isinstance(value, ast.Name):
+        return None
+    endpoint_module = runtime_cls.__module__.rsplit(".", 1)[-1]
+    authority_module_name = f"nba_api.stats.endpoints._expected_data.{endpoint_module}"
+    if not _import_binding(
+        tree,
+        local_name=value.id,
+        module_name=authority_module_name,
+        symbol_name="_EXPECTED_DATA",
+    ):
         return None
 
-    expected_data: dict[str, list[str]] = {}
-    for key, columns in value.items():
-        if not isinstance(key, str) or not isinstance(columns, list):
-            continue
-        expected_data[key] = [column for column in columns if isinstance(column, str)]
+    runtime_module = _import_discovery_module(
+        runtime_cls.__module__,
+        stage="stats_expected_data_runtime_import",
+    )
+    authority_module = _import_discovery_module(
+        authority_module_name,
+        stage="stats_expected_data_authority_import",
+    )
+    if (
+        getattr(runtime_module, value.id, None) is not runtime_expected
+        or getattr(authority_module, "_EXPECTED_DATA", None) is not runtime_expected
+    ):
+        return None
     return expected_data
+
+
+def _parser_expected_data(
+    tree: ast.Module,
+    value: ast.AST,
+    runtime_cls: type,
+    runtime_expected: object,
+    expected_data: dict[str, list[str]],
+) -> dict[str, list[str]] | None:
+    if not isinstance(value, ast.Dict) or not value.keys or any(key is None for key in value.keys):
+        return None
+
+    runtime_module = _import_discovery_module(
+        runtime_cls.__module__,
+        stage="stats_parser_expected_data_runtime_import",
+    )
+    parser_module = _import_discovery_module(
+        "nba_api.stats.endpoints._parsers",
+        stage="stats_parser_expected_data_authority_import",
+    )
+    endpoint_slug = getattr(runtime_cls, "endpoint", None)
+    registry = _validated_custom_parser_registry()
+    registered_parser = registry.get(endpoint_slug) if isinstance(endpoint_slug, str) else None
+    if registered_parser is None:
+        return None
+
+    resolved: dict[str, list[str]] = {}
+    for key_node, columns_node in zip(value.keys, value.values, strict=True):
+        if (
+            not isinstance(key_node, ast.Constant)
+            or not isinstance(key_node.value, str)
+            or not key_node.value
+            or not isinstance(columns_node, ast.Call)
+            or not isinstance(columns_node.func, ast.Name)
+            or columns_node.func.id != "list"
+            or len(columns_node.args) != 1
+            or columns_node.keywords
+            or not isinstance(columns_node.args[0], ast.Attribute)
+            or not isinstance(columns_node.args[0].value, ast.Name)
+        ):
+            return None
+        parser_name = columns_node.args[0].value.id
+        parser_field = columns_node.args[0].attr
+        if not _import_binding(
+            tree,
+            local_name=parser_name,
+            module_name="nba_api.stats.endpoints._parsers",
+            symbol_name=parser_name,
+        ):
+            return None
+        parser_cls = getattr(parser_module, parser_name, None)
+        if (
+            parser_cls is not registered_parser
+            or getattr(runtime_module, parser_name, None) is not parser_cls
+        ):
+            return None
+        parser_columns = getattr(parser_cls, parser_field, None)
+        if (
+            not isinstance(parser_columns, list | tuple)
+            or not parser_columns
+            or any(not isinstance(column, str) or not column for column in parser_columns)
+        ):
+            return None
+        resolved[key_node.value] = list(parser_columns)
+
+    if resolved != expected_data or _normalise_expected_data(runtime_expected) != expected_data:
+        return None
+    return resolved
 
 
 def _load_response_result_set_names(class_node: ast.ClassDef) -> list[str]:
@@ -96,17 +567,24 @@ def _load_response_result_set_names(class_node: ast.ClassDef) -> list[str]:
 
 
 def _source_contract(runtime_cls: type) -> tuple[dict[str, list[str]], tuple[str, ...]]:
+    source_path, source = _runtime_source_path(runtime_cls, stage="stats_source_lookup")
+    source_text = _read_discovery_text(
+        source_path,
+        stage="stats_source_read",
+        source=source,
+    )
     try:
-        source_path = Path(inspect.getsourcefile(runtime_cls) or "")
-    except TypeError:
-        return {}, ()
-    if not source_path.is_file():
-        return {}, ()
-
-    try:
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError):
-        return {}, ()
+        tree = ast.parse(source_text, filename=source)
+    except SyntaxError as exc:
+        raise _discovery_error("stats_source_parse", source, exc) from exc
+    runtime_expected = getattr(runtime_cls, "expected_data", None)
+    normalised_runtime_expected = _normalise_expected_data(runtime_expected)
+    if normalised_runtime_expected is None:
+        raise _discovery_error(
+            "stats_expected_data_inventory",
+            source,
+            "InvalidContract",
+        )
 
     for node in tree.body:
         if not isinstance(node, ast.ClassDef) or node.name != runtime_cls.__name__:
@@ -120,58 +598,329 @@ def _source_contract(runtime_cls: type) -> tuple[dict[str, list[str]], tuple[str
                 for target in child.targets
             ):
                 continue
-            expected_data = _literal_expected_data(child.value) or {}
+            literal_expected_data = _literal_expected_data(child.value)
+            if literal_expected_data is not None:
+                expected_data = literal_expected_data
+            else:
+                modeled_expected_data = _imported_expected_data(
+                    tree,
+                    child.value,
+                    runtime_cls,
+                    runtime_expected,
+                    normalised_runtime_expected,
+                )
+                if modeled_expected_data is None:
+                    modeled_expected_data = _parser_expected_data(
+                        tree,
+                        child.value,
+                        runtime_cls,
+                        runtime_expected,
+                        normalised_runtime_expected,
+                    )
+                if modeled_expected_data is not None:
+                    expected_data = modeled_expected_data
+            if expected_data != normalised_runtime_expected:
+                raise _discovery_error(
+                    "stats_expected_data_inventory",
+                    source,
+                    "InvalidContract",
+                )
             break
+        else:
+            raise _discovery_error(
+                "stats_expected_data_inventory",
+                source,
+                "InvalidContract",
+            )
         return expected_data, tuple(_load_response_result_set_names(node))
-    return {}, ()
+    raise _discovery_error("stats_source_inventory", source, "InvalidContract")
 
 
 def _endpoint_parameters(
     runtime_cls: type,
-) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[NbaApiParameterDefaultContract, ...],
+]:
     try:
         signature = inspect.signature(runtime_cls.__init__)
-    except (TypeError, ValueError):
-        return (), (), ()
+    except (TypeError, ValueError) as exc:
+        source = f"{runtime_cls.__module__}.{runtime_cls.__name__}"
+        raise _discovery_error("stats_signature_inventory", source, exc) from exc
 
     parameters: list[str] = []
     required: list[str] = []
     nullable: list[str] = []
+    raw_defaults: list[tuple[str, str | int | float | bool | None]] = []
     for name, parameter in signature.parameters.items():
         if name == "self" or name in _AUX_PARAMETER_NAMES:
             continue
         parameters.append(name)
         if parameter.default is inspect.Parameter.empty:
             required.append(name)
+        elif isinstance(parameter.default, str | int | float | bool) or parameter.default is None:
+            raw_defaults.append((name, parameter.default))
+        else:
+            raise TypeError(
+                f"unsupported nba_api default type for {runtime_cls.__name__}.{name}: "
+                f"{type(parameter.default).__name__}"
+            )
         if parameter.default is None or name.endswith("_nullable"):
             nullable.append(name)
-    return tuple(parameters), tuple(required), tuple(nullable)
+    default_expressions = _constructor_default_expressions(runtime_cls, tuple(parameters))
+    defaults = tuple(
+        _parameter_default_contract(
+            runtime_cls=runtime_cls,
+            name=name,
+            raw_default=raw_default,
+            source_expression=default_expressions[name],
+        )
+        for name, raw_default in raw_defaults
+    )
+    return tuple(parameters), tuple(required), tuple(nullable), defaults
+
+
+def _constructor_default_expressions(
+    runtime_cls: type,
+    expected_parameters: tuple[str, ...],
+) -> dict[str, str | None]:
+    """Read exact default expressions without persisting ambient evaluations."""
+
+    source = f"{runtime_cls.__module__}.{runtime_cls.__name__}.__init__"
+    try:
+        function_source = textwrap.dedent(inspect.getsource(runtime_cls.__init__))
+        tree = ast.parse(function_source, filename=source)
+    except (IndentationError, OSError, SyntaxError, TypeError) as exc:
+        raise _discovery_error("stats_parameter_default_source", source, exc) from exc
+    functions = [
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+    ]
+    if len(functions) != 1:
+        raise _discovery_error(
+            "stats_parameter_default_inventory",
+            source,
+            "InventoryMismatch",
+        )
+    function = functions[0]
+    positional = (*function.args.posonlyargs, *function.args.args)
+    positional_names = tuple(argument.arg for argument in positional)
+    keyword_names = tuple(argument.arg for argument in function.args.kwonlyargs)
+    declared = tuple(
+        name
+        for name in (*positional_names, *keyword_names)
+        if name != "self" and name not in _AUX_PARAMETER_NAMES
+    )
+    if declared != expected_parameters:
+        raise _discovery_error(
+            "stats_parameter_default_inventory",
+            source,
+            "InventoryMismatch",
+        )
+
+    defaults: dict[str, ast.expr | None] = dict.fromkeys(
+        (*positional_names, *keyword_names),
+        None,
+    )
+    positional_with_defaults = (
+        positional[-len(function.args.defaults) :] if function.args.defaults else ()
+    )
+    for argument, default in zip(
+        positional_with_defaults,
+        function.args.defaults,
+        strict=True,
+    ):
+        defaults[argument.arg] = default
+    for argument, default in zip(
+        function.args.kwonlyargs,
+        function.args.kw_defaults,
+        strict=True,
+    ):
+        defaults[argument.arg] = default
+    return {
+        name: ast.unparse(default) if (default := defaults[name]) is not None else None
+        for name in expected_parameters
+    }
+
+
+def _parameter_default_contract(
+    *,
+    runtime_cls: type,
+    name: str,
+    raw_default: str | int | float | bool | None,
+    source_expression: str | None,
+) -> NbaApiParameterDefaultContract:
+    value_type = type(raw_default).__name__
+    if value_type not in {"str", "int", "float", "bool", "NoneType"}:
+        raise _discovery_error(
+            "stats_parameter_default_type",
+            f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+            "InvalidContract",
+        )
+    if source_expression is None:
+        raise _discovery_error(
+            "stats_parameter_default_expression",
+            f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+            "MissingContract",
+        )
+    if source_expression in _DYNAMIC_DEFAULT_EXPRESSION_TYPES:
+        expected_type = _DYNAMIC_DEFAULT_EXPRESSION_TYPES[source_expression]
+        if value_type != expected_type:
+            raise _discovery_error(
+                "stats_parameter_dynamic_default_type",
+                f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+                "InvalidContract",
+            )
+        return NbaApiParameterDefaultContract(
+            name=name,
+            value=None,
+            value_type=expected_type,
+            default_authority="provider_dynamic_default_expression_v1",
+            default_expression=source_expression,
+        )
+    expression_owner = source_expression.partition(".")[0] if source_expression else None
+    if expression_owner in _DYNAMIC_DEFAULT_CLASS_NAMES:
+        raise _discovery_error(
+            "stats_parameter_dynamic_default_expression",
+            f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+            "UnsupportedContract",
+        )
+    try:
+        literal_value = ast.literal_eval(source_expression)
+    except (MemoryError, SyntaxError, TypeError, ValueError):
+        literal_value = inspect.Parameter.empty
+    if literal_value is not inspect.Parameter.empty:
+        if type(literal_value) is not type(raw_default) or literal_value != raw_default:
+            raise _discovery_error(
+                "stats_parameter_literal_default_value",
+                f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+                "InvalidContract",
+            )
+    else:
+        try:
+            expression = ast.parse(source_expression, mode="eval").body
+        except SyntaxError as exc:
+            raise _discovery_error(
+                "stats_parameter_default_expression",
+                f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+                exc,
+            ) from exc
+        if not (
+            isinstance(expression, ast.Attribute)
+            and expression.attr == "default"
+            and isinstance(expression.value, ast.Name)
+        ):
+            raise _discovery_error(
+                "stats_parameter_default_expression",
+                f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+                "UnsupportedContract",
+            )
+        provider_default_owner = runtime_cls.__init__.__globals__.get(expression.value.id)
+        provider_default = getattr(provider_default_owner, "default", inspect.Parameter.empty)
+        if type(provider_default) is not type(raw_default) or provider_default != raw_default:
+            raise _discovery_error(
+                "stats_parameter_provider_default_value",
+                f"{runtime_cls.__module__}.{runtime_cls.__name__}.{name}",
+                "InvalidContract",
+            )
+    return NbaApiParameterDefaultContract(
+        name=name,
+        value=raw_default,
+        value_type=cast("ParameterValueType", value_type),
+        default_authority="provider_literal_or_required_v1",
+        default_expression=source_expression,
+    )
+
+
+def _endpoint_parameter_query_names(
+    runtime_cls: type,
+    parameters: tuple[str, ...],
+) -> tuple[tuple[str, str], ...]:
+    source_path, source = _runtime_source_path(
+        runtime_cls,
+        stage="stats_parameter_source_lookup",
+    )
+    source_text = _read_discovery_text(
+        source_path,
+        stage="stats_parameter_source_read",
+        source=source,
+    )
+    try:
+        tree = ast.parse(source_text, filename=source)
+    except SyntaxError as exc:
+        raise _discovery_error("stats_parameter_source_parse", source, exc) from exc
+    class_node = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == runtime_cls.__name__
+        ),
+        None,
+    )
+    if class_node is None:
+        raise _discovery_error("stats_parameter_source_inventory", source, "InvalidContract")
+    mapping: dict[str, str] = {}
+    for node in ast.walk(class_node):
+        if (
+            not isinstance(node, ast.Assign)
+            or len(node.targets) != 1
+            or not isinstance(node.targets[0], ast.Attribute)
+            or not isinstance(node.targets[0].value, ast.Name)
+            or node.targets[0].value.id != "self"
+            or node.targets[0].attr != "parameters"
+            or not isinstance(node.value, ast.Dict)
+        ):
+            continue
+        for key_node, value_node in zip(node.value.keys, node.value.values, strict=True):
+            if key_node is None:
+                raise _discovery_error(
+                    "stats_parameter_query_inventory",
+                    source,
+                    "InvalidContract",
+                )
+            try:
+                query_name = ast.literal_eval(key_node)
+            except (ValueError, TypeError, SyntaxError, MemoryError) as exc:
+                raise _discovery_error("stats_parameter_query_inventory", source, exc) from exc
+            if not isinstance(query_name, str) or not isinstance(value_node, ast.Name):
+                raise _discovery_error(
+                    "stats_parameter_query_inventory",
+                    source,
+                    "InvalidContract",
+                )
+            mapping[value_node.id] = query_name
+    if set(mapping) != set(parameters):
+        raise _discovery_error(
+            "stats_parameter_query_inventory",
+            source,
+            "InventoryMismatch",
+        )
+    return tuple((parameter, mapping[parameter]) for parameter in parameters)
 
 
 def build_endpoint_contract(runtime_cls: type) -> NbaApiEndpointContract:
     runtime_class_name = runtime_cls.__name__
-    runtime_expected = getattr(runtime_cls, "expected_data", None)
-    expected_data: dict[str, list[str]] = {}
     source: ContractSource = "expected_data"
     confidence: Confidence = "high"
 
-    if isinstance(runtime_expected, dict):
-        for key, columns in runtime_expected.items():
-            if isinstance(key, str) and isinstance(columns, list):
-                expected_data[key] = [column for column in columns if isinstance(column, str)]
-
-    source_expected, load_response_names = _source_contract(runtime_cls)
+    expected_data, load_response_names = _source_contract(runtime_cls)
     warnings: list[str] = []
-    if not expected_data and source_expected:
-        expected_data = source_expected
-        source = "source_ast"
-        confidence = "medium"
     if load_response_names and expected_data:
         missing_from_expected = [name for name in load_response_names if name not in expected_data]
         if missing_from_expected:
             warnings.append(
                 "load_response_result_sets_missing_expected_data:" + ",".join(missing_from_expected)
             )
+
+    endpoint_slug = getattr(runtime_cls, "endpoint", None)
+    if isinstance(endpoint_slug, str):
+        for result_name, columns in expected_data.items():
+            insertions = PINNED_PROVIDER_COLUMN_INSERTIONS.get((endpoint_slug, result_name), ())
+            for insertion_index, column in insertions:
+                columns.insert(insertion_index, column)
+            if insertions:
+                warnings.append(f"pinned_provider_column_overlay:{result_name}")
 
     result_sets = tuple(
         NbaApiResultSetContract(
@@ -184,19 +933,34 @@ def build_endpoint_contract(runtime_cls: type) -> NbaApiEndpointContract:
         )
         for index, (name, columns) in enumerate(expected_data.items())
     )
-    parameters, required_parameters, nullable_parameters = _endpoint_parameters(runtime_cls)
+    parameters, required_parameters, nullable_parameters, parameter_defaults = _endpoint_parameters(
+        runtime_cls
+    )
+    parameter_query_names = _endpoint_parameter_query_names(runtime_cls, parameters)
     doc = inspect.getdoc(runtime_cls) or ""
-    return NbaApiEndpointContract(
+    contract = NbaApiEndpointContract(
         runtime_class_name=runtime_class_name,
         module_name=runtime_cls.__module__,
-        endpoint_slug=getattr(runtime_cls, "endpoint", None),
+        endpoint_slug=endpoint_slug,
         parameters=parameters,
         required_parameters=required_parameters,
         nullable_parameters=nullable_parameters,
         result_sets=result_sets,
         deprecated="deprecated" in doc.lower(),
         warnings=tuple(warnings),
+        parameter_defaults=parameter_defaults,
+        parameter_query_names=parameter_query_names,
+        request_method="GET",
+        parser_kind=(
+            "custom_nested"
+            if endpoint_slug in custom_parser_endpoint_slugs()
+            else "legacy_result_sets"
+        ),
     )
+    response_contract = endpoint_response_mode_contract(contract)
+    if response_contract.response_mode == "unknown_dynamic_response":
+        _validate_unknown_dynamic_runtime_export(runtime_cls, response_contract)
+    return contract
 
 
 _JSON_BLOCK_RE = re.compile(r"```json\s*(.*?)\s*```", re.DOTALL)
@@ -406,7 +1170,14 @@ def _dedupe_columns(columns: list[str]) -> tuple[str, ...]:
     return tuple(deduped)
 
 
-def _structured_data_set_columns(data_set: list[Any]) -> tuple[str, ...]:
+def structured_data_set_columns(data_set: list[Any]) -> tuple[str, ...]:
+    """Flatten an exact ``nba_api`` structured-header declaration.
+
+    The pinned shot-location endpoints describe a pandas-style multi-level
+    header as declarative ``columnsToSkip``/``columnSpan`` records.  Runtime
+    extraction and contract generation must share this implementation so
+    tuple ``repr`` strings can never become column names.
+    """
     columns_item = next(
         (
             item
@@ -469,7 +1240,7 @@ def _data_set_expected_columns(data_set: list[Any]) -> tuple[str, ...]:
     if string_columns:
         return _dedupe_columns(string_columns)
     if any(isinstance(column, dict) for column in data_set):
-        return _structured_data_set_columns(data_set)
+        return structured_data_set_columns(data_set)
     return ()
 
 
@@ -598,25 +1369,28 @@ def _discover_endpoint_analysis_doc_contracts_with_warnings(
     if not docs_dir.is_dir():
         return {}, [
             {
-                "source_path": str(docs_dir),
+                "source_path": _source_path(root, docs_dir),
                 "reason": "stats_endpoint_docs_dir_missing",
             }
         ]
 
     contracts: dict[str, NbaApiEndpointContract] = {}
     warnings: list[dict[str, str]] = []
-    for path in sorted(docs_dir.glob("*.md")):
+    try:
+        doc_paths = tuple(sorted(docs_dir.glob("*.md")))
+    except OSError as exc:
+        raise _discovery_error(
+            "stats_docs_inventory",
+            _source_path(root, docs_dir),
+            exc,
+        ) from exc
+    for path in doc_paths:
         source_path = _source_path(root, path)
-        try:
-            markdown = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            warnings.append(
-                {
-                    "source_path": source_path,
-                    "reason": f"read_failed:{exc.__class__.__name__}",
-                }
-            )
-            continue
+        markdown = _read_discovery_text(
+            path,
+            stage="stats_docs_read",
+            source=source_path,
+        )
         payload = _endpoint_analysis_payload(markdown)
         if payload is None:
             warnings.append(
@@ -663,15 +1437,25 @@ def discover_live_endpoint_doc_contracts(
         return {}
 
     contracts: dict[str, NbaApiEndpointContract] = {}
-    for path in sorted(docs_dir.glob("*.md")):
-        try:
-            markdown = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
+    try:
+        doc_paths = tuple(sorted(docs_dir.glob("*.md")))
+    except OSError as exc:
+        raise _discovery_error(
+            "live_docs_inventory",
+            _source_path(root, docs_dir),
+            exc,
+        ) from exc
+    for path in doc_paths:
         source_path = _source_path(root, path)
+        markdown = _read_discovery_text(
+            path,
+            stage="live_docs_read",
+            source=source_path,
+        )
         contract = _contract_from_live_endpoint_doc(path, markdown, source_path=source_path)
-        if contract is not None:
-            contracts[contract.runtime_class_name] = contract
+        if contract is None:
+            raise _discovery_error("live_docs_contract", source_path, "InvalidContract")
+        contracts[contract.runtime_class_name] = contract
     return contracts
 
 
@@ -684,8 +1468,8 @@ def _git_sha(root: Path) -> str | None:
             text=True,
             timeout=5,
         )
-    except (OSError, subprocess.SubprocessError):
-        return None
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise _discovery_error("upstream_git_inventory", "git:HEAD", exc) from exc
     sha = result.stdout.strip()
     return sha or None
 
@@ -693,20 +1477,38 @@ def _git_sha(root: Path) -> str | None:
 def _relative_paths(root: Path, directory: Path | None, pattern: str) -> list[str]:
     if directory is None or not directory.is_dir():
         return []
-    return sorted(
-        os.path.relpath(path, root) for path in directory.rglob(pattern) if path.is_file()
-    )
+    try:
+        paths = tuple(directory.rglob(pattern))
+    except OSError as exc:
+        raise _discovery_error(
+            "source_file_inventory",
+            _source_path(root, directory),
+            exc,
+        ) from exc
+    return sorted(os.path.relpath(path, root) for path in paths if path.is_file())
 
 
 def _source_file_digests(root: Path, relative_paths: list[str]) -> dict[str, str]:
     digests: dict[str, str] = {}
     for relative_path in relative_paths:
         path = root / relative_path
-        try:
-            digests[relative_path] = hashlib.sha256(path.read_bytes()).hexdigest()
-        except OSError:
-            digests[relative_path] = "read_failed"
+        raw = _read_discovery_bytes(
+            path,
+            stage="source_file_digest_read",
+            source=relative_path,
+        )
+        digests[relative_path] = hashlib.sha256(raw).hexdigest()
     return digests
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(
+        _read_discovery_bytes(
+            path,
+            stage="source_file_digest_read",
+            source=path.name,
+        )
+    ).hexdigest()
 
 
 def _clean_markdown_cell(value: str) -> str:
@@ -931,7 +1733,13 @@ def _parse_stats_endpoint_metadata(root: Path, path: Path, markdown: str) -> dic
         "endpoint": contract.runtime_class_name,
         "endpoint_slug": contract.endpoint_slug,
         "source_path": contract.source_path,
-        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(
+            _read_discovery_bytes(
+                path,
+                stage="stats_docs_digest_read",
+                source=_source_path(root, path),
+            )
+        ).hexdigest(),
         "endpoint_url": contract.endpoint_url,
         "valid_url": contract.valid_url,
         "last_validated_date": contract.last_validated_date,
@@ -960,7 +1768,7 @@ def _parse_live_endpoint_metadata(root: Path, path: Path, markdown: str) -> dict
                 {
                     "key": key,
                     "class": row.get("class"),
-                    "type": row.get("type"),
+                    "type": _normalise_live_documented_type(row.get("type") or row.get("class")),
                     "sample": row.get("sample") or row.get("example"),
                     "description": row.get("description"),
                     "always_present": (row.get("alwayspresent") or row.get("always_present")),
@@ -973,7 +1781,13 @@ def _parse_live_endpoint_metadata(root: Path, path: Path, markdown: str) -> dict
         "endpoint": title,
         "endpoint_slug": path.stem,
         "source_path": _source_path(root, path),
-        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(
+            _read_discovery_bytes(
+                path,
+                stage="live_docs_digest_read",
+                source=_source_path(root, path),
+            )
+        ).hexdigest(),
         "endpoint_url": _markdown_url(markdown, "Endpoint URL"),
         "valid_url": _markdown_url(markdown, "Valid URL"),
         "last_validated_date": _last_validated_date(markdown, payload or {}),
@@ -988,11 +1802,40 @@ def _parse_live_endpoint_metadata(root: Path, path: Path, markdown: str) -> dict
     }
 
 
+def _normalise_live_documented_type(raw: str | None) -> str | list[str] | None:
+    if not raw:
+        return None
+    aliases = {
+        "bool": "boolean",
+        "boolean": "boolean",
+        "dict": "object",
+        "float": "number",
+        "int": "integer",
+        "integer": "integer",
+        "list": "array",
+        "nonetype": "null",
+        "str": "string",
+        "string": "string",
+    }
+    normalized: list[str] = []
+    for part in re.split(r"\s*(?:/|\|)\s*", raw):
+        cleaned = re.sub(r"[^A-Za-z]", "", part).lower()
+        if cleaned.startswith("class"):
+            cleaned = cleaned.removeprefix("class")
+        value = aliases.get(cleaned, cleaned or None)
+        if value is not None and value not in normalized:
+            normalized.append(value)
+    if not normalized:
+        return None
+    return normalized[0] if len(normalized) == 1 else normalized
+
+
 def _runtime_parameter_rows(runtime_cls: type) -> list[dict[str, Any]]:
     try:
         signature = inspect.signature(runtime_cls)
-    except (TypeError, ValueError):
-        return []
+    except (TypeError, ValueError) as exc:
+        source = f"{runtime_cls.__module__}.{runtime_cls.__name__}"
+        raise _discovery_error("live_runtime_signature_inventory", source, exc) from exc
 
     rows: list[dict[str, Any]] = []
     for parameter in signature.parameters.values():
@@ -1053,6 +1896,7 @@ def _live_shape_field(
         "description": None,
         "nullable": True,
         "source": "nba_api_live_expected_data",
+        "source_field": True,
     }
 
 
@@ -1065,12 +1909,7 @@ def _flatten_live_expected_data_node(
     data_grain: str,
 ) -> None:
     if isinstance(node, dict):
-        field_items = [
-            (key, value)
-            for key, value in node.items()
-            if isinstance(key, str)
-            and (not isinstance(value, dict | list) or (isinstance(value, list) and not value))
-        ]
+        field_items = [(key, value) for key, value in node.items() if isinstance(key, str)]
         if field_items:
             fields = [
                 _live_shape_field(key, value, path, ordinal)
@@ -1103,7 +1942,7 @@ def _flatten_live_expected_data_node(
                 if isinstance(value, list)
                 else "nba_api_live_json_object",
             )
-        if not field_items and not any(isinstance(value, dict | list) for value in node.values()):
+        if not field_items:
             skipped.append(
                 {
                     "json_path": _live_json_path(path),
@@ -1123,15 +1962,27 @@ def _flatten_live_expected_data_node(
                 }
             )
             return
-        exemplar = next((item for item in node if item is not None), node[0])
+        exemplars = [item for item in node if item is not None]
+        exemplar = exemplars[0] if exemplars else node[0]
         if isinstance(exemplar, dict):
-            _flatten_live_expected_data_node(
-                exemplar,
-                path=path,
-                tables=tables,
-                skipped=skipped,
-                data_grain="nba_api_live_json_array",
-            )
+            for item in exemplars:
+                if not isinstance(item, dict):
+                    skipped.append(
+                        {
+                            "json_path": _live_json_path(path),
+                            "reason": "mixed_array_item_type",
+                            "sample_type": _sample_value_type(item),
+                            "source": "runtime_live_expected_data",
+                        }
+                    )
+                    continue
+                _flatten_live_expected_data_node(
+                    item,
+                    path=path,
+                    tables=tables,
+                    skipped=skipped,
+                    data_grain="nba_api_live_json_array",
+                )
             return
         if isinstance(exemplar, list):
             _flatten_live_expected_data_node(
@@ -1148,7 +1999,13 @@ def _flatten_live_expected_data_node(
                 "method_name": _live_result_set_name(path),
                 "json_path": _live_json_path(path),
                 "data_grain": "nba_api_live_json_array",
-                "fields": [_live_shape_field("value", exemplar, path, 0)],
+                "fields": [
+                    {
+                        **_live_shape_field("value", exemplar, path, 0),
+                        "source_field": False,
+                        "source": "nbadb_nested_scalar_projection",
+                    }
+                ],
                 "field_count": 1,
                 "source": "runtime_live_expected_data",
             }
@@ -1204,34 +2061,70 @@ def _flatten_live_expected_data(
                 }
             )
             continue
-        deduped_tables[table["result_set_name"]] = table
-    return [deduped_tables[key] for key in sorted(deduped_tables)], skipped
+        name = table["result_set_name"]
+        existing = deduped_tables.get(name)
+        if existing is None:
+            deduped_tables[name] = table
+            continue
+        existing_names = {field["key"] for field in existing["fields"]}
+        for field in table["fields"]:
+            if field["key"] in existing_names:
+                continue
+            field = dict(field)
+            field["ordinal"] = len(existing["fields"])
+            existing["fields"].append(field)
+            existing_names.add(field["key"])
+        existing["field_count"] = len(existing["fields"])
+    return list(deduped_tables.values()), skipped
 
 
 def _discover_live_runtime_endpoint_classes() -> dict[str, type]:
-    try:
-        from nba_api.live.nba import endpoints
-    except Exception:
-        return {}
-
-    package_path = getattr(endpoints, "__path__", None)
-    if package_path is None:
-        return {}
-
+    endpoints, module_names = _package_module_inventory(
+        "nba_api.live.nba.endpoints",
+        stage="live_runtime_module_inventory",
+    )
     classes: dict[str, type] = {}
-    for module_info in pkgutil.iter_modules(package_path):
-        try:
-            module = importlib.import_module(f"{endpoints.__name__}.{module_info.name}")
-        except Exception:
+    for module_name in module_names:
+        module_path = f"{endpoints.__name__}.{module_name}"
+        module = _import_discovery_module(module_path, stage="live_runtime_module_import")
+        if module_name.startswith("_"):
             continue
-        for name, obj in inspect.getmembers(module, inspect.isclass):
+        module_classes = [
+            (name, obj)
+            for name, obj in inspect.getmembers(module, inspect.isclass)
+            if obj.__module__ == module.__name__ and not name.startswith("_") and name != "DataSet"
+        ]
+        if len(module_classes) != 1:
+            raise _discovery_error(
+                "live_runtime_class_inventory",
+                module_path,
+                "InventoryMismatch",
+            )
+        for name, obj in module_classes:
             if obj.__module__ != module.__name__:
                 continue
             if name.startswith("_") or name == "DataSet":
                 continue
             if not hasattr(obj, "expected_data"):
-                continue
+                raise _discovery_error(
+                    "live_runtime_class_inventory",
+                    f"{module_path}.{name}",
+                    "InvalidContract",
+                )
+            if name in classes:
+                raise _discovery_error(
+                    "live_runtime_class_inventory",
+                    f"{module_path}.{name}",
+                    "InventoryMismatch",
+                )
             classes[name] = obj
+    expected_count = sum(not name.startswith("_") for name in module_names)
+    if len(classes) != expected_count:
+        raise _discovery_error(
+            "live_runtime_class_inventory",
+            endpoints.__name__,
+            "PartialDiscovery",
+        )
     return classes
 
 
@@ -1242,25 +2135,127 @@ def _live_runtime_metadata_from_class(
     endpoint_slug = runtime_cls.__module__.rsplit(".", 1)[-1]
     expected_data = getattr(runtime_cls, "expected_data", {})
     data_sets, skipped_shapes = _flatten_live_expected_data(expected_data)
-    source_path = f"{runtime_cls.__module__}.{runtime_cls.__name__}"
-    source_file = inspect.getsourcefile(runtime_cls)
-    source_sha256 = None
-    if source_file:
-        try:
-            source_sha256 = hashlib.sha256(Path(source_file).read_bytes()).hexdigest()
-        except OSError:
-            source_sha256 = None
+    data_sets_by_path = {
+        str(data_set.get("json_path")): data_set
+        for data_set in data_sets
+        if data_set.get("json_path")
+    }
+    for data_set in data_sets:
+        for field in data_set.get("fields", []):
+            nested_data_set = data_sets_by_path.get(str(field.get("json_path")))
+            if nested_data_set is None or nested_data_set is data_set:
+                continue
+            field["nested_result_set_name"] = nested_data_set["result_set_name"]
+            field["runtime_sample_type"] = (
+                "array" if nested_data_set["data_grain"] == "nba_api_live_json_array" else "object"
+            )
+            field["sample_type"] = field["runtime_sample_type"]
+    source_file, source_path = _runtime_source_path(
+        runtime_cls,
+        stage="live_runtime_source_lookup",
+    )
+    source_sha256 = hashlib.sha256(
+        _read_discovery_bytes(
+            source_file,
+            stage="live_runtime_source_read",
+            source=source_path,
+        )
+    ).hexdigest()
     supplement = supplement or {}
     about_fields_by_key = {
         _normalise_metadata_key(str(field.get("key"))): field
         for field in supplement.get("about_fields", [])
         if isinstance(field, dict) and field.get("key")
     }
+    docs_field_target = next(
+        (
+            data_set
+            for data_set in data_sets
+            if runtime_cls.__name__ == "PlayByPlay"
+            and data_set.get("result_set_name") == "game_actions"
+        ),
+        None,
+    )
+    nested_fields: dict[str, dict[str, Any]] = {}
+    if docs_field_target is not None:
+        parent_path = str(docs_field_target["json_path"]).rstrip(".")
+        for data_set in data_sets:
+            child_path = str(data_set.get("json_path") or "")
+            prefix = f"{parent_path}."
+            if child_path.startswith(prefix) and "." not in child_path[len(prefix) :]:
+                nested_fields[_normalise_metadata_key(child_path[len(prefix) :])] = data_set
+    field_scope = [docs_field_target] if docs_field_target is not None else data_sets
+    known_field_keys = {
+        _normalise_metadata_key(str(field.get("key") or ""))
+        for data_set in field_scope
+        for field in data_set.get("fields", [])
+    }
+    missing_doc_fields = [
+        field
+        for field in supplement.get("about_fields", [])
+        if isinstance(field, dict)
+        and field.get("key")
+        and _normalise_metadata_key(str(field["key"])) not in known_field_keys
+    ]
+    if missing_doc_fields:
+        if docs_field_target is None:
+            raise ValueError(
+                f"live docs expose fields without an owned dataset: {runtime_cls.__name__}"
+            )
+        for about_field in missing_doc_fields:
+            key = str(about_field["key"])
+            nested_data_set = nested_fields.get(_normalise_metadata_key(key))
+            docs_field_target["fields"].append(
+                {
+                    "key": key,
+                    "name": key,
+                    "ordinal": len(docs_field_target["fields"]),
+                    "json_path": f"{docs_field_target['json_path']}.{key}",
+                    "sample_type": (
+                        "array"
+                        if nested_data_set is not None
+                        and nested_data_set.get("data_grain") == "nba_api_live_json_array"
+                        else (about_field.get("type") or "unknown")
+                    ),
+                    "runtime_sample_type": ("array" if nested_data_set is not None else None),
+                    "description": about_field.get("description"),
+                    "description_source": "live_docs_about_fields",
+                    "nullable": True,
+                    "key_presence": (
+                        "required"
+                        if str(about_field.get("always_present") or "").lower() in {"true", "yes"}
+                        else "optional"
+                    ),
+                    "source": (
+                        "nba_api_live_expected_data+live_docs_about_fields"
+                        if nested_data_set is not None
+                        else "live_docs_about_fields"
+                    ),
+                    "source_field": True,
+                    "nested_result_set_name": (
+                        nested_data_set.get("result_set_name")
+                        if nested_data_set is not None
+                        else None
+                    ),
+                    "confidence": "high",
+                    "drift_status": (
+                        "runtime_and_docs"
+                        if nested_data_set is not None
+                        else "docs_optional_not_in_runtime_expected_data"
+                    ),
+                }
+            )
+        docs_field_target["field_count"] = len(docs_field_target["fields"])
+
     for data_set in data_sets:
         result_set_name = data_set.get("result_set_name")
         for field in data_set.get("fields", []):
             key = str(field.get("key") or field.get("name") or "")
-            about_field = about_fields_by_key.get(_normalise_metadata_key(key))
+            about_field = (
+                about_fields_by_key.get(_normalise_metadata_key(key))
+                if field.get("source_field", True)
+                else None
+            )
             explicit_description = (
                 about_field.get("description") if isinstance(about_field, dict) else None
             )
@@ -1274,6 +2269,41 @@ def _live_runtime_metadata_from_class(
             field["description"] = description
             field["description_source"] = (
                 "live_docs_about_fields" if description_source == "metadata" else description_source
+            )
+            documented_type = about_field.get("type") if isinstance(about_field, dict) else None
+            field.setdefault(
+                "runtime_sample_type",
+                (
+                    field.get("sample_type")
+                    if field.get("source")
+                    in {
+                        "nba_api_live_expected_data",
+                        "nba_api_live_expected_data+live_docs_about_fields",
+                        "nbadb_nested_scalar_projection",
+                    }
+                    else None
+                ),
+            )
+            field["documented_type"] = documented_type
+            field.setdefault(
+                "key_presence",
+                (
+                    "required"
+                    if isinstance(about_field, dict)
+                    and str(about_field.get("always_present") or "").lower() in {"true", "yes"}
+                    else "optional_or_undocumented"
+                ),
+            )
+            if field.get("sample_type") in {None, "null", "unknown"} and documented_type:
+                field["sample_type"] = documented_type
+            field.setdefault("confidence", "high")
+            field.setdefault(
+                "drift_status",
+                (
+                    "runtime_nested_scalar_projection"
+                    if not field.get("source_field", True)
+                    else ("runtime_and_docs" if about_field is not None else "runtime_only")
+                ),
             )
     return {
         "endpoint": runtime_cls.__name__,
@@ -1392,7 +2422,13 @@ def _parse_static_doc_metadata(root: Path, path: Path, markdown: str) -> dict[st
     return {
         "module": title.removesuffix(".py"),
         "source_path": _source_path(root, path),
-        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(
+            _read_discovery_bytes(
+                path,
+                stage="static_docs_digest_read",
+                source=_source_path(root, path),
+            )
+        ).hexdigest(),
         "functions": _static_doc_sections(markdown),
         "dictionary_shapes": dictionary_shapes,
     }
@@ -1427,7 +2463,12 @@ def _parse_parameter_library(root: Path, path: Path | None) -> dict[str, Any]:
             "missing": True,
         }
 
-    markdown = path.read_text(encoding="utf-8")
+    source_path = _source_path(root, path)
+    markdown = _read_discovery_text(
+        path,
+        stage="parameter_docs_read",
+        source=source_path,
+    )
     parameters: list[dict[str, Any]] = []
     for section in _markdown_h2_sections(markdown):
         body = section["body"]
@@ -1459,8 +2500,14 @@ def _parse_parameter_library(root: Path, path: Path | None) -> dict[str, Any]:
         )
 
     return {
-        "source_path": _source_path(root, path),
-        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "source_path": source_path,
+        "source_sha256": hashlib.sha256(
+            _read_discovery_bytes(
+                path,
+                stage="parameter_docs_digest_read",
+                source=source_path,
+            )
+        ).hexdigest(),
         "parameters": parameters,
         "missing": False,
     }
@@ -1498,7 +2545,13 @@ def _parse_endpoint_output_sample(root: Path, path: Path, markdown: str) -> dict
     return {
         "endpoint_slug": path.name.removesuffix("_output.md"),
         "source_path": _source_path(root, path),
-        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(
+            _read_discovery_bytes(
+                path,
+                stage="endpoint_output_digest_read",
+                source=_source_path(root, path),
+            )
+        ).hexdigest(),
         "columns": columns,
         "sample_rows": sample_rows,
         "sample_row_count": len(sample_rows),
@@ -1518,25 +2571,27 @@ def _ast_key_name(node: ast.AST) -> str | None:
 
 def _ast_sequence_names(node: ast.AST) -> list[str]:
     if not isinstance(node, ast.List | ast.Tuple | ast.Set):
-        return []
+        raise ValueError("tools sequence inventory is not literal")
     names: list[str] = []
     for element in node.elts:
         name = _ast_key_name(element)
-        if name is not None:
-            names.append(name)
+        if name is None:
+            raise ValueError("tools sequence inventory contains a non-literal value")
+        names.append(name)
     return names
 
 
 def _ast_mapping_keys(node: ast.AST) -> list[str]:
     if not isinstance(node, ast.Dict):
-        return []
+        raise ValueError("tools mapping inventory is not literal")
     keys: list[str] = []
     for key in node.keys:
         if key is None:
-            continue
+            raise ValueError("tools mapping inventory contains an expansion")
         name = _ast_key_name(key)
-        if name is not None:
-            keys.append(name)
+        if name is None:
+            raise ValueError("tools mapping inventory contains a non-literal key")
+        keys.append(name)
     return keys
 
 
@@ -1556,40 +2611,60 @@ def _parse_tools_metadata(root: Path, tools_dir: Path | None) -> dict[str, Any]:
             "warnings": [{"source_path": "tools", "reason": "tools_dir_missing"}],
         }
 
-    for path in sorted(tools_dir.rglob("*.py")):
+    try:
+        tool_paths = tuple(sorted(tools_dir.rglob("*.py")))
+    except OSError as exc:
+        raise _discovery_error(
+            "tools_source_inventory",
+            _source_path(root, tools_dir),
+            exc,
+        ) from exc
+    for path in tool_paths:
         source_path = _source_path(root, path)
+        source_text = _read_discovery_text(
+            path,
+            stage="tools_source_read",
+            source=source_path,
+        )
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError) as exc:
-            warnings.append(
-                {
-                    "source_path": source_path,
-                    "reason": f"parse_failed:{type(exc).__name__}",
-                }
-            )
-            continue
+            tree = ast.parse(source_text, filename=source_path)
+        except SyntaxError as exc:
+            raise _discovery_error("tools_source_parse", source_path, exc) from exc
         assignments: dict[str, list[str]] = {}
         for node in tree.body:
             if not isinstance(node, ast.Assign):
                 continue
             names = [target.id for target in node.targets if isinstance(target, ast.Name)]
             for name in names:
-                if name == "endpoint_list":
-                    values = _ast_sequence_names(node.value)
-                    assignments[name] = values
-                    endpoint_list.extend(values)
-                elif name == "parameter_variations":
-                    values = _ast_mapping_keys(node.value)
-                    assignments[name] = values
-                    parameter_variation_keys.extend(values)
-                elif name == "parameter_map":
-                    values = _ast_mapping_keys(node.value)
-                    assignments[name] = values
-                    parameter_map_keys.extend(values)
+                try:
+                    if name == "endpoint_list":
+                        values = _ast_sequence_names(node.value)
+                        assignments[name] = values
+                        endpoint_list.extend(values)
+                    elif name == "parameter_variations":
+                        values = _ast_mapping_keys(node.value)
+                        assignments[name] = values
+                        parameter_variation_keys.extend(values)
+                    elif name == "parameter_map":
+                        values = _ast_mapping_keys(node.value)
+                        assignments[name] = values
+                        parameter_map_keys.extend(values)
+                except ValueError as exc:
+                    raise _discovery_error(
+                        "tools_assignment_inventory",
+                        source_path,
+                        "InvalidContract",
+                    ) from exc
         files.append(
             {
                 "source_path": source_path,
-                "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "source_sha256": hashlib.sha256(
+                    _read_discovery_bytes(
+                        path,
+                        stage="tools_source_digest_read",
+                        source=source_path,
+                    )
+                ).hexdigest(),
                 "assignments": assignments,
             }
         )
@@ -1752,22 +2827,26 @@ def build_nba_api_metadata_ledger(docs_root: Path | str | None) -> dict[str, Any
 
     stats_endpoint_metadata: list[dict[str, Any]] = []
     if stats_dir.is_dir():
-        for path in sorted(stats_dir.glob("*.md")):
-            try:
-                markdown = path.read_text(encoding="utf-8")
-                metadata = _parse_stats_endpoint_metadata(root, path, markdown)
-            except OSError as exc:
-                warnings.append(
-                    {
-                        "source_path": _source_path(root, path),
-                        "reason": f"read_failed:{type(exc).__name__}",
-                    }
-                )
-                continue
+        try:
+            stats_paths = tuple(sorted(stats_dir.glob("*.md")))
+        except OSError as exc:
+            raise _discovery_error(
+                "stats_metadata_inventory",
+                _source_path(root, stats_dir),
+                exc,
+            ) from exc
+        for path in stats_paths:
+            source_path = _source_path(root, path)
+            markdown = _read_discovery_text(
+                path,
+                stage="stats_metadata_read",
+                source=source_path,
+            )
+            metadata = _parse_stats_endpoint_metadata(root, path, markdown)
             if metadata is None:
                 warnings.append(
                     {
-                        "source_path": _source_path(root, path),
+                        "source_path": source_path,
                         "reason": "stats_metadata_parse_failed",
                     }
                 )
@@ -1783,22 +2862,26 @@ def build_nba_api_metadata_ledger(docs_root: Path | str | None) -> dict[str, Any
 
     live_supplements_by_slug: dict[str, dict[str, Any]] = {}
     if live_dir is not None and live_dir.is_dir():
-        for path in sorted(live_dir.glob("*.md")):
-            try:
-                markdown = path.read_text(encoding="utf-8")
-                supplement = _parse_live_endpoint_metadata(root, path, markdown)
-            except OSError as exc:
-                warnings.append(
-                    {
-                        "source_path": _source_path(root, path),
-                        "reason": f"read_failed:{type(exc).__name__}",
-                    }
-                )
-                continue
+        try:
+            live_paths = tuple(sorted(live_dir.glob("*.md")))
+        except OSError as exc:
+            raise _discovery_error(
+                "live_metadata_inventory",
+                _source_path(root, live_dir),
+                exc,
+            ) from exc
+        for path in live_paths:
+            source_path = _source_path(root, path)
+            markdown = _read_discovery_text(
+                path,
+                stage="live_metadata_read",
+                source=source_path,
+            )
+            supplement = _parse_live_endpoint_metadata(root, path, markdown)
             if supplement is None:
                 warnings.append(
                     {
-                        "source_path": _source_path(root, path),
+                        "source_path": source_path,
                         "reason": "live_metadata_parse_failed",
                     }
                 )
@@ -1816,36 +2899,137 @@ def build_nba_api_metadata_ledger(docs_root: Path | str | None) -> dict[str, Any
 
     static_doc_metadata: list[dict[str, Any]] = []
     if static_dir is not None and static_dir.is_dir():
-        for path in sorted(static_dir.glob("*.md")):
-            try:
-                metadata = _parse_static_doc_metadata(root, path, path.read_text(encoding="utf-8"))
-            except OSError as exc:
-                warnings.append(
-                    {
-                        "source_path": _source_path(root, path),
-                        "reason": f"read_failed:{type(exc).__name__}",
-                    }
-                )
-                continue
+        try:
+            static_paths = tuple(sorted(static_dir.glob("*.md")))
+        except OSError as exc:
+            raise _discovery_error(
+                "static_metadata_inventory",
+                _source_path(root, static_dir),
+                exc,
+            ) from exc
+        for path in static_paths:
+            source_path = _source_path(root, path)
+            markdown = _read_discovery_text(
+                path,
+                stage="static_metadata_read",
+                source=source_path,
+            )
+            metadata = _parse_static_doc_metadata(root, path, markdown)
             if metadata is not None:
                 static_doc_metadata.append(metadata)
 
+    static_source_metadata: list[dict[str, Any]] = []
+    source_package_roots = (root / "src", root)
+    has_static_source = any(
+        (package_root / "nba_api" / "stats" / "library" / "data.py").is_file()
+        for package_root in source_package_roots
+    )
+    if has_static_source:
+        from nbadb.core.nba_api_runtime_contract import pinned_static_contracts
+
+        for dataset_id, contract in sorted(pinned_static_contracts().items()):
+            source_path = next(
+                (
+                    package_root / contract.data_source_path
+                    for package_root in source_package_roots
+                    if (package_root / contract.data_source_path).is_file()
+                ),
+                None,
+            )
+            provider_source_path = next(
+                (
+                    package_root / contract.provider_source_path
+                    for package_root in source_package_roots
+                    if (package_root / contract.provider_source_path).is_file()
+                ),
+                None,
+            )
+            if source_path is None or provider_source_path is None:
+                raise ValueError(f"exact static source is incomplete for {dataset_id}")
+            if (
+                _file_sha256(source_path) != contract.data_source_sha256
+                or _file_sha256(provider_source_path) != contract.provider_source_sha256
+            ):
+                raise ValueError(
+                    f"exact static source disagrees with the pinned contract for {dataset_id}"
+                )
+            static_source_metadata.append(
+                {
+                    "dataset_id": dataset_id,
+                    "module": dataset_id.removeprefix("static_"),
+                    "source_path": contract.data_source_path,
+                    "source_sha256": contract.data_source_sha256,
+                    "provider_source_path": contract.provider_source_path,
+                    "provider_source_sha256": contract.provider_source_sha256,
+                    "raw_fields": [field.to_json() for field in contract.raw_fields],
+                    "projected_fields": list(contract.projected_fields),
+                    "row_count": contract.row_count,
+                    "raw_records_sha256": contract.raw_records_sha256,
+                    "source_rows_sha256": contract.source_rows_sha256,
+                    "contract_sha256": contract.contract_sha256,
+                    "model_disposition": contract.model_disposition,
+                    "disposition_reason": contract.disposition_reason,
+                }
+            )
+
     endpoint_output_samples: list[dict[str, Any]] = []
     if output_dir is not None and output_dir.is_dir():
-        for path in sorted(output_dir.glob("*_output.md")):
-            try:
-                endpoint_output_samples.append(
-                    _parse_endpoint_output_sample(root, path, path.read_text(encoding="utf-8"))
+        try:
+            output_paths = tuple(sorted(output_dir.glob("*_output.md")))
+        except OSError as exc:
+            raise _discovery_error(
+                "endpoint_output_inventory",
+                _source_path(root, output_dir),
+                exc,
+            ) from exc
+        for path in output_paths:
+            source_path = _source_path(root, path)
+            endpoint_output_samples.append(
+                _parse_endpoint_output_sample(
+                    root,
+                    path,
+                    _read_discovery_text(
+                        path,
+                        stage="endpoint_output_read",
+                        source=source_path,
+                    ),
                 )
-            except OSError as exc:
-                warnings.append(
-                    {
-                        "source_path": _source_path(root, path),
-                        "reason": f"read_failed:{type(exc).__name__}",
-                    }
-                )
+            )
 
     parameter_library = _parse_parameter_library(root, parameter_doc)
+    parameter_contracts = {
+        str(parameter["parameter_name"]): parameter for parameter in parameter_library["parameters"]
+    }
+    for endpoint in stats_endpoint_metadata:
+        for parameter in endpoint["parameters"]:
+            library_contract = parameter_contracts.get(str(parameter["api_parameter_name"]))
+            if library_contract is None:
+                parameter["constraint_status"] = "docs_tools_contract_drift_classified"
+                parameter["constraint_evidence"] = {
+                    "source_path": parameter_library.get("source_path"),
+                    "confidence": "high",
+                    "classification": "endpoint_docs_parameter_absent_from_parameter_library",
+                    "effect": "parameter is retained but constrained only by endpoint docs",
+                    "owner": "upstream_nba_api",
+                    "revalidation_path": "regenerate_from_exact_pinned_nba_api_source",
+                }
+                parameter["parameter_classes"] = []
+                parameter["patterns"] = [parameter["pattern"]] if parameter.get("pattern") else []
+                parameter["allowed_values"] = []
+                continue
+            parameter["constraint_status"] = (
+                "exact_parameter_library_contract"
+                if not library_contract["no_available_information"]
+                else "parameter_library_declares_no_available_information"
+            )
+            parameter["constraint_evidence"] = {
+                "source_path": parameter_library.get("source_path"),
+                "source_sha256": parameter_library.get("source_sha256"),
+                "confidence": "high",
+            }
+            parameter["parameter_classes"] = library_contract["classes"]
+            parameter["patterns"] = library_contract["patterns"]
+            parameter["allowed_values"] = library_contract["values"]
     tools_metadata = _parse_tools_metadata(root, tools_dir)
     tools_reconciliation = _reconcile_tools_metadata(tools_metadata, stats_endpoint_metadata)
     warnings.extend(tools_metadata.get("warnings", []))
@@ -1883,6 +3067,7 @@ def build_nba_api_metadata_ledger(docs_root: Path | str | None) -> dict[str, Any
         "stats_endpoint_metadata": stats_endpoint_metadata,
         "live_endpoint_metadata": live_endpoint_metadata,
         "static_doc_metadata": static_doc_metadata,
+        "static_source_metadata": static_source_metadata,
         "parameter_library": parameter_library,
         "endpoint_output_samples": endpoint_output_samples,
         "tools_metadata": tools_metadata,
@@ -1894,6 +3079,10 @@ def build_nba_api_metadata_ledger(docs_root: Path | str | None) -> dict[str, Any
             "stats_parameter_row_count": sum(
                 len(endpoint["parameters"]) for endpoint in stats_endpoint_metadata
             ),
+            "stats_parameter_constraint_classified_count": sum(
+                len(endpoint["parameters"]) for endpoint in stats_endpoint_metadata
+            ),
+            "stats_parameter_constraint_unclassified_count": 0,
             "live_endpoint_metadata_count": len(live_endpoint_metadata),
             "live_data_set_metadata_count": live_data_set_count,
             "live_field_metadata_count": live_field_count,
@@ -1901,6 +3090,17 @@ def build_nba_api_metadata_ledger(docs_root: Path | str | None) -> dict[str, Any
             "static_doc_metadata_count": len(static_doc_metadata),
             "static_function_doc_count": static_function_count,
             "static_dictionary_shape_count": static_dictionary_shape_count,
+            "static_source_dataset_count": len(static_source_metadata),
+            "static_source_modeled_dataset_count": sum(
+                1
+                for dataset in static_source_metadata
+                if dataset["model_disposition"] == "defined_and_implemented"
+            ),
+            "static_source_field_count": sum(
+                len(dataset["raw_fields"])
+                for dataset in static_source_metadata
+                if dataset["model_disposition"] == "defined_and_implemented"
+            ),
             "parameter_library_entry_count": len(parameter_entries),
             "parameter_library_no_available_info_count": parameter_no_info_count,
             "endpoint_output_sample_count": len(endpoint_output_samples),
@@ -1969,6 +3169,7 @@ def _bronze_columns_from_names(
                 "description_source": description_source,
                 "nullable": True,
                 "source": "nba_api_expected_columns",
+                "source_field": True,
             }
         )
     return columns
@@ -2013,6 +3214,7 @@ def build_nba_api_bronze_contracts_from_bundle(bundle: dict[str, Any]) -> dict[s
                         or description_source,
                         "nullable": True,
                         "source": "nba_api_docs_tools_ingestion",
+                        "source_field": True,
                     }
                 )
             if not columns:
@@ -2083,6 +3285,7 @@ def build_nba_api_bronze_contracts_from_bundle(bundle: dict[str, Any]) -> dict[s
                         "source": field.get("source", "nba_api_live_expected_data"),
                         "json_path": field.get("json_path"),
                         "sample_type": field.get("sample_type") or field.get("type"),
+                        "source_field": field.get("source_field", True),
                     }
                 )
             if not columns:
@@ -2111,33 +3314,71 @@ def build_nba_api_bronze_contracts_from_bundle(bundle: dict[str, Any]) -> dict[s
                 }
             )
 
-    for static_doc in metadata_ledger.get("static_doc_metadata", []):
-        for index, dictionary_shape in enumerate(static_doc.get("dictionary_shapes", [])):
-            keys = dictionary_shape.get("keys", [])
-            result_set_name = f"shape_{index + 1}"
+    static_source_metadata = [
+        dataset
+        for dataset in metadata_ledger.get("static_source_metadata", [])
+        if dataset.get("model_disposition") == "defined_and_implemented"
+    ]
+    if static_source_metadata:
+        for dataset in static_source_metadata:
+            keys = [field["name"] for field in dataset.get("raw_fields", [])]
+            result_set_name = "shape_1"
             columns = _bronze_columns_from_names(
                 keys,
-                endpoint=str(static_doc.get("module") or "static"),
+                endpoint=str(dataset.get("module") or "static"),
                 result_set=result_set_name,
             )
             tables.append(
                 {
                     "bronze_table": "bronze_"
-                    + _bronze_identifier("static", static_doc.get("module"), result_set_name),
+                    + _bronze_identifier("static", dataset.get("module"), result_set_name),
                     "source_family": "static",
-                    "endpoint": static_doc.get("module"),
-                    "endpoint_slug": static_doc.get("module"),
-                    "result_set_name": f"{static_doc.get('module')}_{result_set_name}",
+                    "endpoint": dataset.get("module"),
+                    "endpoint_slug": dataset.get("module"),
+                    "result_set_name": f"{dataset.get('module')}_{result_set_name}",
                     "source_dataset_method": None,
-                    "data_grain": "nba_api_static_dictionary",
+                    "data_grain": "nba_api_static_source_record",
                     "columns": columns,
                     "column_count": len(columns),
                     "parameters": [],
-                    "source_path": static_doc.get("source_path"),
+                    "source_path": dataset.get("source_path"),
+                    "source_sha256": dataset.get("source_sha256"),
+                    "source_rows_sha256": dataset.get("source_rows_sha256"),
+                    "raw_records_sha256": dataset.get("raw_records_sha256"),
+                    "static_contract_sha256": dataset.get("contract_sha256"),
+                    "projected_fields": dataset.get("projected_fields", []),
                     "endpoint_url": None,
                     "valid_url": None,
                 }
             )
+    else:
+        for static_doc in metadata_ledger.get("static_doc_metadata", []):
+            for index, dictionary_shape in enumerate(static_doc.get("dictionary_shapes", [])):
+                keys = dictionary_shape.get("keys", [])
+                result_set_name = f"shape_{index + 1}"
+                columns = _bronze_columns_from_names(
+                    keys,
+                    endpoint=str(static_doc.get("module") or "static"),
+                    result_set=result_set_name,
+                )
+                tables.append(
+                    {
+                        "bronze_table": "bronze_"
+                        + _bronze_identifier("static", static_doc.get("module"), result_set_name),
+                        "source_family": "static",
+                        "endpoint": static_doc.get("module"),
+                        "endpoint_slug": static_doc.get("module"),
+                        "result_set_name": f"{static_doc.get('module')}_{result_set_name}",
+                        "source_dataset_method": None,
+                        "data_grain": "nba_api_static_dictionary",
+                        "columns": columns,
+                        "column_count": len(columns),
+                        "parameters": [],
+                        "source_path": static_doc.get("source_path"),
+                        "endpoint_url": None,
+                        "valid_url": None,
+                    }
+                )
 
     contracts = {
         "enabled": bool(bundle.get("enabled")),
@@ -2151,6 +3392,12 @@ def build_nba_api_bronze_contracts_from_bundle(bundle: dict[str, Any]) -> dict[s
             "live_table_count": sum(1 for table in tables if table["source_family"] == "live"),
             "static_table_count": sum(1 for table in tables if table["source_family"] == "static"),
             "column_count": sum(table["column_count"] for table in tables),
+            "canonical_source_field_count": sum(
+                1
+                for table in tables
+                for column in table["columns"]
+                if column.get("source_field", True)
+            ),
             "zero_column_table_count": len(skipped_zero_column_tables),
         },
         "skipped_zero_column_tables": skipped_zero_column_tables,
@@ -2187,8 +3434,16 @@ def build_nba_api_bronze_contracts_from_bundle(bundle: dict[str, Any]) -> dict[s
     return contracts
 
 
-def build_nba_api_upstream_contract_bundle(docs_root: Path | str | None) -> dict[str, Any]:
+def build_nba_api_upstream_contract_bundle(
+    docs_root: Path | str | None,
+    *,
+    project_root: Path | str | None = None,
+) -> dict[str, Any]:
     root = Path(docs_root) if docs_root is not None else None
+    provider_provenance = verify_nba_api_provider(
+        root,
+        project_root=Path(project_root) if project_root is not None else Path.cwd(),
+    )
     if root is None:
         metadata_ledger = build_nba_api_metadata_ledger(None)
         bundle: dict[str, Any] = {
@@ -2201,6 +3456,7 @@ def build_nba_api_upstream_contract_bundle(docs_root: Path | str | None) -> dict
             "live_contracts": [],
             "metadata_ledger": metadata_ledger,
             "warnings": ["endpoint_analysis_docs_root_not_configured"],
+            "provider_provenance": provider_provenance,
         }
     else:
         stats_dir = _endpoint_docs_dir(root)
@@ -2233,15 +3489,9 @@ def build_nba_api_upstream_contract_bundle(docs_root: Path | str | None) -> dict
             "docs_root": str(root),
             "upstream_git_sha": _git_sha(root),
             "source_inventory": {
-                "stats_endpoint_doc_count": (
-                    len(list(stats_dir.glob("*.md"))) if stats_dir.is_dir() else 0
-                ),
+                "stats_endpoint_doc_count": len(stats_docs),
                 "parsed_stats_contract_count": len(stats_contracts),
-                "live_endpoint_doc_count": (
-                    len(list(live_dir.glob("*.md")))
-                    if live_dir is not None and live_dir.is_dir()
-                    else 0
-                ),
+                "live_endpoint_doc_count": len(live_docs),
                 "parsed_live_contract_count": len(live_contracts),
                 "static_doc_count": len(static_docs),
                 "parameter_library_doc_count": len(parameter_docs),
@@ -2277,6 +3527,7 @@ def build_nba_api_upstream_contract_bundle(docs_root: Path | str | None) -> dict
             ],
             "metadata_ledger": metadata_ledger,
             "warnings": (["malformed_stats_docs_detected"] if malformed_stats_docs else []),
+            "provider_provenance": provider_provenance,
         }
 
     bronze_contracts = build_nba_api_bronze_contracts_from_bundle(bundle)
@@ -2295,28 +3546,68 @@ def build_nba_api_upstream_contract_bundle(docs_root: Path | str | None) -> dict
 
 @lru_cache(maxsize=1)
 def discover_runtime_endpoint_contracts() -> dict[str, NbaApiEndpointContract]:
-    try:
-        from nba_api.stats import endpoints
-    except Exception:
-        return {}
-
+    endpoints, module_names = _package_module_inventory(
+        "nba_api.stats.endpoints",
+        stage="stats_runtime_module_inventory",
+    )
     contracts: dict[str, NbaApiEndpointContract] = {}
-    package_path = getattr(endpoints, "__path__", None)
-    if package_path is None:
-        return contracts
-
-    for module_info in pkgutil.iter_modules(package_path):
-        try:
-            module = importlib.import_module(f"{endpoints.__name__}.{module_info.name}")
-        except Exception:
+    for module_name in module_names:
+        module_path = f"{endpoints.__name__}.{module_name}"
+        module = _import_discovery_module(module_path, stage="stats_runtime_module_import")
+        if module_name.startswith("_"):
             continue
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if obj.__module__ != module.__name__:
-                continue
-            if name.startswith("_") or name == "Endpoint":
-                continue
-            contracts[name] = build_endpoint_contract(obj)
+        module_classes = [
+            (name, obj)
+            for name, obj in inspect.getmembers(module, inspect.isclass)
+            if obj.__module__ == module.__name__ and not name.startswith("_") and name != "Endpoint"
+        ]
+        if len(module_classes) != 1:
+            raise _discovery_error(
+                "stats_runtime_class_inventory",
+                module_path,
+                "InventoryMismatch",
+            )
+        for name, obj in module_classes:
+            if name in contracts:
+                raise _discovery_error(
+                    "stats_runtime_class_inventory",
+                    f"{module_path}.{name}",
+                    "InventoryMismatch",
+                )
+            try:
+                contracts[name] = build_endpoint_contract(obj)
+            except NbaApiContractDiscoveryError:
+                raise
+            except Exception as exc:
+                raise _discovery_error(
+                    "stats_runtime_contract_build",
+                    f"{module_path}.{name}",
+                    exc,
+                ) from exc
+    expected_count = sum(not name.startswith("_") for name in module_names)
+    if len(contracts) != expected_count:
+        raise _discovery_error(
+            "stats_runtime_class_inventory",
+            endpoints.__name__,
+            "PartialDiscovery",
+        )
     return contracts
+
+
+def _parameter_default_to_json(
+    default: NbaApiParameterDefaultContract,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": default.name,
+        "value_type": default.value_type,
+        "default_authority": default.default_authority,
+        "default_expression": default.default_expression,
+    }
+    if default.default_authority == "provider_literal_or_required_v1":
+        payload["value"] = default.value
+    elif default.value is not None:
+        raise ValueError("dynamic provider default cannot retain an evaluated value")
+    return payload
 
 
 def contract_to_json(contract: NbaApiEndpointContract) -> dict[str, Any]:
@@ -2327,6 +3618,15 @@ def contract_to_json(contract: NbaApiEndpointContract) -> dict[str, Any]:
         "parameters": list(contract.parameters),
         "required_parameters": list(contract.required_parameters),
         "nullable_parameters": list(contract.nullable_parameters),
+        "parameter_defaults": [
+            _parameter_default_to_json(default) for default in contract.parameter_defaults
+        ],
+        "parameter_query_names": [
+            {"name": name, "query_name": query_name}
+            for name, query_name in contract.parameter_query_names
+        ],
+        "request_method": contract.request_method,
+        "parser_kind": contract.parser_kind,
         "deprecated": contract.deprecated,
         "warnings": list(contract.warnings),
         "result_sets": [
@@ -2354,3 +3654,363 @@ def contract_to_json(contract: NbaApiEndpointContract) -> dict[str, Any]:
         if value not in (None, {}, ()):
             payload[key] = value
     return payload
+
+
+def _endpoint_contract_payload_sha256(contract: NbaApiEndpointContract) -> str:
+    encoded = json.dumps(
+        contract_to_json(contract),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def endpoint_response_mode_contract(
+    contract: NbaApiEndpointContract,
+) -> NbaApiResponseModeContract:
+    """Classify exact endpoint result authority without inferring a shape.
+
+    Endpoint-level ``expected_data = {}`` is admitted only for the four exact
+    pinned Video endpoints.  Any mutation of their identity or complete
+    endpoint contract fails closed.  A named result set with zero declared
+    columns remains a normal declared result-set contract and never enters the
+    unknown-response path.
+    """
+
+    endpoint_slug = contract.endpoint_slug
+    if not isinstance(endpoint_slug, str) or not endpoint_slug:
+        raise ValueError("nba_api response contract endpoint slug is absent")
+    identity = (contract.runtime_class_name, contract.module_name, endpoint_slug)
+    pin = _EXACT_UNKNOWN_DYNAMIC_RESPONSE_PINS.get(identity)
+    contract_sha256 = _endpoint_contract_payload_sha256(contract)
+    if pin is not None:
+        if (
+            contract_sha256 != pin.endpoint_contract_sha256
+            or contract.parser_kind != "legacy_result_sets"
+            or contract.result_sets
+        ):
+            raise ValueError("exact unknown dynamic response contract drifted")
+        return NbaApiResponseModeContract(
+            runtime_class_name=contract.runtime_class_name,
+            module_name=contract.module_name,
+            endpoint_slug=endpoint_slug,
+            response_mode="unknown_dynamic_response",
+            provider_result_inventory="endpoint_expected_data_empty_unknown",
+            observed_packet_mode="fail_closed_json_object_or_legacy_result_sets",
+            endpoint_doc_status=pin.endpoint_doc_status,
+            package_export_status=pin.package_export_status,
+            endpoint_contract_sha256=contract_sha256,
+        )
+
+    if (
+        contract.runtime_class_name in _UNKNOWN_DYNAMIC_RUNTIME_CLASS_NAMES
+        or contract.module_name in _UNKNOWN_DYNAMIC_MODULE_NAMES
+        or endpoint_slug in _UNKNOWN_DYNAMIC_ENDPOINT_SLUGS
+    ):
+        raise ValueError("unknown dynamic response endpoint identity drifted")
+    if not contract.result_sets:
+        raise ValueError("zero-result endpoint lacks an exact unknown dynamic response pin")
+    return NbaApiResponseModeContract(
+        runtime_class_name=contract.runtime_class_name,
+        module_name=contract.module_name,
+        endpoint_slug=endpoint_slug,
+        response_mode="declared_result_sets",
+        provider_result_inventory="named_result_sets",
+        observed_packet_mode="declared_result_sets_only",
+        endpoint_doc_status=None,
+        package_export_status=None,
+        endpoint_contract_sha256=contract_sha256,
+    )
+
+
+def _validate_unknown_dynamic_runtime_export(
+    runtime_cls: type,
+    response_contract: NbaApiResponseModeContract,
+) -> None:
+    """Verify the exact installed package export status carried by the pin."""
+
+    package_name = "nba_api.stats.endpoints"
+    package = _import_discovery_module(
+        package_name,
+        stage="stats_unknown_response_export_import",
+    )
+    declared = getattr(package, "__all__", None)
+    if not isinstance(declared, list | tuple) or any(
+        not isinstance(name, str) for name in declared
+    ):
+        raise _discovery_error(
+            "stats_unknown_response_export_inventory",
+            package_name,
+            "InventoryMismatch",
+        )
+    module_leaf = runtime_cls.__module__.rsplit(".", 1)[-1]
+    module_exported = module_leaf in declared
+    class_exported = getattr(package, runtime_cls.__name__, None) is runtime_cls
+    if module_exported != class_exported:
+        raise _discovery_error(
+            "stats_unknown_response_export_inventory",
+            runtime_cls.__name__,
+            "InventoryMismatch",
+        )
+    actual_status: PackageExportStatus = (
+        "package_exported" if module_exported else "direct_import_only"
+    )
+    if actual_status != response_contract.package_export_status:
+        raise _discovery_error(
+            "stats_unknown_response_export_inventory",
+            runtime_cls.__name__,
+            "InventoryMismatch",
+        )
+
+
+def contract_from_json(payload: object) -> NbaApiEndpointContract:
+    """Load one exact generated endpoint contract into the owned DTO."""
+
+    if not isinstance(payload, dict):
+        raise ValueError("nba_api endpoint contract must be an object")
+    value = cast("dict[str, Any]", payload)
+    required_keys = {
+        "runtime_class_name",
+        "module_name",
+        "endpoint_slug",
+        "parameters",
+        "required_parameters",
+        "nullable_parameters",
+        "parameter_defaults",
+        "parameter_query_names",
+        "request_method",
+        "parser_kind",
+        "deprecated",
+        "warnings",
+        "result_sets",
+    }
+    optional_keys = {
+        "parameter_patterns",
+        "endpoint_url",
+        "valid_url",
+        "last_validated_date",
+        "source_path",
+        "source_family",
+        "status",
+    }
+    if not required_keys <= set(value) or not set(value) <= required_keys | optional_keys:
+        raise ValueError("nba_api endpoint contract fields do not match the schema")
+
+    def _strings(field: str) -> tuple[str, ...]:
+        raw = value[field]
+        if not isinstance(raw, list) or any(not isinstance(item, str) for item in raw):
+            raise ValueError(f"nba_api endpoint contract {field} must be strings")
+        return tuple(raw)
+
+    runtime_class_name = value["runtime_class_name"]
+    module_name = value["module_name"]
+    endpoint_slug = value["endpoint_slug"]
+    if not isinstance(runtime_class_name, str) or not isinstance(module_name, str):
+        raise ValueError("nba_api endpoint contract identity is invalid")
+    if endpoint_slug is not None and not isinstance(endpoint_slug, str):
+        raise ValueError("nba_api endpoint contract slug is invalid")
+    if not isinstance(value["deprecated"], bool):
+        raise ValueError("nba_api endpoint contract deprecated flag is invalid")
+
+    raw_defaults = value["parameter_defaults"]
+    if not isinstance(raw_defaults, list):
+        raise ValueError("nba_api endpoint contract parameter defaults are invalid")
+    defaults: list[NbaApiParameterDefaultContract] = []
+    for raw_default in raw_defaults:
+        if not isinstance(raw_default, dict):
+            raise ValueError("nba_api endpoint contract parameter default is invalid")
+        authority = raw_default.get("default_authority")
+        expected_fields = (
+            {"name", "value_type", "default_authority", "default_expression"}
+            if authority == "provider_dynamic_default_expression_v1"
+            else {
+                "name",
+                "value",
+                "value_type",
+                "default_authority",
+                "default_expression",
+            }
+        )
+        if set(raw_default) != expected_fields:
+            raise ValueError("nba_api endpoint contract parameter default is invalid")
+        name = raw_default["name"]
+        default = raw_default.get("value")
+        value_type = raw_default["value_type"]
+        default_authority = raw_default["default_authority"]
+        default_expression = raw_default["default_expression"]
+        if not isinstance(name, str) or not (
+            default is None or isinstance(default, str | int | float | bool)
+        ):
+            raise ValueError("nba_api endpoint contract parameter default is invalid")
+        if value_type not in {"str", "int", "float", "bool", "NoneType"}:
+            raise ValueError("nba_api endpoint contract parameter default type is invalid")
+        if default_authority == "provider_dynamic_default_expression_v1":
+            if (
+                not isinstance(default_expression, str)
+                or _DYNAMIC_DEFAULT_EXPRESSION_TYPES.get(default_expression) != value_type
+            ):
+                raise ValueError("nba_api endpoint dynamic default authority is invalid")
+        elif default_authority == "provider_literal_or_required_v1":
+            if (
+                not isinstance(default_expression, str)
+                or default_expression in _DYNAMIC_DEFAULT_EXPRESSION_TYPES
+                or default_expression.partition(".")[0] in _DYNAMIC_DEFAULT_CLASS_NAMES
+                or value_type != type(default).__name__
+            ):
+                raise ValueError("nba_api endpoint literal default authority is invalid")
+        else:
+            raise ValueError("nba_api endpoint parameter default authority is invalid")
+        defaults.append(
+            NbaApiParameterDefaultContract(
+                name=name,
+                value=default,
+                value_type=cast("ParameterValueType", value_type),
+                default_authority=cast("ParameterDefaultAuthority", default_authority),
+                default_expression=cast("str", default_expression),
+            )
+        )
+
+    raw_query_names = value["parameter_query_names"]
+    if not isinstance(raw_query_names, list):
+        raise ValueError("nba_api endpoint parameter query names are invalid")
+    query_names: list[tuple[str, str]] = []
+    for raw_query_name in raw_query_names:
+        if not isinstance(raw_query_name, dict) or set(raw_query_name) != {
+            "name",
+            "query_name",
+        }:
+            raise ValueError("nba_api endpoint parameter query name is invalid")
+        name = raw_query_name["name"]
+        query_name = raw_query_name["query_name"]
+        if not isinstance(name, str) or not isinstance(query_name, str):
+            raise ValueError("nba_api endpoint parameter query name is invalid")
+        query_names.append((name, query_name))
+    if value["request_method"] != "GET":
+        raise ValueError("nba_api endpoint request method is invalid")
+    if value["parser_kind"] not in {"legacy_result_sets", "custom_nested"}:
+        raise ValueError("nba_api endpoint parser kind is invalid")
+
+    raw_result_sets = value["result_sets"]
+    if not isinstance(raw_result_sets, list):
+        raise ValueError("nba_api endpoint result-set contracts must be a list")
+    result_sets: list[NbaApiResultSetContract] = []
+    for raw_result_set in raw_result_sets:
+        if not isinstance(raw_result_set, dict) or set(raw_result_set) != {
+            "runtime_class_name",
+            "result_set_index",
+            "result_set_name",
+            "expected_columns",
+            "source",
+            "confidence",
+        }:
+            raise ValueError("nba_api endpoint result-set contract is invalid")
+        index = raw_result_set["result_set_index"]
+        name = raw_result_set["result_set_name"]
+        columns = raw_result_set["expected_columns"]
+        source = raw_result_set["source"]
+        confidence = raw_result_set["confidence"]
+        if (
+            raw_result_set["runtime_class_name"] != runtime_class_name
+            or isinstance(index, bool)
+            or not isinstance(index, int)
+            or index < 0
+            or (name is not None and not isinstance(name, str))
+            or not isinstance(columns, list)
+            or any(not isinstance(column, str) for column in columns)
+            or source
+            not in {
+                "expected_data",
+                "source_ast",
+                "load_response",
+                "manual_override",
+                "endpoint_analysis_docs",
+            }
+            or confidence not in {"high", "medium", "low"}
+        ):
+            raise ValueError("nba_api endpoint result-set contract is invalid")
+        result_sets.append(
+            NbaApiResultSetContract(
+                runtime_class_name=runtime_class_name,
+                result_set_index=index,
+                result_set_name=name,
+                expected_columns=tuple(columns),
+                source=cast("ContractSource", source),
+                confidence=cast("Confidence", confidence),
+            )
+        )
+    if tuple(result_set.result_set_index for result_set in result_sets) != tuple(
+        range(len(result_sets))
+    ):
+        raise ValueError("nba_api endpoint result-set ordinals are not contiguous")
+
+    raw_patterns = value.get("parameter_patterns", {})
+    if not isinstance(raw_patterns, dict) or any(
+        not isinstance(name, str) or (pattern is not None and not isinstance(pattern, str))
+        for name, pattern in raw_patterns.items()
+    ):
+        raise ValueError("nba_api endpoint parameter patterns are invalid")
+    parameter_patterns = tuple(
+        sorted(
+            (cast("str", name), cast("str | None", pattern))
+            for name, pattern in raw_patterns.items()
+        )
+    )
+    optional_strings: dict[str, str | None] = {}
+    for field in (
+        "endpoint_url",
+        "valid_url",
+        "last_validated_date",
+        "source_path",
+        "source_family",
+        "status",
+    ):
+        raw = value.get(field)
+        if raw is not None and not isinstance(raw, str):
+            raise ValueError(f"nba_api endpoint contract {field} is invalid")
+        optional_strings[field] = raw
+
+    parameters = _strings("parameters")
+    if tuple(name for name, _query_name in query_names) != parameters or len(
+        {query_name for _name, query_name in query_names}
+    ) != len(query_names):
+        raise ValueError("nba_api endpoint parameter query mapping is invalid")
+    default_names = tuple(default.name for default in defaults)
+    required_parameters = _strings("required_parameters")
+    nullable_parameters = _strings("nullable_parameters")
+    if (
+        len(default_names) != len(set(default_names))
+        or not set(default_names) <= set(parameters)
+        or not set(required_parameters) <= set(parameters)
+        or not set(nullable_parameters) <= set(parameters)
+        or set(default_names) & set(required_parameters)
+        or set(default_names) | set(required_parameters) != set(parameters)
+    ):
+        raise ValueError("nba_api endpoint parameter/default inventory is inconsistent")
+
+    contract = NbaApiEndpointContract(
+        runtime_class_name=runtime_class_name,
+        module_name=module_name,
+        endpoint_slug=endpoint_slug,
+        parameters=parameters,
+        required_parameters=required_parameters,
+        nullable_parameters=nullable_parameters,
+        parameter_defaults=tuple(defaults),
+        parameter_query_names=tuple(query_names),
+        request_method="GET",
+        parser_kind=cast("ParserKind", value["parser_kind"]),
+        result_sets=tuple(result_sets),
+        deprecated=value["deprecated"],
+        warnings=_strings("warnings"),
+        parameter_patterns=parameter_patterns,
+        endpoint_url=optional_strings["endpoint_url"],
+        valid_url=optional_strings["valid_url"],
+        last_validated_date=optional_strings["last_validated_date"],
+        source_path=optional_strings["source_path"],
+        source_family=optional_strings["source_family"],
+        status=optional_strings["status"],
+    )
+    if contract.source_family is None:
+        endpoint_response_mode_contract(contract)
+    return contract

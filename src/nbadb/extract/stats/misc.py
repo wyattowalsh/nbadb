@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
+from datetime import datetime
 from typing import Any
 
 import polars as pl
-from loguru import logger
 from nba_api.stats.endpoints import (
     CumeStatsPlayer,
     CumeStatsPlayerGames,
@@ -23,20 +22,21 @@ from nba_api.stats.endpoints import (
     VideoEvents,
     VideoStatus,
 )
-from nba_api.stats.endpoints._base import Endpoint
 from nba_api.stats.endpoints.videoeventsasset import VideoEventsAsset
-from nba_api.stats.library.http import NBAStatsHTTP
 
-from nbadb.core.errors import ExtractionError, TransientError
+from nbadb.core.errors import ResponseContractError
 from nbadb.core.types import (
-    NBA_API_VIDEO_CONTEXT_MEASURE_VERSION,
-    VIDEO_CONTEXT_MEASURE_PROVENANCE,
-    VIDEO_SEASON_TYPE_PROVENANCE,
     SeasonType,
     VideoContextMeasure,
 )
-from nbadb.extract.base import BaseExtractor, _safe_from_pandas, _to_snake_case
+from nbadb.extract.base import BaseExtractor, _to_snake_case
 from nbadb.extract.registry import registry
+from nbadb.orchestrate.cume_workload_contract import (
+    CumeEntityKind,
+    CumeWorkloadContractError,
+    CumeWorkloadDisposition,
+    CumeWorkloadValue,
+)
 from nbadb.orchestrate.seasons import current_season
 
 
@@ -57,320 +57,7 @@ def _payload_rows_to_frame(rows: list[dict[str, Any]]) -> pl.DataFrame:
     return df
 
 
-def _response_text(response: Any) -> str:
-    raw = response.get_response()
-    if isinstance(raw, str):
-        return raw
-    return getattr(raw, "text", str(raw))
-
-
-def _is_unavailable_response(text: str) -> bool:
-    normalized = text.strip()
-    return (
-        not normalized or "(403) Forbidden" in normalized or "System.Net.WebException" in normalized
-    )
-
-
-_VIDEO_PROVENANCE_SCHEMA = pl.Schema(
-    {
-        "result_set_name": pl.String,
-        "result_set_index": pl.Int64,
-        "context_measure": pl.String,
-        "context_measure_provenance": pl.String,
-        "season_type_provenance": pl.String,
-        "nba_api_contract_version": pl.String,
-        "request_player_id": pl.Int64,
-        "request_team_id": pl.Int64,
-        "request_season": pl.String,
-        "request_season_type": pl.String,
-    }
-)
-
-
-def _unique_snake_case_columns(columns: list[str]) -> dict[str, str]:
-    used: set[str] = set()
-    rename_map: dict[str, str] = {}
-    for column in columns:
-        base_name = _to_snake_case(str(column))
-        candidate = base_name
-        suffix = 2
-        while candidate in used:
-            candidate = f"{base_name}_{suffix}"
-            suffix += 1
-        rename_map[column] = candidate
-        used.add(candidate)
-    return rename_map
-
-
-def _preserve_provenance_columns(df: pl.DataFrame) -> pl.DataFrame:
-    rename_map: dict[str, str] = {}
-    occupied = set(df.columns)
-    for column in _VIDEO_PROVENANCE_SCHEMA:
-        if column not in occupied:
-            continue
-        candidate = f"upstream_{column}"
-        while candidate in occupied:
-            candidate = f"upstream_{candidate}"
-        rename_map[column] = candidate
-        occupied.add(candidate)
-    return df.rename(rename_map) if rename_map else df
-
-
-def _standard_video_result_set(payload: dict[Any, Any]) -> pl.DataFrame | None:
-    if "headers" not in payload and "rowSet" not in payload:
-        return None
-
-    headers = payload.get("headers")
-    rows = payload.get("rowSet", payload.get("data"))
-    if not isinstance(headers, list) or not isinstance(rows, list):
-        msg = "malformed standard video result set: headers and rows must be lists"
-        raise ExtractionError(msg)
-    if not all(isinstance(header, str) for header in headers):
-        msg = "malformed standard video result set: headers must be strings"
-        raise ExtractionError(msg)
-    if not all(isinstance(row, list | tuple) and len(row) == len(headers) for row in rows):
-        msg = "malformed standard video result set: row widths must match headers"
-        raise ExtractionError(msg)
-
-    pdf = Endpoint.DataSet(
-        data={"headers": headers, "data": [list(row) for row in rows]}
-    ).get_data_frame()
-    return _safe_from_pandas(pdf)
-
-
-def _dynamic_video_result_set(payload: object) -> pl.DataFrame | None:
-    if isinstance(payload, dict):
-        if not payload or any(isinstance(value, dict | list) for value in payload.values()):
-            return None
-        return pl.DataFrame([payload])
-    if not isinstance(payload, list):
-        return pl.DataFrame({"value": [payload]})
-    if not payload:
-        return pl.DataFrame()
-    if all(isinstance(row, dict) for row in payload):
-        return pl.DataFrame(payload, strict=False, infer_schema_length=None)
-    if all(isinstance(row, list | tuple) for row in payload):
-        rows: list[list[object]] = []
-        for row in payload:
-            assert isinstance(row, list | tuple)
-            rows.append(list(row))
-        width = max(len(row) for row in rows)
-        columns = [f"value_{index}" for index in range(width)]
-        padded_rows = [row + [None] * (width - len(row)) for row in rows]
-        return pl.DataFrame(padded_rows, schema=columns, orient="row")
-    if any(isinstance(row, dict | list | tuple) for row in payload):
-        return None
-    return pl.DataFrame({"value": payload}, strict=False)
-
-
-def _video_error_envelope_kind(payload: dict[str, Any]) -> str | None:
-    normalized = {
-        "".join(character for character in str(key).casefold() if character.isalnum()): value
-        for key, value in payload.items()
-    }
-    for key in ("error", "errors", "errormessage"):
-        value = normalized.get(key)
-        if value not in (None, "", False, [], {}):
-            return key
-
-    status = normalized.get("statuscode", normalized.get("status"))
-    if isinstance(status, int) and not isinstance(status, bool) and status >= 400:
-        return "error_status"
-    if isinstance(status, str):
-        normalized_status = status.strip().casefold()
-        if normalized_status in {"error", "failed", "failure"}:
-            return "error_status"
-        if normalized_status.isdigit() and int(normalized_status) >= 400:
-            return "error_status"
-
-    message = normalized.get("message")
-    has_result_container = "resultSets" in payload or "resultSet" in payload
-    if isinstance(message, str) and message.strip():
-        normalized_message = message.casefold()
-        if any(
-            marker in normalized_message
-            for marker in (
-                "error has occurred",
-                "forbidden",
-                "unauthorized",
-                "invalid request",
-            )
-        ):
-            return "error_message"
-        envelope_keys = {
-            "message",
-            "status",
-            "statuscode",
-            "code",
-            "requestid",
-            "traceid",
-        }
-        if not has_result_container and set(normalized) <= envelope_keys:
-            return "error_message"
-    return None
-
-
-def _video_error_envelope_status(payload: dict[str, Any]) -> int | None:
-    normalized = {
-        "".join(character for character in str(key).casefold() if character.isalnum()): value
-        for key, value in payload.items()
-    }
-    raw_status = normalized.get("statuscode", normalized.get("status"))
-    if isinstance(raw_status, bool):
-        return None
-    try:
-        status = int(raw_status)
-    except (TypeError, ValueError):
-        return None
-    return status if 100 <= status <= 599 else None
-
-
-def _raise_video_upstream_error(
-    endpoint_name: str,
-    detail: str,
-    *,
-    status_code: int | None = None,
-) -> None:
-    error_type = (
-        TransientError
-        if status_code == 429 or (status_code is not None and status_code >= 500)
-        else ExtractionError
-    )
-    raise error_type(f"{endpoint_name}: {detail}")
-
-
-def _video_result_root(payload: dict[str, Any]) -> tuple[object, bool]:
-    container_keys = [key for key in ("resultSets", "resultSet") if key in payload]
-    if len(container_keys) > 1:
-        msg = "malformed video response root: both resultSets and resultSet are present"
-        raise ExtractionError(msg)
-    if container_keys:
-        root = payload[container_keys[0]]
-        if not isinstance(root, dict | list):
-            msg = "malformed video response root: result container must be an object or list"
-            raise ExtractionError(msg)
-        return root, isinstance(root, list)
-
-    if not payload:
-        msg = "malformed video response root: expected an explicit result container"
-        raise ExtractionError(msg)
-    if "headers" in payload or "rowSet" in payload:
-        return payload, False
-    if any(isinstance(value, dict | list) for value in payload.values()):
-        return payload, False
-    msg = "malformed video response root: no result-set structure found"
-    raise ExtractionError(msg)
-
-
-def _video_response_payload(response: Any, *, endpoint_name: str) -> dict[str, Any]:
-    raw_status = getattr(response, "_status_code", None)
-    if raw_status is None:
-        raw_status = getattr(response, "status_code", None)
-    if raw_status is not None:
-        try:
-            status_code = int(raw_status)
-        except (TypeError, ValueError) as exc:
-            raise ExtractionError(f"{endpoint_name}: malformed upstream HTTP status") from exc
-        if not 200 <= status_code < 300:
-            _raise_video_upstream_error(
-                endpoint_name,
-                f"upstream HTTP status {status_code}",
-                status_code=status_code,
-            )
-
-    try:
-        payload = response.get_dict()
-    except (TypeError, ValueError) as exc:
-        raise ExtractionError(f"{endpoint_name}: malformed upstream JSON response") from exc
-    if not isinstance(payload, dict):
-        msg = f"{endpoint_name}: malformed video response root: expected a JSON object"
-        raise ExtractionError(msg)
-
-    envelope_kind = _video_error_envelope_kind(payload)
-    if envelope_kind is not None:
-        _raise_video_upstream_error(
-            endpoint_name,
-            f"upstream JSON error envelope ({envelope_kind})",
-            status_code=_video_error_envelope_status(payload),
-        )
-    try:
-        _video_result_root(payload)
-    except ExtractionError as exc:
-        raise ExtractionError(f"{endpoint_name}: {exc}") from exc
-    return payload
-
-
-def _video_result_set_frames(payload: dict[str, Any]) -> list[tuple[str, pl.DataFrame]]:
-    root, root_is_collection = _video_result_root(payload)
-
-    frames: list[tuple[str, pl.DataFrame]] = []
-
-    def _collection_item_path(node: object, path: str, index: int) -> str:
-        if isinstance(node, dict):
-            name = node.get("name")
-            if isinstance(name, str) and name.strip():
-                return name
-        fallback = f"result_set_{index}"
-        return f"{path}.{fallback}" if path else fallback
-
-    def _collect(node: object, path: str, *, collection: bool = False) -> None:
-        if collection:
-            if not isinstance(node, list):
-                msg = "malformed video result-set collection"
-                raise ExtractionError(msg)
-            for index, item in enumerate(node):
-                _collect(item, _collection_item_path(item, path, index))
-            return
-
-        if isinstance(node, dict):
-            standard = _standard_video_result_set(node)
-            if standard is not None:
-                name = str(node.get("name") or path or "result_set")
-                frames.append((name, standard))
-                return
-
-            nested = {
-                str(key): value for key, value in node.items() if isinstance(value, dict | list)
-            }
-            scalar = {key: value for key, value in node.items() if key not in nested}
-            if not nested:
-                frame = _dynamic_video_result_set(node)
-                if frame is not None:
-                    frames.append((path or "result_set", frame))
-                return
-            if scalar:
-                frames.append((path or "result_set", pl.DataFrame([scalar])))
-            for name, value in nested.items():
-                child_path = f"{path}.{name}" if path else name
-                _collect(
-                    value,
-                    child_path,
-                    collection=name in {"resultSets", "resultSet"} and isinstance(value, list),
-                )
-            return
-
-        if isinstance(node, list):
-            contains_standard_result = any(
-                isinstance(item, dict) and ("headers" in item or "rowSet" in item) for item in node
-            )
-            if contains_standard_result:
-                for index, item in enumerate(node):
-                    _collect(item, _collection_item_path(item, path, index))
-                return
-
-        frame = _dynamic_video_result_set(node)
-        if frame is not None:
-            frames.append((path or "result_set", frame))
-            return
-        if isinstance(node, list):
-            for index, item in enumerate(node):
-                _collect(item, _collection_item_path(item, path, index))
-
-    _collect(root, "", collection=root_is_collection)
-    return frames
-
-
-def _extract_video_result_sets(
+def _extract_video_unknown_response(
     extractor: BaseExtractor,
     endpoint_cls: type,
     *,
@@ -379,10 +66,11 @@ def _extract_video_result_sets(
     season: str,
     season_type: str,
     context_measure: str,
+    league_id_nullable: str | None,
 ) -> pl.DataFrame:
     measure = VideoContextMeasure(context_measure)
     resolved_measure = measure.value
-    resolved_season_type = SeasonType(season_type)
+    _resolved_season_type = SeasonType(season_type)
     request_kwargs: dict[str, Any] = {
         "player_id": player_id,
         "team_id": team_id,
@@ -390,49 +78,117 @@ def _extract_video_result_sets(
         "season_type_all_star": season_type,
         "context_measure_detailed": resolved_measure,
     }
-    extractor._inject_timeout(request_kwargs)
-    endpoint = endpoint_cls(get_request=False, **request_kwargs)
-    response = NBAStatsHTTP().send_api_request(
-        endpoint=endpoint.endpoint,
-        parameters=endpoint.parameters,
-        proxy=endpoint.proxy,
-        headers=endpoint.headers,
-        timeout=endpoint.timeout,
+    if league_id_nullable is not None:
+        request_kwargs["league_id_nullable"] = league_id_nullable
+    payload = extractor._fetch_nba_api_payload(endpoint_cls, **request_kwargs)
+    if payload.unknown_response is None:
+        raise ResponseContractError("unknown-response endpoint omitted its retained observation")
+    # No provider result inventory exists for these exact endpoints. The typed
+    # observation retained by BaseExtractor is the authority; emitting dynamic
+    # columns here would falsely turn observed JSON paths into provider schema.
+    return pl.DataFrame()
+
+
+def _video_league_id_nullable(params: dict[str, Any]) -> str | None:
+    """Resolve an explicit logical competition without replacing provider omission."""
+
+    present = tuple(
+        (name, params[name]) for name in ("league_id", "league_id_nullable") if name in params
     )
-    payload = _video_response_payload(response, endpoint_name=extractor.endpoint_name)
-    data_sets = _video_result_set_frames(payload)
-    if not data_sets:
-        logger.warning("{}: no dynamic result sets returned", extractor.endpoint_name)
-        return pl.DataFrame(schema=_VIDEO_PROVENANCE_SCHEMA)
-
-    frames: list[pl.DataFrame] = []
-    for result_set_index, (result_set_name, df) in enumerate(data_sets):
-        if df.width == 0:
-            continue
-        if df.columns:
-            df = df.rename(_unique_snake_case_columns(list(df.columns)))
-        df = _preserve_provenance_columns(df).with_columns(
-            pl.lit(result_set_name).alias("result_set_name"),
-            pl.lit(result_set_index, dtype=pl.Int64).alias("result_set_index"),
-            pl.lit(resolved_measure).alias("context_measure"),
-            pl.lit(",".join(VIDEO_CONTEXT_MEASURE_PROVENANCE[measure])).alias(
-                "context_measure_provenance"
-            ),
-            pl.lit(",".join(VIDEO_SEASON_TYPE_PROVENANCE[resolved_season_type])).alias(
-                "season_type_provenance"
-            ),
-            pl.lit(NBA_API_VIDEO_CONTEXT_MEASURE_VERSION).alias("nba_api_contract_version"),
-            pl.lit(player_id, dtype=pl.Int64).alias("request_player_id"),
-            pl.lit(team_id, dtype=pl.Int64).alias("request_team_id"),
-            pl.lit(season).alias("request_season"),
-            pl.lit(season_type).alias("request_season_type"),
+    if not present:
+        return None
+    if any(type(value) is not str or not value or value != value.strip() for _, value in present):
+        raise ResponseContractError(
+            "video competition scope must be an exact nonempty league identifier"
         )
-        frames.append(df)
+    league_id = present[0][1]
+    if any(value != league_id for _, value in present[1:]):
+        raise ResponseContractError("video competition scope aliases conflict")
+    assert isinstance(league_id, str)
+    return league_id
 
-    if not frames:
-        return pl.DataFrame(schema=_VIDEO_PROVENANCE_SCHEMA)
-    combined = pl.concat(frames, how="diagonal_relaxed")
-    return extractor._validate(combined)
+
+def _cume_request_params(
+    params: dict[str, Any],
+    *,
+    entity_kind: CumeEntityKind,
+) -> dict[str, int | str]:
+    entity_key = f"{entity_kind.value}_id"
+    workload_params = dict(params)
+    if "snapshot_at" in workload_params:
+        snapshot_at = workload_params.pop("snapshot_at")
+        if (
+            type(snapshot_at) is not datetime
+            or snapshot_at.tzinfo is None
+            or snapshot_at.utcoffset() is None
+        ):
+            raise CumeWorkloadContractError("snapshot_at must be an exact timezone-aware datetime")
+
+    has_workload = "workload" in workload_params
+    serialized_fields = frozenset(
+        {
+            entity_key,
+            "season",
+            "season_type",
+            "game_ids",
+            "cume_workload_sha256",
+            "foundation_receipt_sha256",
+            "provider_authority_sha256",
+        }
+    )
+    if has_workload:
+        typed_workload_fields = {"workload", entity_key, "season", "season_type"}
+        unexpected_fields = set(workload_params) - typed_workload_fields
+        if unexpected_fields & serialized_fields:
+            raise CumeWorkloadContractError(
+                "provide a typed workload or serialized workload fields, not both"
+            )
+        if unexpected_fields:
+            raise CumeWorkloadContractError(
+                "typed cume workload received unexpected transport fields"
+            )
+        supplied_workload = workload_params["workload"]
+        if not isinstance(supplied_workload, CumeWorkloadValue):
+            raise CumeWorkloadContractError("workload must be a CumeWorkloadValue")
+        workload = CumeWorkloadValue.from_canonical_bytes(supplied_workload.canonical_bytes)
+    else:
+        if set(workload_params) != serialized_fields:
+            raise CumeWorkloadContractError(
+                "serialized cume workload requires exact scope, game, receipt, "
+                "provider, and digest fields"
+            )
+        workload = CumeWorkloadValue.complete(
+            entity_kind=entity_kind,
+            entity_id=workload_params[entity_key],
+            season=workload_params["season"],
+            season_type=workload_params["season_type"],
+            game_ids=workload_params["game_ids"],
+            foundation_receipt_sha256=workload_params["foundation_receipt_sha256"],
+            provider_authority_sha256=workload_params["provider_authority_sha256"],
+        )
+        if workload_params["cume_workload_sha256"] != workload.content_sha256:
+            raise CumeWorkloadContractError(
+                "serialized cume workload digest differs from its exact reconstructed workload"
+            )
+
+    if workload.entity_kind is not entity_kind:
+        raise CumeWorkloadContractError("cume workload entity kind does not match extractor")
+    if workload.disposition is CumeWorkloadDisposition.TYPED_ZERO:
+        raise CumeWorkloadContractError("typed-zero cume workload is not executable")
+    for key, expected in (
+        (entity_key, workload.entity_id),
+        ("season", workload.season),
+        ("season_type", workload.season_type),
+    ):
+        if key in workload_params and workload_params[key] != expected:
+            raise CumeWorkloadContractError(f"explicit {key} does not match cume workload")
+
+    return {
+        entity_key: workload.entity_id,
+        "game_ids": workload.encoded_game_ids,
+        "season": workload.season,
+        "season_type_all_star": workload.season_type,
+    }
 
 
 @registry.register
@@ -441,26 +197,12 @@ class CumeStatsPlayerExtractor(BaseExtractor):
     category = "misc"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        player_id: int = params["player_id"]
-        season: str = params["season"]
-        season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            CumeStatsPlayer,
-            player_id=player_id,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_params = _cume_request_params(params, entity_kind=CumeEntityKind.PLAYER)
+        return self._from_nba_api(CumeStatsPlayer, **request_params)
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
-        player_id: int = params["player_id"]
-        season: str = params["season"]
-        season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api_multi(
-            CumeStatsPlayer,
-            player_id=player_id,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_params = _cume_request_params(params, entity_kind=CumeEntityKind.PLAYER)
+        return self._from_nba_api_multi(CumeStatsPlayer, **request_params)
 
 
 @registry.register
@@ -486,26 +228,12 @@ class CumeStatsTeamExtractor(BaseExtractor):
     category = "misc"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        team_id: int = params["team_id"]
-        season: str = params["season"]
-        season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            CumeStatsTeam,
-            team_id=team_id,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_params = _cume_request_params(params, entity_kind=CumeEntityKind.TEAM)
+        return self._from_nba_api(CumeStatsTeam, **request_params)
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
-        team_id: int = params["team_id"]
-        season: str = params["season"]
-        season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api_multi(
-            CumeStatsTeam,
-            team_id=team_id,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_params = _cume_request_params(params, entity_kind=CumeEntityKind.TEAM)
+        return self._from_nba_api_multi(CumeStatsTeam, **request_params)
 
 
 @registry.register
@@ -593,26 +321,7 @@ class DunkScoreLeadersExtractor(BaseExtractor):
             "player_id_nullable": "0",
             "team_id_nullable": "0",
         }
-        self._inject_timeout(request_kwargs)
-        endpoint = DunkScoreLeaders(get_request=False, **request_kwargs)
-        response = NBAStatsHTTP().send_api_request(
-            endpoint=endpoint.endpoint,
-            parameters=endpoint.parameters,
-            proxy=endpoint.proxy,
-            headers=endpoint.headers,
-            timeout=endpoint.timeout,
-        )
-        try:
-            payload = response.get_dict()
-        except json.JSONDecodeError:
-            if _is_unavailable_response(_response_text(response)):
-                logger.info(
-                    "dunk_score_leaders unavailable for {} ({}); returning empty frame",
-                    season,
-                    season_type,
-                )
-                return pl.DataFrame()
-            raise
+        payload = self._fetch_nba_api_payload(DunkScoreLeaders, **request_kwargs)
 
         rows = payload.get("dunks")
         if not isinstance(rows, list):
@@ -633,26 +342,7 @@ class GravityLeadersExtractor(BaseExtractor):
             "season": season,
             "season_type_all_star": season_type,
         }
-        self._inject_timeout(request_kwargs)
-        endpoint = GravityLeaders(get_request=False, **request_kwargs)
-        response = NBAStatsHTTP().send_api_request(
-            endpoint=endpoint.endpoint,
-            parameters=endpoint.parameters,
-            proxy=endpoint.proxy,
-            headers=endpoint.headers,
-            timeout=endpoint.timeout,
-        )
-        try:
-            payload = response.get_dict()
-        except json.JSONDecodeError:
-            if _is_unavailable_response(_response_text(response)):
-                logger.info(
-                    "gravity_leaders unavailable for {} ({}); returning empty frame",
-                    season,
-                    season_type,
-                )
-                return pl.DataFrame()
-            raise
+        payload = self._fetch_nba_api_payload(GravityLeaders, **request_kwargs)
 
         rows = payload.get("leaders")
         if not isinstance(rows, list):
@@ -693,7 +383,12 @@ class VideoEventsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
-        return self._from_nba_api(VideoEvents, game_id=game_id)
+        game_event_id = params["game_event_id"]
+        return self._from_nba_api(
+            VideoEvents,
+            game_id=game_id,
+            game_event_id=game_event_id,
+        )
 
 
 @registry.register
@@ -703,7 +398,12 @@ class VideoEventsAssetExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
-        return self._from_nba_api(VideoEventsAsset, game_id=game_id)
+        game_event_id = params["game_event_id"]
+        return self._from_nba_api(
+            VideoEventsAsset,
+            game_id=game_id,
+            game_event_id=game_event_id,
+        )
 
 
 @registry.register
@@ -717,7 +417,8 @@ class VideoDetailsExtractor(BaseExtractor):
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         context_measure = str(params.get("context_measure", VideoContextMeasure.PTS.value))
-        return _extract_video_result_sets(
+        league_id_nullable = _video_league_id_nullable(params)
+        return _extract_video_unknown_response(
             self,
             VideoDetails,
             player_id=player_id,
@@ -725,6 +426,7 @@ class VideoDetailsExtractor(BaseExtractor):
             season=season,
             season_type=season_type,
             context_measure=context_measure,
+            league_id_nullable=league_id_nullable,
         )
 
 
@@ -739,7 +441,8 @@ class VideoDetailsAssetExtractor(BaseExtractor):
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         context_measure = str(params.get("context_measure", VideoContextMeasure.PTS.value))
-        return _extract_video_result_sets(
+        league_id_nullable = _video_league_id_nullable(params)
+        return _extract_video_unknown_response(
             self,
             VideoDetailsAsset,
             player_id=player_id,
@@ -747,6 +450,7 @@ class VideoDetailsAssetExtractor(BaseExtractor):
             season=season,
             season_type=season_type,
             context_measure=context_measure,
+            league_id_nullable=league_id_nullable,
         )
 
 
