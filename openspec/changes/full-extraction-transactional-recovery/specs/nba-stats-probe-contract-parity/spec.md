@@ -1,106 +1,137 @@
 ## ADDED Requirements
 
-### Requirement: The VPN NBA canary matches the pinned runtime HTTP contract
+### Requirement: Direct NBA canaries match the pinned runtime HTTP contract
 
-The system SHALL send the TeamYears VPN canary with the exact `STATS_HEADERS`
-mapping declared by the repository's pinned `nba_api` runtime.
+The system SHALL send every strict TeamYears direct canary with the exact
+ordered `STATS_HEADERS` mapping declared by the pinned `nba_api` runtime. The
+canary implementation, standalone request copy, and runtime dependency MUST be
+updated atomically when that contract changes.
 
-#### Scenario: Connector and runtime headers match
+#### Scenario: Canary and runtime headers match
 
-- **WHEN** deterministic validation compares the connector header sequence with the pinned runtime mapping
-- **THEN** every header name and value matches and the connector sends the headers in runtime declaration order
+- **WHEN** deterministic validation compares the canary sequence with the pinned runtime mapping
+- **THEN** every header name, value, and order matches
 
 #### Scenario: The pinned runtime changes its headers
 
-- **WHEN** a dependency update changes a `STATS_HEADERS` name or value without updating the connector
-- **THEN** deterministic validation fails before a VPN extraction run
+- **WHEN** a dependency update changes `STATS_HEADERS` without updating every canary surface
+- **THEN** validation fails before direct extraction admission
 
 ### Requirement: The public NBA header export matches the pinned runtime
 
 The system SHALL expose `nbadb.core.NBA_HEADERS` as an independent mapping with
-the exact names and values declared by pinned `STATS_HEADERS`.
+the exact names, values, and order declared by pinned `STATS_HEADERS`.
 
 #### Scenario: A consumer reads the public mapping
 
 - **WHEN** a consumer imports `NBA_HEADERS` from `nbadb.core`
 - **THEN** it receives values equal to the pinned runtime contract without sharing the runtime mapping object
 
-### Requirement: The TeamYears canary remains fail-closed and shape-validating
+### Requirement: TeamYears remains fail-closed and shape-validating
 
-The system MUST accept a VPN tunnel only when the bounded TeamYears request
-returns a successful HTTP response with the expected non-empty result-set
-shape, after the route, changed-exit-IP, and GitHub control-plane gates pass.
+An actual production runner MUST pass a bounded direct TeamYears request with a
+successful HTTP status, the expected non-empty result-set headers, and at least
+one width-matching row before provider work. A GitHub control-plane reachability
+probe MUST also pass on that same runner.
 
 #### Scenario: NBA.com silently times out
 
-- **WHEN** the header-complete TeamYears request reaches its bounded timeout with no valid response
-- **THEN** the server is rejected as an NBA reachability failure and extraction does not start
+- **WHEN** the header-complete TeamYears request reaches its bounded timeout without a valid response
+- **THEN** that runner is rejected and extraction does not start
 
 #### Scenario: NBA.com returns malformed success content
 
-- **WHEN** the request returns 2xx content without the required TeamYears headers and at least one width-matching row
-- **THEN** the server is rejected as an NBA response-contract failure
+- **WHEN** 2xx content lacks the required TeamYears headers or a width-matching row
+- **THEN** the runner is rejected as a response-contract failure
 
-#### Scenario: The canary passes
+#### Scenario: TeamYears passes
 
-- **WHEN** the header-complete request returns the required non-empty TeamYears shape
-- **THEN** the connector proceeds to the installed-stack discovery canaries without weakening any later gate
+- **WHEN** the exact request returns the required non-empty shape on the actual runner
+- **THEN** admission may proceed to installed-stack canaries on that runner
+
+### Requirement: Installed-stack canaries match extraction discovery
+
+Every provider-capable runner MUST execute installed-runtime
+`common_all_players` and `league_game_log` canaries under bounded deadlines.
+Player discovery MUST show positive player/team membership consistent with the
+workload seed, and game discovery MUST return a contract-valid typed result,
+including a typed evidence-backed empty result when that exact scope permits it.
+
+#### Scenario: Player membership is empty or inconsistent
+
+- **WHEN** `common_all_players` cannot prove positive player/team membership used by workload discovery
+- **THEN** the runner cannot receive extraction work
+
+#### Scenario: Game discovery is malformed
+
+- **WHEN** `league_game_log` returns malformed content or a result inconsistent with its exact scope
+- **THEN** the runner cannot receive extraction work
+
+#### Scenario: All installed-stack canaries pass
+
+- **WHEN** both installed endpoints and TeamYears pass on the same runner
+- **THEN** one expiring runner/job/source/attempt-bound canary receipt may be issued
 
 ### Requirement: Installed-stack failures retain a secret-safe root cause
 
-The installed-stack discovery probe MUST preserve its existing status,
-endpoint, failure-kind, and outer error-type fields. An exception failure MUST
-also report the explicit exception chain's root type as a bounded token without
-including exception messages, response content, request parameters, or
-credentials. The connector MUST surface a recognized root type in its bounded
-diagnostic and log output. When the recognized root identifies a transport or
-response-contract class, the connector MUST use it for that classification and
-MUST fall back to the validated outer type when the root is absent or invalid.
-This optional field MUST NOT change failure-attestation admission or any
-preceding connector gate.
+Failure attestations MUST preserve status, endpoint, failure kind, outer
+exception type, and the explicit exception chain's root type as bounded
+allowlisted ASCII tokens. They MUST NOT include exception messages, response
+content, request parameters, credentials, cookies, authorization data, or
+unrestricted bodies. A recognized root governs transport-versus-response-
+contract classification; absent, malformed, or unrecognized roots fall back to
+the validated outer type.
 
-#### Scenario: The extraction boundary wraps a transport exception
+#### Scenario: A wrapper contains a timeout root
 
-- **WHEN** an installed-stack canary raises a transport wrapper from a lower-level timeout
-- **THEN** the failure attestation retains the wrapper in `error_type`, reports the timeout class in `root_error_type`, and the connector surfaces both types
+- **WHEN** an installed-stack canary raises a transport wrapper from a recognized lower-level timeout
+- **THEN** the attestation retains both class names and classifies the failure as transport
+
+#### Scenario: A wrapper contains a response-contract root
+
+- **WHEN** a recognized contract root is wrapped by a transport-shaped outer type
+- **THEN** the attestation retains both class names and treats the failure as runner-independent contract failure
 
 #### Scenario: Exception messages contain sensitive content
 
-- **WHEN** either the wrapper or root exception message contains request or credential material
-- **THEN** the attestation contains only sanitized exception class names and none of the message content
+- **WHEN** a wrapper or root message contains request or credential material
+- **THEN** none of that message content enters the attestation or logs
 
 #### Scenario: Root type is absent or malformed
 
-- **WHEN** an otherwise valid child failure omits `root_error_type` or supplies a value outside the bounded error-type allowlist
-- **THEN** the connector retains its existing outer-only diagnostic and outer-type classification and does not surface the supplied value
+- **WHEN** `root_error_type` is missing or outside the allowlist
+- **THEN** classification uses only the validated outer type and does not surface the supplied value
 
-#### Scenario: A transport wrapper contains a response-contract root
+### Requirement: Canary deadlines preserve finalization headroom
 
-- **WHEN** a recognized contract-error root is wrapped by a recognized transport-error outer type
-- **THEN** the connector surfaces both types and treats the failure as a fatal response-contract error without rotating or quarantining the server
+Every request and child process MUST have a positive bounded deadline nested
+inside the workflow job's checkpoint, receipt, artifact-upload, diagnostics, and
+finalization reserves. A smaller remaining budget MUST reduce or reject canary
+work rather than extending the enclosing job deadline.
 
-#### Scenario: A transport wrapper contains a timeout root
+#### Scenario: Ordinary budget remains
 
-- **WHEN** a recognized timeout root is wrapped by a recognized transport-error outer type
-- **THEN** the connector surfaces both types and preserves the server-specific transport failure decision
+- **WHEN** the runner-local canary process starts with its declared full budget
+- **THEN** all endpoint and process deadlines fit inside the independent finalization reserve
 
-### Requirement: Installed-stack endpoint timeouts cover VPN extractor overhead
+#### Scenario: Too little budget remains
 
-The connector MUST give each installed-stack discovery endpoint a 20-second
-request timeout when sufficient attempt budget remains. That budget is longer
-than discovery's raw 10-second HTTP fast path because the canary runs the
-installed extractor stack through a VPN hop. The default child cap MUST cover
-both sequential endpoint timeouts plus bounded process overhead. The server
-attempt, overall connector, and finalization-reserve deadlines MUST remain
-independently bounded.
+- **WHEN** the remaining job budget cannot complete every required canary and preserve finalization
+- **THEN** admission fails before provider access rather than weakening a canary or reserve
 
-#### Scenario: The connector has its ordinary probe budget
+### Requirement: Canary receipts are runner-local and expiring
 
-- **WHEN** the installed-stack discovery child starts with the default total probe budget
-- **THEN** each of its two sequential endpoints receives a 20-second timeout while the configured child budget is 42 seconds and the process remains capped at 42.25 seconds
-- **AND** the process cap covers the 40-second combined request budget plus 2.25 seconds of bounded child overhead
+A canary receipt MUST bind schema version, exact source SHA, workflow, run,
+attempt, job, runner identity, canary contract digest, sanitized results,
+observation time, and expiry. The job MUST revalidate it immediately before its
+first provider call. Another job's receipt or an expired receipt is invalid.
 
-#### Scenario: Little server-attempt budget remains
+#### Scenario: The job moves to another runner
 
-- **WHEN** the remaining server-attempt budget cannot support the normal endpoint timeout
-- **THEN** the endpoint and process timeouts are reduced to fit without consuming connector finalization headroom
+- **WHEN** the execution identity differs from the receipt owner
+- **THEN** every required canary is rerun and the old receipt is rejected
+
+#### Scenario: Admission expires while queued
+
+- **WHEN** the canary receipt is stale before the first provider call
+- **THEN** the job stops or obtains a fresh complete receipt without making an unverified call

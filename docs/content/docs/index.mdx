@@ -92,8 +92,10 @@ nbadb schema
 
 <Callout type="info">
   `nbadb init` is the full historical build and usually takes hours, not
-  minutes. Once your data directory is seeded, `nbadb daily` becomes the
-  standard game-day possession for refreshing the current season.
+  minutes. Once a local or downloaded Kaggle baseline exists, `nbadb daily`
+  refreshes the current/open season and recent-game window, persists live
+  closure, and rebuilds the stable output universe. See [Daily
+  Updates](/docs/guides/daily-updates) for the exact one-repository flow.
 </Callout>
 
 ## Choose your route

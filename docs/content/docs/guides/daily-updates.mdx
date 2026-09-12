@@ -1,142 +1,200 @@
 ---
 title: Daily Updates
-description: Game-day runbook for keeping nbadb current with daily, monthly, and targeted backfill refreshes.
+description: One-repository daily and monthly refreshes from the current local or verified Kaggle baseline.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
 # Daily Updates
 
-This guide is the **game-day operations board** for keeping nbadb current once your data directory already exists.
+Daily and monthly refresh the existing public dataset. They use this repository,
+the current local/Kaggle baseline, the public NBA API result landings, and the
+existing Kaggle publication ledger. They do not require a second repository,
+private planning store, GHCR package, or generation pointer.
 
 ## Pick the right play
 
-| Command              | Use it when…                                         | What it covers                                                                                 |
-| -------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `nbadb daily`        | You want the normal recurring refresh                | Current season, recent games inside the daily lookback window, plus active player/team refresh |
-| `nbadb monthly`      | You need a broader sweep                             | The last 3 seasons                                                                             |
-| `nbadb backfill run` | You are recovering from failures or filling old gaps | Targeted extraction with gap detection, `--dry-run`, and per-season/endpoint control           |
+| Command              | What it covers                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `nbadb daily`        | Current/open season, configured recent-game window, current entities, every applicable result route, and live closure |
+| `nbadb monthly`      | Configured recent seasons with season-local discovery, every applicable result route, and live closure                |
+| `nbadb backfill run` | Explicit season/endpoint/pattern gap recovery; it does not replace recurring assurance or publication admission       |
 
-<Callout type="info">
-  `nbadb daily` is the default half-court set. Reach for `monthly` when you need
-  a wider recent-history sweep, and use `backfill run` when you need recovery
-  plus gap-filling without starting from a blank slate.
+Both recurring commands rebuild the complete convention-discovered stable model,
+including valid empty outputs. They fail nonzero when extraction or a required
+transform is incomplete.
+
+## The one-repository transaction
+
+The hosted workflows run this sequence:
+
+```text
+reconcile unresolved publication intent
+-> download and verify the exact Kaggle parent
+-> run daily or monthly extraction in the disposable Actions workspace
+-> preserve public-safe request/result/field receipts
+-> replace request-owned source scopes, including valid empty
+-> rebuild every stable output and live snapshot
+-> scan, export, generate candidate metadata, and freeze the dynamic inventory
+-> publish through durable intent at most once
+-> read back the exact remote inventory and digests
+```
+
+The workflow does not commit generated metadata back to the repository. Candidate
+metadata is part of the disposable dataset tree sent to Kaggle. Scheduled jobs use
+`contents: read`, `actions: read`, and `deployments: write`; the GitHub Deployment
+ledger, not a metadata commit or private pointer, is the cross-host publication
+authority.
+
+<Callout type="warn">
+  Cancellation, an incomplete extraction, a failed scan/export/metadata step, or
+  ambiguous publication reconciliation is non-success. A later run must
+  reconcile the same unresolved Deployment intent before it may build another
+  candidate or call Kaggle again.
 </Callout>
 
-## Fast operator route
+## Exact request closure
 
-| Step | What you do                                                                           | Why it matters                                           |
-| ---- | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| 1    | Run the narrowest refresh that fits the need                                          | Shorter possessions are easier to diagnose and rerun     |
-| 2    | Check status and quality artifacts right after the run                                | You catch drift while the command context is still fresh |
-| 3    | Escalate from `daily` to `monthly` or `backfill run` only when the symptoms demand it | Wider reruns cost more time and hide the original miss   |
+Recurring extraction does more than request one league game log. The planner closes
+over every discovered game, date, player, team, player-team-season, active live game,
+and provider-owned dependent workload needed by the mode.
 
-## What `nbadb daily` actually does
+| State                        | Meaning                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| Present with rows            | Persist the complete result and receipts                                |
+| Present with valid zero rows | Typed-zero completion; replace the owned scope with empty               |
+| Optional packet absent       | Record optional absence; do not invent a table result                   |
+| Evidence-backed unavailable  | Record the bounded provider/season/scope evidence                       |
+| Missing, partial, or failed  | Keep the request incomplete; do not narrow the plan or guess parameters |
 
-The daily run is more specific than “update everything.” It:
+Foundation-dependent endpoints run only from their exact provider-owned workload.
+The planner never substitutes a Cartesian player/matchup/lineup expansion or a
+current active-player list for historical season membership.
 
-- discovers the current season across all five declared season types: Regular Season, Playoffs, Pre Season, All Star, and PlayIn
+## Lossless public authority
 
-1. Detects the **current season**
-2. Discovers game IDs for **Regular Season** and **Playoffs**
-3. Filters those games to `now - NBADB_DAILY_LOOKBACK_DAYS` (default: `7`)
-4. Refreshes the active player/team universe
-5. Runs the matching extract patterns for those recent games and entities
-6. Rebuilds downstream tables in **`replace` mode**
+Successful responses preserve the canonical request, endpoint, provider result name
+and ordinal, canonical route, ordered headers or nested paths, source row ordinals,
+values and presence state, provider authority, and observation provenance. One
+logical response may close several ordered result routes. Valid additive stats or
+live fields land in conditional typed lossless tables until reviewed.
 
-That makes `daily` a strong fit for postgame refreshes and recurring automation.
+Exact decoded response-body capture is private evidence that may serve as optional
+same-run diagnostic material. It never enters any public candidate, archive, or
+metadata, and is
+not required for recurring admission, completeness, resume, assurance, or
+publication. Cookies, authorization data, request headers, proxy/VPN details,
+credentials, and unrestricted error bodies are excluded from public landings,
+receipts, logs, exports, metadata, and diagnostic artifacts.
 
-## Runbook by command
+## Source replacement and stable rebuild
 
-### Daily refresh
+Each mutable route owns an exact request scope. A completed refresh replaces that
+slice transactionally, which handles:
+
+- corrections to rows already present;
+- deletions upstream;
+- valid-empty deletion of stale rows;
+- request-scoped secondary packets; and
+- provider-declared duplicate multiplicity.
+
+Out-of-scope history remains untouched. After staging completes, nbadb rebuilds every
+stable dimension, fact, bridge, aggregate, analytics output, and live snapshot. The
+publication inventory is derived from the runtime registries and the conditional
+lossless tables actually observed. DuckDB and Parquet are the logical-type
+authorities; SQLite and CSV are convenience projections that still require ordered
+schema and row-count parity.
+
+## Daily scope
 
 ```bash
-nbadb daily
+uv run nbadb daily --data-dir data/nbadb
 ```
 
-**Best fit:** the default recurring refresh after your first full build.
+Daily uses the current season across the configured season-type universe, discovers
+game IDs, filters the game log to `NBADB_DAILY_LOOKBACK_DAYS` (default `7`), refreshes
+current players/teams and player-team-season work, executes all applicable extraction
+patterns, persists active live-game source routes, and rebuilds the complete stable
+output universe.
 
-### Monthly sweep
-
-```bash
-nbadb monthly
-```
-
-**Best fit:** a wider recent-history refresh across the last 3 seasons, using
-the broader supported season-type contract and the same automatic live snapshot
-append path as `daily`.
-
-### Targeted recovery + gap fill
+To widen the recent-game window:
 
 ```bash
-# Preview what would be extracted
-nbadb backfill run --dry-run
-
-# Fill gaps for specific seasons
-nbadb backfill run --seasons 2024-25
-
-# Re-extract everything for a season, even if already present
-nbadb backfill run --seasons 2024-25 --force
-```
-
-**Best fit:** retrying failed extractions, filling gaps for specific seasons or endpoints, or re-extracting with `--force`.
-
-## Configuration knobs that actually change the possession
-
-| Setting                     | Default               | Why you touch it                                    |
-| --------------------------- | --------------------- | --------------------------------------------------- |
-| `NBADB_DAILY_LOOKBACK_DAYS` | `7`                   | Widen or tighten the recent-game window for `daily` |
-| `NBADB_DATA_DIR`            | environment-dependent | Point the CLI at a different local dataset location |
-
-```bash
-# Widen the recent-game window (default: 7 days)
 export NBADB_DAILY_LOOKBACK_DAYS=14
-
-# Move the working dataset somewhere else
-export NBADB_DATA_DIR=/path/to/data
-
-# Run the standard refresh play
-nbadb daily
+uv run nbadb daily --data-dir data/nbadb
 ```
 
-## Operator cues during the run
-
-| Signal                           | What it means                                             |
-| -------------------------------- | --------------------------------------------------------- |
-| Textual UI appears               | stdout is interactive and `--verbose` is not set          |
-| Plain logs appear                | you passed `--verbose` or the run is non-interactive      |
-| `--quality-check` reports issues | checks ran, but reported failures are informational today |
-| First `Ctrl+C`                   | graceful stop request that preserves resume-safe state    |
-| Second `Ctrl+C`                  | forced exit                                               |
-
-## Scheduling the possession
-
-A practical recurring pattern is to run after most late games have settled.
+## Monthly scope
 
 ```bash
-# Example: run daily at 6 AM ET
-0 6 * * * cd /path/to/nbadb && nbadb daily >> /var/log/nbadb-daily.log 2>&1
+uv run nbadb monthly --data-dir data/nbadb
 ```
 
-## What to check after the buzzer
+Monthly refreshes `recent_seasons(3)` across the configured season-type universe.
+Player discovery is season-local, so today's active-player list is not applied to an
+older season. It also persists active live-game source routes and rebuilds the complete
+stable output universe.
 
-| Check                           | Why                                                            | Escalate when…                                           |
-| ------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
-| `nbadb status`                  | Inspect pipeline metadata, journal, and watermarks             | state looks stale or failed work remains queued          |
-| `nbadb scan --report-path …`    | Capture a machine-readable quality and gap report              | findings point at empty, inconsistent, or missing tables |
-| `artifacts/endpoint-coverage/*` | Confirm coverage artifacts when extractor/staging work changed | coverage drift appears after a supposedly good refresh   |
+## Hosted publication
 
-## When to escalate from `daily`
+The scheduled workflows first run `nbadb download`, then the recurring command,
+hard scan, export, metadata generation, and:
 
-Move up to `monthly` or `backfill run` when you see any of these:
+```bash
+uv run nbadb upload \
+  --data-dir data/nbadb \
+  --verify-remote \
+  --publication-ledger github-deployment \
+  --require-durable-intent
+```
 
-- A wider season scope is needed than the daily lookback window can cover
-- Recent runs left failed journal entries behind
-- You are backfilling missed history or cleaning up a period of instability
-- Health artifacts show missing coverage or missing downstream tables after a supposedly successful refresh
+The publisher owns the `nbadb-kaggle-publish` FIFO concurrency group. It verifies the
+default source immediately before mutation, permits at most one unresolved upload,
+and records success only after resolving one exact positive Kaggle version and
+stream-reading every remote resource for digest equality. Exact already-published
+evidence closes the existing intent without another upload; ambiguous evidence blocks
+all later writers.
+
+Local and Actions cache copies of publication state are secondary recovery evidence.
+They are not the distributed admission primitive and are not a dataset baseline.
+
+## Targeted recovery
+
+Use backfill when the task is a known season/endpoint/pattern gap rather than the
+standard recurring scope:
+
+```bash
+# Preview the planned recovery
+uv run nbadb backfill run --dry-run --seasons 2024-25
+
+# Fill selected historical gaps
+uv run nbadb backfill run --seasons 2022-23,2023-24
+```
+
+Backfill preserves journal/checkpoint recovery behavior, but it does not issue the
+recurring update assurance or authorize a Kaggle upload by itself.
+
+## What to verify after a run
+
+| Evidence                               | What it proves                                                        |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| Pipeline result has zero failures      | The selected request execution and stable transform rebuild completed |
+| Scan report has no errors              | Local domain, schema, and quality gates passed                        |
+| Frozen metadata/resource inventory     | Every runtime-declared resource is in the candidate                   |
+| Deployment intent and admission digest | The exact publisher owned the durable mutation intent                 |
+| Exact Kaggle version + full readback   | The uploaded remote bytes match the assured candidate                 |
+
+<Callout type="warn">
+  Local tests and structural census are not `DATA-GREEN`. The new request and
+  lossless-landing contracts require a brand-new attempt-one full extraction
+  from the exact reviewed source SHA. Older checkpoints remain diagnostics only,
+  and no remote publication is proven until exact Kaggle readback succeeds.
+</Callout>
 
 ## Related routes
 
-- [CLI Reference](/docs/cli-reference) for exact options and shared pipeline behavior
-- [Kaggle Setup](/docs/guides/kaggle-setup) for distribution handoffs
-- [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) for failed health checks, coverage drift, and docs artifacts
+- [Architecture](/docs/architecture)
+- [CLI Reference](/docs/cli-reference)
+- [Kaggle Setup](/docs/guides/kaggle-setup)
+- [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook)
+- [Pipeline Flow](/docs/diagrams/pipeline-flow)

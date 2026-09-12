@@ -36,7 +36,7 @@ This page is the passing diagram for the warehouse: it shows how dimensions, fac
 
 1. **Choose the fact or view that already matches the final row grain.**
 2. **Add the smallest set of dimensions needed** for labels, filters, or grouping.
-3. **Use bridges for many-to-many edges** instead of flattening slot columns by hand. Five bridges currently exist: `bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, and `bridge_player_team_season`.
+3. **Use bridges for many-to-many edges** instead of flattening slot columns by hand. Six bridges currently exist: `bridge_game_official`, `bridge_live_box_score_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, and `bridge_player_team_season`.
 4. **Confirm exact columns in the generated [Star Reference](/docs/schema/star-reference)** once the lane is chosen.
 
 ## Quick navigation
@@ -91,10 +91,11 @@ This page is the passing diagram for the warehouse: it shows how dimensions, fac
     sides cleanly.
   </ScoutCard>
   <ScoutCard title="Bridges absorb many-to-many edges" label="Join rule">
-    Let the five bridge tables (`bridge_game_official`, `bridge_play_player`,
-    `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season`)
-    handle expansion instead of repeating columns or reverse-engineering slot
-    logic from a fact table.
+    Let the six bridge tables (`bridge_game_official`,
+    `bridge_live_box_score_official`, `bridge_play_player`, `bridge_game_team`,
+    `bridge_lineup_player`, `bridge_player_team_season`) handle expansion
+    instead of repeating columns or reverse-engineering slot logic from a fact
+    table.
   </ScoutCard>
   <ScoutCard title="Discriminators are part of the grain" label="Join rule">
     Dashboard and event-style facts often need `split_type`, `detail_type`,
@@ -103,23 +104,24 @@ This page is the passing diagram for the warehouse: it shows how dimensions, fac
   </ScoutCard>
 </div>
 
-| Question                                  | Start at                       | Add these joins                                                                       | Why this lane stays clean                                             |
-| ----------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| What happened in a player game?           | `fact_player_game_traditional` | `dim_player`, `dim_team`, `dim_game`                                                  | One row already matches the player-game grain                         |
-| How do I show both clubs on one game row? | `dim_game`                     | `dim_team` twice via `home_team_id` and `visitor_team_id`                             | The game dimension carries both sides of the matchup                  |
-| Who guarded whom?                         | `fact_matchup`                 | offensive `dim_player`/`dim_team`, defensive `dim_player`/`dim_team`, then `dim_game` | Offense and defense stay in separate lanes on the matchup fact        |
-| Which officials worked a game?            | `bridge_game_official`         | `dim_game`, `dim_official`                                                            | The bridge prevents repeated official columns on every game row       |
-| How do I group shots by zone?             | `fact_shot_chart`              | `dim_player`, `dim_shot_zone`, `dim_game`                                             | Shot attempts stay atomic while the lookup adds readable court labels |
+| Question                                  | Start at                         | Add these joins                                                                       | Why this lane stays clean                                                    |
+| ----------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| What happened in a player game?           | `fact_player_game_traditional`   | `dim_player`, `dim_team`, `dim_game`                                                  | One row already matches the player-game grain                                |
+| How do I show both clubs on one game row? | `dim_game`                       | `dim_team` twice via `home_team_id` and `visitor_team_id`                             | The game dimension carries both sides of the matchup                         |
+| Who guarded whom?                         | `fact_matchup`                   | offensive `dim_player`/`dim_team`, defensive `dim_player`/`dim_team`, then `dim_game` | Offense and defense stay in separate lanes on the matchup fact               |
+| Which officials worked a game?            | `bridge_game_official`           | `dim_game`, `dim_official`                                                            | The bridge prevents repeated official columns on every game row              |
+| Which officials are in a live snapshot?   | `bridge_live_box_score_official` | `dim_game`, person lookup context                                                     | Snapshot time remains part of the observation instead of overwriting history |
+| How do I group shots by zone?             | `fact_shot_chart`                | `dim_player`, `dim_shot_zone`, `dim_game`                                             | Shot attempts stay atomic while the lookup adds readable court labels        |
 
 ## Safe join sequence
 
-| Step | What to decide                          | Typical choices                                                                                                                                               |
-| ---- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Base grain                              | player-game, team-game, event, stint, shot, season summary                                                                                                    |
-| 2    | Required entity context                 | `dim_player`, `dim_team`, `dim_game`                                                                                                                          |
-| 3    | Time/reporting context                  | `dim_date`, `dim_season`, `dim_season_phase`, `dim_season_week`                                                                                               |
-| 4    | Lookup labels or many-to-many expansion | `dim_play_event_type`, `dim_shot_zone`, `bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season` |
-| 5    | Contract verification                   | generated [Star Reference](/docs/schema/star-reference)                                                                                                       |
+| Step | What to decide                          | Typical choices                                                                                                                                                                                 |
+| ---- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Base grain                              | player-game, team-game, event, stint, shot, season summary                                                                                                                                      |
+| 2    | Required entity context                 | `dim_player`, `dim_team`, `dim_game`                                                                                                                                                            |
+| 3    | Time/reporting context                  | `dim_date`, `dim_season`, `dim_season_phase`, `dim_season_week`                                                                                                                                 |
+| 4    | Lookup labels or many-to-many expansion | `dim_play_event_type`, `dim_shot_zone`, `bridge_game_official`, `bridge_live_box_score_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season` |
+| 5    | Contract verification                   | generated [Star Reference](/docs/schema/star-reference)                                                                                                                                         |
 
 ## Join play calls
 

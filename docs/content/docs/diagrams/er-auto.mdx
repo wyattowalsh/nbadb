@@ -33,6 +33,7 @@ erDiagram
         str city
         str state
         str country
+        str timezone
     }
     dim_coach {
         int coach_id
@@ -96,7 +97,6 @@ erDiagram
     dim_play_event_type {
         int event_type_id
         str event_type_name
-        str event_category
     }
     dim_player {
         int player_sk
@@ -168,8 +168,6 @@ erDiagram
         str season_year
         str start_date
         str end_date
-        str all_star_date
-        str playoff_start_date
     }
     dim_season_phase {
         int phase_id
@@ -260,6 +258,7 @@ erDiagram
         str city
         str state
         str country
+        str timezone
     }
     dim_game {
         str game_id
@@ -451,6 +450,7 @@ erDiagram
         str team_city
         str team_slug
         str min
+        float spd
         float dist
         float orbc
         float drbc
@@ -1822,6 +1822,69 @@ erDiagram
         int dfga
         float dfg_pct
     }
+    fact_league_player_on_details {
+        str group_set
+        int team_id FK
+        str team_abbreviation
+        str team_name
+        int vs_player_id FK
+        str vs_player_name
+        str court_status
+        int gp
+        int w
+        int l
+        float w_pct
+        float min
+        float fgm
+        float fga
+        float fg_pct
+        float fg3m
+        float fg3a
+        float fg3_pct
+        float ftm
+        float fta
+        float ft_pct
+        float oreb
+        float dreb
+        float reb
+        float ast
+        float tov
+        float stl
+        float blk
+        float blka
+        float pf
+        float pfd
+        float pts
+        float plus_minus
+        int gp_rank
+        int w_rank
+        int l_rank
+        int w_pct_rank
+        int min_rank
+        int fgm_rank
+        int fga_rank
+        int fg_pct_rank
+        int fg3m_rank
+        int fg3a_rank
+        int fg3_pct_rank
+        int ftm_rank
+        int fta_rank
+        int ft_pct_rank
+        int oreb_rank
+        int dreb_rank
+        int reb_rank
+        int ast_rank
+        int tov_rank
+        int stl_rank
+        int blk_rank
+        int blka_rank
+        int pf_rank
+        int pfd_rank
+        int pts_rank
+        int plus_minus_rank
+        str season_year
+        str season_type
+    }
     fact_league_player_pt_shot {
         int id
         int player_id FK
@@ -2168,6 +2231,7 @@ erDiagram
         int gp
         int w
         int l
+        float w_pct
         float min
         int fgm
         int fga
@@ -2185,10 +2249,49 @@ erDiagram
         int tov
         int stl
         int blk
+        int blka
+        int pf
+        int pfd
         int pts
         float plus_minus
         float net_rating
+        str season_type
+        str lineup_source
+        int lineup_source_count
+        str lineup_source_coverage
         str season_year
+    }
+    fact_lineup_stint {
+        str game_id FK
+        int stint_number
+        str stint_id
+        int home_team_id FK
+        int away_team_id FK
+        str home_lineup_id
+        str away_lineup_id
+        str home_player_ids
+        str away_player_ids
+        float stint_start_elapsed_tenths
+        float stint_end_elapsed_tenths
+        float duration_seconds
+        int source_interval_count
+        int source_possession_count
+        int first_possession_number
+        int last_possession_number
+        int first_source_action_number
+        int last_source_action_number
+        int home_possessions
+        int away_possessions
+        int home_points
+        int away_points
+        int home_net_points
+        int possession_boundary_crossings
+        int unplaced_possession_count
+        bool lineup_is_exact
+        bool response_is_complete
+        bool is_ambiguous
+        str ambiguity_reason
+        str algorithm_version
     }
     fact_live_box_score_arena {
         dt.datetime snapshot_at
@@ -2298,26 +2401,31 @@ erDiagram
         float net_rating
     }
     fact_play_by_play {
-        str game_id FK
-        int event_num
-        int event_msg_type
-        int event_msg_action_type
+        str game_id
+        int action_number
+        str clock
         int period
-        str wc_time_string
-        str pc_time_string
-        str home_description
-        str neutral_description
-        str visitor_description
-        str score
-        str score_margin
-        int player1_id FK
-        int player1_team_id FK
-        int player2_id FK
-        int player2_team_id FK
-        int player3_id FK
-        int player3_team_id FK
+        int team_id FK
+        str team_tricode
+        int person_id FK
+        str player_name
+        str player_name_i
+        float x_legacy
+        float y_legacy
+        float shot_distance
+        str shot_result
+        int is_field_goal
+        str score_home
+        str score_away
+        int points_total
+        str location
+        str description
+        str action_type
+        str sub_type
+        int video_available
+        int shot_value
+        int action_id
         str event_type_name
-        str season_year
     }
     fact_play_by_play_v2 {
         str game_id
@@ -2976,23 +3084,31 @@ erDiagram
         str game_id FK
         int player_id FK
         int team_id FK
+        float min
+        str season_year
         float off_rating
         float def_rating
         float net_rating
         float ast_pct
-        float ast_to
+        float ast_tov
         float ast_ratio
         float oreb_pct
         float dreb_pct
         float reb_pct
+        float tov_pct
         float efg_pct
         float ts_pct
         float usg_pct
         float pace
+        float pace_per40
+        float poss
         float pie
-        int poss
         float fta_rate
-        str season_year
+        float e_off_rating
+        float e_def_rating
+        float e_net_rating
+        float e_usg_pct
+        float e_pace
     }
     fact_player_game_hustle {
         str game_id FK
@@ -4137,6 +4253,27 @@ erDiagram
         int wins
         int losses
     }
+    fact_rapm_design {
+        str design_row_id
+        str game_id FK
+        str stint_id
+        int stint_number
+        int player_id FK
+        int team_id FK
+        str team_side
+        float design_value
+        int response_home_net_points
+        float exposure_seconds
+        int source_possession_count
+        int first_source_action_number
+        int last_source_action_number
+        bool lineup_is_exact
+        bool response_is_complete
+        bool is_ambiguous
+        str ambiguity_reason
+        str lineup_algorithm_version
+        str design_version
+    }
     fact_rotation {
         str game_id FK
         int team_id FK
@@ -4409,12 +4546,20 @@ erDiagram
         str matchup_type
     }
     fact_shot_chart {
+        str grid_type
         str game_id FK
+        int game_event_id
         int player_id FK
+        str player_name
         int team_id FK
+        str team_name
+        str league_id
+        str season_year
+        str season_type
         int period
         int minutes_remaining
         int seconds_remaining
+        str event_type
         str action_type
         str shot_type
         str shot_zone_basic
@@ -4423,8 +4568,11 @@ erDiagram
         int shot_distance
         int loc_x
         int loc_y
+        int shot_attempted_flag
         int shot_made_flag
-        str season_year
+        str game_date
+        str htm
+        str vtm
     }
     fact_shot_chart_league {
         str grid_type
@@ -4438,6 +4586,9 @@ erDiagram
     fact_shot_chart_league_averages {
         str average_source
         str grid_type
+        str season_year
+        str season_type
+        str league_id
         str shot_zone_basic
         str shot_zone_area
         str shot_zone_range
@@ -4510,6 +4661,69 @@ erDiagram
         str city
         str state
         int year_founded
+        str championship_years_json
+    }
+    fact_static_wnba_players {
+        int id
+        str last_name
+        str first_name
+        str full_name
+        bool is_active
+        str league
+    }
+    fact_static_wnba_teams {
+        int id
+        str abbreviation
+        str nickname
+        int year_founded
+        str city
+        str full_name
+        str state
+        str championship_years_json
+        str league
+    }
+    fact_statistical_possession {
+        str game_id FK
+        int possession_number
+        int period
+        int offense_team_id
+        int defense_team_id
+        int home_team_id FK
+        int away_team_id FK
+        int start_action_number
+        int end_action_number
+        str start_clock
+        str end_clock
+        int start_elapsed_tenths
+        int end_elapsed_tenths
+        int event_count
+        int field_goal_attempts
+        int free_throw_attempts
+        int non_possession_free_throw_attempts
+        int non_possession_free_throw_points
+        int turnovers
+        int offensive_rebounds
+        int points
+        int derived_event_points
+        int scoreboard_points
+        bool points_reconciled
+        int score_before_home
+        int score_before_away
+        int score_after_home
+        int score_after_away
+        int statistical_possession_count
+        int legal_control_boundary_count
+        str closure_reason
+        bool is_complete
+        bool is_ambiguous
+        str ambiguity_reason
+        str algorithm_version
+        int derived_team_game_points
+        int official_team_game_points
+        bool team_game_points_reconciled
+        int derived_complete_team_possessions
+        float official_team_possessions
+        bool team_possessions_reconciled
     }
     fact_streak_finder {
         str entity_type
@@ -5143,6 +5357,99 @@ erDiagram
         str cfid
         str cfparams
     }
+    fact_team_on_off_overall {
+        str league_id
+        int team_id FK
+        str season_year
+        str season_type
+        str group_set
+        str group_value
+        str team_abbreviation
+        str team_name
+        int request_last_n_games
+        str request_measure_type
+        int request_month
+        int request_opponent_team_id
+        str request_pace_adjust
+        str request_per_mode
+        int request_period
+        str request_plus_minus
+        str request_rank
+        str request_date_from
+        str request_date_to
+        str request_game_segment
+        str request_location
+        str request_outcome
+        str request_season_segment
+        str request_vs_conference
+        str request_vs_division
+        int gp
+        int w
+        int l
+        float provider_w_pct
+        float w_pct
+        float min
+        float fgm
+        float fga
+        float provider_fg_pct
+        float fg_pct
+        float fg3m
+        float fg3a
+        float provider_fg3_pct
+        float fg3_pct
+        float ftm
+        float fta
+        float provider_ft_pct
+        float ft_pct
+        float oreb
+        float dreb
+        float reb
+        float ast
+        float tov
+        float stl
+        float blk
+        float blka
+        float pf
+        float pfd
+        float pts
+        float plus_minus
+        int gp_rank
+        int w_rank
+        int l_rank
+        int w_pct_rank
+        int min_rank
+        int fgm_rank
+        int fga_rank
+        int fg_pct_rank
+        int fg3m_rank
+        int fg3a_rank
+        int fg3_pct_rank
+        int ftm_rank
+        int fta_rank
+        int ft_pct_rank
+        int oreb_rank
+        int dreb_rank
+        int reb_rank
+        int ast_rank
+        int tov_rank
+        int stl_rank
+        int blk_rank
+        int blka_rank
+        int pf_rank
+        int pfd_rank
+        int pts_rank
+        int plus_minus_rank
+        float efg_pct
+        float ts_pct
+        float estimated_possessions
+        float pts_per_100_estimated_possessions
+        float ast_to_ratio
+        bool detail_source_present
+        bool summary_source_present
+        str reconciliation_status
+        str source_detail_result_set
+        str source_summary_result_set
+    }
     fact_team_player_dashboard {
         int nba_fantasy_pts_rank
         int dd2_rank
@@ -5480,8 +5787,70 @@ erDiagram
         str request_season_type
     }
     fact_video_events {
+        str response_receipt_sha256
+        str provider_authority_sha256
+        str endpoint_contract_sha256
+        str response_mode_authority_sha256
+        str parser_input_sha256
+        str canonical_payload_sha256
+        str parameters_sha256
+        str endpoint_id
+        str endpoint_slug
+        str response_state
+        str legacy_envelope_name
+        str record_kind
+        str result_set_name
+        int result_set_occurrence
+        int provider_index
+        int canonical_index
+        str header_name
+        int header_ordinal
+        int row_ordinal
+        int node_ordinal
+        int parent_node_ordinal
+        str json_path
+        str parent_json_path
+        int depth
+        str object_key
+        int object_key_ordinal
+        int array_ordinal
+        str presence_kind
+        str value_kind
+        str canonical_json
+        str anomaly_codes_json
     }
     fact_video_events_asset {
+        str response_receipt_sha256
+        str provider_authority_sha256
+        str endpoint_contract_sha256
+        str response_mode_authority_sha256
+        str parser_input_sha256
+        str canonical_payload_sha256
+        str parameters_sha256
+        str endpoint_id
+        str endpoint_slug
+        str response_state
+        str legacy_envelope_name
+        str record_kind
+        str result_set_name
+        int result_set_occurrence
+        int provider_index
+        int canonical_index
+        str header_name
+        int header_ordinal
+        int row_ordinal
+        int node_ordinal
+        int parent_node_ordinal
+        str json_path
+        str parent_json_path
+        int depth
+        str object_key
+        int object_key_ordinal
+        int array_ordinal
+        str presence_kind
+        str value_kind
+        str canonical_json
+        str anomaly_codes_json
     }
     fact_video_status {
         str game_id FK
@@ -5655,6 +6024,8 @@ erDiagram
     dim_team ||--o{ fact_league_lineup_viz : "team_id"
     dim_player ||--o{ fact_league_opp_pt_shot : "player_id"
     dim_team ||--o{ fact_league_opp_pt_shot : "team_id"
+    dim_team ||--o{ fact_league_player_on_details : "team_id"
+    dim_player ||--o{ fact_league_player_on_details : "vs_player_id"
     dim_player ||--o{ fact_league_player_pt_shot : "player_id"
     dim_team ||--o{ fact_league_player_pt_shot : "team_id"
     dim_team ||--o{ fact_league_player_pt_shot : "player_last_team_id"
@@ -5674,6 +6045,9 @@ erDiagram
     dim_team ||--o{ fact_league_team_pt_shot : "team_id"
     dim_team ||--o{ fact_league_team_shot_locations : "team_id"
     dim_team ||--o{ fact_lineup_stats : "team_id"
+    dim_game ||--o{ fact_lineup_stint : "game_id"
+    dim_team ||--o{ fact_lineup_stint : "home_team_id"
+    dim_team ||--o{ fact_lineup_stint : "away_team_id"
     dim_game ||--o{ fact_live_box_score_arena : "game_id"
     dim_game ||--o{ fact_live_box_score_game : "game_id"
     dim_game ||--o{ fact_live_box_score_player : "game_id"
@@ -5692,13 +6066,8 @@ erDiagram
     dim_team ||--o{ fact_matchup : "def_team_id"
     dim_team ||--o{ fact_on_off_detail : "team_id"
     dim_player ||--o{ fact_on_off_detail : "vs_player_id"
-    dim_game ||--o{ fact_play_by_play : "game_id"
-    dim_player ||--o{ fact_play_by_play : "player1_id"
-    dim_team ||--o{ fact_play_by_play : "player1_team_id"
-    dim_player ||--o{ fact_play_by_play : "player2_id"
-    dim_team ||--o{ fact_play_by_play : "player2_team_id"
-    dim_player ||--o{ fact_play_by_play : "player3_id"
-    dim_team ||--o{ fact_play_by_play : "player3_team_id"
+    dim_team ||--o{ fact_play_by_play : "team_id"
+    dim_player ||--o{ fact_play_by_play : "person_id"
     dim_player ||--o{ fact_play_by_play_v2 : "player1_id"
     dim_team ||--o{ fact_play_by_play_v2 : "player1_team_id"
     dim_player ||--o{ fact_play_by_play_v2 : "player2_id"
@@ -5781,6 +6150,9 @@ erDiagram
     dim_game ||--o{ fact_playoff_series : "game_id"
     dim_team ||--o{ fact_playoff_series : "home_team_id"
     dim_team ||--o{ fact_playoff_series : "away_team_id"
+    dim_game ||--o{ fact_rapm_design : "game_id"
+    dim_player ||--o{ fact_rapm_design : "player_id"
+    dim_team ||--o{ fact_rapm_design : "team_id"
     dim_game ||--o{ fact_rotation : "game_id"
     dim_team ||--o{ fact_rotation : "team_id"
     dim_player ||--o{ fact_rotation : "player_id"
@@ -5823,6 +6195,9 @@ erDiagram
     dim_player ||--o{ fact_shot_chart_lineup : "player_id"
     dim_team ||--o{ fact_shot_chart_lineup : "team_id"
     dim_team ||--o{ fact_standings : "team_id"
+    dim_game ||--o{ fact_statistical_possession : "game_id"
+    dim_team ||--o{ fact_statistical_possession : "home_team_id"
+    dim_team ||--o{ fact_statistical_possession : "away_team_id"
     dim_player ||--o{ fact_streak_finder : "player_id"
     dim_team ||--o{ fact_streak_finder : "team_id"
     dim_player ||--o{ fact_synergy : "player_id"
@@ -5846,6 +6221,7 @@ erDiagram
     dim_player ||--o{ fact_team_matchups_detail : "vs_player_id"
     dim_team ||--o{ fact_team_matchups_shot_detail : "team_id"
     dim_player ||--o{ fact_team_matchups_shot_detail : "vs_player_id"
+    dim_team ||--o{ fact_team_on_off_overall : "team_id"
     dim_player ||--o{ fact_team_player_dashboard : "player_id"
     dim_team ||--o{ fact_team_pt_reb_detail : "team_id"
     dim_team ||--o{ fact_team_pt_shots_detail : "team_id"
@@ -5892,7 +6268,7 @@ erDiagram
         float league_clutch_fg_pct
     }
     agg_game_totals {
-        int game_id FK
+        str game_id FK
         str game_date
         str season_year
         str season_type
@@ -5931,14 +6307,79 @@ erDiagram
         str group_id
         int team_id FK
         str season_year
+        str season_type
+        str lineup_source
+        int lineup_source_count
+        str lineup_source_coverage
+        int canonical_observation_count
+        int gp_covered_observations
+        int minutes_covered_observations
+        int estimated_possessions_covered_observations
+        int win_pct_covered_observations
+        int fg_pct_covered_observations
+        int fg3_pct_covered_observations
+        int ft_pct_covered_observations
+        int efg_pct_covered_observations
+        int ts_pct_covered_observations
+        int fg3a_per_fga_covered_observations
+        int fta_per_fga_covered_observations
+        int ast_tov_ratio_covered_observations
+        int pts_per48_covered_observations
+        int reb_per48_covered_observations
+        int ast_per48_covered_observations
+        int tov_per48_covered_observations
+        int stl_per48_covered_observations
+        int blk_per48_covered_observations
+        int plus_minus_per48_covered_observations
+        int estimated_off_rating_covered_observations
+        int estimated_def_rating_covered_observations
+        int estimated_net_rating_covered_observations
         int total_gp
+        int total_w
+        int total_l
         float total_min
-        float pts_per48
-        float avg_net_rating
+        int total_fgm
+        int total_fga
+        int total_fg3m
+        int total_fg3a
+        int total_ftm
+        int total_fta
+        int total_oreb
+        int total_dreb
+        int total_reb
+        int total_ast
+        int total_tov
+        int total_stl
+        int total_blk
+        int total_blka
+        int total_pf
+        int total_pfd
+        int total_pts
         float total_plus_minus
+        float win_pct
+        float fg_pct
+        float fg3_pct
+        float ft_pct
+        float efg_pct
+        float ts_pct
+        float fg3a_per_fga
+        float fta_per_fga
+        float ast_tov_ratio
+        float estimated_possessions
+        float pts_per48
+        float reb_per48
+        float ast_per48
+        float tov_per48
+        float stl_per48
+        float blk_per48
+        float plus_minus_per48
+        float estimated_off_rating
+        float estimated_def_rating
+        float estimated_net_rating
     }
     agg_on_off_splits {
         str entity_type
+        str source_kind
         int entity_id
         int team_id FK
         str season_year
@@ -5946,12 +6387,50 @@ erDiagram
         str on_off
         int gp
         float min
-        float pts
+        int w
+        int l
+        float w_pct
+        float fgm
+        float fga
+        float fg_pct
+        float provider_fg_pct
+        float fg3m
+        float fg3a
+        float fg3_pct
+        float provider_fg3_pct
+        float ftm
+        float fta
+        float ft_pct
+        float provider_ft_pct
+        float oreb
+        float dreb
         float reb
         float ast
+        float tov
+        float stl
+        float blk
+        float blka
+        float pf
+        float pfd
+        float pts
+        float plus_minus
         float off_rating
         float def_rating
         float net_rating
+        float ts_pct
+        float efg_pct
+        float pts_per48
+        float reb_per48
+        float ast_per48
+        bool on_off_pair_complete
+        int on_gp
+        int off_gp
+        float on_min
+        float off_min
+        float off_rating_diff
+        float def_rating_diff
+        float net_rating_diff
+        float plus_minus_diff
     }
     agg_player_bio {
         int player_id FK
@@ -5961,7 +6440,7 @@ erDiagram
         float age
         str player_height
         float player_height_inches
-        str player_weight
+        float player_weight
         str college
         str country
         str draft_year
@@ -5978,6 +6457,7 @@ erDiagram
         float ts_pct
         float ast_pct
         str season_year
+        str season_type
     }
     agg_player_career {
         int player_id FK
@@ -6017,6 +6497,13 @@ erDiagram
         str season_year
         str season_type
         int gp
+        int minutes_covered_games
+        int scoring_covered_games
+        int rebounding_covered_games
+        int playmaking_covered_games
+        int shooting_covered_games
+        int advanced_covered_games
+        float advanced_possessions
         float total_min
         float avg_min
         float total_pts
@@ -6031,6 +6518,10 @@ erDiagram
         float avg_blk
         float total_tov
         float avg_tov
+        float total_oreb
+        float total_dreb
+        float total_pf
+        float total_plus_minus
         float total_fgm
         float total_fga
         float fg_pct
@@ -6040,12 +6531,27 @@ erDiagram
         float total_ftm
         float total_fta
         float ft_pct
+        float efg_pct
+        float three_point_attempt_rate
+        float free_throw_attempt_rate
+        float ast_tov_ratio
+        int rating_covered_games
+        float rating_possessions
         float avg_off_rating
         float avg_def_rating
         float avg_net_rating
         float avg_ts_pct
+        int provider_ts_covered_games
+        float provider_ts_possessions
+        float provider_avg_ts_pct
+        int usage_covered_games
+        float usage_possessions
         float avg_usg_pct
+        int pie_covered_games
+        float pie_possessions
         float avg_pie
+        str shooting_efficiency_source
+        str advanced_metric_weight
     }
     agg_player_season_advanced {
         int player_id FK
@@ -6053,20 +6559,54 @@ erDiagram
         str season_year
         str season_type
         int gp
+        int minutes_covered_games
+        float total_min
+        int possession_covered_games
+        float total_possessions
+        int pace_covered_games
+        float pace_covered_minutes
+        int off_rating_covered_games
+        float off_rating_covered_possessions
         float avg_off_rating
+        int def_rating_covered_games
+        float def_rating_covered_possessions
         float avg_def_rating
+        int net_rating_covered_games
+        float net_rating_covered_possessions
         float avg_net_rating
+        int ts_pct_covered_games
+        float ts_pct_covered_possessions
         float avg_ts_pct
+        int usg_pct_covered_games
+        float usg_pct_covered_possessions
         float avg_usg_pct
+        int efg_pct_covered_games
+        float efg_pct_covered_possessions
         float avg_efg_pct
+        int ast_pct_covered_games
+        float ast_pct_covered_possessions
         float avg_ast_pct
+        int ast_ratio_covered_games
+        float ast_ratio_covered_possessions
         float avg_ast_ratio
+        int oreb_pct_covered_games
+        float oreb_pct_covered_possessions
         float avg_oreb_pct
+        int dreb_pct_covered_games
+        float dreb_pct_covered_possessions
         float avg_dreb_pct
+        int reb_pct_covered_games
+        float reb_pct_covered_possessions
         float avg_reb_pct
+        int tov_pct_covered_games
+        float tov_pct_covered_possessions
         float avg_tov_pct
         float avg_pace
+        int pie_covered_games
+        float pie_covered_possessions
         float avg_pie
+        str advanced_metric_source
+        str pace_source
     }
     agg_player_season_per36 {
         int player_id FK
@@ -6105,30 +6645,51 @@ erDiagram
     agg_shot_zones {
         int player_id FK
         str season_year
+        str season_type
         str shot_zone_basic
         str shot_zone_area
         str shot_zone_range
-        int attempts
-        int makes
-        float fg_pct
-        float avg_distance
+        int shot_event_count
+        int outcome_observed_attempt_count
+        int made_shot_count_of_observed_outcomes
+        float fg_pct_of_observed_outcomes
+        int distance_observed_attempt_count
+        float mean_observed_shot_distance
     }
     agg_team_defense {
         int team_id FK
         str season_year
         str season_type
-        int gp
-        float avg_def_rating
-        float avg_net_rating
-        float avg_opp_efg_pct
-        float avg_opp_fta_rate
-        float avg_opp_tov_pct
-        float avg_opp_oreb_pct
-        float avg_contested_shots
-        float avg_deflections
-        float avg_loose_balls_recovered
-        float avg_charges_drawn
-        float avg_screen_assists
+        int observed_game_count
+        int def_rating_coverage_game_count
+        float mean_observed_game_def_rating
+        int net_rating_coverage_game_count
+        float mean_observed_game_net_rating
+        int four_factors_observed_game_count
+        int opp_effective_field_goal_percentage_coverage_game_count
+        float mean_observed_game_opp_effective_field_goal_percentage
+        int opp_free_throw_attempt_rate_coverage_game_count
+        float mean_observed_game_opp_free_throw_attempt_rate
+        int opp_team_turnover_percentage_coverage_game_count
+        float mean_observed_game_opp_team_turnover_percentage
+        int opp_offensive_rebound_percentage_coverage_game_count
+        float mean_observed_game_opp_offensive_rebound_percentage
+        int hustle_observed_game_count
+        int contested_shots_coverage_game_count
+        float total_observed_game_contested_shots
+        float mean_observed_game_contested_shots
+        int deflections_coverage_game_count
+        float total_observed_game_deflections
+        float mean_observed_game_deflections
+        int loose_balls_recovered_coverage_game_count
+        float total_observed_game_loose_balls_recovered
+        float mean_observed_game_loose_balls_recovered
+        int charges_drawn_coverage_game_count
+        float total_observed_game_charges_drawn
+        float mean_observed_game_charges_drawn
+        int screen_assists_coverage_game_count
+        float total_observed_game_screen_assists
+        float mean_observed_game_screen_assists
     }
     agg_team_franchise {
         int team_id FK
@@ -6153,6 +6714,13 @@ erDiagram
         str season_year
         str season_type
         int gp
+        float total_possessions
+        int rating_covered_games
+        float rating_possessions
+        int pace_covered_games
+        int pace_actual_minutes_games
+        int pace_inferred_minutes_games
+        float pace_covered_minutes
         float avg_pace
         float avg_ortg
         float avg_drtg
@@ -6197,7 +6765,10 @@ erDiagram
         int player_id FK
         int team_id FK
         str season_year
+        str season_type
         str clutch_window
+        str group_set
+        str group_value
         str player_name
         str team_abbreviation
         int gp
@@ -6484,9 +7055,12 @@ erDiagram
     analytics_shooting_efficiency {
         int player_id FK
         str game_id FK
+        int game_event_id
         int team_id FK
         str player_name
         str season_year
+        str season_type
+        str league_id
         str game_date
         str shot_zone_basic
         str shot_zone_area
@@ -6499,6 +7073,10 @@ erDiagram
         float league_avg_fgm
         float league_avg_fga
         float league_avg_fg_pct
+        float shot_value
+        float actual_points
+        float empirical_zone_expected_points
+        float points_above_empirical_zone_expectation
     }
     analytics_team_game_complete {
         float dist
@@ -6652,6 +7230,9 @@ erDiagram
         int player_id FK
         int team_id FK
         str season_year
+        str league_id
+        str season_type
+        str team_abbreviation
         str jersey_number
         str position
     }
@@ -6715,6 +7296,7 @@ erDiagram
         int gp
         int w
         int l
+        float w_pct
         float min
         int fgm
         int fga
@@ -6732,9 +7314,16 @@ erDiagram
         int tov
         int stl
         int blk
+        int blka
+        int pf
+        int pfd
         int pts
         float plus_minus
         float net_rating
+        str season_type
+        str lineup_source
+        int lineup_source_count
+        str lineup_source_coverage
         str season_year
     }
     dim_player ||--o{ agg_all_time_leaders : "player_id"

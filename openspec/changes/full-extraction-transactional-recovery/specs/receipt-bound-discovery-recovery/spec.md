@@ -38,7 +38,7 @@ guard in its transitive dependency closure.
 
 #### Scenario: A downstream job is rerun without workflow guard
 - **WHEN** GitHub starts one independently rerunnable downstream job
-- **THEN** that job executes the same attempt/source gate before credentials, NBA or VPN access, state mutation, assurance, dispatch, or publication
+- **THEN** that job executes the same attempt/source gate before credentials, NBA or network access, state mutation, assurance, dispatch, or publication
 
 #### Scenario: Targeted smoke assurance is rerun
 - **WHEN** the targeted-smoke assurance job starts independently
@@ -88,24 +88,68 @@ GitHub JSON media type and the repository-pinned `X-GitHub-Api-Version:
 - **WHEN** any unfiltered inventory row has an absent, empty, or non-string event
 - **THEN** the system rejects the inventory instead of silently treating the row as unrelated
 
+### Requirement: Cross-run recovery distinguishes semantic source and producing run
+For every cross-run full-extraction artifact, the workflow MUST distinguish the
+pinned semantic source SHA `S` from the producing workflow run head SHA `H`.
+The embedded manifest, chain, and coverage contracts remain bound to `S`; the
+artifact REST receipt remains bound to its exact owner run and `H`. The owner
+run MUST have the exact repository, run ID, dispatch event, trusted branch,
+workflow path and positive workflow ID, and `run_attempt == 1`. Before artifact
+selection or download, the system MUST prove either `S == H` or that `S` is an
+ancestor of `H`, and MUST prove that `.github/workflows/full-extraction.yml`
+has identical bytes at `S` and `H`. A branch-advanced documentation-only `H`
+MAY therefore produce an artifact whose semantic source remains `S`; unrelated
+history or workflow-byte drift MUST fail closed. Current-run artifacts MUST bind
+their owner run to the current `GITHUB_SHA` while retaining `S` as semantic
+manifest provenance.
+
+#### Scenario: Producing run is a safe descendant
+- **WHEN** `H` is a descendant of `S`, the exact workflow bytes match at both commits, and every owner-run field is exact
+- **THEN** the system may continue to artifact receipt validation with semantic provenance still bound to `S`
+
+#### Scenario: Producing run is unrelated or changes the workflow
+- **WHEN** `S` is not equal to or an ancestor of `H`, or the workflow bytes differ
+- **THEN** recovery fails before artifact selection, download, dispatch, or publication side effects
+
+#### Scenario: Artifact owner and semantic manifest identities are swapped
+- **WHEN** an artifact receipt is compared to `S` as its producing head or an embedded manifest is rebound from `S` to `H`
+- **THEN** provenance validation fails closed
+
+### Requirement: Cross-run attestation remains bound through artifact selection
+Every artifact resolver MUST consume the exact schema-v1 owner attestation it
+just produced. Immediately before selection or download it MUST re-read the
+owner run and require exact agreement with the attested repository, run ID,
+`run_attempt == 1`, event, branch, workflow path and ID, status/conclusion, and
+producing head `H`. A successful attestation that is discarded or followed by a
+weaker positive-attempt check MUST NOT authorize artifact use.
+
+#### Scenario: The owner run is rerun after attestation
+- **WHEN** the final pre-download owner receipt reports another attempt or differs from any attested identity field
+- **THEN** selection fails before reading archive bytes
+
+#### Scenario: The attestation file is absent or malformed
+- **WHEN** the resolver cannot load the exact schema, semantic-source, run, and workflow commitments from its attestation
+- **THEN** it fails closed instead of independently reconstructing a weaker owner claim
+
 ### Requirement: Discovery restore selects one exact source artifact receipt
 The system MUST read an exact distinct source run that is completed with
 `success`, `failure`, `cancelled`, or `timed_out`, was created by
 `workflow_dispatch`, has the exact `.github/workflows/full-extraction.yml` path
-and a positive workflow ID, and has a valid source SHA and attempt.
+and a positive workflow ID, and has a valid producing head SHA and attempt that
+pass the semantic-source attestation above.
 `action_required`, `neutral`, `skipped`, `stale`, absent, and unknown
 conclusions MUST be rejected. The system SHALL observe the complete artifact
 inventory three times, require the final two normalized snapshots to match,
 prefer exactly one unexpired canonical discovery artifact, and otherwise accept
-exactly one unexpired recovery artifact whose embedded run ID and attempt equal
-the source run's current attempt.
+exactly one unexpired recovery artifact whose embedded run ID names the source
+run and whose attempt is exactly one.
 
 #### Scenario: One canonical artifact is available
 - **WHEN** the source inventory has exactly one unexpired canonical artifact
-- **THEN** the system selects its positive artifact ID even when one exact current-attempt recovery artifact also exists
+- **THEN** the system selects its positive artifact ID even when one exact attempt-one recovery artifact also exists
 
-#### Scenario: Only current-attempt recovery is available
-- **WHEN** no canonical artifact exists and exactly one unexpired recovery artifact names the source run and its current attempt
+#### Scenario: Only exact attempt-one recovery is available
+- **WHEN** no canonical artifact exists and exactly one unexpired recovery artifact names the source run and exact attempt one
 - **THEN** the system selects that recovery artifact
 
 #### Scenario: Selection is ambiguous or malformed
@@ -113,7 +157,7 @@ the source run's current attempt.
 - **THEN** the system rejects the source inventory
 
 #### Scenario: Source workflow identity differs
-- **WHEN** source status, conclusion, event, workflow path, workflow ID, source SHA, run ID, or attempt is absent or mismatched
+- **WHEN** source status, conclusion, event, workflow path, workflow ID, producing head SHA, semantic-source attestation, run ID, or attempt is absent or mismatched
 - **THEN** the system rejects the source before artifact selection
 
 #### Scenario: Source workflow did not execute extraction
@@ -127,7 +171,8 @@ the source run's current attempt.
 ### Requirement: Selected discovery receipts are provenance-bound
 The selected artifact MUST have the expected exact name, positive ID, unexpired
 state, `sha256:` archive digest, positive size, exact archive-download URL,
-owning workflow-run ID, and owning source SHA.
+owning workflow-run ID, and owning producing head SHA. Its restored semantic
+content MUST remain independently bound to the pinned source SHA.
 
 #### Scenario: REST identity matches
 - **WHEN** every selected inventory field matches the exact source workflow run and a direct GET of the selected artifact ID returns the same normalized receipt
@@ -178,10 +223,10 @@ basenames, or otherwise ambiguous layout before copying any restored state.
 
 ### Requirement: Cross-run lane and resume manifests are owner-bound
 A receipt-aware lane-manifest handoff MUST validate the source run's exact run
-ID, pinned source SHA, positive attempt, executed or active state, dispatch
+ID, producing head SHA, semantic-source attestation, exact `run_attempt == 1`, executed or active state, dispatch
 event, full-extraction workflow path, and positive workflow ID before comparing
 the artifact's exact positive ID, name, digest, size, expiry, archive URL,
-owning run, and owning source SHA. A resume-source run MUST be completed with
+owning run, and owning producing head SHA. A resume-source run MUST be completed with
 `success`, `failure`, `cancelled`, or `timed_out`, and its complete artifact
 inventory MUST stabilize before selecting one exact committed next-manifest or,
 only when no committed manifest exists, one exact canonical manifest. The
@@ -189,7 +234,7 @@ selected artifact MUST be re-read by ID and downloaded with digest mismatch
 configured as an error.
 
 #### Scenario: Lane receipt and owner source both match
-- **WHEN** the source workflow run and the exact lane-manifest REST artifact agree with the pinned source, workflow identity, receipt fields, and requested chain
+- **WHEN** the source workflow run proves `S` as an equal or ancestor with identical workflow bytes and the exact lane-manifest REST artifact agrees with `H`, workflow identity, receipt fields, and requested chain
 - **THEN** the workflow may download the artifact by ID and use its single manifest
 
 #### Scenario: Artifact self-provenance hides a different owner source
@@ -197,8 +242,8 @@ configured as an error.
 - **THEN** the workflow rejects the handoff before download or manifest parsing
 
 #### Scenario: Resume source contains a committed manifest
-- **WHEN** a completed source run has one stable, unexpired committed next-manifest whose name binds that run and a positive attempt no greater than the owner attempt
-- **THEN** the workflow selects the highest positive committed attempt and directly rechecks its exact artifact ID
+- **WHEN** a completed source run has one stable, unexpired committed next-manifest whose name binds that run and exact attempt one
+- **THEN** the workflow selects that unique attempt-one committed manifest and directly rechecks its exact artifact ID
 
 #### Scenario: Resume source has only one canonical manifest
 - **WHEN** no committed next-manifest exists and exactly one stable, unexpired canonical manifest matches the chain
@@ -211,8 +256,9 @@ configured as an error.
 ### Requirement: Legacy name-only lane handoff is bounded and upgraded before use
 When both an artifact ID and digest are absent for a persisted legacy
 lane-manifest handoff, the system MAY resolve the exact run and artifact name
-only after validating the owner run against the pinned source and exact
-full-extraction workflow identity. It MUST query the exact artifact name,
+only after validating the owner run's producing head against the pinned
+semantic source ancestry and exact full-extraction workflow-byte identity. It
+MUST query the exact artifact name,
 require three observations with identical final snapshots, require one
 unexpired candidate, directly re-read that candidate by positive ID, and
 download that exact ID. When GitHub exposes an archive digest, the downloaded
@@ -225,7 +271,7 @@ member.
 - **THEN** the system may use the extracted manifest and continues with normal chain and source validation
 
 #### Scenario: Legacy owner is cross-source or cross-workflow
-- **WHEN** the named artifact's owner run has another source SHA, event, workflow path, workflow ID, run ID, or invalid attempt or state
+- **WHEN** the named artifact's owner run has unrelated history, workflow-byte drift, another event, workflow path, workflow ID, run ID, or invalid attempt or state
 - **THEN** the system rejects the handoff before reading its archive
 
 #### Scenario: Legacy archive is ambiguous or unsafe

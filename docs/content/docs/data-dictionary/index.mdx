@@ -111,6 +111,28 @@ Text fallback: use Glossary for meaning, Field Reference for naming patterns, th
   </InsightCard>
 </DataColumns>
 
+## Contract inventory vs reviewed lineage
+
+<Callout type="warn">
+  An inventory match is not reviewed lineage. The contract compiler preserves
+  candidates so maintainers can review them, but same-name, source-metadata,
+  dependency, SQL-passthrough, and normalized-name matches remain non-green
+  until they receive an explicit cross-layer disposition.
+</Callout>
+
+| Inventory slice               | Count authority                    | Current admission state                                                                |
+| ----------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| Provider-field occurrences    | Fresh field-fate contract artifact | Every occurrence needs an explicit reviewed model and metric disposition               |
+| Unique provider identities    | Fresh field-fate contract artifact | Route-local repeats remain separate evidence rather than being silently deduplicated   |
+| Public numeric columns        | Fresh metric-contract artifact     | Candidates stay quarantined from semantic consumers until reviewed                     |
+| Structural numeric nonmetrics | Fresh metric-contract artifact     | Explicit key, relationship, or uniqueness evidence excludes them from metric admission |
+| Unreviewed numeric candidates | Fresh metric-contract artifact     | They still need formula, grain, unit, aggregation, eligibility, and use-case review    |
+| Computed numeric SQL aliases  | Fresh metric-contract artifact     | An exact normalized expression alone does not review its metric semantics              |
+
+Use the assurance artifacts for occurrence-level blockers and current digests. Do
+not promote candidate evidence into docs recommendations, chat routes, notebook
+metrics, or other semantic consumers until its registry contract admits that use.
+
 <CourtDivider label="Read the layer labels" />
 
 ## Layer and prefix guide
@@ -165,6 +187,6 @@ It also refreshes the matching schema reference pages plus ER and lineage artifa
 - [Schema Reference](/docs/schema) — curated family guides for dimensions, facts, bridges, aggregations, and analytics views
 - [Dimensions](/docs/schema/dimensions) — identity, history, calendar, and lookup context tables
 - [Facts & Bridges](/docs/schema/facts) — measurement tables and many-to-many connectors
-- [Analytics Views](/docs/schema/analytics-views) — 12 pre-joined convenience surfaces
+- [Analytics Views](/docs/schema/analytics-views) — 14 pre-joined convenience surfaces
 - [Relationships](/docs/schema/relationships) — join playbook with SQL examples
 - [Lineage](/docs/lineage) — transform dependency chain and data flow

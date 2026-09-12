@@ -16,6 +16,8 @@ Use this page as the **film room after a broken possession**. Start with the art
 | Missing environment, lockfile, or package surface | Dependency inventory              |
 | Empty tables or failing checks                    | Data quality                      |
 | Endpoint coverage drift                           | Extract completeness              |
+| Result/field receipt or reconstruction failure    | Public-safe lossless receipts     |
+| Daily/monthly candidate or publication recovery   | Recurring one-repository boundary |
 | Full Extraction lane failures                     | Full Extraction control plane     |
 | Generated docs or docs build drift                | Docs-autogen artifacts            |
 | Download/upload or publish misses                 | Kaggle and common CLI/CI failures |
@@ -89,7 +91,9 @@ PY
 
 - If you see `Error: database not found. Run 'nbadb init' first.`, seed the data directory first with `nbadb init` or `nbadb download` plus a refresh command.
 - If `summary.total` is `0`, verify the DuckDB file exists at the configured `--data-dir`.
-- If checks fail, inspect the reported tables/columns and rerun the refresh command that matches the scope you need (`daily`, `monthly`, or `backfill run`).
+- If checks fail, inspect the reported tables/columns. Do not expect standalone
+  `daily` or `monthly` to refresh the warehouse; use `backfill run` only for
+  targeted recovery, not successor assurance.
 
 **Tip:** `nbadb scan` supports `--fail-on error` for strict CI enforcement and `--category` to focus on specific check families (e.g. `data_quality`, `missing_table`).
 
@@ -142,6 +146,49 @@ PY
 - If `runtime_gap` is high, validate runtime references in `src/nbadb/extract/stats/*.py` and endpoint names in `src/nbadb/orchestrate/staging_map.py`.
 - If `extractor_only` rows appear, either add the endpoint to the staging map or normalize the coverage aliasing.
 - If `schema_missing_transform_outputs` is non-zero, the pipeline is producing transform outputs without a matching `nbadb.schemas.star` contract. Treat that as a data-modeling gap, not an extractor/staging gap.
+
+## Public-safe lossless receipts and optional body diagnostics
+
+**Best for:** a request, logical-call, result, route, staging, field-conservation,
+or parser reconstruction mismatch.
+
+Successful provider evidence is durable through public-safe request/result/
+header-or-path/ordinal/value/presence/provenance landings and committed receipts.
+Check that one logical call closes every ordered result route, that present-empty is
+not mislabeled optional-absent, and that additive fields reached the typed lossless
+landing instead of disappearing during DataFrame construction or schema projection.
+
+Exact decoded-body capture, when enabled, is private evidence that may serve bounded
+same-run diagnostics; provider bodies never enter any public candidate, archive, or
+metadata, and their absence must not block reconstruction, resume, assurance, or
+recurring publication. A transport failure before any response has a secret-safe no-body
+receipt; a non-successful response never promotes unrestricted error-body text into
+durable authority. Cookies, authorization data, request headers, proxy/VPN details,
+credentials, and error bodies must not appear in any landing, receipt, diagnostic
+artifact, log, export, or metadata file.
+
+## Recurring one-repository boundary
+
+**Best for:** `nbadb daily`/`nbadb monthly` failure, cancellation, candidate drift,
+or publication reconciliation.
+
+The recurring flow has one durable parent: the exact fully verified Kaggle version.
+Local candidates, checkpoints, Actions artifacts, and caches are bounded working or
+diagnostic state, not a second dataset authority.
+
+| Failure or state                                       | What it means                                                   | What not to do                                               |
+| ------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| Exact parent version/readback cannot be proven         | Baseline admission failed                                       | Do not infer authority from a cache path or partial download |
+| Fixed-point request manifest is incomplete             | A discovered scope, result, field, or dependency is unaccounted | Do not sample, guess parameters, or label failure typed zero |
+| First `Ctrl+C` / TUI stop / workflow cancellation      | Non-success; later scan/export/upload must remain blocked       | Do not publish the partial candidate                         |
+| Candidate/checkpoint baseline or request digest drifts | Resume state belongs to another transaction                     | Do not relabel or reuse it as a public parent                |
+| GitHub Deployment intent is unresolved                 | A prior Kaggle mutation may already have happened               | Do not create a new intent or upload again                   |
+| Remote marker/version/inventory evidence is ambiguous  | Exact readback cannot reconcile the prior mutation              | Do not clear the ledger or bypass the publisher mutex        |
+
+The hosted job downloads the public parent, runs the recurring command, scans,
+exports, generates metadata inside the disposable candidate, then uploads through
+the `nbadb-kaggle-publish` FIFO mutex and GitHub Deployment ledger. It does not use a
+private generation store or commit candidate metadata back to the repository.
 
 ## Full Extraction control plane
 
@@ -211,6 +258,22 @@ canonical `team_and_players_vs` staging windows and its own extraction exclusion
 All four concrete names are omitted from fresh manifests and cause an old explicit
 manifest to fail during planning before network preflight.
 
+<Callout type="warn">
+  A separate dependent-workload compiler now models this boundary, but its
+  payload is explicitly `feature_disabled`. It accepts only the observed
+  offensive-to-defensive direction from exact `stg_matchup` rows and never
+  synthesizes the reverse or a roster Cartesian product. Five-v-five units
+  require one positive team per side, five distinct positive players on each
+  simultaneous rotation interval, and no player overlap. Observed occurrences
+  remain separate from deduplicated executable units; verified empty evidence
+  becomes typed zero, conclusive invalid evidence becomes blocked, and
+  inconclusive evidence aborts compilation. There is no planner, workflow,
+  registry, journal, checkpoint, terminal, or alias integration yet, so the
+  exclusions above remain the production rule. Exact `covered_pairs` discovery
+  proves player/team affiliations only; it is not matchup or opposing-lineup
+  evidence.
+</Callout>
+
 `league_game_log` is a first-class discovery-seed output and is therefore absent
 from the extract matrix. Canonical coverage rows can describe multiple alternate
 wrappers, so manifest generation resolves each support window's staging key back to
@@ -270,7 +333,8 @@ before consulting fresh recommendations.
 Logical lane index `N` may use only preferred host `N`; preferred assignment never
 wraps modulo when the lane count exceeds the verified-host count. Every matrix row also
 has a bounded VPN slot, and later logical lanes may reuse a slot only after that slot's
-non-cancelling `queue: max` concurrency group releases it.
+non-cancelling named per-slot concurrency group (`cancel-in-progress: false`) releases
+it.
 This avoids rediscovering known-good exits without collapsing parallel runners onto
 one NordVPN server. Quarantine and per-protocol attempt ceilings still take precedence.
 
@@ -313,10 +377,14 @@ without shrinking the planned batch and skips the configured-credential capacity
 
 On chained runs, the seed job downloads
 `full-extraction-discovery-artifacts-<chain_id>` from the exact
-`lane_manifest_run_id` or `resume_source_run_id`, adds the current wave's missing
+`lane_manifest_run_id` or the exact five-field continuation source selected through
+`resume_source_run_id` plus `resume_source_manifest`, adds the current wave's missing
 scopes, and republishes the cumulative artifact. The source must be a distinct
-completed workflow run with matching chain, source SHA, workflow identity, artifact
-inventory, and receipt provenance. If an explicit source is unavailable, expired,
+completed workflow run with matching chain, workflow identity, artifact inventory,
+and receipt provenance. Its manifest remains bound to semantic source
+`S=WORKFLOW_SOURCE_SHA`; its REST artifact remains bound to the owner run's producing
+head `H`. Require `S == H` or source ancestry plus byte-identical full-extraction
+workflow content. If an explicit source is unavailable, expired,
 ambiguous, or invalid, the job fails closed instead of reseeding from scratch. Extract
 lanes install the result after restoring lane state, preventing an older cached
 database from replacing current discovery evidence. A required scope counts as covered only
@@ -372,12 +440,18 @@ manifest's latest-checkpoint pointer. Redispatched runs therefore merge the prev
 committed checkpoint with only newly completed lane databases, and terminal merge
 consumes that checkpoint first. If a manual/source-run resume has complete lane uploads but no
 checkpoint, recovery reads the manifest's exact `chain_state.artifact_run_ids` plus
-the current run, inventories every artifact, and downloads only exact lane/database
-and metadata names. Duplicate names, ambiguous databases, invalid run IDs, and a
-database without its same-run metadata fail closed; recovery artifacts and wildcard
-prefix matches are never accepted. Every accepted current or historical lane pair
-must match the manifest's chain, source, run, artifact name, lane, and coverage
-provenance.
+the current run, attests each historical owner as a completed first attempt with the
+expected producing head `H`, observes a stable complete artifact inventory, and
+directly rechecks each selected artifact receipt before downloading by exact positive
+artifact ID. The receipt binds name, archive digest, size, archive URL, owner run,
+producing head, and semantic source; the GitHub archive digest remains distinct from
+the lane database SHA-256 carried in state metadata. Duplicate names or IDs, unstable
+inventories, ambiguous databases, invalid run IDs, receipt drift, and a database
+without its same-run metadata fail closed. Recovery artifacts, wildcard prefix
+matches, and run/name downloads are never accepted. Every accepted current or
+historical lane pair must match the manifest's chain, semantic source, producing
+head, run, artifact receipts, lane, and coverage provenance before archive bytes are
+consumed.
 
 Checkpoint roll-forward is copy-plus-delta and never edits the prior generation.
 The output path must differ from the previous checkpoint; the builder copies the
@@ -491,10 +565,13 @@ authentication executes one simultaneous matrix job without shrinking the alread
 planned batch. `matrix_batch_size` remains independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
 therefore API pressure. VPN mode defaults to two simultaneous lanes. Each active
-lane runs on a separate GitHub-hosted runner and tunnel. Matrix rows are assigned
-round-robin to the bounded VPN slots, and each slot's `queue: max` group serializes all
-later logical lanes that reuse it. Configured-credential runs admit every row in the
-current matrix behind those queues; per-slot groups, rather than matrix admission
+lane runs on a separate GitHub-hosted runner and tunnel. For `N` matrix rows and `S`
+requested slots, the manifest uses `min(N, S)` contiguous slots and requires row `i`
+to use `i mod min(N, S)`. Its fail-closed postcondition gate also requires exact unique
+lane membership and order, integer in-range slots, loads differing by at most one, and
+no load above `ceil(N / S)` (`64 / 6` is `11, 11, 11, 11, 10, 10`). Each slot's
+named non-cancelling concurrency group serializes all later logical lanes that reuse it. Configured-credential runs admit every row in the
+current matrix behind those slot groups; per-slot groups, rather than matrix admission
 credits, enforce `vpn_parallelism` and avoid head-of-line idling after asymmetric lane
 completion. Probe-verified preflight/discovery hosts are reused
 only by their assigned logical lane; fresh hostnames hash to exactly one live slot.
@@ -558,7 +635,8 @@ set -euo pipefail
 : "${BACKFILL_ENDPOINTS:=}"
 : "${BACKFILL_PATTERNS:=}"
 : "${FORCE_REEXTRACT:=false}"
-: "${PUBLISH:=true}"
+: "${OPERATION:=extract}"
+: "${OPERATION_MANIFEST_LANE_COUNT:=256}"
 : "${RETRY_PIPELINE_FAILURES:=true}"
 
 [[ "$REPOSITORY" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]
@@ -568,6 +646,8 @@ set -euo pipefail
 gh workflow run full-extraction.yml \
   --repo "$REPOSITORY" \
   --ref "$WORKFLOW_REF" \
+  -f operation="$OPERATION" \
+  -f operation_manifest_lane_count="$OPERATION_MANIFEST_LANE_COUNT" \
   -f concurrency="$CONCURRENCY" \
   -f vpn_parallelism="$VPN_PARALLELISM" \
   -f matrix_batch_size="$MATRIX_BATCH_SIZE" \
@@ -581,8 +661,6 @@ gh workflow run full-extraction.yml \
   -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
   -f backfill_patterns="$BACKFILL_PATTERNS" \
   -f force_reextract="$FORCE_REEXTRACT" \
-  -f publish="$PUBLISH" \
-  -f targeted_smoke=false \
   -f chain_id="$CHAIN_ID" \
   -f workflow_ref="$WORKFLOW_REF" \
   -f workflow_sha="$WORKFLOW_SHA" \
@@ -609,13 +687,21 @@ A stopped chain that produced durable state must be resumed through a fresh
 `workflow_dispatch`; the workflow owns source-artifact selection and verification.
 Preserve the original scope and planning inputs. Set `NEXT_ITERATION` to the committed
 next-manifest iteration recorded by the stopped run, or to the source's original
-iteration when it produced only the canonical manifest:
+iteration when it produced only the canonical manifest. A continuation dispatch
+(`operation=continue`) must supply the exact five-field source: source run id, source
+run attempt, manifest artifact name, manifest artifact id, and manifest artifact
+digest:
 
 ```bash
 set -euo pipefail
 
 : "${REPOSITORY:?export REPOSITORY=owner/repository}"
 : "${SOURCE_RUN_ID:?export SOURCE_RUN_ID to the distinct completed source run}"
+: "${SOURCE_RUN_ATTEMPT:?export SOURCE_RUN_ATTEMPT to the source run's exact attempt}"
+: "${SOURCE_MANIFEST_NAME:?export SOURCE_MANIFEST_NAME to the exact manifest artifact name}"
+: "${SOURCE_MANIFEST_ID:?export SOURCE_MANIFEST_ID to the exact manifest artifact ID}"
+: "${SOURCE_MANIFEST_DIGEST:?export SOURCE_MANIFEST_DIGEST to the exact sha256:<hex> artifact digest}"
+: "${SOURCE_MANIFEST_LANE_COUNT:?export SOURCE_MANIFEST_LANE_COUNT from the source manifest's exact planned lane count}"
 : "${CHAIN_ID:?export CHAIN_ID to the original extraction chain}"
 : "${NEXT_ITERATION:?export NEXT_ITERATION from the stopped chain}"
 : "${WORKFLOW_REF:?export WORKFLOW_REF to the original trusted branch}"
@@ -632,20 +718,28 @@ set -euo pipefail
 : "${BACKFILL_ENDPOINTS:=}"
 : "${BACKFILL_PATTERNS:=}"
 : "${FORCE_REEXTRACT:=false}"
-: "${PUBLISH:=false}"
 : "${RETRY_PIPELINE_FAILURES:=true}"
 
 command -v gh >/dev/null
 [[ "$REPOSITORY" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]
 [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+[[ "$SOURCE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+[[ "$SOURCE_MANIFEST_NAME" =~ .+ ]]
+[[ "$SOURCE_MANIFEST_ID" =~ ^[1-9][0-9]*$ ]]
+[[ "$SOURCE_MANIFEST_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+[[ "$SOURCE_MANIFEST_LANE_COUNT" =~ ^[1-9][0-9]*$ ]]
 [[ "$CHAIN_ID" =~ ^[1-9][0-9]*$ ]]
 [[ "$NEXT_ITERATION" =~ ^[1-9][0-9]*$ ]]
 [[ "$WORKFLOW_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
 workflow_sha="$(printf '%s' "$WORKFLOW_SHA" | tr '[:upper:]' '[:lower:]')"
+resume_source_manifest="$(printf '{"run_attempt":"%s","name":"%s","id":"%s","digest":"%s"}' \
+  "$SOURCE_RUN_ATTEMPT" "$SOURCE_MANIFEST_NAME" "$SOURCE_MANIFEST_ID" "$SOURCE_MANIFEST_DIGEST")"
 
 gh workflow run full-extraction.yml \
   --repo "$REPOSITORY" \
   --ref "$WORKFLOW_REF" \
+  -f operation=continue \
+  -f operation_manifest_lane_count="$SOURCE_MANIFEST_LANE_COUNT" \
   -f concurrency="$CONCURRENCY" \
   -f vpn_parallelism="$VPN_PARALLELISM" \
   -f matrix_batch_size="$MATRIX_BATCH_SIZE" \
@@ -660,22 +754,43 @@ gh workflow run full-extraction.yml \
   -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
   -f backfill_patterns="$BACKFILL_PATTERNS" \
   -f force_reextract="$FORCE_REEXTRACT" \
-  -f publish="$PUBLISH" \
-  -f targeted_smoke=false \
   -f chain_id="$CHAIN_ID" \
   -f workflow_ref="$WORKFLOW_REF" \
   -f workflow_sha="$workflow_sha" \
-  -f resume_source_run_id="$SOURCE_RUN_ID"
+  -f resume_source_run_id="$SOURCE_RUN_ID" \
+  -f resume_source_manifest="$resume_source_manifest"
 ```
 
-Do not pass `lane_manifest_run_id`, an artifact name, or receipt fields with
-`resume_source_run_id`. The source resolver requires a distinct completed
-`workflow_dispatch` run with the pinned SHA and exact workflow identity. It observes
+Do not pass `lane_manifest_run_id` or any other handoff input together with the
+continuation source; the five fields above are the complete resume authority, and the
+run attempt is never inferred from an artifact name or a latest-style lookup. The
+source resolver requires a distinct completed
+`workflow_dispatch` run with exact workflow identity. Treat the pinned SHA as semantic
+source `S` and the run's `head_sha` as producing head `H`; require `S == H` or `S` to
+be an ancestor of `H`, plus byte-identical `.github/workflows/full-extraction.yml`
+content at both commits. It observes
 the complete artifact inventory three times, requires the final two observations to
-match, selects the highest-attempt unique committed next manifest or the single
+match, selects the unique exact-attempt-one committed next manifest or the single
 canonical manifest only when no committed candidate exists, rechecks that exact
 artifact ID, and downloads it with digest mismatch set to error. The committed path
 must contain a matching committed checkpoint transaction.
+
+Planning freezes that selection into `resume-source-input-manifest.json` plus
+schema-v1 `resume-source-selection.json`, then includes both in the run/attempt-scoped
+plan artifact. The plan step REST-verifies the upload action's exact artifact ID,
+name, digest, size, unexpired state, archive URL, owner run at exact attempt one, and
+current producing `GITHUB_SHA` after a final owner re-read, while
+retaining selected semantic source `S` separately. On a zero-active terminal
+path, `terminal_replay` repeats that receipt verification, downloads the plan artifact
+by ID, and validates its selected manifest/report/database trio. It does not search
+the source run again by artifact name, so a later same-name artifact cannot change
+what planning selected.
+
+The committed next-manifest and terminal-replay output are separate current-run
+authorities. Each upload is direct-verified for exact ID, name, archive digest, size,
+unexpired state, archive URL, attempt one, owner run, and producing `GITHUB_SHA`.
+Terminal merge receives those receipts and downloads only their IDs; raw upload names
+and same-name lookup are never authority.
 
 The workflow, not the operator command, validates chain/source/full-manifest coverage,
 checkpoint identity, lane metadata, active counts, budgets, and recovery provenance.
@@ -683,7 +798,8 @@ An absent, expired, ambiguous, or malformed source fails closed. A prior attempt
 the current run is never a recovery source, and `gh run rerun` remains invalid.
 The bounded run/name-only lane-manifest fallback applies only to older persisted
 manifests where both receipt fields are absent; it still verifies the exact source
-owner and workflow, stable unique inventory, direct artifact ID, available digest,
+owner head, semantic-source ancestry, workflow bytes, stable unique inventory, direct
+artifact ID, available digest,
 and exactly one safe expected manifest member.
 
 With `max_iterations=auto`, the first manifest derives one numeric `iteration_budget`
@@ -704,9 +820,11 @@ VPN/auto workflow concurrency is a repository-wide FIFO queue so separate chains
 cannot consume the same account slots concurrently or displace an already-pending
 child; direct workflows remain scoped to chain plus iteration. Active or successful
 exact-title children block redispatch, while `action_required`, failed, cancelled, or
-timed-out history remains retryable. The dispatcher posts `workflow_dispatch` with
-`return_run_details=true`, validates the returned run ID and URLs, and reads that
-exact run to prove its title, event, head SHA, and source before acknowledgement. The
+timed-out history remains retryable. The dispatcher posts an exact
+`workflow_dispatch` request body containing only `{ref, inputs}`. It requires the
+response to contain exactly `workflow_run_id`, `run_url`, and `html_url`, then reads
+that exact run to prove its API/browser URLs, workflow identity, title, event, branch,
+`run_attempt == 1`, head SHA, and source before acknowledgement. The
 committed next-manifest name is run/attempt-unique and uploads without overwrite; its
 exact artifact ID and digest are forwarded to the child, which REST-verifies
 ID/name/digest/size/run/source and downloads by ID with digest mismatch set to error.
@@ -727,8 +845,10 @@ a bounded fallback when the dispatch response cannot be persisted. Once the chil
 acknowledged it is independently durable and must be monitored by run ID. Manual
 cancellation also prevents queued network jobs from starting and lets the lane wrapper
 make a bounded signal-driven cleanup attempt, but GitHub may remove an ephemeral runner
-before subsequent metadata or artifact steps execute. Recover only from the latest
-attested upload or checkpoint; cancellation itself is not durability evidence.
+before subsequent metadata or artifact steps execute. Cancellation inventories are
+diagnostics only: recover from the plan-selected source receipt, latest attested
+upload, or committed checkpoint. Cancellation itself and same-name artifact discovery
+are not durability evidence.
 
 The pinned `workflow_sha` must be a full commit on the trusted `workflow_ref` branch;
 publish runs also prove default-branch ancestry. Every uploaded lane manifest carries
@@ -739,10 +859,11 @@ early credential/exact-version preflight before lane fan-out and repeat it after
 terminal assurance. Terminal assurance has read-only contents permission and emits
 an exact run/attempt-scoped artifact. Only the separate publisher job receives write
 permission and Kaggle secrets, and all full/daily/monthly publishers enter the shared
-exact `nbadb-kaggle-publish` FIFO group with `queue: max` and
-`cancel-in-progress: false`. Durable publication also requires `actions: read`,
+exact named `nbadb-kaggle-publish` concurrency group with
+`cancel-in-progress: false`. Durable publication requires at least `actions: read`,
 `deployments: write`, `GH_TOKEN`, `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`,
-default-head enforcement, and
+default-head enforcement, and the full-extraction publisher uses `actions: write` for
+its explicit metadata-closeout CI dispatch. It also requires
 `--publication-ledger github-deployment --require-durable-intent`. The terminal export also creates
 `assured-artifact-manifest.json`, but only after every export completes and
 `nbadb scan --fail-on error --full-publication --checkpoint-report <path>
@@ -752,9 +873,17 @@ both general quality and the terminal checkpoint's complete lane/run/coverage in
 including canonical blocked evidence, while requiring every declared nonempty silver/gold
 domain anchor and row-preserving cardinality pair. Its sorted file hashes bind the data tree to the
 source commit, chain ID, and validated effective checkpoint coverage; separately
-artifact-bound blocked evidence cannot substitute for extracted coverage. The
-publisher resolves the exact GitHub artifact ID, verifies the downloaded archive's
-SHA-256 against the upload result, and then recomputes the assured manifest before
+artifact-bound blocked evidence cannot substitute for extracted coverage. Before
+fetching archive bytes, the publisher directly verifies that the exact artifact ID,
+name, digest, size, expiry, archive URL, and producing head bind the immutable
+attempt-one upload, then repeats the current owner read. A later owner attempt is valid
+only in the explicit publication-recovery roles — exact cross-run `pending` takeover
+with a durably terminal origin, a takeover receipt plus artifact member, and stable
+double inventory evidence, or no-upload `in_progress` reconciliation — and cannot
+create or substitute assured data. The publisher then verifies the downloaded
+archive's SHA-256 and complete safe layout against that receipt, rejecting empty,
+duplicate, absolute, traversing, symlinked, special, or colliding members before any
+extraction, and recomputes the assured manifest before
 requiring `nbadb upload --full-publication`, which independently validates the declared
 terminal assurance report and its chain, source, effective coverage, checkpoint, and
 blocked-evidence identities, exact resource kinds, and DuckDB/SQLite/CSV/Parquet
@@ -762,23 +891,40 @@ table-schema-row parity before publishing both assurance files as Kaggle resourc
 and repeating their provenance in publication marker schema v2. Generic
 `--verify-remote` remains available for exact-version readback of daily or monthly
 updates without asserting full-extraction terminal provenance. Generated metadata covers
-all 254 runtime transform outputs. The default
+all 261 runtime transform outputs. The default
 branch must equal the pinned source immediately before upload. The Git request path is
 `/git/ref/heads/<branch>`, while GitHub canonicalizes the response URL to
 `/git/refs/heads/<branch>`; the ledger validates both. A publication reconciliation
 execution may accept the source's single exact metadata-only child through
 `NBADB_KAGGLE_EXPECTED_DEFAULT_HEAD_SHA`, but only when the regenerated file is
-byte-identical. The idempotent metadata push is the publisher's final step, after
-exact remote verification and receipt artifacts succeed. If a source run already has
-zero active lanes, resume with its original `chain_id` and `resume_source_run_id`.
-The workflow replays an attested terminal checkpoint when present; if cancellation
-landed before checkpoint promotion, it rebuilds from the source run's exact attested
-complete-lane artifacts instead of rerunning those lanes.
+byte-identical. The idempotent metadata push is the final repository mutation, after
+exact remote verification and receipt artifacts succeed. The publisher then resolves
+metadata head `M` as the frozen source or one direct, non-merge child with the fixed
+subject, only `dataset-metadata.json` changed, and bytes reproduced from the assured
+data. A child `M` triggers an explicit `.github/workflows/ci.yml` dispatch using exact
+`{ref, inputs}` request and response identity. The closeout fully paginates up to 1,000
+jobs, requires exactly one successful `workflow-lint`, `lint`, `metadata`, `typecheck`,
+`docs`, and `test`, directly verifies every job receipt at `M`, then rechecks the
+default ref before writing `metadata-closeout.json`. If `M` is the unchanged source,
+CI is skipped but closeout is still recorded. If a source run already has zero active
+lanes, resume with its original `chain_id` and the exact five-field continuation
+source (source run id, run attempt, manifest artifact name, artifact id, artifact
+digest) through `operation=continue`.
+The full-extraction publisher restores and saves secondary
+`kaggle-publication-state.json` cache entries only under the current
+`github.run_id` prefix. A later attempt of that same run can reuse the state; another
+workflow run cannot. This cache never overrides the GitHub Deployment ledger or exact
+remote marker/version/inventory/hash evidence. The workflow replays the plan-selected,
+receipt-bound terminal checkpoint when present; if cancellation landed before
+checkpoint promotion, it rebuilds from the source run's exact attested complete-lane
+artifacts instead of rerunning those lanes.
 
-Use `publish=false` when a full-coverage Actions canary is worth the extra run. It
+Use the read-only terminal path when a full-coverage Actions canary is worth the extra
+run. It
 exercises terminal transform, export, and full-publication hard scan without permitting
-metadata or Kaggle publication. For a narrow custom manifest, set `targeted_smoke=true` with
-`network_mode=vpn`, `publish=false`, `max_iterations=1`, and
+metadata or Kaggle publication. For a narrow custom manifest, set
+`operation=targeted_smoke` with
+`network_mode=vpn`, `max_iterations=1`, and
 `retry_pipeline_failures=false`. The workflow then skips global merge/scan and
 redispatch, and its dedicated assurance job passes only when the manual manifest has
 exactly one lane, lane control reports one complete `resume_only` lane with no active
@@ -830,7 +976,7 @@ PY
   the snapshot to diagnostics-only runner-infrastructure evidence.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
 - Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; the cumulative zero-progress budget continues across alternating classes. Application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
-- If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct and launch a fresh workflow with the original chain plus `resume_source_run_id` for that distinct completed source. Receipt-bound `lane_manifest_run_id` remains the exact child/manual handoff path; never combine both source modes. Either path reruns integrity, exact-coverage, and canonical bundle gates. Both transport and response-contract/validation failures should consume the bounded recovery attempts; a first response-shape failure must not terminate the remaining budget. Do not treat a broader aggregate cache as proof of an exact missing scope.
+- If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct and launch a fresh `operation=continue` workflow with the original chain plus the exact five-field continuation source (source run id, run attempt, manifest artifact name, artifact id, artifact digest) for that distinct completed source. Receipt-bound `lane_manifest_run_id` remains the exact child/manual handoff path; never combine both source modes. Either path reruns integrity, exact-coverage, and canonical bundle gates. Both transport and response-contract/validation failures should consume the bounded recovery attempts; a first response-shape failure must not terminate the remaining budget. Do not treat a broader aggregate cache as proof of an exact missing scope.
 - If `nba-probe-status` is `timeout`, `http_error`, `request_failed`, `invalid_content`, `stack_timeout`, `stack_transport_failed`, or `stack_budget_exhausted`, treat that server as NBA-blocked even when its exit-IP probe passed. When the diagnostic reports both outer and root classes, the recognized root determines this routing. Confirm the server appears in `failed-servers-json`; do not start discovery on that tunnel.
 - If `nba-probe-status` is `stack_unavailable`, `stack_runtime_error`, `stack_contract_error`, or `stack_invalid_attestation`, stop and fix the checked-out runtime or contract. These are host-independent fatal failures and must not rotate through or quarantine healthy VPN servers. A wrapped response-contract root belongs here even when its outer class is transport-shaped.
 - If checkpoint commit fails, fix or regenerate the checkpoint before terminal merge. Do not copy a `candidate`, `built`, or unverified upload into `chain_state.latest_checkpoint_*`; only the exact `committed` receipt is recoverable. Use lane-artifact fallback only as an explicit recovery decision after confirming exact chain/source/run/artifact/generation/coverage provenance and proving that neither the prior checkpoint nor its blocked-evidence inventory names a lane outside the current manifest. If both checkpoint and lane artifacts are missing, relaunch from the latest run/attempt-unique `full-extraction-next-manifest-*` artifact by exact ID and digest rather than starting from scratch.
@@ -866,14 +1012,18 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 
 ## Kaggle and common CLI/CI misses
 
-| Command or area                       | Symptom                                      | Fix                                                                                                                                                                                |
-| ------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uv sync`                             | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                                                                                                                |
-| `uv run nbadb download` / `upload`    | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct                                                                                         |
-| `uv run nbadb upload --verify-remote` | Remote publish stays pending                 | Inspect exact `baseline.version`, `resolved_version`, `observations`, and status in `logs/kaggle/kaggle-upload-manifest.json`; do not re-upload while reconciliation is unresolved |
-| `nbadb scan --report-path ...`        | `database not found`                         | Initialize or download the dataset before running quality checks                                                                                                                   |
-| `actions/upload-artifact`             | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects                                                                                                   |
-| docs install/build step               | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                                                                                                                 |
+| Command or area                        | Symptom                                      | Fix                                                                                                                                                                                |
+| -------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uv sync`                              | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                                                                                                                |
+| `uv run nbadb download` / `upload`     | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct                                                                                         |
+| `uv run nbadb daily` / `monthly`       | Extraction or stable-transform failure       | Inspect the exact failed request/route/transform inventory; do not scan, export, or upload an incomplete candidate                                                                 |
+| `uv run nbadb daily` / `monthly`       | First `Ctrl+C` or TUI stop                   | Non-success. Do not scan, export, or upload the partial candidate; retry only from matching local receipt/checkpoint state                                                         |
+| `uv run nbadb upload --verify-remote`  | Remote publish stays pending                 | Inspect exact `baseline.version`, `resolved_version`, `observations`, and status in `logs/kaggle/kaggle-upload-manifest.json`; do not re-upload while reconciliation is unresolved |
+| `uv run nbadb scan --full-publication` | Missing checkpoint evidence                  | Supply the exact full-extraction checkpoint report, manifest, database directory, chain, and source authority                                                                      |
+| `uv run nbadb upload --verify-remote`  | Durable intent is missing or ambiguous       | Use the GitHub Deployment ledger in the verified publisher job and reconcile the exact existing intent before another upload                                                       |
+| `nbadb scan --report-path ...`         | `database not found`                         | Initialize or download the dataset before running quality checks                                                                                                                   |
+| `actions/upload-artifact`              | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects                                                                                                   |
+| docs install/build step                | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                                                                                                                 |
 
 For remote verification, the positive integer returned by Kaggle's marker resolver
 is the version evidence; a cache path such as `versions/999` is not. After resolution,
@@ -908,12 +1058,21 @@ executors validate their own workflows; the dynamic `run-name` is not the workfl
 Kaggle, and `success` must carry the exact readback resolution. If the head is
 malformed, unstable, not current, or unresolved, stop. After a verified `in_progress`
 claim, no retry may call Kaggle until marker/version/inventory/hash reconciliation
-resolves it.
+resolves it. Direct resolution requires the execution to match a fresh current
+executor's run, attempt, publisher job, and admission digest, the deployment to
+originate from that run, and a final executor recheck immediately before the success
+POST. The final exact remote claim observation is bracketed by active-executor checks,
+so claim drift during the first check or executor drift during the observation posts
+no success. A later attempt of the same run may use only the explicit
+reconciliation path; a different run cannot resolve or reconcile the intent. The FIFO
+publisher mutex serializes repository-sanctioned writers; the sequential GitHub reads
+are not an atomic CAS against arbitrary out-of-band status writers.
 
-Confirm that the job also restored the shared
-`nbadb-kaggle-publication-state-*` cache and that its publication artifact contains
-`logs/kaggle/kaggle-publication-state.json`, but treat those as secondary diagnostics,
-not the durable cross-host admission source. Publishing workflows reject non-default
+For full extraction, confirm that the job restored only
+`nbadb-kaggle-publication-state-<current-run-id>-*` and that its publication artifact
+contains `logs/kaggle/kaggle-publication-state.json`. A later attempt of the same run
+may use that cache for reconciliation, but a different run may not. Treat it as
+secondary diagnostics, not the durable cross-host admission source. Publishing workflows reject non-default
 refs and recheck the approved branch head immediately before the mutation.
 
 For end-to-end acceptance, enumerate every exact-title chain run across all API pages
@@ -951,6 +1110,16 @@ zero-upload `reconciled_existing_remote` result may legitimately create no new
 mutation intent; when it resolves an older durable intent, require the matching
 `durable_reconciliation` receipt. A green upload submission without those applicable
 receipts is not full publication assurance.
+
+Also download
+`full-extraction-metadata-closeout-<chain_id>-<run_id>-<run_attempt>`. Require
+`metadata-head-evidence.json` to prove `M` is the unchanged source or the exact direct,
+non-merge, reproducible metadata-only child. For a child, require
+`metadata-ci-dispatch.json` plus `metadata-closeout.json` to bind an explicit
+`workflow_dispatch` at `M`, exactly the six successful job names above, direct job
+receipts, and the final default-ref check. The unchanged-source path must contain no CI
+dispatch receipt. Missing or failed closeout means the terminal publisher job is not
+green even when Kaggle already reconciled successfully.
 
 Use these executable checks for the chain and terminal receipt:
 

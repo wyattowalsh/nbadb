@@ -99,35 +99,35 @@ Derived tables are precomputed `agg_*` outputs built for repeat possessions: the
   </ScoutCard>
 </div>
 
-| Cluster                         | Tables in the rotation                                                                                                                                                          | Grain                                              | Best for                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Player form and value           | `agg_player_bio`, `agg_player_season`, `agg_player_season_per36`, `agg_player_season_per48`, `agg_player_career`, `agg_player_rolling`, `agg_clutch_stats`, `agg_on_off_splits` | Player-season, player-game, or player/entity split | Career summaries, rolling form, normalized rates, and clutch/on-off context   |
-| Team and lineup shape           | `agg_team_season`, `agg_team_pace_and_efficiency`, `agg_team_franchise`, `agg_lineup_efficiency`                                                                                | Team-season, franchise row, or lineup-season       | Pace, efficiency, franchise history, and lineup impact                        |
-| League context and shot profile | `agg_league_leaders`, `agg_all_time_leaders`, `agg_shot_zones`, `agg_shot_location_season`                                                                                      | League-season, all-time row, or player-zone season | Leaderboards, shot maps, and contextual comparison around player/team outputs |
+| Cluster                         | Tables in the rotation                                                                                                                                                          | Grain                                                        | Best for                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Player form and value           | `agg_player_bio`, `agg_player_season`, `agg_player_season_per36`, `agg_player_season_per48`, `agg_player_career`, `agg_player_rolling`, `agg_clutch_stats`, `agg_on_off_splits` | Player-team-season-type, player-game, or player/entity split | Career summaries, rolling form, normalized rates, and clutch/on-off context   |
+| Team and lineup shape           | `agg_team_season`, `agg_team_pace_and_efficiency`, `agg_team_franchise`, `agg_lineup_efficiency`                                                                                | Team-season, franchise row, or lineup-season                 | Pace, efficiency, franchise history, and lineup impact                        |
+| League context and shot profile | `agg_league_leaders`, `agg_all_time_leaders`, `agg_shot_zones`, `agg_shot_location_season`                                                                                      | League-season, all-time row, or player-zone season           | Leaderboards, shot maps, and contextual comparison around player/team outputs |
 
 ## Fast picks by question
 
-| If the question sounds like...                                                   | Start with                                             | Why                                                                      |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| "What does this player's season look like without rebuilding it from game rows?" | `agg_player_season`                                    | It is the baseline player-season rollup                                  |
-| "How is this player trending recently?"                                          | `agg_player_rolling`                                   | The rolling windows are already computed                                 |
-| "How do these players compare on a minutes-normalized basis?"                    | `agg_player_season_per36` or `agg_player_season_per48` | The normalization is already packaged                                    |
-| "What is this team's style and efficiency profile?"                              | `agg_team_pace_and_efficiency`                         | Pace and efficiency live together at team-season grain                   |
-| "What are the best five-man groups?"                                             | `agg_lineup_efficiency`                                | It keeps lineup impact at the right unit of analysis                     |
-| "Who leads the league or all-time list?"                                         | `agg_league_leaders` or `agg_all_time_leaders`         | Leaderboards are already rolled up and ranked for reuse                  |
-| "How does the shot profile break down spatially?"                                | `agg_shot_zones` or `agg_shot_location_season`         | These preserve the shooting summary without dropping to individual shots |
+| If the question sounds like...                                                   | Start with                                             | Why                                                                                         |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| "What does this player's season look like without rebuilding it from game rows?" | `agg_player_season`                                    | It is the baseline player-team-season-type rollup; combine team rows explicitly when needed |
+| "How is this player trending recently?"                                          | `agg_player_rolling`                                   | The rolling windows are already computed                                                    |
+| "How do these players compare on a minutes-normalized basis?"                    | `agg_player_season_per36` or `agg_player_season_per48` | The normalization is already packaged                                                       |
+| "What is this team's style and efficiency profile?"                              | `agg_team_pace_and_efficiency`                         | Pace and efficiency live together at team-season grain                                      |
+| "What are the best five-man groups?"                                             | `agg_lineup_efficiency`                                | It keeps lineup impact at the right unit of analysis                                        |
+| "Who leads the league or all-time list?"                                         | `agg_league_leaders` or `agg_all_time_leaders`         | Leaderboards are already rolled up and ranked for reuse                                     |
+| "How does the shot profile break down spatially?"                                | `agg_shot_zones` or `agg_shot_location_season`         | These preserve the shooting summary without dropping to individual shots                    |
 
 ## Player aggregation bench unit
 
-| Table                                                 | What it summarizes                       | Reach for it when                                                  |
-| ----------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------ |
-| `agg_player_bio`                                      | Season-level bio/profile rows            | You want roster/profile context already aligned for analysis       |
-| `agg_player_season`                                   | Player season totals and averages        | You need the baseline season stat line                             |
-| `agg_player_season_per36` / `agg_player_season_per48` | Minute-normalized player season rates    | You want usage-neutral or minutes-adjusted comparisons             |
-| `agg_player_career`                                   | Career totals and career-rate summary    | You are building long-arc player dossiers                          |
-| `agg_player_rolling`                                  | 5/10/20-game rolling trends              | You care about form, streaks, and recent trend lines               |
-| `agg_clutch_stats`                                    | Clutch scoring and baseline context      | You are isolating late-game performance                            |
-| `agg_on_off_splits`                                   | On/off splits by entity and team context | You need lineup-free impact framing without rebuilding split logic |
+| Table                                                 | What it summarizes                          | Reach for it when                                                  |
+| ----------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------ |
+| `agg_player_bio`                                      | Season-level bio/profile rows               | You want roster/profile context already aligned for analysis       |
+| `agg_player_season`                                   | Player-team-season-type totals and averages | You need the baseline stint/season-type stat line                  |
+| `agg_player_season_per36` / `agg_player_season_per48` | Minute-normalized player season rates       | You want usage-neutral or minutes-adjusted comparisons             |
+| `agg_player_career`                                   | Career totals and career-rate summary       | You are building long-arc player dossiers                          |
+| `agg_player_rolling`                                  | 5/10/20-game rolling trends                 | You care about form, streaks, and recent trend lines               |
+| `agg_clutch_stats`                                    | Clutch scoring and baseline context         | You are isolating late-game performance                            |
+| `agg_on_off_splits`                                   | On/off splits by entity and team context    | You need lineup-free impact framing without rebuilding split logic |
 
 ## Team and lineup aggregation bench unit
 

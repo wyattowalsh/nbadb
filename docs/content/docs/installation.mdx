@@ -209,13 +209,18 @@ nbadb scan --severity warning
 
 Use `scan` to verify the dataset has no missing tables, data gaps, or quality issues. This replaces the older `run-quality` command with broader coverage.
 
-### 4. Run the standard refresh play
+### 4. Run the standard recurring refresh
 
 ```bash
 nbadb daily
 ```
 
-That command refreshes the current season, looks back `NBADB_DAILY_LOOKBACK_DAYS` days by default, updates active players and teams, and then rebuilds downstream tables in replace mode.
+That command refreshes the current/open season, applies the configured recent-game
+window, persists applicable result routes and active live-game sources, then rebuilds
+the complete stable output universe. It uses the current local/Kaggle dataset; no
+private repository, capture store, or generation pointer is required. See
+[Daily Updates](/docs/guides/daily-updates) for exact scope, failure, and hosted
+publication behavior.
 
 ## What lands in your data directory
 

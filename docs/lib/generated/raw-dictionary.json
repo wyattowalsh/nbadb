@@ -1599,7 +1599,7 @@
         "fk_ref": ""
       },
       {
-        "name": "pass_",
+        "name": "pass",
         "type": "Float64",
         "nullable": true,
         "description": "Passes made",
@@ -7043,6 +7043,4157 @@
     ]
   },
   {
+    "table_name": "raw_nba_api_live_lossless_node",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "record_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Record sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_input_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Source input kind value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation kind value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_assignment_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation assignment sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expected_unit_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Expected unit sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expected_unit_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Expected unit ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Ownership kind value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_occurrence_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Ownership occurrence ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_residual_record_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Response residual record count value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_residual_record_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Response residual record root sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_authority_bundle_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw authority bundle sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_record_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation record sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "attempt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Attempt sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "semantic_request_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Semantic request sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_invocation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical invocation sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider call sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_surface_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Request surface sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "runtime_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Runtime contract sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider authority sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint contract sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parser_input_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Parser input sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parser_input_length",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Parser input length value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "decoder_anomaly_codes_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Decoder anomaly codes json value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "decoder_anomaly_codes_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Decoder anomaly codes sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "decoder_response_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Decoder response sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "capture_response_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Capture response receipt sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_landings_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route landings sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_result_occurrences_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw result occurrences sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_sha",
+        "type": "String",
+        "nullable": false,
+        "description": "Source sha value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run ID value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_attempt",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run attempt value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "chain_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Chain ID value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lane_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Lane ID value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint ID value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_slug",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint slug value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_snapshot_at",
+        "type": "String",
+        "nullable": false,
+        "description": "Live snapshot at value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Provider call ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "page_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Page ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_role",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider call role value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "retry_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Retry ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Request ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Observation ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "global_record_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Global record ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_record_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Observation record ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "record_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Record kind value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_occurrence_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Raw occurrence sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Result set name value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Result set ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_occurrence",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Result set occurrence value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "node_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Node ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parent_node_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Parent node ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "field_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Field name value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "field_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Field ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "row_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Row ordinal value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "json_path",
+        "type": "String",
+        "nullable": true,
+        "description": "Json path value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "presence_kind",
+        "type": "String",
+        "nullable": true,
+        "description": "Presence kind value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_kind",
+        "type": "String",
+        "nullable": true,
+        "description": "Value kind value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Canonical json value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_json_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Canonical json sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Value sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_item_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Source item sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Payload json value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Payload sha256 value in the raw table raw_nba_api_live_lossless_node.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_live_plan_call_admission",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "admission_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Admission receipt sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_generation_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Plan generation receipt sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_item_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Plan item ordinal value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_item_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Plan item sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "semantic_request_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Semantic request sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_invocation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical invocation sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider call sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_sha",
+        "type": "String",
+        "nullable": false,
+        "description": "Source sha value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run ID value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_attempt",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run attempt value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "chain_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Chain ID value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lane_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Lane ID value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "scope_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Scope sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "safe_parameters_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Safe parameters sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint ID value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint contract sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider authority sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_ids_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ids json value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_ids_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ids sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route count value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Live snapshot at value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "issued_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Issued at value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "authorized_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Authorized at value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Expires at value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "authorization_collector_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Authorization collector receipt sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "authorization_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Authorization receipt sha256 value in the raw table raw_nba_api_live_plan_call_admission.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_live_plan_generation_receipt",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "generation_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Generation receipt sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "generation_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Generation ID value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "generation_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Generation kind value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parent_generation_receipt_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Parent generation receipt sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parent_capture_root_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Parent capture root sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "sealed_plan_bytes",
+        "type": "Binary",
+        "nullable": false,
+        "description": "Sealed plan bytes value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "sealed_plan_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Sealed plan sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "sealed_plan_length",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Sealed plan length value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_item_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Plan item count value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_items_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Plan items sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_sha",
+        "type": "String",
+        "nullable": false,
+        "description": "Source sha value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "producing_head_sha",
+        "type": "String",
+        "nullable": false,
+        "description": "Producing head sha value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "workflow_path",
+        "type": "String",
+        "nullable": false,
+        "description": "Workflow path value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "workflow_content_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Workflow content sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run ID value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_attempt",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run attempt value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "chain_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Chain ID value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "producer_job_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Producer job ID value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "producer_job_name_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Producer job name sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "runner_identity_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Runner identity sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matrix_lane_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Matrix lane ID value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "operation",
+        "type": "String",
+        "nullable": false,
+        "description": "Operation value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "nonce_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Nonce sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "artifact_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Artifact ID value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "artifact_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Artifact name value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "artifact_digest_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Artifact digest sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "artifact_size",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Artifact size value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "artifact_archive_url_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Artifact archive URL sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "artifact_expires_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Artifact expires at value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "member_path",
+        "type": "String",
+        "nullable": false,
+        "description": "Member path value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "member_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Member sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "member_length",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Member length value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "collector_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Collector receipt sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "external_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "External receipt sha256 value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Live snapshot at value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "generated_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Generated at value in the raw table raw_nba_api_live_plan_generation_receipt.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_observation_live_plan",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "binding_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Binding receipt sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_record_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation record sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_generation_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Plan generation receipt sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_admission_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Plan admission receipt sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_plan_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Live plan authority sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_item_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Plan item ordinal value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plan_item_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Plan item sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "semantic_request_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Semantic request sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_invocation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical invocation sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider call sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical receipt sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "capture_response_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Capture response receipt sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_sha",
+        "type": "String",
+        "nullable": false,
+        "description": "Source sha value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run ID value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_attempt",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run attempt value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "chain_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Chain ID value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lane_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Lane ID value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "scope_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Scope sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "safe_parameters_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Safe parameters sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint ID value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint contract sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider authority sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_ids_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ids json value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_ids_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ids sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route count value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_sha256s_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing sha256s json value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_sha256s_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing sha256s sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_receipt_roots_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing receipt roots json value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_receipt_roots_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing receipt roots sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Landing count value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing authority sha256 value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Live snapshot at value in the raw table raw_nba_api_observation_live_plan.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_observation_route_landing",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical receipt sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route ordinal value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ID value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "staging_key",
+        "type": "String",
+        "nullable": false,
+        "description": "Staging key value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_authority_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Route authority kind value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route authority sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_semantic",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing semantic value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "conditional_lossless",
+        "type": "Boolean",
+        "nullable": false,
+        "description": "Conditional lossless value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "alias_target_route_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Alias target route ID value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": true,
+        "description": "Live snapshot at value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_occurrence_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Source occurrence count value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_occurrences_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Source occurrences sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_receipt_schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Committed receipt schema version value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_receipt_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Committed receipt kind value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "chunk_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Chunk ID value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_frame_format",
+        "type": "String",
+        "nullable": false,
+        "description": "Canonical frame format value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "frame_content_hash_contract",
+        "type": "String",
+        "nullable": false,
+        "description": "Frame content hash contract value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "frame_schema_hash_contract",
+        "type": "String",
+        "nullable": false,
+        "description": "Frame schema hash contract value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "content_hash",
+        "type": "String",
+        "nullable": false,
+        "description": "Content hash value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "persisted_row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Persisted row count value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "persisted_content_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Persisted content sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "persisted_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Persisted schema sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_call_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical call receipt sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider authority sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_parameters_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical parameters sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_route_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Result route ID value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "receipt_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Receipt root sha256 value in the raw table raw_nba_api_observation_route_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_parser_input_object",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "object_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Object sha256 value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "media_type",
+        "type": "String",
+        "nullable": false,
+        "description": "Media type value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "text_encoding",
+        "type": "String",
+        "nullable": false,
+        "description": "Text encoding value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "codec",
+        "type": "String",
+        "nullable": false,
+        "description": "Codec value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "codec_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Codec contract sha256 value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Response sha256 value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "uncompressed_bytes",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Uncompressed bytes value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stored_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Stored sha256 value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stored_bytes",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Stored bytes value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stored_payload",
+        "type": "Binary",
+        "nullable": false,
+        "description": "Stored payload value in the raw table raw_nba_api_parser_input_object.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_request_observation",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_record_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation record sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "semantic_request_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Semantic request sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_invocation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical invocation sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider call sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "attempt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Attempt sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_role",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider call role value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_call_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Provider call ordinal value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "retry_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Retry ordinal value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Request ordinal value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_family",
+        "type": "String",
+        "nullable": false,
+        "description": "Source family value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint ID value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_request_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider request sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "request_surface_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Request surface sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "runtime_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Runtime contract sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider authority sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint contract sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "safe_parameters_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Safe parameters json value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "safe_parameters_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Safe parameters sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "competition_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Competition ID value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "competition_identity_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Competition identity sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "scope_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Scope sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pagination_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Pagination sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "page_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Page ordinal value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_sha",
+        "type": "String",
+        "nullable": false,
+        "description": "Source sha value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_id",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run ID value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "run_attempt",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Run attempt value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "chain_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Chain ID value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lane_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Lane ID value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "transport_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Transport kind value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "status_code",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Status code value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "effective_status_code",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Effective status code value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "started_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": false,
+        "description": "Started at value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "finished_at",
+        "type": "Datetime(time_unit='us', time_zone='UTC')",
+        "nullable": true,
+        "description": "Finished at value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "elapsed_ns",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Elapsed ns value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lifecycle",
+        "type": "String",
+        "nullable": false,
+        "description": "Lifecycle value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome",
+        "type": "String",
+        "nullable": false,
+        "description": "Outcome value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "failure_class",
+        "type": "String",
+        "nullable": true,
+        "description": "Failure class value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "root_exception_class",
+        "type": "String",
+        "nullable": true,
+        "description": "Root exception class value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_disposition",
+        "type": "String",
+        "nullable": false,
+        "description": "Body disposition value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_object_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Body object sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "bodyless_evidence_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Bodyless evidence sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_authority_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Body authority receipt sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_occurrence_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Result occurrence count value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_occurrences_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Result occurrences sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_landing_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route landing count value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_landings_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route landings sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "capture_response_receipt_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Capture response receipt sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_receipt_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Logical receipt sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_provider_parameter_binding_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Logical provider parameter binding sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_provider_parameter_binding_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Logical provider parameter binding json value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "public_authority_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Public authority receipt sha256 value in the raw table raw_nba_api_request_observation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_result_cell",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cell_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Cell sha256 value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Occurrence sha256 value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cell_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Cell ordinal value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "row_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Row ordinal value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "header_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Header ordinal value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "header_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Header name value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "presence_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Presence kind value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Value kind value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Canonical json value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_json_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Canonical json sha256 value in the raw table raw_nba_api_result_cell.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_result_occurrence",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Occurrence sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Occurrence ordinal value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_name",
+        "type": "String",
+        "nullable": false,
+        "description": "Result name value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "duplicate_name_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Duplicate name ordinal value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_result_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Provider result ordinal value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_result_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Canonical result ordinal value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "json_path",
+        "type": "String",
+        "nullable": true,
+        "description": "Json path value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "container_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Container kind value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "presence",
+        "type": "String",
+        "nullable": false,
+        "description": "Presence value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ordered_headers_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Ordered headers json value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ordered_headers_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Ordered headers sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "header_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Header count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Row count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cell_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Cell count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "node_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Node count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "container_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Container count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "missing_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Missing count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "null_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Null count value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parent_state_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Parent state sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "output_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Output sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_route_ids_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Canonical route ids json value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_route_ids_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Canonical route ids sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_staging_receipts_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Committed staging receipts json value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_staging_receipts_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Committed staging receipts sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_disposition",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing disposition value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_result_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Logical result receipt sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route receipt sha256 value in the raw table raw_nba_api_result_occurrence.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_route_field_landing",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_field_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Landing field sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "landing_field_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Landing field ordinal value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_receipt_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route receipt ordinal value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_authority_bundle_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw authority bundle sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_landing_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route landing receipt sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_route_landing_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw route landing sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route ordinal value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ID value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "staging_key",
+        "type": "String",
+        "nullable": false,
+        "description": "Staging key value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "unit_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Unit sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "unit_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Unit ordinal value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "unit_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Unit kind value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Occurrence sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Occurrence ordinal value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "assignment_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Assignment sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_input_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Source input kind value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation kind value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "row_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Row kind value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "field_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Field ordinal value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "field_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Field name value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "field_authority_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Field authority sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "field_origin",
+        "type": "String",
+        "nullable": true,
+        "description": "Field origin value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "logical_type_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Logical type sha256 value in the raw table raw_nba_api_route_field_landing.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_stats_lossless_record",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "record_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Record sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_row_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Source row sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation kind value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "owner_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Owner kind value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_authority_bundle_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw authority bundle sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_record_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation record sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Occurrence sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Route ID value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route authority sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Committed receipt sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Response receipt sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Provider authority sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_contract_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint contract sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_mode_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Response mode authority sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parser_input_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Parser input sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_payload_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Canonical payload sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parameters_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Parameters sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint ID value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "endpoint_slug",
+        "type": "String",
+        "nullable": false,
+        "description": "Endpoint slug value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_state",
+        "type": "String",
+        "nullable": false,
+        "description": "Response state value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "legacy_envelope_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Legacy envelope name value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "global_record_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Global record ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "occurrence_record_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Occurrence record ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "response_record_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Response record ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "record_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Record kind value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Result set name value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_set_occurrence",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Result set occurrence value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "provider_result_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Provider result ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expected_result_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Expected result ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_result_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Canonical result ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "header_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Header name value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "header_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Header ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "row_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Row ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "node_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Node ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parent_node_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Parent node ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "json_path",
+        "type": "String",
+        "nullable": true,
+        "description": "Json path value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parent_json_path",
+        "type": "String",
+        "nullable": true,
+        "description": "Parent json path value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "depth",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Depth value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "object_key",
+        "type": "String",
+        "nullable": true,
+        "description": "Object key value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "object_key_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Object key ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "array_ordinal",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Array ordinal value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "presence_kind",
+        "type": "String",
+        "nullable": true,
+        "description": "Presence kind value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_kind",
+        "type": "String",
+        "nullable": true,
+        "description": "Value kind value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Canonical json value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "canonical_json_sha256",
+        "type": "String",
+        "nullable": true,
+        "description": "Canonical json sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "global_anomaly_codes_json",
+        "type": "String",
+        "nullable": false,
+        "description": "Global anomaly codes json value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "global_anomaly_codes_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Global anomaly codes sha256 value in the raw table raw_nba_api_stats_lossless_record.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_value_representation",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "assignment_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Assignment sha256 value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_authority_bundle_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw authority bundle sha256 value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "unit_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Unit sha256 value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "unit_ordinal",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Unit ordinal value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_input_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Source input kind value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_kind",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation kind value in the raw table raw_nba_api_value_representation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_nba_api_w2_operation",
+    "fields": [
+      {
+        "name": "schema_version",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Schema version value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "operation_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Operation receipt sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "operation_key_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Operation key sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "operation_attempt_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Operation attempt count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "operation_attempt_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Operation attempt root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "raw_authority_bundle_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Raw authority bundle sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_staging_readback_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Committed staging readback count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "committed_staging_readback_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Committed staging readback root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_value_projection_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Body value projection receipt sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_projection_policy_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Body projection policy sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_blob_inventory_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Body blob inventory sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_blob_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Body blob count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_blob_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Body blob root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_blob_readback_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Body blob readback count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_blob_readback_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Body blob readback root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "body_blob_byte_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Body blob byte count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parser_input_object_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Parser input object count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "parser_input_object_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Parser input object root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "declared_bodyless_authority_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Declared bodyless authority sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "bodyless_packet_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Bodyless packet count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "bodyless_packet_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Bodyless packet root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "bodyless_readback_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Bodyless readback count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "bodyless_readback_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Bodyless readback root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "bodyless_packet_byte_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Bodyless packet byte count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_source_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Observation source count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "observation_source_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Observation source root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lossless_ownership_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Lossless ownership receipt sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_observation_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Ownership observation count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_observation_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Ownership observation root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_partition_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Ownership partition count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_partition_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Ownership partition root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_fixed_zero_landing_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Ownership fixed zero landing root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_binding_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Ownership binding count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_binding_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Ownership binding root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_source_record_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Ownership source record count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ownership_source_record_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Ownership source record root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expected_unit_inventory_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Expected unit inventory sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expected_unit_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Expected unit count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "expected_unit_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Expected unit root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_assignment_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Representation assignment count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "representation_assignment_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Representation assignment root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_field_landing_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route field landing receipt sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_field_landing_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route field landing count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_field_landing_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route field landing root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_projection_plan_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Value projection plan sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "public_table_value_projection_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Public table value projection receipt sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_projection_equality_receipt_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Value projection equality receipt sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "projection_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Projection sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "projection_partition_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Projection partition count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "projection_partition_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Projection partition root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "projection_item_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Projection item count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "projection_item_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Projection item root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "partition_equality_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Partition equality count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "partition_equality_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Partition equality root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "item_equality_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Item equality count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "item_equality_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Item equality root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "equality_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Equality root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_cell_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Result cell schema sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_cell_row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Result cell row count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "result_cell_row_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Result cell row root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stats_lossless_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Stats lossless schema sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stats_lossless_row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Stats lossless row count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stats_lossless_row_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Stats lossless row root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_lossless_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Live lossless schema sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_lossless_row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Live lossless row count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "live_lossless_row_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Live lossless row root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_representation_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Value representation schema sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_representation_row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Value representation row count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "value_representation_row_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Value representation row root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_field_landing_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route field landing schema sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_field_landing_row_count",
+        "type": "Int64",
+        "nullable": false,
+        "description": "Route field landing row count value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "route_field_landing_row_root_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "Route field landing row root sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w2_operation_schema_sha256",
+        "type": "String",
+        "nullable": false,
+        "description": "W2 operation schema sha256 value in the raw table raw_nba_api_w2_operation.",
+        "description_source": "generated",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
     "table_name": "raw_play_by_play_v2",
     "fields": [
       {
@@ -7552,6 +11703,15 @@
         "description": "Video availability flag",
         "description_source": "metadata",
         "source": "PlayByPlayV3.PlayByPlay.VIDEO_AVAILABLE",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_value",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Point value of the shot action",
+        "description_source": "metadata",
+        "source": "PlayByPlayV3.PlayByPlay.shotValue",
         "fk_ref": ""
       },
       {

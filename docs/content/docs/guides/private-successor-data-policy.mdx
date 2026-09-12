@@ -1,0 +1,51 @@
+---
+title: Retired Private Successor Draft
+description: Non-normative history for an abandoned private-generation architecture.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+# Retired Private Successor Draft
+
+<Callout type="warn">
+  This page is historical and non-normative. It is not in the guide navigation,
+  not a production runbook, not a security policy, and not an implementation or
+  migration requirement.
+</Callout>
+
+An earlier recurring-update draft proposed a separate private baseline receipt,
+owner-only planning DuckDB, parser-input generations, content-addressed planning
+objects, and a current/previous/candidate generation pointer. The design was
+rejected because nbadb already has one public dataset authority—the exact verified
+Kaggle version—and one cross-host mutation ledger—GitHub Deployments. A second
+repository, GHCR package, private planning store, or remote pointer would create a
+second authority without improving NBA API result coverage.
+
+The useful engineering lessons remain in the active one-repository contract:
+
+- distinguish missing or partial evidence from a complete typed-zero response;
+- freeze and close the complete request universe before claiming success;
+- preserve one logical response to many ordered result routes;
+- replace request-owned source scopes transactionally, including deletions and
+  valid-empty results;
+- make cancellation and every incomplete stage non-success;
+- keep local checkpoints and Actions artifacts bounded and non-authoritative; and
+- reconcile durable publication intent before another Kaggle mutation.
+
+Durable provider completeness now comes from public-safe request/result/
+header-or-path/ordinal/value/presence/provenance landings and committed receipts.
+Exact decoded-body CAS may be enabled as bounded same-run diagnostic material only.
+Decoded provider bodies stay private evidence: they never enter any public candidate,
+archive, or metadata, and public candidates are built from an explicit relation
+allowlist, never a denylist.
+It is not a recurring baseline, completeness, resume, assurance, or publication
+dependency. Cookies, authorization data, request headers, proxy/VPN details,
+credentials, and unrestricted error bodies remain excluded from all public and
+diagnostic surfaces.
+
+Use the current guides instead:
+
+- [Daily Updates](/docs/guides/daily-updates)
+- [Kaggle Setup](/docs/guides/kaggle-setup)
+- [Architecture](/docs/architecture)
+- [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook)

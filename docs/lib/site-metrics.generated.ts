@@ -3,14 +3,14 @@
 import type { SiteMetric } from "@/lib/site-config";
 
 export const siteInventory = {
-  modelCount: "254",
-  extractorCount: "152",
-  docsPageCount: "51",
-  publicOutputCount: "254",
+  modelCount: "261",
+  extractorCount: "162",
+  docsPageCount: "52",
+  publicOutputCount: "261",
   derivedOutputCount: "33",
   tableFamilyCounts: {
     dimensions: "18",
-    facts: "197",
+    facts: "204",
     bridges: "6",
     aggregates: "19",
     analytics: "14",
@@ -19,9 +19,9 @@ export const siteInventory = {
 } as const;
 
 export const siteMetrics: SiteMetric[] = [
-  { label: "Models", value: "254", note: "discovered star-schema models" },
-  { label: "Extractors", value: "152", note: "registered extractor wrappers" },
-  { label: "Docs Pages", value: "51", note: "authored + generated MDX routes" },
+  { label: "Models", value: "261", note: "discovered star-schema models" },
+  { label: "Extractors", value: "162", note: "registered extractor wrappers" },
+  { label: "Docs Pages", value: "52", note: "authored + generated MDX routes" },
   {
     label: "Derived Models",
     value: "33",

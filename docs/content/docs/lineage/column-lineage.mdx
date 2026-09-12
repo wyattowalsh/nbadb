@@ -119,15 +119,17 @@ flowchart LR
     D --> E["agg_player_season\nfg_pct = SUM(fgm)/SUM(fga)"]
 ```
 
-| Stage     | Column   | Notes                                       |
-| --------- | -------- | ------------------------------------------- |
-| API       | `FG_PCT` | Pre-computed by NBA                         |
-| Raw       | `FG_PCT` | Passed through                              |
-| Staging   | `fg_pct` | Validated: 0.0 - 1.0                        |
-| Fact      | `fg_pct` | Per-game value                              |
-| Aggregate | `fg_pct` | Re-computed from season totals for accuracy |
+| Stage     | Column   | Notes                                                        |
+| --------- | -------- | ------------------------------------------------------------ |
+| API       | `FG_PCT` | Pre-computed by NBA                                          |
+| Raw       | `FG_PCT` | Passed through                                               |
+| Staging   | `fg_pct` | Validated: 0.0 - 1.0                                         |
+| Fact      | `fg_pct` | Per-game value                                               |
+| Aggregate | `fg_pct` | Re-computed from player-team-season-type totals for accuracy |
 
-**Key transformation**: In `agg_player_season`, the season `fg_pct` is recomputed as `SUM(fgm) / SUM(fga)` rather than averaging per-game percentages, which would be statistically incorrect.
+**Key transformation**: In `agg_player_season`, `fg_pct` is recomputed within each
+player-team-season-season-type row as `SUM(fgm) / SUM(fga)` rather than averaging
+per-game percentages, which would be statistically incorrect.
 
 ### ts_pct (True Shooting Percentage)
 
@@ -139,7 +141,10 @@ flowchart LR
     D --> E["agg_player_season\navg_ts_pct = AVG(ts_pct)"]
 ```
 
-**Key transformation**: Season-level `avg_ts_pct` is computed as a simple average of per-game values in the current implementation. For more accurate results, recompute from totals: `PTS / (2 * (FGA + 0.44 * FTA))`.
+**Key transformation**: `avg_ts_pct` is computed within each player-team-season-
+season-type row as a simple average of per-game values in the current
+implementation. For a totals-based result, recompute `PTS / (2 * (FGA + 0.44 *
+FTA))`.
 
 <CourtDivider label="Shared context keys" />
 
@@ -223,7 +228,9 @@ flowchart LR
     C --> E["agg_team_pace_and_efficiency\navg_ortg, avg_drtg, avg_net_rtg"]
 ```
 
-**Key transformation**: Per-game ratings flow directly to the fact table. Aggregate tables compute player-season averages in `agg_player_season` and team-level pace/efficiency summaries in `agg_team_pace_and_efficiency`.
+**Key transformation**: Per-game ratings flow directly to the fact table.
+`agg_player_season` computes player-team-season-season-type averages, while
+`agg_team_pace_and_efficiency` computes team-level pace/efficiency summaries.
 
 <CourtDivider label="How the replay gets encoded" />
 

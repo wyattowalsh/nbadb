@@ -13,8 +13,10 @@ This page reads like a set play: bring the ball in from the NBA API, validate ea
 > **Playbook cue:** The validation checkpoints work like replay review — they stop bad possessions before they become downstream tables.
 
 <Callout type="info">
-  The shape of the play stays the same across `init`, `daily`, `monthly`,
-  `backfill run`, and `export`; only the scope and runtime change.
+  The extract-stage-transform-export shape stays the same across `init`,
+  `daily`, `monthly`, `backfill run`, and `export`. Recurring commands start
+  from the current local/Kaggle baseline and do not require a private repository
+  or generation store; see [Daily Updates](/docs/guides/daily-updates).
 </Callout>
 
 ## Quick navigation
@@ -139,8 +141,26 @@ unique VPN exit IPs.
 Before planning, `workflow_guard` requires a fresh primary or partial
 `workflow_dispatch` attempt, observes a stable exact-title inventory, and rejects
 `gh run rerun` attempts. Inline manifests, receipt-bound lane-manifest handoffs, and
-source-run recovery are mutually exclusive. A recovery launch preserves the original
-chain and pinned source while naming a distinct completed `resume_source_run_id`.
+source-run recovery are mutually exclusive. A recovery launch is an
+`operation=continue` dispatch that preserves the original chain and pinned source
+while supplying the exact five-field continuation source: source run id, source run
+attempt, manifest artifact name, manifest artifact id, and manifest artifact digest.
+The attempt is never inferred from an artifact name or a `latest`-style lookup.
+
+Every dispatch is admitted under an exact operation authority. The full-extraction
+workflow accepts only the first three kinds; publication and recurring builds run as
+separate dispatches:
+
+| Operation kind        | Dispatch surface     | Allowed effects                                                                       |
+| --------------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| `targeted_smoke`      | full extraction      | Exactly one VPN lane, one iteration, one-lane manual manifest; no merge or redispatch |
+| `extract`             | full extraction      | Fresh chain; provider network allowed; no continuation source; no publication effects |
+| `continue`            | full extraction      | Requires the exact five-field continuation source from a distinct run; no publication |
+| `publish`             | publication dispatch | Requires the sealed terminal handoff member; no provider network; Kaggle mutation     |
+| `reconcile`           | publication dispatch | Requires the sealed terminal handoff member; readback-only recovery of an intent      |
+| `daily_build`         | recurring dispatch   | Requires parent readback, private-capture, and data-green members; provider network   |
+| `monthly_build`       | recurring dispatch   | Same parent members as `daily_build` over its broader season scope                    |
+| `data_green_closeout` | closeout dispatch    | Requires remote-readback and human-verification members; records DATA-GREEN           |
 
 The checkpoint is the recovery boundary: each redispatch copies the previous
 checkpoint into a new generation and merges only newly completed lane databases.
@@ -206,9 +226,9 @@ flowchart TD
     TransformOnly --> ExportAll["Export all formats"]
     ExportAll --> Scan["Hard scan\nbound checkpoint + domain anchors"]
     Scan --> Assured["Assured manifest\neffective checkpoint coverage"]
-    Assured --> PublishChoice{"Publish requested?"}
-    PublishChoice -->|no| Canary["Assured canary artifact"]
-    PublishChoice -->|yes| Publish["FIFO writer job\nverify executor + assured bytes"]
+    Assured --> Handoff{"Terminal publication\nhandoff sealed?"}
+    Handoff -->|no| Canary["Assured canary artifact"]
+    Handoff -->|yes| Publish["Separate handoff-bound dispatch\nFIFO writer + sealed handoff bytes"]
     Publish --> Intent["GitHub Deployment pending\nwrite-ahead intent"]
     Intent --> Claim["Recheck + claim in_progress\nimmediately before Kaggle"]
     Claim --> Kaggle["Single Kaggle mutation"]
@@ -246,10 +266,15 @@ direct modes skip that gate. Both
 `network_mode=vpn` and `network_mode=auto` planning cap the iteration at
 `vpn_parallelism * 32` jobs before credential mode is resolved; admission may prove
 fewer configured tunnels, while token-derived auth later runs at most one simultaneous
-matrix job without shrinking the planned batch. Each planned row carries a round-robin
-VPN slot, and a non-cancelling `queue: max` concurrency group serializes every later
+matrix job without shrinking the planned batch. For `N` planned rows and `S` requested
+slots, the manifest uses `min(N, S)` contiguous slots and requires row `i` to use
+`i mod min(N, S)`. It fails closed unless lane membership/order is exact and unique,
+slot values are integer and in range, loads differ by at most one, and every load is at
+most `ceil(N / S)` (`64 / 6` yields `11, 11, 11, 11, 10, 10`). A non-cancelling named
+per-slot concurrency group (`cancel-in-progress: false`; GitHub Actions job
+concurrency exposes only `group` and `cancel-in-progress`) serializes every later
 logical lane that reuses that slot. Configured-credential runs admit the complete
-current matrix behind those slot queues, preventing a waiting job for one slow slot
+current matrix behind those slot groups, preventing a waiting job for one slow slot
 from consuming the admission credit needed by another slot. Fresh recommendation hostnames are assigned by a
 run-attempt-seeded hash to exactly one live slot, so candidate reordering, per-lane
 failures, or additive pool expansion cannot create concurrent host overlap.
@@ -336,7 +361,9 @@ checks pass. The uploader then binds the immutable artifact receipt, REST-verifi
 exact ID, run, name, digest, size, and source, and advances through
 `uploaded_verified` to `committed`. Only that committed receipt can update
 `chain_state.latest_checkpoint_*`; restore downloads the exact artifact ID with
-digest-mismatch failure enabled. A bounded name-based fallback remains only for
+digest-mismatch failure enabled. The checkpoint contract is schema v3, and every
+artifact receipt binds an explicit `artifact_run_attempt` that is never inferred from
+the artifact name or any latest-style lookup. A bounded name-based fallback remains only for
 persisted legacy manifests without a transaction receipt.
 
 `win_probability` limits durable work to ten calls per chunk. Three consecutive
@@ -353,13 +380,20 @@ manifests never extend it. Cumulative zero-progress accounting remains bounded a
 alternating failure classes. The dispatcher searches paginated workflow runs only as
 a preflight duplicate guard for the exact next `chain=<id> iteration=<n>` title,
 blocking active or successful matches while allowing failed/cancelled history. It then
-posts `workflow_dispatch` with `return_run_details=true`, validates the returned child
-run ID and URLs, and re-reads that exact run to verify title, event, head SHA, and
-source before acknowledgement. The committed next-manifest uses a run/attempt-unique
+posts an exact `workflow_dispatch` body containing only `{ref, inputs}`, requires an
+exact `workflow_run_id` / `run_url` / `html_url` response, and re-reads that child to
+verify its URLs, workflow identity, title, event, branch, `run_attempt == 1`, head SHA,
+and source before acknowledgement. Cross-run receipts distinguish semantic source
+`S=WORKFLOW_SOURCE_SHA` from producing-run head `H`: manifests and checkpoints remain
+bound to `S`, artifacts remain bound to their exact owner run and `H`, and a handoff
+requires `S == H` or source ancestry plus byte-identical full-extraction workflow
+content. The committed next-manifest uses a run/attempt-unique
 non-overwriting artifact; its ID and digest are forwarded to the child for REST
-ID/name/digest/size/run/source verification and exact-ID download. Run/name-only
+ID/name/digest/size/owner-run/head plus separate semantic-source verification and
+exact-ID download. Run/name-only
 handoff is a bounded legacy path only when both receipt fields are absent. It still
-requires exact source-owner/workflow identity, stable unique inventory, a direct
+requires exact producing-owner, semantic-source ancestry, workflow-byte identity,
+stable unique inventory, a direct
 artifact-ID recheck, digest verification when supplied, and exactly one safe expected
 manifest member. If the parent exits first, its trap attempts to cancel that exact
 returned child ID. Direct-mode workflow concurrency uses chain and iteration,
@@ -367,18 +401,43 @@ so the parent cannot hold the child's slot. VPN/auto chains instead share
 a repository-wide FIFO concurrency queue, preventing account-slot overlap without
 allowing a newer pending chain to displace an already-queued child.
 
-The pinned source SHA must be an ancestor of its trusted branch. A zero-active
-resume can attest and replay the exact manifest/report/database trio from the source run's
-terminal checkpoint without rebuilding
-lanes. Set `publish=false` for a safe Actions canary: the read-only assurance job
+Historical lane-state, lane-metadata, discovery, and checkpoint inputs use the same
+owner-attestation boundary: the consumer rechecks the completed first-attempt owner,
+selects from a stable complete inventory, directly verifies each positive artifact ID,
+and downloads by ID with the GitHub archive digest enforced separately from the
+DuckDB database SHA-256. Current-run committed-manifest and terminal-replay authority
+artifacts are likewise bound to the current run, attempt one, and `GITHUB_SHA` before
+terminal merge consumes them.
+
+The pinned source SHA must be an ancestor of its trusted branch. A zero-active source
+resume freezes planning's selected manifest and schema-v1 selection receipt into the
+uploaded plan artifact. Terminal replay REST-verifies that artifact's exact ID, name,
+digest, size, unexpired state, archive URL, owner run at exact attempt one, current
+producing `GITHUB_SHA` after a final owner re-read, and separate
+semantic source, downloads it by ID, and validates
+the selected manifest/report/database trio without reselecting a same-name artifact.
+It can therefore replay the source run's terminal checkpoint without rebuilding lanes.
+The terminal assurance job stays read-only: it
 still executes merge, transform, live snapshot, every export format, and then the hard
 scan with canonical manifest/database/chain/source verification, required silver/gold
 domain anchors and row parity, and the terminal checkpoint's complete lane/run/coverage proof, but receives
 neither write permission nor Kaggle
-secrets. Publishing is a separate writer job that resolves the exact GitHub artifact
-ID, verifies the archive SHA-256 against the upload result, revalidates the assured
-manifest, and enters the exact non-cancelling `nbadb-kaggle-publish` FIFO queue. It
-requires `actions: read`, `deployments: write`, `GH_TOKEN`, the publication source
+secrets. Publication is decoupled from extraction — there is no `publish` input. The
+terminal run uploads the checkpoint, next manifest, private evidence, and sanitized
+public candidate, re-reads each exact identity, and seals a
+`TerminalPublicationHandoffV1`; a separate handoff-bound dispatch publishes from that
+sealed receipt. The publisher resolves the exact GitHub artifact
+ID and verifies that its name, unexpired receipt, producing attempt one, and
+`GITHUB_SHA` match the immutable upload authority. It repeats the current owner read
+before fetching archive bytes; only the explicit publication-recovery roles — exact
+cross-run `pending` takeover or no-upload `in_progress` reconciliation — may act from
+a later owner attempt, and they may not create or replace the
+attempt-one authority. The publisher then verifies the archive SHA-256 and safe layout, revalidates the assured
+manifest, and enters the exact non-cancelling `nbadb-kaggle-publish` named concurrency
+group. It
+validates the complete ZIP inventory before extraction and rejects empty, duplicate,
+absolute, traversing, symlinked, special, or colliding members before consumption. It
+requires `actions: write`, `deployments: write`, `GH_TOKEN`, the publication source
 SHA, default-head enforcement, and
 `--publication-ledger github-deployment --require-durable-intent`. Head discovery asks
 GraphQL for the newest two dataset-specific Deployments in `CREATED_AT DESC` order,
@@ -396,9 +455,24 @@ The ledger records `pending` before mutation, rechecks and claims `in_progress`
 immediately before Kaggle, and records `success` only after exact-version
 complete-inventory SHA-256 readback. Any crash after the verified claim is
 reconciliation-only until the exact marker/version/inventory/hash evidence resolves
-it. Metadata is generated for all 254 runtime transform outputs. The publisher uses
+it. Recovery is not same-run-only: a distinct run may take over a still-`pending`
+intent (`record_pending_takeover` binding an uploaded takeover receipt and artifact
+member durably, `claim_pending_takeover` claiming it exactly once after the origin
+executor is proven durably terminal, then `mark_resolved` re-verifying the origin
+live) or reconcile an already-claimed `in_progress` intent readback-only without a
+second Kaggle mutation. Full-extraction secondary publication cache restore/save keys
+include the current
+workflow run ID; only a later attempt of that same run may restore them, and the
+Deployment ledger plus remote evidence remain authoritative. Metadata is generated for all 261 runtime transform outputs. The publisher uses
 `--full-publication` to require both assurance files and matching terminal provenance;
-generic `--verify-remote` remains available for nonterminal updates.
+generic `--verify-remote` remains available for nonterminal updates. After exact
+publication or reconciliation, it resolves metadata head `M` as the source or one
+direct, non-merge, byte-reproducible metadata-only child. A child `M` triggers an exact
+`.github/workflows/ci.yml` dispatch; closeout binds the returned run to `M`, fully
+paginates and direct-verifies its jobs, and requires exactly six successes:
+`workflow-lint`, `lint`, `metadata`, `typecheck`, `docs`, and `test`. The default ref
+must still equal `M` before the metadata-closeout receipt is uploaded. An unchanged
+source skips CI but still records closeout.
 
 ## Read the possession left to right
 
@@ -421,13 +495,13 @@ generic `--verify-remote` remains available for nonterminal updates.
 
 ## Pipeline commands
 
-| Command              | Stages                                     | Duration                                         |
-| -------------------- | ------------------------------------------ | ------------------------------------------------ |
-| `nbadb init`         | 1-8 (full rebuild)                         | API-bound; varies by full endpoint/history scope |
-| `nbadb daily`        | 1-7 (incremental, 7-day lookback)          | ~5-15m                                           |
-| `nbadb monthly`      | 1-7 (dimension refresh)                    | ~30-60m                                          |
-| `nbadb backfill run` | 1-7 (targeted gap-fill by season/endpoint) | varies                                           |
-| `nbadb export`       | 7-8 (re-export only)                       | ~5-10m                                           |
+| Command              | Stages                                                                      | Duration                                         |
+| -------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
+| `nbadb init`         | 1-8 (full rebuild)                                                          | API-bound; varies by full endpoint/history scope |
+| `nbadb daily`        | Current/open-season + recent games + live closure + complete stable rebuild | API-bound; varies by discovered current workload |
+| `nbadb monthly`      | Recent seasons + season-local discovery + live closure + stable rebuild     | API-bound; broader than daily                    |
+| `nbadb backfill run` | 1-7 (targeted gap-fill by season/endpoint)                                  | varies                                           |
+| `nbadb export`       | 7-8 (re-export only)                                                        | ~5-10m                                           |
 
 ## Key Technologies
 

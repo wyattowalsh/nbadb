@@ -30,6 +30,7 @@ If you discover a security issue, please report it responsibly:
 - SQL injection in the agent query path (bypassing `ReadOnlyGuard`)
 - Dependency vulnerabilities affecting nbadb
 - Secrets or credentials accidentally committed
+- Exposure of private parser-input bodies, private-baseline receipts, or durable planning-store objects (see `docs/content/docs/guides/private-successor-data-policy.mdx`)
 
 **What is out of scope:**
 - Vulnerabilities in [nba_api](https://github.com/swar/nba_api) itself (report upstream)

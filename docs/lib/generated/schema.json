@@ -114,7 +114,7 @@
         {
           "key": "FK",
           "name": "game_id",
-          "type": "int"
+          "type": "str"
         },
         {
           "key": "",
@@ -322,7 +322,152 @@
         },
         {
           "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "lineup_source",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "lineup_source_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "lineup_source_coverage",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "canonical_observation_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "gp_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "minutes_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "estimated_possessions_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "win_pct_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ft_pct_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "efg_pct_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ts_pct_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a_per_fga_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fta_per_fga_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_tov_ratio_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "tov_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "stl_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blk_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_per48_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "estimated_off_rating_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "estimated_def_rating_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "estimated_net_rating_covered_observations",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "total_gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_l",
           "type": "int"
         },
         {
@@ -332,17 +477,192 @@
         },
         {
           "key": "",
+          "name": "total_fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_ftm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_fta",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_oreb",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_dreb",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_reb",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_ast",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_tov",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_stl",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_blk",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_blka",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_pf",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_pfd",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_pts",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "win_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ts_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_per_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta_per_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_tov_ratio",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "estimated_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "pts_per48",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_net_rating",
+          "name": "reb_per48",
           "type": "float"
         },
         {
           "key": "",
-          "name": "total_plus_minus",
+          "name": "ast_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "estimated_off_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "estimated_def_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "estimated_net_rating",
           "type": "float"
         }
       ],
@@ -360,6 +680,11 @@
         {
           "key": "",
           "name": "entity_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "source_kind",
           "type": "str"
         },
         {
@@ -399,7 +724,87 @@
         },
         {
           "key": "",
-          "name": "pts",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ftm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb",
           "type": "float"
         },
         {
@@ -410,6 +815,46 @@
         {
           "key": "",
           "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blka",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pfd",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus",
           "type": "float"
         },
         {
@@ -425,6 +870,76 @@
         {
           "key": "",
           "name": "net_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ts_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_per48",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "on_off_pair_complete",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "on_gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "on_min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_rating_diff",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "def_rating_diff",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "net_rating_diff",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_diff",
           "type": "float"
         }
       ],
@@ -477,7 +992,7 @@
         {
           "key": "",
           "name": "player_weight",
-          "type": "str"
+          "type": "float"
         },
         {
           "key": "",
@@ -557,6 +1072,11 @@
         {
           "key": "",
           "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
           "type": "str"
         }
       ],
@@ -772,6 +1292,41 @@
         },
         {
           "key": "",
+          "name": "minutes_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "scoring_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rebounding_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "playmaking_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "shooting_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "advanced_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "advanced_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "total_min",
           "type": "float"
         },
@@ -842,6 +1397,26 @@
         },
         {
           "key": "",
+          "name": "total_oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "total_dreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "total_pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "total_plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "total_fgm",
           "type": "float"
         },
@@ -887,6 +1462,36 @@
         },
         {
           "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "three_point_attempt_rate",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "free_throw_attempt_rate",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_tov_ratio",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "rating_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rating_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_off_rating",
           "type": "float"
         },
@@ -907,13 +1512,58 @@
         },
         {
           "key": "",
+          "name": "provider_ts_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "provider_ts_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_avg_ts_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "usage_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "usage_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_usg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pie_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pie_possessions",
           "type": "float"
         },
         {
           "key": "",
           "name": "avg_pie",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "shooting_efficiency_source",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "advanced_metric_weight",
+          "type": "str"
         }
       ],
       "family": "agg",
@@ -959,7 +1609,57 @@
         },
         {
           "key": "",
+          "name": "minutes_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "possession_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pace_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pace_covered_minutes",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_rating_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_rating_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_off_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "def_rating_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "def_rating_covered_possessions",
           "type": "float"
         },
         {
@@ -969,7 +1669,27 @@
         },
         {
           "key": "",
+          "name": "net_rating_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "net_rating_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_net_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ts_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ts_pct_covered_possessions",
           "type": "float"
         },
         {
@@ -979,7 +1699,27 @@
         },
         {
           "key": "",
+          "name": "usg_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "usg_pct_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_usg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "efg_pct_covered_possessions",
           "type": "float"
         },
         {
@@ -989,7 +1729,27 @@
         },
         {
           "key": "",
+          "name": "ast_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_pct_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_ast_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_ratio_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_ratio_covered_possessions",
           "type": "float"
         },
         {
@@ -999,7 +1759,27 @@
         },
         {
           "key": "",
+          "name": "oreb_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "oreb_pct_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_oreb_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dreb_pct_covered_possessions",
           "type": "float"
         },
         {
@@ -1009,7 +1789,27 @@
         },
         {
           "key": "",
+          "name": "reb_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb_pct_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_reb_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov_pct_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "tov_pct_covered_possessions",
           "type": "float"
         },
         {
@@ -1024,8 +1824,28 @@
         },
         {
           "key": "",
+          "name": "pie_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pie_covered_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "avg_pie",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "advanced_metric_source",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pace_source",
+          "type": "str"
         }
       ],
       "family": "agg",
@@ -1242,6 +2062,11 @@
         },
         {
           "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "shot_zone_basic",
           "type": "str"
         },
@@ -1257,22 +2082,32 @@
         },
         {
           "key": "",
-          "name": "attempts",
+          "name": "shot_event_count",
           "type": "int"
         },
         {
           "key": "",
-          "name": "makes",
+          "name": "outcome_observed_attempt_count",
           "type": "int"
         },
         {
           "key": "",
-          "name": "fg_pct",
+          "name": "made_shot_count_of_observed_outcomes",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_of_observed_outcomes",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_distance",
+          "name": "distance_observed_attempt_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_shot_distance",
           "type": "float"
         }
       ],
@@ -1304,62 +2139,152 @@
         },
         {
           "key": "",
-          "name": "gp",
+          "name": "observed_game_count",
           "type": "int"
         },
         {
           "key": "",
-          "name": "avg_def_rating",
+          "name": "def_rating_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_def_rating",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_net_rating",
+          "name": "net_rating_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_net_rating",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_opp_efg_pct",
+          "name": "four_factors_observed_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "opp_effective_field_goal_percentage_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_opp_effective_field_goal_percentage",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_opp_fta_rate",
+          "name": "opp_free_throw_attempt_rate_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_opp_free_throw_attempt_rate",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_opp_tov_pct",
+          "name": "opp_team_turnover_percentage_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_opp_team_turnover_percentage",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_opp_oreb_pct",
+          "name": "opp_offensive_rebound_percentage_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_opp_offensive_rebound_percentage",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_contested_shots",
+          "name": "hustle_observed_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "contested_shots_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_observed_game_contested_shots",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_deflections",
+          "name": "mean_observed_game_contested_shots",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_loose_balls_recovered",
+          "name": "deflections_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_observed_game_deflections",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_charges_drawn",
+          "name": "mean_observed_game_deflections",
           "type": "float"
         },
         {
           "key": "",
-          "name": "avg_screen_assists",
+          "name": "loose_balls_recovered_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_observed_game_loose_balls_recovered",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_loose_balls_recovered",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "charges_drawn_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_observed_game_charges_drawn",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_charges_drawn",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "screen_assists_coverage_game_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_observed_game_screen_assists",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mean_observed_game_screen_assists",
           "type": "float"
         }
       ],
@@ -1485,6 +2410,41 @@
           "key": "",
           "name": "gp",
           "type": "int"
+        },
+        {
+          "key": "",
+          "name": "total_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "rating_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rating_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pace_covered_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pace_actual_minutes_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pace_inferred_minutes_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pace_covered_minutes",
+          "type": "float"
         },
         {
           "key": "",
@@ -1712,7 +2672,22 @@
         },
         {
           "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "clutch_window",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_set",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_value",
           "type": "str"
         },
         {
@@ -3215,6 +4190,11 @@
           "type": "str"
         },
         {
+          "key": "",
+          "name": "game_event_id",
+          "type": "int"
+        },
+        {
           "key": "FK",
           "name": "team_id",
           "type": "int"
@@ -3227,6 +4207,16 @@
         {
           "key": "",
           "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "league_id",
           "type": "str"
         },
         {
@@ -3287,6 +4277,26 @@
         {
           "key": "",
           "name": "league_avg_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "shot_value",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "actual_points",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "empirical_zone_expected_points",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "points_above_empirical_zone_expectation",
           "type": "float"
         }
       ],
@@ -4124,6 +5134,21 @@
         },
         {
           "key": "",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "jersey_number",
           "type": "str"
         },
@@ -4249,6 +5274,11 @@
         {
           "key": "",
           "name": "country",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "timezone",
           "type": "str"
         }
       ],
@@ -4558,11 +5588,6 @@
         {
           "key": "",
           "name": "event_type_name",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "event_category",
           "type": "str"
         }
       ],
@@ -4917,16 +5942,6 @@
         {
           "key": "",
           "name": "end_date",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "all_star_date",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "playoff_start_date",
           "type": "str"
         }
       ],
@@ -6027,6 +7042,11 @@
           "key": "",
           "name": "min",
           "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spd",
+          "type": "float"
         },
         {
           "key": "",
@@ -13273,6 +14293,328 @@
         }
       ]
     },
+    "fact_league_player_on_details": {
+      "columns": [
+        {
+          "key": "",
+          "name": "group_set",
+          "type": "str"
+        },
+        {
+          "key": "FK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "FK",
+          "name": "vs_player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "vs_player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "court_status",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ftm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blka",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pfd",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "gp_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "min_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fgm_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3m_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ftm_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fta_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ft_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "oreb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dreb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "tov_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "stl_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blk_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blka_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pf_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pfd_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "vs_player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        }
+      ]
+    },
     "fact_league_player_pt_shot": {
       "columns": [
         {
@@ -15062,6 +16404,11 @@
         },
         {
           "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "min",
           "type": "float"
         },
@@ -15147,6 +16494,21 @@
         },
         {
           "key": "",
+          "name": "blka",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pfd",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "pts",
           "type": "int"
         },
@@ -15162,6 +16524,26 @@
         },
         {
           "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "lineup_source",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "lineup_source_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "lineup_source_coverage",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "season_year",
           "type": "str"
         }
@@ -15170,6 +16552,178 @@
       "relationships": [
         {
           "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
+    },
+    "fact_lineup_stint": {
+      "columns": [
+        {
+          "key": "FK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "stint_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "stint_id",
+          "type": "str"
+        },
+        {
+          "key": "FK",
+          "name": "home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "FK",
+          "name": "away_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_lineup_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "away_lineup_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "home_player_ids",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "away_player_ids",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "stint_start_elapsed_tenths",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stint_end_elapsed_tenths",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "duration_seconds",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "source_interval_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "source_possession_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_possession_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "last_possession_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_source_action_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "last_source_action_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_possessions",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "away_possessions",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "away_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_net_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "possession_boundary_crossings",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "unplaced_possession_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "lineup_is_exact",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "response_is_complete",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "is_ambiguous",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "ambiguity_reason",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "algorithm_version",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "away_team_id",
           "to_col": "team_id",
           "to_table": "dim_team"
         }
@@ -15776,24 +17330,19 @@
     "fact_play_by_play": {
       "columns": [
         {
-          "key": "FK",
+          "key": "",
           "name": "game_id",
           "type": "str"
         },
         {
           "key": "",
-          "name": "event_num",
+          "name": "action_number",
           "type": "int"
         },
         {
           "key": "",
-          "name": "event_msg_type",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "event_msg_action_type",
-          "type": "int"
+          "name": "clock",
+          "type": "str"
         },
         {
           "key": "",
@@ -15801,117 +17350,122 @@
           "type": "int"
         },
         {
-          "key": "",
-          "name": "wc_time_string",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "pc_time_string",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "home_description",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "neutral_description",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "visitor_description",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "score",
-          "type": "str"
-        },
-        {
-          "key": "",
-          "name": "score_margin",
-          "type": "str"
-        },
-        {
           "key": "FK",
-          "name": "player1_id",
+          "name": "team_id",
           "type": "int"
         },
         {
-          "key": "FK",
-          "name": "player1_team_id",
-          "type": "int"
+          "key": "",
+          "name": "team_tricode",
+          "type": "str"
         },
         {
           "key": "FK",
-          "name": "player2_id",
+          "name": "person_id",
           "type": "int"
         },
         {
-          "key": "FK",
-          "name": "player2_team_id",
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name_i",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "x_legacy",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "y_legacy",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "shot_distance",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "shot_result",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "is_field_goal",
           "type": "int"
         },
         {
-          "key": "FK",
-          "name": "player3_id",
+          "key": "",
+          "name": "score_home",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "score_away",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "points_total",
           "type": "int"
         },
         {
-          "key": "FK",
-          "name": "player3_team_id",
+          "key": "",
+          "name": "location",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "description",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "action_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "sub_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "video_available",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "shot_value",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "action_id",
           "type": "int"
         },
         {
           "key": "",
           "name": "event_type_name",
           "type": "str"
-        },
-        {
-          "key": "",
-          "name": "season_year",
-          "type": "str"
         }
       ],
       "family": "fact",
       "relationships": [
         {
-          "from_col": "game_id",
-          "to_col": "game_id",
-          "to_table": "dim_game"
-        },
-        {
-          "from_col": "player1_id",
-          "to_col": "player_id",
-          "to_table": "dim_player"
-        },
-        {
-          "from_col": "player1_team_id",
+          "from_col": "team_id",
           "to_col": "team_id",
           "to_table": "dim_team"
         },
         {
-          "from_col": "player2_id",
+          "from_col": "person_id",
           "to_col": "player_id",
           "to_table": "dim_player"
-        },
-        {
-          "from_col": "player2_team_id",
-          "to_col": "team_id",
-          "to_table": "dim_team"
-        },
-        {
-          "from_col": "player3_id",
-          "to_col": "player_id",
-          "to_table": "dim_player"
-        },
-        {
-          "from_col": "player3_team_id",
-          "to_col": "team_id",
-          "to_table": "dim_team"
         }
       ]
     },
@@ -19265,6 +20819,16 @@
         },
         {
           "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "off_rating",
           "type": "float"
         },
@@ -19285,7 +20849,7 @@
         },
         {
           "key": "",
-          "name": "ast_to",
+          "name": "ast_tov",
           "type": "float"
         },
         {
@@ -19310,6 +20874,11 @@
         },
         {
           "key": "",
+          "name": "tov_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "efg_pct",
           "type": "float"
         },
@@ -19330,13 +20899,18 @@
         },
         {
           "key": "",
-          "name": "pie",
+          "name": "pace_per40",
           "type": "float"
         },
         {
           "key": "",
           "name": "poss",
-          "type": "int"
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pie",
+          "type": "float"
         },
         {
           "key": "",
@@ -19345,8 +20919,28 @@
         },
         {
           "key": "",
-          "name": "season_year",
-          "type": "str"
+          "name": "e_off_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "e_def_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "e_net_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "e_usg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "e_pace",
+          "type": "float"
         }
       ],
       "family": "fact",
@@ -25274,6 +26868,123 @@
         }
       ]
     },
+    "fact_rapm_design": {
+      "columns": [
+        {
+          "key": "",
+          "name": "design_row_id",
+          "type": "str"
+        },
+        {
+          "key": "FK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "stint_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "stint_number",
+          "type": "int"
+        },
+        {
+          "key": "FK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "FK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_side",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "design_value",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "response_home_net_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "exposure_seconds",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "source_possession_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_source_action_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "last_source_action_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "lineup_is_exact",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "response_is_complete",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "is_ambiguous",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "ambiguity_reason",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "lineup_algorithm_version",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "design_version",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "player_id",
+          "to_col": "player_id",
+          "to_table": "dim_player"
+        },
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
+    },
     "fact_rotation": {
       "columns": [
         {
@@ -26751,9 +28462,19 @@
     "fact_shot_chart": {
       "columns": [
         {
+          "key": "",
+          "name": "grid_type",
+          "type": "str"
+        },
+        {
           "key": "FK",
           "name": "game_id",
           "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_event_id",
+          "type": "int"
         },
         {
           "key": "FK",
@@ -26761,9 +28482,34 @@
           "type": "int"
         },
         {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
           "key": "FK",
           "name": "team_id",
           "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
         },
         {
           "key": "",
@@ -26779,6 +28525,11 @@
           "key": "",
           "name": "seconds_remaining",
           "type": "int"
+        },
+        {
+          "key": "",
+          "name": "event_type",
+          "type": "str"
         },
         {
           "key": "",
@@ -26822,12 +28573,27 @@
         },
         {
           "key": "",
+          "name": "shot_attempted_flag",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "shot_made_flag",
           "type": "int"
         },
         {
           "key": "",
-          "name": "season_year",
+          "name": "game_date",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "htm",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "vtm",
           "type": "str"
         }
       ],
@@ -26901,6 +28667,21 @@
         {
           "key": "",
           "name": "grid_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "league_id",
           "type": "str"
         },
         {
@@ -27268,10 +29049,329 @@
           "key": "",
           "name": "year_founded",
           "type": "int"
+        },
+        {
+          "key": "",
+          "name": "championship_years_json",
+          "type": "str"
         }
       ],
       "family": "fact",
       "relationships": []
+    },
+    "fact_static_wnba_players": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "last_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "full_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "is_active",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "league",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_static_wnba_teams": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "nickname",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "year_founded",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "full_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "state",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "championship_years_json",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "league",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_statistical_possession": {
+      "columns": [
+        {
+          "key": "FK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "possession_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "period",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "offense_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "defense_team_id",
+          "type": "int"
+        },
+        {
+          "key": "FK",
+          "name": "home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "FK",
+          "name": "away_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "start_action_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "end_action_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "start_clock",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "end_clock",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "start_elapsed_tenths",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "end_elapsed_tenths",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "event_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "field_goal_attempts",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "free_throw_attempts",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "non_possession_free_throw_attempts",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "non_possession_free_throw_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "turnovers",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "offensive_rebounds",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "derived_event_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "scoreboard_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "points_reconciled",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "score_before_home",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "score_before_away",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "score_after_home",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "score_after_away",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "statistical_possession_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "legal_control_boundary_count",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "closure_reason",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "is_complete",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "is_ambiguous",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "ambiguity_reason",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "algorithm_version",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "derived_team_game_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "official_team_game_points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_game_points_reconciled",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "derived_complete_team_possessions",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "official_team_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "team_possessions_reconciled",
+          "type": "bool"
+        }
+      ],
+      "family": "fact",
+      "relationships": [
+        {
+          "from_col": "game_id",
+          "to_col": "game_id",
+          "to_table": "dim_game"
+        },
+        {
+          "from_col": "home_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        },
+        {
+          "from_col": "away_team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
     },
     "fact_streak_finder": {
       "columns": [
@@ -30473,6 +32573,473 @@
         }
       ]
     },
+    "fact_team_on_off_overall": {
+      "columns": [
+        {
+          "key": "",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "FK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_set",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_value",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_last_n_games",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "request_measure_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_month",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "request_opponent_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "request_pace_adjust",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_per_mode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_period",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "request_plus_minus",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_rank",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_date_from",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_date_to",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_game_segment",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_location",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_outcome",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_season_segment",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_vs_conference",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "request_vs_division",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "provider_w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ftm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "provider_ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blka",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pfd",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "gp_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "min_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fgm_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3m_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ftm_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fta_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ft_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "oreb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dreb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "tov_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "stl_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blk_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blka_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pf_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pfd_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ts_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "estimated_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts_per_100_estimated_possessions",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_to_ratio",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "detail_source_present",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "summary_source_present",
+          "type": "bool"
+        },
+        {
+          "key": "",
+          "name": "reconciliation_status",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "source_detail_result_set",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "source_summary_result_set",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": [
+        {
+          "from_col": "team_id",
+          "to_col": "team_id",
+          "to_table": "dim_team"
+        }
+      ]
+    },
     "fact_team_player_dashboard": {
       "columns": [
         {
@@ -32182,12 +34749,324 @@
       ]
     },
     "fact_video_events": {
-      "columns": [],
+      "columns": [
+        {
+          "key": "",
+          "name": "response_receipt_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "provider_authority_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "endpoint_contract_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "response_mode_authority_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "parser_input_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "canonical_payload_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "parameters_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "endpoint_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "endpoint_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "response_state",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "legacy_envelope_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "record_kind",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "result_set_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "result_set_occurrence",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "provider_index",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "canonical_index",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "header_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "header_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "row_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "node_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "parent_node_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "json_path",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "parent_json_path",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "depth",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "object_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "object_key_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "array_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "presence_kind",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "value_kind",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "canonical_json",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "anomaly_codes_json",
+          "type": "str"
+        }
+      ],
       "family": "fact",
       "relationships": []
     },
     "fact_video_events_asset": {
-      "columns": [],
+      "columns": [
+        {
+          "key": "",
+          "name": "response_receipt_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "provider_authority_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "endpoint_contract_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "response_mode_authority_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "parser_input_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "canonical_payload_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "parameters_sha256",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "endpoint_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "endpoint_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "response_state",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "legacy_envelope_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "record_kind",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "result_set_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "result_set_occurrence",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "provider_index",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "canonical_index",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "header_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "header_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "row_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "node_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "parent_node_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "json_path",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "parent_json_path",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "depth",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "object_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "object_key_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "array_ordinal",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "presence_kind",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "value_kind",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "canonical_json",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "anomaly_codes_json",
+          "type": "str"
+        }
+      ],
       "family": "fact",
       "relationships": []
     },

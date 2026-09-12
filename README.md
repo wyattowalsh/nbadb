@@ -8,8 +8,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/nbadb?style=for-the-badge)](https://pypi.org/project/nbadb/)
 [![License](https://img.shields.io/github/license/wyattowalsh/nba-db?style=for-the-badge)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/wyattowalsh/nba-db/ci.yml?label=CI&style=for-the-badge)](https://github.com/wyattowalsh/nba-db/actions/workflows/ci.yml)
-[![DuckDB](https://img.shields.io/badge/DuckDB-1.5.4-yellow?style=for-the-badge&logo=duckdb)](https://duckdb.org)
-[![Polars](https://img.shields.io/badge/Polars-1.42.1-blue?style=for-the-badge&logo=polars)](https://pola.rs/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.5.5-yellow?style=for-the-badge&logo=duckdb)](https://duckdb.org)
+[![Polars](https://img.shields.io/badge/Polars-1.43.2-blue?style=for-the-badge&logo=polars)](https://pola.rs/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Docs](https://img.shields.io/website?url=https%3A%2F%2Fnbadb.w4w.dev&label=docs&style=for-the-badge)](https://nbadb.w4w.dev)
 [![Kaggle](https://img.shields.io/badge/Kaggle-Dataset-blue?logo=kaggle&style=for-the-badge)](https://www.kaggle.com/datasets/wyattowalsh/basketball)
@@ -103,8 +103,8 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 | `nbadb schema [TABLE]`              | Show schema for a table or list all star tables                                                                    |
 | `nbadb status`                      | Pipeline status, row counts, and watermarks                                                                        |
 | `nbadb journal-summary`             | Export pipeline telemetry summary artifacts                                                                        |
-| `nbadb ask QUESTION`                | Natural-language query interface (read-only)                                                                       |
-| `nbadb chat`                        | AI-powered Chainlit chat interface backed by the local DuckDB warehouse                                            |
+| `nbadb ask QUESTION`                | Catalog-matched read-only Q&A (route-specific season support; optional `--strict`)                                 |
+| `nbadb chat`                        | Chainlit catalog Q&A UI (same guarded runtime as `ask`; requires an existing warehouse)                            |
 | `nbadb full`                        | Fill gaps and retry failed extractions (deprecated—use `backfill` instead)                                         |
 | `nbadb lint-sql`                    | Lint SQL in transformers against SQLFluff rules                                                                    |
 | `nbadb metadata`                    | Generate Kaggle metadata JSON                                                                                      |
@@ -122,7 +122,7 @@ requires a valid `assured-artifact-manifest.json` and matching
 published files. Generic `--verify-remote` still proves the exact Kaggle version and
 every resource digest without requiring full-extraction provenance; an ordinary upload
 without readback is reported as submitted and unverified. Generated metadata covers all
-254 runtime transform outputs rather than a curated subset. A marker-specific HTTP 404
+261 runtime transform outputs rather than a curated subset. A marker-specific HTTP 404
 can enter a one-upload bootstrap path after
 the dataset metadata API supplies the current version; any other baseline lookup error
 stops before upload. If an upload remains unresolved, every later bundle is
@@ -158,30 +158,41 @@ ER/lineage auto pages, `docs/lib/generated/*`, and `docs/lib/site-metrics.genera
 This repository now carries two repo-owned companion surfaces alongside the warehouse code:
 
 - `chat/` — the canonical Chainlit chat application surface used by `nbadb chat`
+- `chat/skills/nba-data-analytics/` — offline analytics helper scripts, not a second chat or catalog Q&A entry point
 - `src/nbadb/chat/` — shared launcher, notebook, runtime, tracing, SQL, catalog, and memory helpers that back the chat UX
 - `kb/` — an intentional Obsidian-native companion knowledge base for maintainers and agents; it supplements repo canon and public docs, but does not replace them
 
 `README.md`, `AGENTS.md`, `docs/`, and `src/nbadb/` remain canonical material. The `kb/` vault is additive-first and exists to improve navigation, provenance, and maintainer context without replacing the public docs site.
 
-## 🤖 AI Query Interface
+## 🤖 Catalog Query Interface
 
-`nbadb ask` translates natural-language questions into read-only DuckDB queries:
+`nbadb ask` matches natural-language questions to **curated catalog routes** (not free-form LLM NL→SQL). Routes declare whether they support a season year plus season type, a year only, or neither. When a year-capable route has no explicit year, the request executes that route's immutable visible-rowset `max(season_year)` probe once, using the requested/default Regular Season only for type-capable routes. Probe results are request-local; there is no shared or persistent season cache. If the probe is unavailable or returns no valid year, the query uses the calendar season and emits the stable warning `Warehouse season lookup was unavailable; used the calendar season.`
+
+Explicit seasons use exact adjacent ASCII `YYYY-YY` syntax. Season-like
+slash forms, Unicode digits or dashes, whitespace around the separator, and
+wrong-width or nonconsecutive suffixes return `needs_params` before a warehouse
+probe or SQL generation; valid full calendar dates, standalone years, and
+adjacent alphanumeric identifiers are not misclassified as seasons. A malformed candidate takes precedence over
+another valid or relative season phrase. Unsupported route dimensions likewise
+return `needs_params` without SQL or SQL/season provenance. Both `ask` and
+`chat` require an existing DuckDB warehouse and fail closed when it is missing:
 
 ```bash
-nbadb ask "top 5 players by career three-pointers made"
-nbadb ask "which teams had the best home record in 2023-24"
-nbadb ask "LeBron James career averages by season"
+nbadb ask "who led scoring last season?"
+nbadb ask "how many games are there?"
+nbadb ask "show team standings" --verbose
+nbadb ask "unmatchable xyz" --strict   # exits non-zero when unsupported/failed
 ```
 
-Queries run against the star schema with safety guards: read-only DuckDB connections, external access disabled, static SQL validation, DuckDB planning checks, row limits, and optional `--verbose` SQL provenance.
+Queries run against the star schema with safety guards: read-only DuckDB connections, external access disabled, static SQL validation, DuckDB planning checks, outer row limits, and optional `--verbose` SQL provenance.
 
-Launch the browser-based chat UI with:
+Launch the browser-based catalog chat UI with:
 
 ```bash
 nbadb chat
 ```
 
-The Chainlit app lives in `chat/`, while shared runtime, catalog, and SQL result helpers live in `src/nbadb/chat/`.
+`nbadb chat` injects absolute `NBADB_DUCKDB_PATH` / `NBADB_DATA_DIR` before starting Chainlit under `chat/`; the companion notebook anchors relative values to the checkout root before making the same working-directory transition. Neither launcher creates a missing warehouse. Shared runtime, catalog, memory, and SQL helpers live in `src/nbadb/chat/`.
 
 ## 📓 Kaggle Notebooks
 
@@ -234,8 +245,10 @@ when the scheduler reorders a later attempt. Before planning, `workflow_guard`
 requires a fresh primary or partial `workflow_dispatch` attempt, observes the stable
 exact-title run inventory, and rejects `gh run rerun` attempts. Inline manifests,
 receipt-bound lane-manifest handoffs, and source-run recovery are mutually exclusive;
-recovery requires the original chain plus a distinct completed
-`resume_source_run_id`. A centralized
+recovery is an `operation=continue` dispatch that supplies the exact five-field
+continuation source — source run id, run attempt, manifest artifact name, artifact
+id, and artifact digest, where the attempt is never inferred — plus the original
+chain and a distinct completed source run. A centralized
 discovery job seeds only the current wave's exact
 season/season-type scopes, carries those artifacts forward by chain and source
 run, refreshes active-season player/game/workload evidence, and blocks matrix
@@ -293,8 +306,9 @@ preflight NBA probes are tried first by the serial discovery job; preflight and
 discovery successes are then handed to extraction as a verified pool. Logical lane
 indexes never wrap a verified preferred host onto a later lane. Matrix rows also carry
 one of the bounded `vpn_parallelism` slots; later logical lanes reuse a slot only after
-its `queue: max` job concurrency group releases it. Configured-credential runs admit
-the complete current matrix behind those queues, so a job waiting for one busy slot
+its named non-cancelling per-slot concurrency group (`cancel-in-progress: false`)
+releases it. Configured-credential runs admit
+the complete current matrix behind those slot groups, so a job waiting for one busy slot
 does not consume the admission credit needed to keep another slot active. Fresh recommendation hostnames are
 assigned by a run-attempt-seeded hash to exactly one live slot, and additive candidate
 expansion does not reassign hosts between slots. Each active lane still runs on a
@@ -366,8 +380,12 @@ direct runs skip the configured-credential capacity gate.
 VPN-backed planning also caps each matrix wave at `vpn_parallelism * 32` jobs (64 at the
 default configured value of two); the later admission gate can prove fewer active
 tunnels, and token authentication serializes execution without changing that planned
-batch cap. The larger matrix is assigned round-robin to the admitted VPN slots, with a
-non-cancelling queue serializing every repeated slot. If a later connector receives
+batch cap. For `N` matrix rows and `S` requested slots, the manifest uses
+`min(N, S)` contiguous slots and requires row `i` to use `i mod min(N, S)`. It also
+requires exact unique lane membership and order, integer in-range slot values, load
+counts differing by at most one, and no load above `ceil(N / S)`; `N=64, S=6`
+therefore yields `11, 11, 11, 11, 10, 10`. Any postcondition violation fails manifest
+generation before fan-out. A non-cancelling named per-slot concurrency group serializes every repeated slot. If a later connector receives
 `vpn_auth_failure`, it publishes an immutable
 run-attempt circuit marker. Queued lanes consult that marker before authentication and
 trust it only after the REST artifact identity, workflow run/source, archive SHA-256,
@@ -426,34 +444,58 @@ remaining matrix dispatch credits and retry depth, and never extend that cap in 
 child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
 while allowing recovery from `action_required`, failed, cancelled, or timed-out
 history. Cumulative no-progress retries
-remain bounded even when failure classes alternate. Self-dispatch posts
-`workflow_dispatch` with `return_run_details=true`, validates the returned run ID and
-URLs, and re-reads that exact child to verify its title, event, head SHA, and source
-before acknowledgement. Committed next-manifest artifacts use run/attempt-unique
+remain bounded even when failure classes alternate. Self-dispatch posts an exact
+`workflow_dispatch` body containing only `{ref, inputs}`, requires the response to
+contain exactly `workflow_run_id`, `run_url`, and `html_url`, and re-reads that exact
+child to verify its API/browser URLs, workflow identity, title, event, branch,
+`run_attempt == 1`, head SHA, and source
+before acknowledgement. Cross-run provenance treats `WORKFLOW_SOURCE_SHA` as
+semantic source `S` and the producing run's `head_sha` as owner head `H`:
+manifests and checkpoints remain bound to `S`, REST artifacts remain bound to
+their exact run and `H`, and a handoff is valid only when `S == H` or `S` is an
+ancestor of `H` with byte-identical full-extraction workflow content. Committed
+next-manifest artifacts use run/attempt-unique
 names without overwrite; the parent forwards the exact artifact ID and digest, and
-the child REST-verifies ID/name/digest/size/run/source before downloading by ID with
+the child REST-verifies ID/name/digest/size/owner run and `H`, separately retains
+semantic `S`, and completes that attestation before downloading by ID with
 digest mismatch set to error. Run/name-only handoff is a bounded legacy path when both
-receipt fields are absent; it still requires the exact source owner and workflow
+receipt fields are absent; it still requires the exact producing owner,
+semantic-source ancestry, and workflow-byte
 identity, a stable unique artifact inventory, a direct artifact-ID recheck, digest
 verification when GitHub supplies one, and exactly one safe expected manifest member.
 If the parent exits earlier, its trap attempts to cancel that exact returned child
 instead of inferring a child from title polling.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
-read-only permissions; `publish=false` never receives Kaggle secrets, while
-`publish=true` consumes the exact assured artifact in a separate FIFO-serialized
-writer job. Terminal assurance exports every format before running the hard scan with
+read-only permissions and never receives Kaggle secrets. Publication is decoupled from
+extraction: there is no `publish` input. The terminal run uploads the checkpoint, next
+manifest, private evidence, and sanitized public candidate, re-reads each exact
+identity, and seals a `TerminalPublicationHandoffV1`; a separate handoff-bound publish
+dispatch consumes that sealed receipt in a writer job serialized by the named
+non-cancelling `nbadb-kaggle-publish` concurrency group.
+Terminal assurance exports every format before running the hard scan with
 required nonempty silver/gold domain anchors, declared silver-to-gold row-count parity,
 and a checkpoint report canonically bound to its
 manifest, database, chain, source commit, and every planned lane,
 then builds the sorted SHA-256 manifest from the
-validated effective checkpoint coverage. The publisher downloads the exact GitHub
-artifact ID, normalizes and verifies the archive SHA-256 against the upload result,
+validated effective checkpoint coverage. The assured artifact authority is always
+produced by attempt one: its exact ID, name, canonical digest, size, unexpired state,
+archive URL, and producing `GITHUB_SHA` must match the attempt-one upload receipt. The
+publisher also verifies the current owner run and repeats that owner read immediately
+before download. A later owner attempt is admissible only through the dedicated
+publication-recovery roles — exact cross-run `pending` takeover with a durably
+terminal origin, a takeover receipt plus artifact member, and stable double inventory
+evidence, or no-upload `in_progress` reconciliation — reusing that immutable
+attempt-one authority; it may neither upload nor substitute assured data. The publisher then verifies the
+archive SHA-256 and safe layout against that receipt,
 assured data identity, includes it in Kaggle metadata and marker v2, paginates the
 exact remote version inventory, and streams every remote file through SHA-256
-readback before pushing checked-in metadata as its final step. Every marker-present
-baseline is matched to the current metadata version and rechecked immediately before
-upload, preventing a concurrent publisher from being silently superseded. The writer
-requires `actions: read`, `deployments: write`, `GH_TOKEN`,
+readback before pushing checked-in metadata as its final repository mutation.
+The complete ZIP inventory must pass before extraction; empty archives, duplicate
+normalized paths, absolute or traversing paths, symlinks, special files, and
+destination collisions fail before any assured member is consumed.
+Every marker-present baseline is matched to the current metadata version and rechecked immediately before
+upload, preventing a concurrent publisher from being silently superseded. The
+full-extraction writer requires `actions: write`, `deployments: write`, `GH_TOKEN`,
 `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`, default-head enforcement, and
 `nbadb upload --publication-ledger github-deployment --require-durable-intent`.
 The default-head REST request uses `/git/ref/heads/<branch>`, while GitHub
@@ -462,13 +504,55 @@ checked. A publication reconciliation execution accepts only the original source
 its single byte-identical metadata-only child. Once a verified durable intent reaches
 `in_progress`, an exception or runner loss is reconciliation-only: no later execution
 may call Kaggle again until the exact marker, version, inventory, and streamed hashes
-resolve that intent. A
-zero-active resume replays the exact `checkpoint-manifest.json` stored with its attested
-terminal checkpoint when present; after interruption before checkpointing,
-it rebuilds from the exact complete lane/database pairs named by the chain's recorded
-`chain_state.artifact_run_ids`.
-For a one-lane VPN proof, `targeted_smoke=true` requires a manual manifest,
-`publish=false`, `max_iterations=1`, and `retry_pipeline_failures=false`. It skips
+resolve that intent. Direct success resolution is restricted to the fresh current
+run, attempt, publisher job, and executor-admission digest; deployment origin, claim,
+nonce, and executor are checked again immediately before the success POST, and drift
+through the first executor check is caught by a final exact remote observation while
+executor drift during that observation is caught by the adjacent final active check;
+either writes no success status. A later attempt of the same run may use only explicit
+reconciliation. A distinct run may recover an unresolved intent exactly two ways: it
+may take over a still-`pending` intent (`record_pending_takeover` binds an uploaded
+takeover receipt and artifact member durably, `claim_pending_takeover` claims it
+exactly once with that durable status still the ledger head and the origin executor
+proven durably terminal, then `mark_resolved` re-verifies the origin live), or it may
+reconcile an already-claimed `in_progress` intent readback-only from the exact remote
+marker, version, inventory, and streamed hashes without a second Kaggle mutation.
+Full-extraction publication cache restore/save keys are scoped to
+the current workflow run ID, so a later attempt of that same run can recover secondary
+reconciliation state without borrowing another run's cache; the durable Deployment
+ledger and remote evidence, never that cache, authorize cross-run recovery. The
+Deployment ledger and remote evidence remain authoritative. The FIFO publisher mutex is the serialization
+boundary for repository-sanctioned writers; GitHub has no cross-resource conditional
+write, so the sequential handshake does not claim atomic exclusion of arbitrary
+out-of-band status writers after its final claim observation. After an exact upload or remote reconciliation,
+the same publisher proceeds only to post-publication closeout: it resolves metadata
+head `M` as either the frozen source or one direct, non-merge child that changes only
+`dataset-metadata.json`, uses the fixed metadata commit subject, and is byte-reproducible
+from the assured data. A child `M` triggers an explicit `.github/workflows/ci.yml`
+dispatch with exact `{ref, inputs}` payload/response validation. The publisher binds
+that run directly to `M`, fully paginates its job inventory, directly verifies each
+job, and requires exactly six unique successes: `workflow-lint`, `lint`, `metadata`,
+`typecheck`, `docs`, and `test`. It rechecks that the default ref still equals `M`
+before uploading the run/attempt-scoped metadata-closeout receipt. An unchanged source
+skips dispatch but still records closeout. A zero-active source resume binds the plan's
+selected source manifest and `resume-source-selection.json` receipt into the uploaded
+plan artifact. Terminal replay first REST-verifies that artifact's exact ID, name,
+digest, size, unexpired state, archive URL, owner run at exact attempt one, and
+current producing `GITHUB_SHA` after a final owner re-read, separately
+checks the selected semantic source and any cross-run `S`/`H` attestation, then downloads it by ID and
+validates the selected manifest/report/database trio. It never reselects a same-name
+source artifact during terminal replay. If interruption occurred before terminal
+checkpoint promotion, checkpoint recovery instead rebuilds from the exact complete
+lane/database and metadata pairs named by `chain_state.artifact_run_ids`. It consumes
+each historical run's first-attempt `S`/`H` attestation, selects from a stable complete
+inventory, directly rechecks every artifact ID, and downloads by ID with archive
+digest enforcement; the GitHub archive digest and DuckDB database SHA-256 remain
+separate commitments.
+The committed next-manifest and terminal-replay output are independently
+direct-verified as current-run, attempt-one, `GITHUB_SHA`-bound receipts; terminal
+merge receives those receipts and downloads only their exact artifact IDs.
+For a one-lane VPN proof, `operation=targeted_smoke` requires a manual manifest,
+`max_iterations=1`, and `retry_pipeline_failures=false`. It skips
 global merge/scan and redispatch, then succeeds only when lane control and the
 checkpoint attest exactly one complete terminal lane. This is an extractor proof,
 not full-dataset assurance.
@@ -482,9 +566,9 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | Language        | Python ≥3.12                                                                                                            |
 | Package Manager | [uv](https://docs.astral.sh/uv/)                                                                                        |
 | NBA API client  | [nba_api](https://github.com/swar/nba_api) 1.11.4 (exact contract pin)                                                  |
-| DataFrames      | [Polars](https://pola.rs/) 1.42.1                                                                                       |
+| DataFrames      | [Polars](https://pola.rs/) 1.43.2                                                                                       |
 | Validation      | [Pandera](https://pandera.readthedocs.io/) 0.32.1 (Polars backend)                                                      |
-| Analytics DB    | [DuckDB](https://duckdb.org/) 1.5.4                                                                                     |
+| Analytics DB    | [DuckDB](https://duckdb.org/) 1.5.5                                                                                     |
 | Relational DB   | [SQLModel](https://sqlmodel.tiangolo.com/) 0.0.39 + SQLite                                                              |
 | HTTP / Proxy    | [proxywhirl](https://github.com/wyattowalsh/proxywhirl)                                                                 |
 | CLI             | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |

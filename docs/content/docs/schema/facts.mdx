@@ -117,14 +117,15 @@ Facts hold the possessions: the measurable events, summaries, dashboards, and sp
   </ScoutCard>
 </div>
 
-| Family                                      | Representative tables                                                                                                                               | Typical grain                                  | Best when                                                                                   |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Player game box score                       | `fact_player_game_traditional`, `fact_player_game_advanced`, `fact_player_game_misc`, `fact_player_game_hustle`, `fact_player_game_tracking`        | One row per player-game                        | You need a single-game player ledger from traditional, advanced, hustle, or tracking angles |
-| Team game box score                         | `fact_team_game`, `fact_box_score_team`, `fact_box_score_advanced_team`, `fact_team_game_hustle`, `fact_box_score_four_factors`                     | One row per team-game or team-game split       | You want club performance, quarter scoring, four factors, or team-level game detail         |
-| Event tape and matchup study                | `fact_play_by_play`, `fact_rotation`, `fact_matchup`, `fact_win_probability`, `fact_game_leaders`                                                   | Event, stint, matchup, or in-game state        | You need sequence detail, on-floor stints, matchup defense, or live game-state context      |
-| Shot, tracking, and possession analytics    | `fact_shot_chart`, `fact_tracking_defense`, `fact_player_pt_tracking`, `fact_team_pt_tracking`, `fact_synergy`                                      | Shot, player-season, team-season, or play type | You are studying shot quality, defended attempts, tracking metrics, or possession types     |
-| Season, profile, and dashboard surfaces     | `fact_player_profile`, `fact_player_career`, `fact_player_splits`, `fact_team_splits`, `fact_standings`, `fact_playoff_picture`                     | Player-season, team-season, or dashboard split | You need recurring player/team reporting without rebuilding every summary from game facts   |
-| League, discovery, and historical specialty | `fact_league_dash_player_stats`, `fact_league_dash_team_stats`, `fact_league_game_finder`, `fact_draft`, `fact_team_history_detail`, `fact_fantasy` | League-season, draft, or specialty grain       | You are building leaderboards, discovery tools, draft history, or archival research         |
+| Family                                      | Representative tables                                                                                                                               | Typical grain                                              | Best when                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Player game box score                       | `fact_player_game_traditional`, `fact_player_game_advanced`, `fact_player_game_misc`, `fact_player_game_hustle`, `fact_player_game_tracking`        | One row per player-game                                    | You need a single-game player ledger from traditional, advanced, hustle, or tracking angles |
+| Team game box score                         | `fact_team_game`, `fact_box_score_team`, `fact_box_score_advanced_team`, `fact_team_game_hustle`, `fact_box_score_four_factors`                     | One row per team-game or team-game split                   | You want club performance, quarter scoring, four factors, or team-level game detail         |
+| Event tape and matchup study                | `fact_play_by_play`, `fact_rotation`, `fact_matchup`, `fact_win_probability`, `fact_game_leaders`                                                   | Event, stint, matchup, or in-game state                    | You need sequence detail, on-floor stints, matchup defense, or live game-state context      |
+| Shot, tracking, and possession analytics    | `fact_shot_chart`, `fact_tracking_defense`, `fact_player_pt_tracking`, `fact_team_pt_tracking`, `fact_synergy`                                      | Shot, player-season, team-season, or play type             | You are studying shot quality, defended attempts, tracking metrics, or possession types     |
+| Possession, lineup, and model-input facts   | `fact_statistical_possession`, `fact_lineup_stint`, `fact_rapm_design`                                                                              | Possession event, exact-five stint, or unfitted design row | You need conservative possession boundaries, lineup responses, or reproducible RAPM inputs  |
+| Season, profile, on/off, and dashboards     | `fact_player_profile`, `fact_player_career`, `fact_player_splits`, `fact_team_splits`, `fact_team_on_off_overall`, `fact_league_player_on_details`  | Player/team season, provider group, or dashboard split     | You need descriptive season or on/off context without implying causal player impact         |
+| League, discovery, and historical specialty | `fact_league_dash_player_stats`, `fact_league_dash_team_stats`, `fact_league_game_finder`, `fact_draft`, `fact_team_history_detail`, `fact_fantasy` | League-season, draft, or specialty grain                   | You are building leaderboards, discovery tools, draft history, or archival research         |
 
 ## Compare the likely first stop
 
@@ -176,15 +177,21 @@ Facts hold the possessions: the measurable events, summaries, dashboards, and sp
     roster-history questions like "which teams did this player play for?" across
     seasons.
   </ScoutCard>
+  <ScoutCard title="bridge_live_box_score_official" label="Bridge table">
+    Preserves the officials attached to each live box-score snapshot, keyed by
+    snapshot time, game, and official person ID without conflating the snapshot
+    feed with the historical game-official bridge.
+  </ScoutCard>
 </div>
 
-| Bridge                      | Join pattern                                            | Why it exists                                                                                             |
-| --------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `bridge_game_official`      | `game_id` + `official_id`                               | Attaches officiating crews without repeating referee columns on every game-level row                      |
-| `bridge_play_player`        | `game_id` + event key + participant slot/player context | Fans out play-by-play participant slots into join-friendly rows when one action involves multiple players |
-| `bridge_game_team`          | `game_id` + `team_id` + `side`                          | Links games to participating teams with home/away discriminator and win/loss outcome                      |
-| `bridge_lineup_player`      | `group_id` + `player_id` + `team_id` + `season_year`    | Explodes lineup group IDs into individual player rows with positional ordering                            |
-| `bridge_player_team_season` | `player_id` + `team_id` + `season_year`                 | Tracks player-team associations by season with jersey number and position context                         |
+| Bridge                           | Join pattern                                            | Why it exists                                                                                             |
+| -------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bridge_game_official`           | `game_id` + `official_id`                               | Attaches historical officiating crews without repeating referee columns on every game-level row           |
+| `bridge_live_box_score_official` | `snapshot_at` + `game_id` + `person_id`                 | Keeps live-snapshot officials distinct from historical game-official observations                         |
+| `bridge_play_player`             | `game_id` + event key + participant slot/player context | Fans out play-by-play participant slots into join-friendly rows when one action involves multiple players |
+| `bridge_game_team`               | `game_id` + `team_id` + `side`                          | Links games to participating teams with home/away discriminator and win/loss outcome                      |
+| `bridge_lineup_player`           | `group_id` + `player_id` + `team_id` + `season_year`    | Explodes lineup group IDs into individual player rows with positional ordering                            |
+| `bridge_player_team_season`      | `player_id` + `team_id` + `season_year`                 | Tracks player-team associations by season with jersey number and position context                         |
 
 <Callout>
   Many dashboard-style facts rely on discriminator columns such as
@@ -195,12 +202,12 @@ Facts hold the possessions: the measurable events, summaries, dashboards, and sp
 
 ## Common watchouts
 
-| Watchout                                                   | Why it matters                                                                                                                                                                                                       |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Similar names do not guarantee the same grain              | `fact_player_game_*` and team box-score families can look parallel while representing different row ownership                                                                                                        |
-| Dashboard facts often need discriminator columns           | `split_type`, `detail_type`, or similar fields may be required to keep rows logically unique                                                                                                                         |
-| Bridges are not optional cleanup                           | All five bridges (`bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season`) exist specifically to prevent repeated columns and awkward multi-slot joins |
-| A season question may already be answered above fact grain | Check [Derived Aggregations](/docs/schema/derived) or [Analytics Views](/docs/schema/analytics-views) before rebuilding a common summary yourself                                                                    |
+| Watchout                                                   | Why it matters                                                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Similar names do not guarantee the same grain              | `fact_player_game_*` and team box-score families can look parallel while representing different row ownership                                     |
+| Dashboard facts often need discriminator columns           | `split_type`, `detail_type`, or similar fields may be required to keep rows logically unique                                                      |
+| Bridges are not optional cleanup                           | All six bridges, including the live-snapshot official bridge, exist specifically to prevent repeated columns and awkward multi-slot joins         |
+| A season question may already be answered above fact grain | Check [Derived Aggregations](/docs/schema/derived) or [Analytics Views](/docs/schema/analytics-views) before rebuilding a common summary yourself |
 
 ## Route guidance for dense reference tables
 

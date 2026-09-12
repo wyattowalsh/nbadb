@@ -12,8 +12,8 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 <StatGrid columns={4}>
   <StatPill
     label="CLI commands"
-    value="28"
-    note="24 top-level + 4 backfill subcommands"
+    value="29"
+    note="25 top-level + 4 backfill subcommands"
   />
   <StatPill
     label="Pipeline run modes"
@@ -61,33 +61,34 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 
 ## Opening possessions
 
-| Goal                                          | Command                           |
-| --------------------------------------------- | --------------------------------- |
-| Build the full historical dataset             | `nbadb init`                      |
-| Refresh the current season after games settle | `nbadb daily`                     |
-| Capture active or explicit live game state    | `nbadb live-snapshot`             |
-| Sweep the last 3 seasons more broadly         | `nbadb monthly`                   |
-| Targeted backfill with gap detection          | `nbadb backfill run`              |
-| Detect missing data across seasons            | `nbadb backfill gaps`             |
-| Re-export from the existing DuckDB database   | `nbadb export`                    |
-| Inspect pipeline state                        | `nbadb status`                    |
-| Regenerate generated docs artifacts           | `nbadb docs-autogen`              |
-| Download or publish the Kaggle dataset        | `nbadb download` / `nbadb upload` |
-| Scan for data quality issues and gaps         | `nbadb scan`                      |
-| Lint SQL in transform definitions             | `nbadb lint-sql`                  |
-| Launch the analytics chat UI                  | `nbadb chat`                      |
-| Generate Kaggle dataset metadata              | `nbadb metadata`                  |
-| Export pipeline telemetry                     | `nbadb journal-summary`           |
+| Goal                                        | Command                           |
+| ------------------------------------------- | --------------------------------- |
+| Build the full historical dataset           | `nbadb init`                      |
+| Refresh current/open-season data            | `nbadb daily`                     |
+| Capture active or explicit live game state  | `nbadb live-snapshot`             |
+| Refresh the configured recent seasons       | `nbadb monthly`                   |
+| Targeted backfill with gap detection        | `nbadb backfill run`              |
+| Detect missing data across seasons          | `nbadb backfill gaps`             |
+| Re-export from the existing DuckDB database | `nbadb export`                    |
+| Inspect pipeline state                      | `nbadb status`                    |
+| Regenerate generated docs artifacts         | `nbadb docs-autogen`              |
+| Compile exact pre-extraction assurance      | `nbadb contract-assurance`        |
+| Download or publish the Kaggle dataset      | `nbadb download` / `nbadb upload` |
+| Scan for data quality issues and gaps       | `nbadb scan`                      |
+| Lint SQL in transform definitions           | `nbadb lint-sql`                  |
+| Launch the catalog Q&A chat UI              | `nbadb chat`                      |
+| Generate Kaggle dataset metadata            | `nbadb metadata`                  |
+| Export pipeline telemetry                   | `nbadb journal-summary`           |
 
 ## Choose the command family first
 
-| If your question is…                                        | Start here                                                                | Typical commands                                                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| “How do I build or refresh data?”                           | [Pipeline commands](#pipeline-commands)                                   | `init`, `daily`, `monthly`, `live-snapshot`                                                                   |
-| “How do I fill gaps or re-extract specific data?”           | [Backfill commands](#backfill-commands)                                   | `backfill run`, `backfill gaps`, `backfill completeness`, `backfill journal`                                  |
-| “How do I inspect, validate, or debug what already exists?” | [Inspection and quality commands](#inspection-and-quality-commands)       | `schema`, `status`, `scan`, `lint-sql`, `ask`, `chat`, `journal-summary`                                      |
-| “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `extract-completeness`, `audit-models`, `metadata`, `migrate` |
-| “What are the exact current signatures?”                    | [Exact signatures](#exact-signatures)                                     | Grouped tables for every current command                                                                      |
+| If your question is…                                        | Start here                                                                | Typical commands                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| “How do I build or refresh data?”                           | [Pipeline commands](#pipeline-commands)                                   | `init`, `daily`, `monthly`, `live-snapshot`                                                                                         |
+| “How do I fill gaps or re-extract specific data?”           | [Backfill commands](#backfill-commands)                                   | `backfill run`, `backfill gaps`, `backfill completeness`, `backfill journal`                                                        |
+| “How do I inspect, validate, or debug what already exists?” | [Inspection and quality commands](#inspection-and-quality-commands)       | `schema`, `status`, `scan`, `lint-sql`, `ask`, `chat`, `journal-summary`                                                            |
+| “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `contract-assurance`, `extract-completeness`, `audit-models`, `metadata`, `migrate` |
+| “What are the exact current signatures?”                    | [Exact signatures](#exact-signatures)                                     | Grouped tables for every current command                                                                                            |
 
 <CourtDivider label="Command modules" />
 
@@ -102,13 +103,14 @@ These are the commands most operators touch first.
     `--verbose/-v`, and `--quality-check`.
   </ScoutCard>
   <ScoutCard title="`nbadb daily`" label="Current-season refresh">
-    Uses the current season plus the `NBADB_DAILY_LOOKBACK_DAYS` window,
-    refreshes active players and teams, then rebuilds downstream tables in
-    replace mode.
+    Refreshes the current/open season plus the `NBADB_DAILY_LOOKBACK_DAYS`
+    recent-game window, current entities, applicable result routes, and active
+    live-game sources, then rebuilds the stable output universe.
   </ScoutCard>
   <ScoutCard title="`nbadb monthly`" label="Recent multi-season sweep">
-    Refreshes the last 3 seasons and then rebuilds downstream tables in replace
-    mode.
+    Refreshes the configured recent-season window with season-local player
+    discovery, applicable result routes, and active live-game sources, then
+    rebuilds the stable output universe.
   </ScoutCard>
   <ScoutCard title="`nbadb full`" label="Deprecated">
     **Deprecated.** Use `nbadb backfill run` instead, which provides targeted
@@ -118,12 +120,12 @@ These are the commands most operators touch first.
 
 ### Run modes that matter most
 
-| Command          | Primary intent                                 | Scope                                                                                            |
-| ---------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `nbadb init`     | Full historical build                          | Historical seasons from `--season-start` through `--season-end`                                  |
-| `nbadb daily`    | Current-season refresh focused on recent games | Current season, recent games within `NBADB_DAILY_LOOKBACK_DAYS`, plus active player/team refresh |
-| `nbadb monthly`  | Broader refresh of recent history              | The last 3 seasons                                                                               |
-| ~~`nbadb full`~~ | ~~Retry failures and fill historical gaps~~    | **Deprecated.** Use `nbadb backfill run` instead                                                 |
+| Command          | Primary intent                              | Scope                                                                                               |
+| ---------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `nbadb init`     | Full historical build                       | Historical seasons from `--season-start` through `--season-end`                                     |
+| `nbadb daily`    | Current/open-season recurring refresh       | Recent games, current entities, applicable result routes, live closure, and complete stable rebuild |
+| `nbadb monthly`  | Configured recent-season recurring refresh  | Season-local discovery, applicable result routes, live closure, and complete stable rebuild         |
+| ~~`nbadb full`~~ | ~~Retry failures and fill historical gaps~~ | **Deprecated.** Use `nbadb backfill run` instead                                                    |
 
 <Callout type="warn">
   **Deprecated commands:** `nbadb full` is deprecated — use `nbadb backfill run`
@@ -131,10 +133,12 @@ These are the commands most operators touch first.
   `nbadb scan --fail-on error` as the hard assurance gate instead.
 </Callout>
 
-<Callout type="info">
-  `daily` and `monthly` are not lightweight star-surface upsert commands. Their
-  extraction scope differs, but each run ends by rebuilding downstream tables in{" "}
-  <strong>replace</strong> mode.
+<Callout type="warn">
+  Daily and monthly return nonzero on incomplete extraction, stable-transform
+  failure, or cancellation. Hosted publication proceeds only after scan, export,
+  candidate metadata generation, durable GitHub Deployment intent, and exact
+  Kaggle readback. `backfill run` remains a targeted recovery surface and does
+  not authorize recurring publication by itself.
 </Callout>
 
 ## Backfill commands
@@ -228,21 +232,44 @@ Destructive actions require at least one filter (`--endpoint`, `--seasons`, or `
   </ScoutCard>
   <ScoutCard title="`nbadb scan`" label="Quality and gap scanner">
     Scans the database for missing data, gaps, and quality issues. Use
-    `--fail-on/-F` for the hard assurance gate. Supports `--category/-c`,
-    `--table/-t`, `--severity/-s`, `--report-path/-r`, `--output-format/-f`, and
-    `--ci`.
+    `--fail-on/-F` for the hard assurance gate. `--full-publication` is the
+    full-extraction terminal path and requires its checkpoint/manifest evidence.
+    Supports `--category/-c`, `--table/-t`, `--severity/-s`, `--report-path/-r`,
+    `--output-format/-f`, and `--ci`.
   </ScoutCard>
-  <ScoutCard title="`nbadb ask QUESTION`" label="Local query agent">
-    Sends a natural-language question to the local query agent with
-    `--limit/-l`. Use `--verbose/-v` to include SQL provenance, matched route,
-    row cap, and table hints in the output.
+  <ScoutCard title="`nbadb ask QUESTION`" label="Catalog Q&amp;A">
+    Matches a natural-language question to curated warehouse routes with
+    route-specific season support and `--limit/-l`. Use `--verbose/-v` for SQL
+    provenance and `--strict` to exit non-zero on unsupported or failed queries.
+    Requires an existing DuckDB warehouse.
   </ScoutCard>
   <ScoutCard title="`nbadb chat`" label="Chainlit UI">
-    Launches the canonical Chainlit app from `chat/chainlit_app.py` using the
-    isolated `chat/pyproject.toml` environment. The app reuses the same guarded
-    query runtime as `nbadb ask`.
+    Launches the canonical Chainlit catalog Q&amp;A app from
+    `chat/chainlit_app.py` using the isolated `chat/pyproject.toml` environment.
+    Injects absolute `NBADB_DUCKDB_PATH` / `NBADB_DATA_DIR` so `cwd=chat/`
+    cannot mis-resolve the warehouse. Reuses the same guarded runtime as `nbadb
+    ask`.
   </ScoutCard>
 </DataColumns>
+
+Season support is a route contract: routes accept year plus type, year only, or
+neither. When a year-capable route has no explicit year, `ask` executes that route's
+immutable visible-rowset maximum probe once for that request. Type-capable routes use
+the requested season type or default to Regular Season; year-only routes never add a
+type filter. There is no shared or persistent season-probe cache. An unavailable,
+empty, or invalid probe falls back to the calendar season with the fixed warning
+`Warehouse season lookup was unavailable; used the calendar season.` Malformed years
+and unsupported dimensions return `needs_params` without executing SQL and without
+SQL hash, season value, or season-source metadata. Explicit seasons require adjacent
+ASCII `YYYY-YY` syntax. Slash forms, Unicode digits or dashes, separator whitespace,
+and wrong-width or nonconsecutive suffixes are rejected before a warehouse probe or
+SQL generation, and a malformed candidate takes precedence over any other valid or
+relative phrase. Valid full calendar dates, standalone years, and adjacent
+alphanumeric identifiers are not misclassified as seasons.
+
+Both `nbadb ask` and `nbadb chat` fail closed when the configured DuckDB file does not
+exist. The chat launcher injects absolute paths before switching to `cwd=chat/`; it
+does not initialize a warehouse.
 
 ### `nbadb status`
 
@@ -273,10 +300,11 @@ nbadb scan --category data_quality,missing_table --severity warning --fail-on er
 - `--report-path/-r` writes the full JSON report to a file
 - `--output-format/-f` switches between `text` (default) and `json`
 - `--ci` enables GitHub Actions integration (step summary + annotations)
-- `--full-publication` makes every declared conformed and silver/gold game, roster, team, box-score, play-by-play, shot, standings, draft, aggregate, and analytics anchor mandatory and enforces declared row-preserving silver-to-gold cardinality pairs
+- `--full-publication` makes every declared conformed and silver/gold game, roster, team, box-score, play-by-play, shot, standings, draft, aggregate, and analytics anchor mandatory and enforces declared row-preserving silver-to-gold cardinality pairs; the full-extraction route supplies the exact checkpoint evidence below
 - `--checkpoint-report` supplies the terminal checkpoint JSON whose lane, run, coverage, blocked-evidence, and zero-error inventories must account for the full extraction manifest
 - `--checkpoint-manifest` and `--checkpoint-dir` supply the exact manifest and checkpoint database consumed by the canonical verifier; staging and journal row counts are recomputed from that database
 - `--checkpoint-chain-id` and `--checkpoint-source-sha` bind that proof to the expected extraction chain and 40-character source commit
+- `--successor-generation-store` is a legacy private-generation validation option retained by the older experimental path; the one-repository daily/monthly workflow does not use it
 
 ## Distribution and artifact commands
 
@@ -286,6 +314,7 @@ nbadb scan --category data_quality,missing_table --severity warning --fail-on er
 | `nbadb download`                    | Pull the latest published Kaggle dataset into the data directory    | Seeds `nba.duckdb` from `nba.sqlite` if DuckDB is missing                                                     |
 | `nbadb upload`                      | Publish the data directory to Kaggle                                | Exact readback plus optional GitHub Deployment durable-intent ledger                                          |
 | `nbadb docs-autogen`                | Regenerate generated docs artifacts                                 | Defaults `--docs-root` to `docs/content/docs`; `--check` fails on stale generated artifacts                   |
+| `nbadb contract-assurance`          | Compile exact local pre-extraction contracts                        | Requires a local exact-source checkout; `--check` compares two fresh semantic generations                     |
 | `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                | Supports `--output-dir/-o`, `--require-full`, `--require-model-contract`, and `--endpoint-analysis-docs-root` |
 | `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix  | Supports `--output-dir/-o`, `--require-complete`, and `--require-season-type-contract`                        |
 | `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                 | Supports `--output-dir/-o`                                                                                    |
@@ -294,6 +323,54 @@ nbadb scan --category data_quality,missing_table --severity warning --fail-on er
 | `nbadb table-year-coverage`         | Generate table/year coverage summary artifacts                      | Supports `--output-dir` and `--require-complete`                                                              |
 | `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog          | Supports `--output/-o` and `--data-dir/-d`                                                                    |
 | `nbadb migrate`                     | Create or migrate pipeline tables                                   | Usually a setup or recovery command                                                                           |
+
+### `nbadb contract-assurance`
+
+Use this command to compile the provider, parser-input/bronze, staging-route,
+star-table, field-fate, temporal, and metric contracts into one exact local
+pre-extraction assurance generation:
+
+```bash
+uv run nbadb contract-assurance \
+  --profile pre-extraction \
+  --endpoint-analysis-docs-root /path/to/nba_api \
+  --check
+```
+
+`--endpoint-analysis-docs-root` is required and must name a readable local
+exact-source `nba_api` checkout. The command performs no network access. `--profile`
+currently accepts `pre-extraction`, and `--output-root` selects the parent for
+brand-new generation directories.
+
+The recurring contract uses public-safe request/result/header-or-path/ordinal/
+value/presence/provenance landings plus committed receipts. Exact decoded-body
+capture is optional bounded diagnostic material and is not a baseline, resume,
+assurance, or publication dependency.
+
+With `--check`, the command writes two distinct fresh generations beneath the output
+root, validates each exact member and parent digest, and requires their semantic
+digests to match. Its terminal summary separates four different claims:
+
+```text
+Structural generation: GREEN
+Semantic determinism: GREEN
+MODEL-GREEN: RED
+DATA-GREEN: UNPROVEN
+Generation semantic SHA-256: <64-hex-digest>
+Assurance location: second_fresh_generation_directory
+```
+
+Structural green means the declared contract generation is complete and internally
+consistent; it does not make unresolved model semantics or populated data green.
+`contract-assurance` is a MODEL diagnostic, never a DATA gate: exit 0 means
+MODEL-GREEN, exit 1 means MODEL-RED or a local generation failure, and exit 2 means an
+unsupported profile. The local DATA result is always UNPROVEN here — hard DATA
+assurance comes only from the remote-readback and human-verification receipt chain —
+so no workflow may treat this command's exit status as publication DATA authority. The
+current inventory is deliberately `MODEL-GREEN: RED`, so the command exits with code
+1 after printing its blockers even when structural generation and semantic
+determinism are green. `DATA-GREEN: UNPROVEN` is independent and does not claim an
+extraction, live-availability, publication, or remote-readback result.
 
 ### `nbadb extract-completeness`
 
@@ -488,14 +565,14 @@ tables.
 
 ## Shared behavior for pipeline commands
 
-These notes apply to `nbadb init`, `daily`, and `monthly`.
+These notes apply to `nbadb init`, `nbadb daily`, and `nbadb monthly`.
 
 - `--data-dir` overrides the default data directory (`data/nbadb`) and the `NBADB_DATA_DIR` setting.
 - `--quality-check` runs post-pipeline quality checks against the DuckDB file, but those checks are informational today: empty-table warnings are reported without failing the command.
 - If stdout is an interactive terminal and `--verbose` is **not** set, the CLI uses the Textual TUI.
 - Use `--verbose` to force plain log output and DEBUG-level logging.
-- A single `Ctrl+C` attempts a graceful stop and preserves resume-safe journal/checkpoint state; pressing `Ctrl+C` again forces exit.
-- Successful runs print a summary like this:
+- A single `Ctrl+C` or TUI stop is non-success (exit 1). Journal/checkpoint state may support a matching local retry, but it is not a public baseline or publication authority. Pressing `Ctrl+C` again forces exit, still as non-success.
+- A successful run prints a summary like this:
 
 ```text
 daily: 12 tables, 245,901 rows, 38.4s
@@ -518,9 +595,11 @@ daily: 12 tables, 245,901 rows, 38.4s
 - `nbadb download` copies the Kaggle dataset into the target data directory and seeds `nba.duckdb` from `nba.sqlite` if only SQLite is present.
 - `nba.duckdb` is the canonical analytics database; `nba.sqlite` remains the Kaggle preview-friendly relational file.
 - `nbadb upload` ensures `dataset-metadata.json` exists, stages only declared files/directories into a temporary upload root, supports partitioned Parquet resource directories, rejects symlinks and path traversal, writes `logs/kaggle/kaggle-upload-manifest.json`, and then publishes the staged bundle. Remote verification defaults to a 3,600-second deadline and 15-second poll interval, paginates the exact-version file inventory, and streams each resource through SHA-256 readback.
-- With `--verify-remote`, the marker resolver must return an exact positive Kaggle version. The client then paginates that version's complete API file list and streams every file through SHA-256 readback. Only a marker-specific HTTP 404 can bootstrap one upload after metadata-API version resolution; other baseline failures stop before upload. Any unresolved dataset upload blocks every later bundle until exact evidence resolves it. Local-ledger recovery uses retained `logs/kaggle/kaggle-publication-state.json`; automated publishing also persists that file as secondary evidence while GitHub Deployments provides durable admission.
-- With `--full-publication`, upload additionally requires a valid assured artifact manifest and declared terminal assurance report with matching chain, source, effective coverage, checkpoint, and blocked-evidence identities. This mode implies `--verify-remote`.
+- With `--verify-remote`, the marker resolver must return an exact positive Kaggle version. The client then paginates that version's complete API file list and streams every file through SHA-256 readback. Only a marker-specific HTTP 404 can bootstrap one upload after metadata-API version resolution; other baseline failures stop before upload. Any unresolved dataset upload blocks every later bundle until exact evidence resolves it. Local-ledger recovery uses retained `logs/kaggle/kaggle-publication-state.json`; automated publishing also persists that file as secondary evidence while GitHub Deployments provides durable admission. The full-extraction workflow scopes that secondary cache to the current workflow run ID so only a later attempt of the same run can restore it.
+- With `--full-publication`, upload additionally requires a valid assured artifact manifest and declared terminal assurance report. The full-extraction schema-v3 report binds chain, source, effective coverage, checkpoint, and blocked-evidence identities. This mode implies `--verify-remote`. Recurring workflows use `--verify-remote` plus the GitHub Deployment ledger over their scanned, exported, metadata-complete candidate.
+- In the full-extraction publisher, the assured archive is fetched only after its exact artifact ID, name, canonical archive digest, size, unexpired state, archive URL, producing attempt one, and producing `GITHUB_SHA` match the immutable upload receipt and a final current-owner re-read passes. A later owner attempt is permitted only through the explicit publication-recovery roles — exact cross-run `pending` takeover (record, claim, resolve with a durably terminal origin, takeover receipt plus artifact member, and stable double inventory evidence) or no-upload `in_progress` reconciliation — and may reuse, but not produce or replace, that attempt-one authority. Archive and assured-manifest verification then precede Kaggle staging.
 - `--publication-ledger` defaults to `local`. `github-deployment` is the GitHub Actions release mode and requires exact remote verification; `--require-durable-intent` additionally fails closed unless that external ledger is active. Durable mode requires the Actions context, `GH_TOKEN`, `actions: read`, `deployments: write`, `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`, default-head enforcement, and the exact non-cancelling `nbadb-kaggle-publish` job mutex. The local ledger, process mutex, and host lock do not provide crash- or cross-host-durable admission.
+- Full extraction grants its publisher `actions: write` for post-publication metadata closeout. After exact upload or reconciliation, metadata head `M` must be the frozen source or one direct, non-merge, byte-reproducible `dataset-metadata.json`-only child with the fixed commit subject. A child `M` is accepted only after an explicitly dispatched `.github/workflows/ci.yml` run is directly bound to `M` and its fully paginated inventory contains exactly one successful `workflow-lint`, `lint`, `metadata`, `typecheck`, `docs`, and `test` job. Each job is direct-verified and the default ref must still equal `M`; an unchanged source skips CI but still records metadata closeout.
 - `nbadb schema` groups tables by output prefix. Analysis-ready convenience outputs use the `analytics_*` prefix.
 
 <CourtDivider label="Exact signatures" />
@@ -531,13 +610,13 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 
 ### Pipeline commands
 
-| Command               | What it does                                                                            | Positional args | Options                                                                                                                                  |
-| --------------------- | --------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `nbadb init`          | Full rebuild across historical seasons                                                  | —               | `--data-dir/-d`, `--format/-f` (repeatable), `--season-start/-s` (default: `1946`), `--season-end/-e`, `--verbose/-v`, `--quality-check` |
-| `nbadb daily`         | Current-season refresh focused on recent games                                          | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
-| `nbadb live-snapshot` | Append active or explicit live game snapshots                                           | —               | `--data-dir/-d`, `--game-id` (repeatable), `--snapshot-at`, `--verbose/-v`                                                               |
-| `nbadb monthly`       | Refresh the last 3 seasons                                                              | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
-| ~~`nbadb full`~~      | ~~Retry failed extractions and fill historical gaps~~ (deprecated — use `backfill run`) | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
+| Command               | What it does                                                                                    | Positional args | Options                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `nbadb init`          | Full rebuild across historical seasons                                                          | —               | `--data-dir/-d`, `--format/-f` (repeatable), `--season-start/-s` (default: `1946`), `--season-end/-e`, `--verbose/-v`, `--quality-check` |
+| `nbadb daily`         | Refresh current/open-season, recent-game, current-entity, applicable-route, and live data       | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
+| `nbadb live-snapshot` | Append active or explicit live game snapshots                                                   | —               | `--data-dir/-d`, `--game-id` (repeatable), `--snapshot-at`, `--verbose/-v`                                                               |
+| `nbadb monthly`       | Refresh configured recent seasons with season-local discovery, applicable routes, and live data | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
+| ~~`nbadb full`~~      | ~~Retry failed extractions and fill historical gaps~~ (deprecated — use `backfill run`)         | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
 
 ### Backfill commands
 
@@ -550,32 +629,33 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 
 ### Inspection and quality commands
 
-| Command                 | What it does                                                    | Positional args     | Options                                                                                                                                                                                                                                                                         |
-| ----------------------- | --------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nbadb schema [TABLE]`  | List all discovered output tables or show lineage for one table | optional `TABLE`    | —                                                                                                                                                                                                                                                                               |
-| `nbadb status`          | Show pipeline status, watermarks, and metadata                  | —                   | `--data-dir/-d`, `--output-format/-f` (default: `text`; `json` supported)                                                                                                                                                                                                       |
-| `nbadb scan`            | Scan database for missing data, gaps, and quality issues        | —                   | `--data-dir/-d`, `--category/-c`, `--table/-t`, `--severity/-s`, `--fail-on/-F`, `--report-path/-r`, `--output-format/-f`, `--ci`, `--full-publication`, `--checkpoint-report`, `--checkpoint-manifest`, `--checkpoint-dir`, `--checkpoint-chain-id`, `--checkpoint-source-sha` |
-| `nbadb lint-sql`        | Lint SQL in SqlTransformer `_SQL` ClassVars using SQLFluff      | —                   | `--fix`, `--table/-t`, `--fail-on/-F`                                                                                                                                                                                                                                           |
-| `nbadb ask QUESTION`    | Ask the local query agent a natural-language question           | required `QUESTION` | `--limit/-l` (default: `10`), `--verbose/-v`                                                                                                                                                                                                                                    |
-| `nbadb chat`            | Launch the AI-powered NBA data analytics chat UI                | —                   | `--port/-p` (default: `8421`), `--host` (default: `127.0.0.1`)                                                                                                                                                                                                                  |
-| `nbadb journal-summary` | Export pipeline telemetry for the docs admin panel              | —                   | `--data-dir/-d`, `--output-format/-f`, `--json`, `--output-path/-o`, `--window-days`, `--limit`                                                                                                                                                                                 |
+| Command                 | What it does                                                    | Positional args     | Options                                                                                                                                                                                                                                                                                                         |
+| ----------------------- | --------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nbadb schema [TABLE]`  | List all discovered output tables or show lineage for one table | optional `TABLE`    | —                                                                                                                                                                                                                                                                                                               |
+| `nbadb status`          | Show pipeline status, watermarks, and metadata                  | —                   | `--data-dir/-d`, `--output-format/-f` (default: `text`; `json` supported)                                                                                                                                                                                                                                       |
+| `nbadb scan`            | Scan database for missing data, gaps, and quality issues        | —                   | `--data-dir/-d`, `--category/-c`, `--table/-t`, `--severity/-s`, `--fail-on/-F`, `--report-path/-r`, `--output-format/-f`, `--ci`, `--full-publication`, `--checkpoint-report`, `--checkpoint-manifest`, `--checkpoint-dir`, `--checkpoint-chain-id`, `--checkpoint-source-sha`, `--successor-generation-store` |
+| `nbadb lint-sql`        | Lint SQL in SqlTransformer `_SQL` ClassVars using SQLFluff      | —                   | `--fix`, `--table/-t`, `--fail-on/-F`                                                                                                                                                                                                                                                                           |
+| `nbadb ask QUESTION`    | Ask a catalog-matched read-only warehouse question              | required `QUESTION` | `--limit/-l` (default: `10`), `--verbose/-v`, `--strict`                                                                                                                                                                                                                                                        |
+| `nbadb chat`            | Launch the catalog Q&A Chainlit UI                              | —                   | `--port/-p` (default: `8421`), `--host` (default: `127.0.0.1`)                                                                                                                                                                                                                                                  |
+| `nbadb journal-summary` | Export pipeline telemetry for the docs admin panel              | —                   | `--data-dir/-d`, `--output-format/-f`, `--json`, `--output-path/-o`, `--window-days`, `--limit`                                                                                                                                                                                                                 |
 
 ### Distribution and artifact commands
 
-| Command                             | What it does                                                                           | Positional args | Options                                                                                                                                                                                                                                                                                         |
-| ----------------------------------- | -------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nbadb export`                      | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                                                                                                                                                                                                                                                     |
-| `nbadb download`                    | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                                                                                                                                                                                                                                                 |
-| `nbadb upload`                      | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`), `--verify-remote`, `--full-publication`, `--remote-timeout` (default: `3600`), `--remote-poll-interval` (default: `15`), `--publication-ledger` (default: `local`; `local` or `github-deployment`), `--require-durable-intent` |
-| `nbadb migrate`                     | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                                                                                                                                                                                                                                                 |
-| `nbadb docs-autogen`                | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`), `--check`                                                                                                                                                                                                                                         |
-| `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`, `--endpoint-analysis-docs-root`                                                                                                                                                                                                |
-| `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix                     | —               | `--output-dir/-o`, `--require-complete`, `--require-season-type-contract`                                                                                                                                                                                                                       |
-| `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                                    | —               | `--output-dir/-o`                                                                                                                                                                                                                                                                               |
-| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts                               | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`, `--require-result-table-contract`                                                                                                                                                                                                    |
-| `nbadb schema-annotation-audit`     | Generate schema annotation and raw/silver/gold fate audit artifacts                    | —               | `--tiers`, `--output-dir`, `--endpoint-analysis-docs-root`, `--bronze-contracts-path`, `--strict`                                                                                                                                                                                               |
-| `nbadb table-year-coverage`         | Generate table/year coverage summary artifacts                                         | —               | `--output-dir`, `--require-complete`                                                                                                                                                                                                                                                            |
-| `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d`                                                                                                                                                                                                                               |
+| Command                             | What it does                                                                           | Positional args | Options                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nbadb export`                      | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                                                                                                                                                                                                                                                                                     |
+| `nbadb download`                    | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                                                                                                                                                                                                                                                                                 |
+| `nbadb upload`                      | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`), `--verify-remote`, `--full-publication`, `--remote-timeout` (default: `3600`), `--remote-poll-interval` (default: `15`), `--publication-ledger` (default: `local`; `local` or `github-deployment`), `--require-durable-intent`, `--successor-generation-store` |
+| `nbadb migrate`                     | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                                                                                                                                                                                                                                                                                 |
+| `nbadb docs-autogen`                | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`), `--check`                                                                                                                                                                                                                                                                         |
+| `nbadb contract-assurance`          | Compile exact local pre-extraction contracts                                           | —               | `--endpoint-analysis-docs-root` (required), `--profile` (default: `pre-extraction`), `--check`, `--output-root` (default: `artifacts/contract-assurance/pre-extraction`)                                                                                                                                                        |
+| `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`, `--endpoint-analysis-docs-root`                                                                                                                                                                                                                                |
+| `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix                     | —               | `--output-dir/-o`, `--require-complete`, `--require-season-type-contract`                                                                                                                                                                                                                                                       |
+| `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                                    | —               | `--output-dir/-o`                                                                                                                                                                                                                                                                                                               |
+| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts                               | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`, `--require-result-table-contract`                                                                                                                                                                                                                                    |
+| `nbadb schema-annotation-audit`     | Generate schema annotation and raw/silver/gold fate audit artifacts                    | —               | `--tiers`, `--output-dir`, `--endpoint-analysis-docs-root`, `--bronze-contracts-path`, `--strict`                                                                                                                                                                                                                               |
+| `nbadb table-year-coverage`         | Generate table/year coverage summary artifacts                                         | —               | `--output-dir`, `--require-complete`                                                                                                                                                                                                                                                                                            |
+| `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d`                                                                                                                                                                                                                                                               |
 
 ## Related guides
 

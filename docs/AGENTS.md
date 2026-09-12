@@ -55,7 +55,7 @@ docs/
 │       ├── chart-area.tsx, chart-bar.tsx, chart-donut.tsx
 │       ├── bar-list.tsx, content-freshness.tsx, freshness-heatmap.tsx
 │       ├── status-dot.tsx, data-table.tsx
-├── content/docs/                    # MDX content (7 sections, 51 pages)
+├── content/docs/                    # MDX content (7 sections, 52 pages)
 │   ├── meta.json                    # Root nav ordering (Getting Started / Reference / Guides)
 │   ├── index.mdx                    # Docs landing
 │   ├── installation.mdx, architecture.mdx, cli-reference.mdx
@@ -65,7 +65,7 @@ docs/
 │   ├── diagrams/                    # ER, pipeline, endpoint diagrams (5 pages)
 │   ├── endpoints/                   # API endpoint documentation (8 pages)
 │   ├── lineage/                     # Data lineage traces (4 pages; machine JSON lives in lib/generated/)
-│   └── guides/                      # User and operator guides (14 pages)
+│   └── guides/                      # User and operator guides (15 pages)
 ├── lib/
 │   ├── site-config.ts               # Barrel export for split site-config modules
 │   ├── site-metrics.generated.ts    # Auto-generated homepage scoreboard metrics

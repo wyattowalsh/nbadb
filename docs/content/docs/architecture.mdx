@@ -137,6 +137,89 @@ raw -> staging -> star
 | Staging | After DuckDB load into normalized tables | Enforce warehouse-ready normalization         | Naming, typing, nullability, and range issues after load |
 | Star    | After transforms build the public model  | Protect the reader-facing analytical contract | Public-surface contract problems before export and use   |
 
+## Pre-extraction contract assurance
+
+The provider boundary preserves successful parser results before DataFrame
+construction, renaming, coercion, or schema projection. Public-safe landings and
+committed receipts retain canonical request identity, result name and ordinal,
+ordered headers or nested paths, source row ordinal, values and presence state,
+provider authority, and observation provenance. One logical call may therefore
+close several ordered result routes without being duplicated, and a valid empty
+packet remains distinct from an absent optional packet or a failed request.
+
+Additive stats or live fields land in typed lossless drift tables until they are
+semantically reviewed. Exact decoded-body capture is private evidence only: it may
+serve as optional bounded same-run
+diagnostic material, never enters any public candidate, archive, or metadata, and is
+not a completeness, resume, baseline, assurance, or
+publication dependency. Cookies, authorization data, request headers, proxy/VPN
+details, credentials, and unrestricted error bodies are excluded from landings,
+receipts, diagnostics, logs, exports, metadata, and Kaggle resources.
+
+### Request terminal accounting
+
+Request accounting uses one closed eight-state partition. Only
+`success_nonempty`, `success_empty`, and `upstream_unavailable` are
+release-terminal. The remaining states stay explicitly incomplete:
+`contract_blocked`, `transient_failed`, `response_contract_failed`,
+`unattempted`, and `unclassified`. None of those five states may be promoted to
+green coverage.
+
+The two successful response states require the exact captured response body,
+decoded result occurrences, and persisted result receipts. A positive total row
+count is `success_nonempty`; present, decoded, persisted zero-row results are
+`success_empty`. `absent_optional` describes only a result occurrence. It is
+neither an empty response nor a request-success state.
+
+`upstream_unavailable` requires complete
+`TypedUpstreamUnavailableEvidence`, not a bare digest or a failed request. Its
+independently reproduced support authority is cross-bound to the exact request,
+scope, competition, provider, source, and endpoint identities. Timeouts, retry
+exhaustion, VPN or infrastructure failures, parser failures, policy limits, and
+implementation gaps therefore remain incomplete evidence.
+
+The checked-authority dependency stays acyclic and advances in this order:
+
+```text
+terminal policy -> request surface -> competition occurrences
+-> competition applicability -> sealed implicit-competition reconciliation
+-> competition identity -> assurance
+```
+
+This dependency chain is a local structural contract. It does not by itself
+make the terminal-accounting work current, prove populated data, authorize live
+operations, or admit publication.
+
+Structural contract compilation inventories the current code and pinned provider
+surface without claiming that the model or populated data is correct.
+
+| Contract inventory               | Exact current census                                             | What the census proves                                             |
+| -------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Registered extractors            | 162, including 4 embedded static datasets                        | Every registered extraction entry is visible to coverage analysis  |
+| Staging routes                   | 438, including 4 embedded-static routes                          | Every canonical staging entry has a stable route-contract identity |
+| Schema contracts                 | 377 staging / 261 star                                           | Structural schemas cover the current route and output registries   |
+| Provider-field occurrences       | 11,323 declared; 11,323 storage-mapped; 0 unmapped               | Repeated route occurrences stay visible instead of being collapsed |
+| Public transform outputs         | 204 facts, 18 dimensions, 6 bridges, 19 aggregates, 14 analytics | All 261 current outputs are present in the structural inventory    |
+| Public numeric-column candidates | Derived from the frozen field and expression inventories         | Expression identity is finite; metric semantics are not implied    |
+
+<Callout type="warn">
+  The structural model audit passes with zero model problems and zero
+  result-table contract failures across all 438 routes and 261 outputs. Overall
+  <strong>MODEL-GREEN remains RED</strong>: observed field capture, semantic
+  model/ metric dispositions, complete request-parameter execution, and
+  deterministic assurance still have open blockers. Populated rows and remote
+  publication remain a separate DATA-GREEN gate that requires a fresh exact-SHA
+  extraction.
+</Callout>
+
+Temporal contracts keep planning policy separate from observed availability. The
+438-route inventory remains `unknown` wherever no applicable observation evidence
+exists; the 1946 sweep floor is `fallback_attempt_unverified`, not a supported-since
+claim. The 149 migrated legacy blocked rules produce 340 bounded intervals without
+widening historical holes. The deterministic temporal probe plan is no-network evidence with
+`execution_authorized=false`; it does not enable provider calls or replace the live
+planner.
+
 ## Which run mode should I pick?
 
 ```mermaid
@@ -146,7 +229,7 @@ flowchart TD
   HIST -- No --> CURRENT{"Current-season refresh?"}
   CURRENT -- Yes --> DAILY["nbadb daily\nrecent games + active surfaces"]
   CURRENT -- No --> RECENT{"Need a broader recent-history sweep?"}
-  RECENT -- Yes --> MONTHLY["nbadb monthly\nlast 3 seasons + live append"]
+  RECENT -- Yes --> MONTHLY["nbadb monthly\nrecent seasons + live closure"]
   RECENT -- No --> GAP["nbadb backfill run\nrecovery + targeted gap fill"]
 
   style INIT fill:#e1f5fe
@@ -155,18 +238,50 @@ flowchart TD
   style GAP fill:#fce4ec
 ```
 
-| Command              | Primary intent                   | Scope                                                                                                       |
-| -------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `nbadb init`         | Full historical build            | Historical seasons from `--season-start` through `--season-end`                                             |
-| `nbadb daily`        | Current-season refresh play      | Current season, recent games within `NBADB_DAILY_LOOKBACK_DAYS`, plus active player/team refresh            |
-| `nbadb monthly`      | Broader roster-and-history sweep | The last 3 seasons                                                                                          |
-| `nbadb backfill run` | Recovery and gap-fill run        | Retries failed journal entries, then scans the requested season range while skipping already-extracted work |
+| Command              | Primary intent                 | Scope                                                                                                     |
+| -------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `nbadb init`         | Full historical build          | Historical seasons from `--season-start` through `--season-end`                                           |
+| `nbadb daily`        | Current/open-season refresh    | Recent games, current entity scopes, all applicable result routes, and active live-game closure           |
+| `nbadb monthly`      | Broader recent-season refresh  | The configured recent-season window with season-local discovery, all applicable routes, and live closure  |
+| `nbadb backfill run` | Recovery and targeted gap fill | Explicit season/endpoint/pattern scopes; it does not replace recurring assurance or publication admission |
 
-<Callout type="info">
-  One subtle but important behavior: `daily`, `monthly`, and `backfill` all
-  finish by rebuilding downstream tables in <strong>replace</strong> mode. They
-  are not row-level upsert commands against the public star surface.
-</Callout>
+### Recurring one-repository transaction
+
+Daily and monthly start from the current local dataset or the latest fully
+verified exact Kaggle version and build one disposable candidate. They do not
+require a private repository, private planning store, GHCR package, or remote
+generation pointer.
+
+```text
+reconcile unresolved publication -> verify exact Kaggle parent
+-> compile complete request universe -> persist public-safe receipts
+-> replace request-owned scopes -> rebuild all stable outputs
+-> freeze dynamic inventory -> scan and assure candidate
+-> durable intent -> upload at most once -> exact remote readback
+```
+
+The request universe reaches a fixed point over games, dates, players, teams,
+player-team-seasons, live games, and provider-owned dependent workloads. Missing
+or partial evidence stays incomplete; a present and verified zero-row result is
+typed-zero completion. Successful calls preserve request/result/header-or-path/
+ordinal/value/presence/provenance authority, including additive fields. A
+baseline journal row cannot suppress a mutable request.
+
+Persistence replaces each exact request-owned source slice in one DuckDB
+transaction, so upstream corrections, deletions, and valid-empty responses
+remove stale rows without touching out-of-scope history. Every stable transform
+is rebuilt, including schema-valid empty outputs. The table and resource
+inventory comes from the runtime registries and the actually observed
+conditional lossless routes; it is not a hard-coded product constant.
+
+Automated publication uses the existing `nbadb-kaggle-publish` FIFO mutex and
+GitHub Deployment ledger. An unresolved intent is reconciled before any later
+candidate or upload. Exact already-published evidence closes the same intent
+without another mutation; ambiguous evidence blocks the writer. Local
+checkpoints, caches, and artifacts are bounded recovery or diagnostics only and
+never become a second dataset authority.
+
+See <a href="/docs/guides/daily-updates">Daily Updates</a> for the operator runbook.
 
 ## If the run goes sideways
 

@@ -219,7 +219,11 @@ Pay attention to the `is_current = true` filter -- without it you would get dupl
 
 **Stop 4 -- Read an aggregate: `agg_player_season`**
 
-This table rolls the per-game fact into season totals. Compare its grain (one row per player-season) to the fact's grain (one row per player-game). Aggregates are pre-computed so you do not need to write `GROUP BY` for common roll-ups.
+This table rolls the per-game fact into totals at player-team-season-season-type
+grain. A traded player can therefore have multiple team rows in one season, and
+regular-season and playoff rows remain distinct. Compare that grain with the
+fact's player-game grain; aggregate team rows explicitly when you need one
+cross-team player-season total.
 
 **Stop 5 -- Explore a bridge: `bridge_game_official`**
 

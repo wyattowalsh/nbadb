@@ -14,13 +14,18 @@ receipt-bound committed next manifest.
 - **THEN** the system does not dispatch a child iteration
 
 ### Requirement: Dispatch returns the authoritative child identity
-The system SHALL request workflow dispatch with exact run details and SHALL use
-the returned positive workflow-run ID and URLs as the authoritative child
-identity.
+The system SHALL post a workflow-dispatch body containing exactly `ref` and
+`inputs`, SHALL NOT send the removed `return_run_details` field, and SHALL use
+the response's positive `workflow_run_id`, `run_url`, and `html_url` as the
+authoritative child identity.
 
 #### Scenario: Dispatch returns a valid identity
-- **WHEN** the API response contains a positive run ID and matching run and HTML URLs
+- **WHEN** the exact documented request body succeeds and the API response contains a positive run ID and matching run and HTML URLs
 - **THEN** the system records that exact identity and reads that exact run for acknowledgement
+
+#### Scenario: Dispatch request contains an unsupported field
+- **WHEN** the request body contains `return_run_details` or any key other than `ref` and `inputs`
+- **THEN** workflow contract validation fails before release
 
 #### Scenario: Dispatch response lacks exact identity
 - **WHEN** the API response is empty, malformed, or contains inconsistent IDs or URLs
@@ -66,8 +71,11 @@ workflow history without a result-capping API search filter and MUST select
 
 ### Requirement: Dispatch preserves source and manifest provenance
 The system MUST verify the pinned source SHA, trusted branch ancestry, workflow
-file blob, committed manifest artifact identity, iteration budget, and all
-forwarded extraction inputs before posting the child payload.
+file blob, committed manifest artifact identity, fixed iteration budget,
+RequestUniverse generation, public observation/body/bodyless authority,
+field-temporal/model authority, and all forwarded extraction inputs before
+posting the child payload. A child MUST NOT extend or replace any authority
+generation and MUST obtain its own current strictly-free execution admission.
 
 #### Scenario: Workflow source is unchanged
 - **WHEN** the checked-out source, trusted branch workflow blob, and committed manifest all match their expected provenance
@@ -76,6 +84,10 @@ forwarded extraction inputs before posting the child payload.
 #### Scenario: Source or workflow definition drifts
 - **WHEN** ancestry, checked-out SHA, workflow blob, or committed manifest identity differs
 - **THEN** the system blocks dispatch
+
+#### Scenario: Child authority or free admission differs
+- **WHEN** a forwarded request/body/field/model digest changes or the child lacks a current exact free-capacity receipt
+- **THEN** the child starts no provider work and cannot reinterpret the parent manifest
 
 ### Requirement: Unacknowledged children receive bounded cleanup
 The system SHALL install exit and signal cleanup before posting dispatch and
@@ -98,22 +110,25 @@ them in the workflow summary.
 - **WHEN** exact returned identity and provenance checks pass
 - **THEN** operators and later automation receive the same positive child run ID and URL
 
-### Requirement: Dispatch-only reruns consume the exact prior-attempt receipt
-The dispatch job MAY reconcile a failed dispatch on a later run attempt only
-from the immutable committed-manifest receipt exposed by checkpoint outputs.
-The manifest artifact name MUST encode the current workflow run, the exact next
-iteration, and a positive artifact attempt no greater than the current
-`run_attempt`. The owner run's current attempt and source SHA, and the direct
-artifact ID, digest, size, expiry, name, and workflow provenance MUST match.
+### Requirement: Dispatch reconciliation consumes the exact prior attempt-one receipt
+The dispatch job MAY continue on a later workflow attempt only through the
+dedicated non-mutating dispatch-reconciliation admission role and only from the
+immutable committed-manifest receipt produced by attempt one and exposed by
+checkpoint outputs. The manifest artifact name MUST encode the current workflow
+run, the exact next iteration, and exact producing attempt one. The current owner
+run MAY report the later reconciliation attempt, but its run, source SHA, head,
+workflow identity, and direct artifact ID, digest, size, expiry, and name MUST
+match the attempt-one authority. No later attempt may create or substitute a new
+committed-manifest authority.
 
-#### Scenario: Prior-attempt committed receipt remains available
-- **WHEN** a dispatch-only rerun receives an exact artifact from an earlier positive attempt of the current run and all receipt provenance matches
+#### Scenario: Exact attempt-one committed receipt remains available
+- **WHEN** a dedicated later dispatch-reconciliation attempt receives the exact attempt-one artifact from the current run and all receipt provenance matches
 - **THEN** it may continue through idempotent child admission and dispatch acknowledgement
 
-#### Scenario: Receipt claims a future or different identity
-- **WHEN** the artifact name claims another run, a non-next iteration, or an attempt greater than the current run attempt
+#### Scenario: Receipt claims a later-produced or different identity
+- **WHEN** the artifact name claims another run, a non-next iteration, or a producing attempt other than one
 - **THEN** redispatch fails before using the artifact
 
 #### Scenario: Full rerun deleted the immutable receipt
 - **WHEN** the exact checkpoint output artifact is absent or its REST identity no longer matches
-- **THEN** redispatch fails closed and does not synthesize a current-attempt artifact name
+- **THEN** redispatch fails closed and does not synthesize another artifact name

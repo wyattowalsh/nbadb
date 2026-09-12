@@ -26,11 +26,12 @@ Use this guide as the **loading dock** for the public nbadb dataset on Kaggle: [
 
 ## Choose your Kaggle route
 
-| If you need to…                                  | Start here                                                | Why                                                     |
-| ------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------- |
-| Get a ready-to-use local dataset through the CLI | [Download via the nbadb CLI](#download-via-the-nbadb-cli) | Fastest path into the rest of the nbadb command surface |
-| Control the download inside Python               | [Download via `kagglehub`](#download-via-kagglehub)       | Easier notebook or script integration                   |
-| Publish your own refreshed build                 | [Upload your own build](#upload-your-own-build)           | Handles metadata generation and dataset upload          |
+| If you need to…                                  | Start here                                                                | Why                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Get a ready-to-use local dataset through the CLI | [Download via the nbadb CLI](#download-via-the-nbadb-cli)                 | Fastest path into the rest of the nbadb command surface      |
+| Control the download inside Python               | [Download via `kagglehub`](#download-via-kagglehub)                       | Easier notebook or script integration                        |
+| Understand recurring baseline admission          | [Exact recurring baseline admission](#exact-recurring-baseline-admission) | Separates a consumer download from verified update authority |
+| Publish your own refreshed build                 | [Upload your own build](#upload-your-own-build)                           | Handles metadata generation and dataset upload               |
 
 ## Download via the nbadb CLI
 
@@ -39,6 +40,12 @@ nbadb download
 ```
 
 That command downloads the dataset, copies the files into your data directory, and makes the local folder ready for the rest of the CLI.
+
+<Callout type="info">
+  A generic `nbadb download` is the consumer convenience path. Automated
+  recurring admission additionally binds the exact positive remote version,
+  complete inventory readback, and assurance evidence before update work.
+</Callout>
 
 ## Download via `kagglehub`
 
@@ -50,6 +57,34 @@ print(f"Dataset downloaded to: {path}")
 ```
 
 Use this route when you want direct control over download handling inside Python.
+
+## Exact recurring baseline admission
+
+Daily and monthly use the latest exact, positive, fully verified Kaggle version as
+their public parent. The client resolves the version from validated marker evidence,
+paginates its complete file inventory, streams every resource through SHA-256
+readback, validates the assured manifest and terminal report, and installs the
+download atomically before update work.
+
+A cache directory name, generic latest pointer, partial download, GitHub artifact, or
+local checkpoint is not a baseline receipt. There is no private-baseline receipt,
+private repository, GHCR package, or generation pointer in the recurring contract.
+Actions artifacts and caches remain bounded diagnostics or same-run acceleration.
+
+<Callout type="warn">
+  If the GitHub Deployment ledger contains an unresolved Kaggle mutation, the
+  recurring workflow reconciles that exact intent before it downloads a new
+  parent, builds another candidate, or invokes Kaggle. Exact already-published
+  evidence closes the intent without a second upload; ambiguous evidence blocks
+  the writer.
+</Callout>
+
+The recurring candidate preserves public-safe request/result/header-or-path/ordinal/
+value/presence/provenance receipts, rebuilds every stable output, and derives its
+resource denominator from the runtime registries plus conditional lossless tables
+actually observed. Exact decoded-body capture is private evidence only: it may serve
+bounded diagnostics, never enters any public candidate, archive, or metadata, and is
+never a recurring baseline or publication dependency.
 
 ## What lands on disk
 
@@ -132,19 +167,20 @@ readback, and the GitHub Actions-only
 
 ### Preflight checklist
 
-| Confirm this first                                                                 | Why                                                                  |
-| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Your target data directory already contains the dataset you want to publish        | `upload` publishes what is on disk                                   |
-| Kaggle credentials are available to the environment that `kagglehub` uses          | Upload cannot authenticate without them                              |
-| `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default | Metadata and upload target must agree                                |
-| CSV export headers match the generated table schemas                               | Kaggle resource schemas are order-bound                              |
-| `dataset-metadata.json` declares every public file or directory you intend to ship | Upload stages only declared resources                                |
-| `assured-artifact-manifest.json` exists for a full release                         | `--full-publication` fails closed without it                         |
-| `terminal-assurance-report.json` exists for a full release                         | Full publication binds terminal checkpoint and blocked-lane evidence |
-| The release job grants `actions: read` and `deployments: write`                    | Durable intent verifies the executor and writes Deployment receipts  |
-| `GH_TOKEN` and `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA` are present                   | GitHub ledger and source binding fail closed without them            |
-| Default-head enforcement names the approved source or exact metadata-only child    | A moved branch cannot publish bytes from an unapproved source        |
-| The job owns `nbadb-kaggle-publish` with `queue: max` and no cancellation          | The ledger verifies the exact cross-workflow publisher mutex         |
+| Confirm this first                                                                   | Why                                                                          |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Your target data directory already contains the dataset you want to publish          | `upload` publishes what is on disk                                           |
+| Kaggle credentials are available to the environment that `kagglehub` uses            | Upload cannot authenticate without them                                      |
+| `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default   | Metadata and upload target must agree                                        |
+| CSV export headers match the generated table schemas                                 | Kaggle resource schemas are order-bound                                      |
+| `dataset-metadata.json` declares every public file or directory you intend to ship   | Upload stages only declared resources                                        |
+| `assured-artifact-manifest.json` exists for a full release                           | `--full-publication` fails closed without it                                 |
+| `terminal-assurance-report.json` exists for a full release                           | Full publication binds the complete terminal checkpoint evidence             |
+| A recurring parent has an exact positive version and complete readback receipt       | A cache path or partial latest download cannot authorize recurring execution |
+| The full-extraction release job grants `actions: write` and `deployments: write`     | Durable intent and explicit metadata CI closeout both fail closed            |
+| `GH_TOKEN` and `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA` are present                     | GitHub ledger and source binding fail closed without them                    |
+| Default-head enforcement names the approved source or exact metadata-only child      | A moved branch cannot publish bytes from an unapproved source                |
+| The job owns the named `nbadb-kaggle-publish` group with `cancel-in-progress: false` | The ledger verifies the exact cross-workflow publisher mutex                 |
 
 ### Operator preflight
 
@@ -190,10 +226,13 @@ uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" \
   --require-durable-intent
 ```
 
-That job supplies `GH_TOKEN`, `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`,
+The full-extraction publisher supplies `GH_TOKEN`, `NBADB_KAGGLE_PUBLICATION_SOURCE_SHA`,
 `NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD=true`, and, for an approved metadata-only child,
-`NBADB_KAGGLE_EXPECTED_DEFAULT_HEAD_SHA`. It also grants `actions: read` and
+`NBADB_KAGGLE_EXPECTED_DEFAULT_HEAD_SHA`. It also grants `actions: write` and
 `deployments: write` and owns the exact `nbadb-kaggle-publish` concurrency stanza.
+Daily and monthly use the same durable ledger and mutex with `actions: read`,
+`contents: read`, and `deployments: write`; they generate metadata inside the
+disposable candidate and do not commit it back to the repository.
 
 The full-extraction workflow produces the assured bundle in the required order:
 export every format, run the hard scan with required silver/gold domain anchors,
@@ -201,9 +240,19 @@ declared row-count parity, plus a canonical
 manifest/database/chain/source verification of the terminal checkpoint's complete
 lane/run/coverage inventory, and only
 then build `assured-artifact-manifest.json`. Do not re-export after that manifest is
-built; the publisher must consume the exact bytes that passed assurance. It resolves
-the exact GitHub artifact ID, verifies the downloaded archive SHA-256 against the
-upload result, and revalidates the assured inventory before Kaggle staging.
+built; the publisher must consume the exact bytes that passed assurance. The artifact
+ID, name, canonical digest, size, unexpired state, archive URL, and producing
+`GITHUB_SHA` must bind the immutable attempt-one upload. The publisher repeats the
+current owner read before fetching archive bytes. A later current owner attempt is
+accepted only by the explicit publication-recovery roles — exact cross-run `pending`
+takeover with a durably terminal origin, a takeover receipt plus artifact member, and
+stable double inventory evidence, or no-upload `in_progress` reconciliation — and may
+reuse, but never create or replace, that attempt-one authority. It then verifies the
+downloaded archive SHA-256 and safe layout against
+that receipt and revalidates the assured inventory before Kaggle staging.
+The full ZIP inventory is validated before extraction: empty archives, duplicate
+normalized paths, absolute or traversing paths, symlinks, special files, and
+destination collisions fail before any assured member is consumed.
 For a manual scan, download the terminal manifest and checkpoint artifacts shown above;
 the assured publication bundle alone intentionally cannot self-attest its extraction proof.
 
@@ -216,10 +265,12 @@ version, but successful verification is neither marker-only nor upload-only. It
 paginates the exact version's complete Kaggle API file inventory, requires it to equal
 the local staged inventory, and downloads one file at a time for SHA-256 readback.
 `--full-publication` adds the pre-submission assured-manifest and terminal-report
-requirements, validates the checkpoint's complete lane/run/coverage inventory, enforces
-the exact file-versus-partition-directory resource contract, and compares every table's
-ordered schema and row count across DuckDB, SQLite, CSV, and Parquet. Each temporary file
-is removed before the next one, bounding readback
+requirements. Schema v3 validates the full-extraction checkpoint's complete
+lane/run/coverage inventory. Recurring `--verify-remote` validates its frozen
+candidate metadata and runtime-derived public inventory before durable mutation.
+Both enforce the exact file-versus-partition-directory resource contract and
+compare every table's ordered schema and row count across DuckDB, SQLite, CSV, and
+Parquet. Each temporary file is removed before the next one, bounding readback
 storage to the largest resource. nbadb does not infer a version from Kaggle
 cache-directory names. The marker and persisted publication records must have valid
 identity digests, state, transition evidence, and resolved versions before they can
@@ -240,6 +291,23 @@ exact Deployment and its complete at-most-two-status set through REST, ignores s
 transport order and sorts chronology locally, and requires the final two of three
 observations to agree. Duplicate chronology, more than one unresolved intent, or an
 unresolved intent behind the current head fails closed.
+
+Direct terminal resolution additionally requires the execution to match a fresh
+current executor's run ID, attempt, publisher job, and admission digest, and requires
+the deployment origin, exact claim, nonce, and latest status to remain unchanged. The
+final exact remote claim observation is bracketed by active-executor checks, so claim
+drift during the first check or executor drift during the observation writes no
+success status. A later attempt of the same run may use only reconciliation. A
+different run may recover an unresolved intent exactly two ways: exact cross-run
+`pending` takeover (`record_pending_takeover` binds an uploaded takeover receipt and
+artifact member durably, `claim_pending_takeover` claims it exactly once with that
+durable status still the ledger head and the origin executor proven durably terminal,
+then `mark_resolved` re-verifies the origin live) or no-upload `in_progress`
+reconciliation from exact remote marker/version/inventory/readback evidence. The FIFO
+publisher mutex
+serializes repository-sanctioned writers. GitHub offers no conditional append spanning
+job liveness and Deployment status history, so this sequential handshake does not claim
+atomic exclusion of an arbitrary out-of-band status writer after the final claim read.
 
 | Baseline result                                                                        | Upload behavior                                                                                                                                       | Manifest evidence                                                                                                                                 |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -273,12 +341,28 @@ Once `in_progress` is visible, any crash or exception is reconciliation-only: no
 may enter `dataset_upload` until exact marker/version/full-hash evidence resolves the
 intent. A missing or nonmatching marker keeps the dataset blocked.
 
-Full, daily, and monthly workflows publish only from the approved default-branch head.
-They restore `kaggle-publication-state.json` from the dataset-wide Actions cache before
-publication, save it in an `always()` step, and include it in publication artifacts.
-That file is secondary recovery evidence. The GitHub Deployment intent plus the
-verified `nbadb-kaggle-publish` job mutex is the crash- and cross-host-durable handoff.
-Pending publishers wait through `queue: max` instead of replacing one another.
+Full extraction publishes only from the approved default-branch head. Daily and
+monthly jobs share the same `nbadb-kaggle-publish` mutex, durable Deployment
+ledger, exact remote readback, and default-head gate. They download the public
+parent, run the recurring command, scan, export, generate metadata inside the
+disposable candidate, then call `nbadb upload --verify-remote
+--publication-ledger github-deployment --require-durable-intent`. No recurring
+generation store, private pointer, or metadata commit participates.
+
+After an exact upload or remote reconciliation, the full-extraction publisher performs
+post-publication metadata closeout without another Kaggle mutation. It resolves
+metadata head `M` as either the frozen source or one direct, non-merge child with the
+fixed `chore: regenerate dataset-metadata.json` subject, only
+`dataset-metadata.json` changed, and bytes reproduced from the assured data. A child
+`M` causes an explicit `.github/workflows/ci.yml` dispatch with request body
+`{ref: <default branch>, inputs: {}}`; the returned run ID and URLs are direct-verified
+at exact `M`. Closeout fully paginates up to 1,000 jobs and accepts exactly one
+successful `workflow-lint`, `lint`, `metadata`, `typecheck`, `docs`, and `test` job,
+direct-verifies each job, then rechecks that the default ref still equals `M`. An
+unchanged source skips CI but still writes the run/attempt-scoped metadata-closeout
+receipt. This is why full extraction needs `actions: write`. Daily and monthly
+use `actions: read`, `contents: read`, and `deployments: write`; their metadata
+stays inside the candidate dataset rather than creating a repository child.
 
 Within one process, uploads use a mutex. Processes sharing a host and log directory
 also take an advisory file lock through `fcntl` on POSIX or `msvcrt` on Windows.
@@ -298,10 +382,10 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
 - The CLI default message is `"Automated update"`.
 - nbadb ensures `dataset-metadata.json` exists before upload.
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
-- The metadata preview generated without `--data-dir` declares 510 resources: two database files plus CSV and Parquet entries for all 254 runtime transform outputs. A concrete complete export also includes all 416 canonical staging surfaces, for 1,342 resources. A fully assured complete publication declares 1,344 after adding the assured artifact manifest and terminal assurance report.
-- Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
+- The metadata preview generated without `--data-dir` declares 524 resources: two database files plus CSV and Parquet entries for all 261 runtime transform outputs. A concrete base export contains 695 tables—434 canonical staging surfaces plus 261 transform outputs—and 1,392 data resources. Full publication adds the assured artifact manifest and terminal assurance report for 1,394 resources. Each actually observed typed lossless staging table adds one table plus CSV and Parquet resources: either conditional landing yields 696 tables and 1,396 resources, while both yield 697 tables and 1,398 resources.
+- Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before upload. Recurring workflows keep that generated file inside the disposable candidate rather than committing it.
 - Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift. Full publication additionally checks exact resource kinds and four-format table/schema/row parity, including reconstructed Hive partition columns.
-- Use `--verify-remote` when any update needs exact Kaggle version and full resource-digest readback. Use `--full-publication` for a terminal full extraction; it implies remote verification and additionally revalidates `assured-artifact-manifest.json` plus the matching terminal assurance report. Both modes upload at most once, then poll until the exact-version API inventory and every streamed file digest match or `--remote-timeout` expires. Defaults are 3,600 seconds and a 15-second poll interval.
+- Use `--verify-remote` when any update needs an exact Kaggle version and full resource-digest readback. Use `--full-publication` only with a complete schema-v3 full-extraction assurance bundle; it implies remote verification and revalidates `assured-artifact-manifest.json` plus the matching terminal report. Recurring workflows use `--verify-remote` with durable intent over their frozen candidate. Both modes upload at most once, then poll until the exact-version API inventory and every streamed file digest match or `--remote-timeout` expires. Defaults are 3,600 seconds and a 15-second poll interval.
 - `--publication-ledger` accepts `local` or `github-deployment` and defaults to `local`. GitHub Deployment mode requires remote verification. `--require-durable-intent` requires GitHub Deployment mode and fails closed unless its external write-ahead intent is active.
 - The same `--remote-timeout` independently bounds each full-bundle baseline reconciliation, any full readback needed when a marker appears during the marker-404 bootstrap recheck, and the post-upload readback phase. A full-bundle reconciliation that overruns its deadline fails closed before a new upload.
 - The upload path validates local metadata/resources, stages only declared files and directories plus the publication marker, rejects symlinks/path traversal, and uses hardlinks where the filesystem permits so the upload root does not duplicate the source tree. It reserves disk headroom before KaggleHub archive creation and fails immediately on local permanent errors such as `ENOSPC`.
@@ -312,6 +396,22 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
   upload, use the generated file as the copy source rather than editing a second
   README by hand.
 </Callout>
+
+## Publication receipt chain
+
+Each public release advances through one chain of durable receipts. DATA-GREEN is the
+final closeout state, not an upload result:
+
+```mermaid
+flowchart LR
+    Capture["Private capture\nprovider bodies stay private"] --> Disposition["Public disposition\nexplicit allowlist"]
+    Disposition --> Prepub["Prepublication admission"]
+    Prepub --> Handoff["Sealed terminal handoff\nTerminalPublicationHandoffV1"]
+    Handoff --> Readback["Remote readback\nexact version + inventory + digests"]
+    Readback --> Human["Human verification receipt"]
+    Human --> DocsParity["Docs parity"]
+    DocsParity --> DataGreen["DATA-GREEN closeout"]
+```
 
 ## Related routes
 
