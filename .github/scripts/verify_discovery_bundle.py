@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+from nbadb.core.nba_api_provenance import normalize_nba_api_provider_authority
 from nbadb.core.types import SeasonType
 from nbadb.orchestrate.discovery_artifacts import (
     ArtifactKind,
@@ -291,6 +292,12 @@ def verify_discovery_bundle(
 ) -> dict[str, int]:
     summary = _read_object(summary_path, label="discovery seed summary")
     manifest = _read_object(manifest_path, label="lane manifest")
+    try:
+        normalize_nba_api_provider_authority(manifest.get("provider_authority"))
+    except ValueError as exc:
+        raise DiscoveryBundleVerificationError(
+            f"lane manifest provider authority is invalid: {exc}"
+        ) from exc
     manifest_lanes = _manifest_lanes(manifest)
     _require(bool(manifest_lanes), "lane manifest has no matrix lanes")
     _require(

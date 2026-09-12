@@ -22,7 +22,7 @@ inputs:
     required: false
     default: ""
   full-publication:
-    description: "Require nonempty full-dataset publication anchors"
+    description: "Require nonempty publication anchors plus checkpoint or schema-v7 successor authority"
     required: false
     default: "false"
   checkpoint-report:
@@ -45,6 +45,10 @@ inputs:
     description: "Source commit bound to the terminal checkpoint"
     required: false
     default: ""
+  successor-generation-store:
+    description: "Successor generation store whose current pointer must own schema-v7 admission"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -62,6 +66,7 @@ runs:
         CHECKPOINT_DIR: ${{ inputs.checkpoint-dir }}
         CHECKPOINT_CHAIN_ID: ${{ inputs.checkpoint-chain-id }}
         CHECKPOINT_SOURCE_SHA: ${{ inputs.checkpoint-source-sha }}
+        SUCCESSOR_GENERATION_STORE: ${{ inputs.successor-generation-store }}
       run: |
         mkdir -p "$REPORT_DIR"
         args=(
@@ -79,20 +84,29 @@ runs:
           args+=(--category "$CATEGORIES")
         fi
         if [ "$FULL_PUBLICATION" = "true" ]; then
-          if [ -z "$CHECKPOINT_REPORT" ] || [ -z "$CHECKPOINT_MANIFEST" ] || \
-             [ -z "$CHECKPOINT_DIR" ] || [ -z "$CHECKPOINT_CHAIN_ID" ] || \
-             [ -z "$CHECKPOINT_SOURCE_SHA" ]; then
-            echo "::error::full-publication scan requires all canonical checkpoint inputs"
-            exit 1
+          if [ -n "$CHECKPOINT_REPORT" ] || [ -n "$CHECKPOINT_MANIFEST" ] || \
+             [ -n "$CHECKPOINT_DIR" ] || [ -n "$CHECKPOINT_CHAIN_ID" ] || \
+             [ -n "$CHECKPOINT_SOURCE_SHA" ]; then
+            if [ -z "$CHECKPOINT_REPORT" ] || [ -z "$CHECKPOINT_MANIFEST" ] || \
+               [ -z "$CHECKPOINT_DIR" ] || [ -z "$CHECKPOINT_CHAIN_ID" ] || \
+               [ -z "$CHECKPOINT_SOURCE_SHA" ]; then
+              echo "::error::full-publication scan requires all canonical checkpoint inputs"
+              exit 1
+            fi
+            args+=(
+              --full-publication
+              --checkpoint-report "$CHECKPOINT_REPORT"
+              --checkpoint-manifest "$CHECKPOINT_MANIFEST"
+              --checkpoint-dir "$CHECKPOINT_DIR"
+              --checkpoint-chain-id "$CHECKPOINT_CHAIN_ID"
+              --checkpoint-source-sha "$CHECKPOINT_SOURCE_SHA"
+            )
+          else
+            args+=(--full-publication)
+            if [ -n "$SUCCESSOR_GENERATION_STORE" ]; then
+              args+=(--successor-generation-store "$SUCCESSOR_GENERATION_STORE")
+            fi
           fi
-          args+=(
-            --full-publication
-            --checkpoint-report "$CHECKPOINT_REPORT"
-            --checkpoint-manifest "$CHECKPOINT_MANIFEST"
-            --checkpoint-dir "$CHECKPOINT_DIR"
-            --checkpoint-chain-id "$CHECKPOINT_CHAIN_ID"
-            --checkpoint-source-sha "$CHECKPOINT_SOURCE_SHA"
-          )
         fi
         uv run nbadb scan "${args[@]}"
 

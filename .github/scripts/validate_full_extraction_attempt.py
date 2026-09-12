@@ -69,7 +69,21 @@ def validate_source_mode(env: Mapping[str, str]) -> tuple[int, int, str]:
     artifact_id = _value(env, "FULL_EXTRACTION_LANE_MANIFEST_ARTIFACT_ID")
     artifact_digest = _value(env, "FULL_EXTRACTION_LANE_MANIFEST_ARTIFACT_DIGEST").lower()
     resume_run_id = _value(env, "FULL_EXTRACTION_RESUME_SOURCE_RUN_ID")
+    resume_run_attempt = _value(env, "FULL_EXTRACTION_RESUME_SOURCE_RUN_ATTEMPT")
+    resume_artifact_name = _value(env, "FULL_EXTRACTION_RESUME_SOURCE_MANIFEST_ARTIFACT_NAME")
+    resume_artifact_id = _value(env, "FULL_EXTRACTION_RESUME_SOURCE_MANIFEST_ARTIFACT_ID")
+    resume_artifact_digest = _value(
+        env,
+        "FULL_EXTRACTION_RESUME_SOURCE_MANIFEST_ARTIFACT_DIGEST",
+    ).lower()
     artifact_fields = (artifact_name, artifact_id, artifact_digest)
+    resume_fields = (
+        resume_run_id,
+        resume_run_attempt,
+        resume_artifact_name,
+        resume_artifact_id,
+        resume_artifact_digest,
+    )
 
     if lane_run_id and resume_run_id:
         raise SystemExit("lane_manifest_run_id and resume_source_run_id are mutually exclusive")
@@ -77,8 +91,26 @@ def validate_source_mode(env: Mapping[str, str]) -> tuple[int, int, str]:
         raise SystemExit(
             "lane_manifest_json cannot be combined with a source run or lane artifact metadata"
         )
+    if inline_manifest and any(resume_fields):
+        raise SystemExit(
+            "lane_manifest_json cannot be combined with resume source artifact metadata"
+        )
     if resume_run_id and any(artifact_fields):
         raise SystemExit("resume_source_run_id cannot be combined with lane artifact metadata")
+    if any(resume_fields) and not all(resume_fields):
+        raise SystemExit(
+            "resume source inputs are all-or-none: run id, run attempt, manifest artifact "
+            "name, artifact id, and artifact digest must be provided together"
+        )
+    if resume_run_id:
+        if _POSITIVE_INT_RE.fullmatch(resume_run_attempt) is None:
+            raise SystemExit("resume_source_run_attempt must be a positive integer")
+        if _POSITIVE_INT_RE.fullmatch(resume_artifact_id) is None:
+            raise SystemExit("resume_source_manifest_artifact_id must be a positive integer")
+        if _DIGEST_RE.fullmatch(resume_artifact_digest) is None:
+            raise SystemExit(
+                "resume_source_manifest_artifact_digest must be sha256:<64 lowercase hex>"
+            )
     if not lane_run_id and any(artifact_fields):
         raise SystemExit("lane artifact metadata requires lane_manifest_run_id")
     if bool(artifact_id) != bool(artifact_digest):
@@ -109,7 +141,7 @@ def validate_source_mode(env: Mapping[str, str]) -> tuple[int, int, str]:
             resume_run_id,
             label="resume_source_run_id",
         )
-        mode = "resume_source"
+        mode = "continue"
     elif inline_manifest:
         mode = "inline"
     else:
@@ -122,6 +154,14 @@ def validate_source_mode(env: Mapping[str, str]) -> tuple[int, int, str]:
             )
         if not chain_id:
             raise SystemExit("lane or resume source mode requires an explicit chain_id")
+
+    operation = _value(env, "FULL_EXTRACTION_OPERATION")
+    if operation not in {"targeted_smoke", "extract", "continue"}:
+        raise SystemExit("operation must be exactly targeted_smoke, extract, or continue")
+    if operation == "continue" and mode != "continue":
+        raise SystemExit("operation=continue requires the exact five-field resume source")
+    if operation != "continue" and mode == "continue":
+        raise SystemExit("resume source inputs require operation=continue")
 
     print(
         "Full-extraction attempt source contract passed: "

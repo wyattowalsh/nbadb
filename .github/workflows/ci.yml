@@ -57,7 +57,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
-      - run: uv sync --extra dev
+      - run: uv sync --locked --extra dev
       - name: Lint package, tests, and extraction runtime scripts
         run: |
           uv run ruff check \
@@ -66,11 +66,13 @@ jobs:
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
             .github/scripts/probe_discovery_transport.py \
+            .github/scripts/resolve_legacy_manifest_handoff.py \
             .github/scripts/run_extract_lane.py \
             .github/scripts/seed_discovery_artifacts.py \
             .github/scripts/vpn_control_plane.py \
             .github/scripts/write_lane_metadata.py \
-            .github/scripts/verify_discovery_bundle.py
+            .github/scripts/verify_discovery_bundle.py \
+            .github/scripts/workflow_source_provenance.py
       - name: Check formatting for package, tests, and extraction runtime scripts
         run: |
           uv run ruff format --check \
@@ -79,11 +81,13 @@ jobs:
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
             .github/scripts/probe_discovery_transport.py \
+            .github/scripts/resolve_legacy_manifest_handoff.py \
             .github/scripts/run_extract_lane.py \
             .github/scripts/seed_discovery_artifacts.py \
             .github/scripts/vpn_control_plane.py \
             .github/scripts/write_lane_metadata.py \
-            .github/scripts/verify_discovery_bundle.py
+            .github/scripts/verify_discovery_bundle.py \
+            .github/scripts/workflow_source_provenance.py
 
   metadata:
     runs-on: ubuntu-latest
@@ -98,7 +102,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
-      - run: uv sync --extra dev
+      - run: uv sync --locked --extra dev
       - uses: ./.github/actions/refresh-metadata
         with:
           commit: "false"
@@ -124,7 +128,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
-      - run: uv sync --extra dev
+      - run: uv sync --locked --extra dev
       - name: Type-check package and extraction runtime scripts
         run: |
           uv run ty check \
@@ -132,11 +136,13 @@ jobs:
             .github/actions/nordvpn-connect/connect.py \
             .github/actions/nordvpn-connect/supervise.py \
             .github/scripts/probe_discovery_transport.py \
+            .github/scripts/resolve_legacy_manifest_handoff.py \
             .github/scripts/run_extract_lane.py \
             .github/scripts/seed_discovery_artifacts.py \
             .github/scripts/vpn_control_plane.py \
             .github/scripts/write_lane_metadata.py \
-            .github/scripts/verify_discovery_bundle.py
+            .github/scripts/verify_discovery_bundle.py \
+            .github/scripts/workflow_source_provenance.py
 
   docs:
     runs-on: ubuntu-latest
@@ -159,7 +165,7 @@ jobs:
           node-version: "26"
           cache: pnpm
           cache-dependency-path: docs/pnpm-lock.yaml
-      - run: uv sync --extra dev
+      - run: uv sync --locked --extra dev
       - name: Install docs dependencies
         working-directory: docs
         run: pnpm install --frozen-lockfile
@@ -218,7 +224,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
-      - run: uv sync --extra dev
+      - run: uv sync --locked --extra dev
       - run: uv run pytest tests/unit --cov=src/nbadb --cov-report=term-missing
       - name: Fetch nba_api endpoint-analysis docs
         run: |

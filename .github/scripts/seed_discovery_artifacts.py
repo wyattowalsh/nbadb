@@ -12,11 +12,11 @@ from typing import Any
 
 from loguru import logger
 
+from nbadb.core.nba_api_provenance import normalize_nba_api_provider_authority
 from nbadb.core.types import SeasonType
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.discovery import EntityDiscovery
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
-from nbadb.orchestrate.player_directory_snapshot import player_ids_by_season_from_snapshot
 from nbadb.orchestrate.seasons import current_season, season_range
 from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 
@@ -334,31 +334,15 @@ async def _seed_scope(
             "seeding aggregate historical player discovery for {} seasons",
             len(scope.seasons),
         )
-        snapshot_ids_by_season = player_ids_by_season_from_snapshot(list(scope.seasons))
         ids_by_season: dict[str, list[int]] = {}
-        sources_by_season: dict[str, set[str]] = {}
         missing_refresh_seasons: list[str] = []
 
         for season in scope.seasons:
             season_scope = _player_season_scope(season)
-            cached_ids = store.load_ids(season_scope)
-            snapshot_ids = snapshot_ids_by_season.get(season, [])
-            season_ids = sorted({int(value) for value in [*cached_ids, *snapshot_ids]})
-            sources = set()
-            if cached_ids:
-                sources.add("cache")
-            if snapshot_ids:
-                sources.add("snapshot")
+            season_ids = sorted({int(value) for value in store.load_ids(season_scope)})
             if not season_ids:
                 continue
             ids_by_season[season] = season_ids
-            sources_by_season[season] = sources
-            if season_ids != sorted({int(value) for value in cached_ids}):
-                store.upsert_ids(
-                    season_scope,
-                    season_ids,
-                    provenance=f"workflow-discovery-seed-{'-'.join(sorted(sources))}",
-                )
             if progress is not None and season not in scoped_refresh_seasons:
                 progress.mark_player_season(season)
 
@@ -390,7 +374,6 @@ async def _seed_scope(
                     {int(value) for value in [*ids_by_season.get(season, []), *refreshed_ids]}
                 )
                 ids_by_season[season] = season_ids
-                sources_by_season.setdefault(season, set()).add("targeted")
                 store.upsert_ids(
                     _player_season_scope(season),
                     season_ids,
@@ -412,7 +395,6 @@ async def _seed_scope(
                 if not season_ids:
                     continue
                 ids_by_season[season] = season_ids
-                sources_by_season[season] = {"bulk"}
                 if season in missing_refresh_seasons:
                     missing_refresh_seasons.remove(season)
                 store.upsert_ids(
@@ -450,7 +432,6 @@ async def _seed_scope(
                 if not season_ids:
                     continue
                 ids_by_season[season] = season_ids
-                sources_by_season[season] = {"targeted"}
                 store.upsert_ids(
                     _player_season_scope(season),
                     season_ids,
@@ -522,12 +503,11 @@ async def _seed_scope(
             },
         )
 
-    provenance = "workflow-discovery-seed"
-    if len(scope.seasons) > 1:
-        aggregate_sources = sorted(
-            {source for season_sources in sources_by_season.values() for source in season_sources}
-        )
-        provenance = f"workflow-discovery-seed-aggregate-{'-'.join(aggregate_sources)}"
+    provenance = (
+        "workflow-discovery-seed-live-aggregate"
+        if len(scope.seasons) > 1
+        else "workflow-discovery-seed"
+    )
     stored = store.upsert_ids(scope, ids, provenance=provenance)
     if progress is not None:
         progress.mark_player_scope(scope)
@@ -633,36 +613,17 @@ async def _seed_single_season_scopes_from_bulk(
         return [], []
 
     seasons = [scope.seasons[0] for scope in scopes]
-    logger.info(
-        "snapshot-seeding {} historical player discovery seasons",
-        len(set(seasons)),
-    )
-    snapshot_results, live_scopes = _seed_scopes_from_ids_by_season(
-        scopes=scopes,
-        store=store,
-        ids_by_season=player_ids_by_season_from_snapshot(seasons),
-        provenance="workflow-discovery-seed-snapshot",
-        progress=progress,
-    )
-    if on_result is not None:
-        for result in snapshot_results:
-            on_result(result)
-    if checkpoint is not None:
-        checkpoint("player_snapshot")
-    if not live_scopes:
-        return snapshot_results, []
-
     bulk_discover = getattr(discovery, "discover_all_player_ids_by_season", None)
     ids_by_season: dict[str, list[int]] = {}
     if callable(bulk_discover):
         logger.info(
             "bulk-seeding {} historical player discovery seasons from common_all_players",
-            len({scope.seasons[0] for scope in live_scopes}),
+            len(set(seasons)),
         )
-        ids_by_season = await bulk_discover([scope.seasons[0] for scope in live_scopes])
+        ids_by_season = await bulk_discover(seasons)
 
     bulk_results, fallback_scopes = _seed_scopes_from_ids_by_season(
-        scopes=live_scopes,
+        scopes=scopes,
         store=store,
         ids_by_season=ids_by_season,
         provenance="workflow-discovery-seed-bulk",
@@ -673,7 +634,7 @@ async def _seed_single_season_scopes_from_bulk(
             on_result(result)
     if checkpoint is not None:
         checkpoint("player_bulk_batch")
-    return [*snapshot_results, *bulk_results], fallback_scopes
+    return bulk_results, fallback_scopes
 
 
 def _combo_scope(season: str, season_type: str) -> DiscoveryArtifactScope:
@@ -1283,8 +1244,6 @@ async def _seed_player_team_season_pairs(
         if covered_pairs:
             store.upsert(
                 covered_params,
-                seasons=list(seasons),
-                season_types=list(season_types),
                 covered_pairs=covered_pairs,
             )
             persisted_pairs.update(covered_pairs)
@@ -1561,6 +1520,9 @@ async def seed_player_discovery_artifacts(
         manifest_bytes = manifest_path.read_bytes()
         manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
         manifest = json.loads(manifest_bytes)
+        if not isinstance(manifest, dict):
+            raise ValueError("lane manifest must be an object")
+        normalize_nba_api_provider_authority(manifest.get("provider_authority"))
         scopes = player_discovery_scopes(manifest)
         requested_game_pairs = set(game_discovery_pairs(manifest))
         requested_player_team_pairs = set(player_team_season_pairs(manifest))

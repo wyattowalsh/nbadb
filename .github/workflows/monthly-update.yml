@@ -4,10 +4,15 @@ on:
   schedule:
     - cron: "0 8 1 * *"  # 8 AM UTC on 1st of month
   workflow_dispatch:
+    inputs:
+      dataset_version:
+        description: Exact positive Kaggle parent version; never latest or a cache alias
+        required: false
+        type: string
 
 permissions:
   actions: read
-  contents: write
+  contents: read
   deployments: write
 
 concurrency:
@@ -18,14 +23,42 @@ jobs:
   monthly:
     runs-on: ubuntu-latest
     timeout-minutes: 240
+    env:
+      NBADB_KAGGLE_DATASET: ${{ vars.NBADB_KAGGLE_DATASET || 'wyattowalsh/basketball' }}
+    outputs:
+      expected_prior_nba_date: ${{ steps.recurring_scope.outputs.expected_prior_nba_date }}
+      provider_availability_cutoff: ${{ steps.recurring_scope.outputs.provider_availability_cutoff }}
+      scheduled_deadline: ${{ steps.recurring_scope.outputs.scheduled_deadline }}
+      parent_dataset_version: ${{ steps.recurring_scope.outputs.parent_dataset_version }}
+      checkout_outcome: ${{ steps.checkout.outcome }}
+      parent_outcome: ${{ steps.baseline.outcome }}
+      extraction_outcome: ${{ steps.monthly.outcome }}
+      assurance_outcome: ${{ steps.scan.outcome }}
+      publication_outcome: ${{ steps.upload.outcome }}
+      readback_outcome: ${{ steps.upload.outcome }}
     concurrency:
       group: nbadb-kaggle-publish
       queue: max
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Initialize recurring status scope
+        id: recurring_scope
+        env:
+          EXACT_PARENT_DATASET_VERSION: ${{ inputs.dataset_version || vars.NBADB_KAGGLE_PARENT_DATASET_VERSION }}
+        run: |
+          set -euo pipefail
+          expected_prior_nba_date="$(TZ=America/New_York date --date='yesterday' +'%Y-%m-%d')"
+          provider_availability_cutoff="$(date -u --date="${expected_prior_nba_date} 10:00:00 + 1 day" +'%Y-%m-%dT%H:%M:%SZ')"
+          scheduled_deadline="$(date -u --date="${expected_prior_nba_date} 12:00:00 + 1 day" +'%Y-%m-%dT%H:%M:%SZ')"
+          {
+            echo "expected_prior_nba_date=$expected_prior_nba_date"
+            echo "provider_availability_cutoff=$provider_availability_cutoff"
+            echo "scheduled_deadline=$scheduled_deadline"
+            echo "parent_dataset_version=$EXACT_PARENT_DATASET_VERSION"
+          } >> "$GITHUB_OUTPUT"
+      - name: Checkout exact source
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
@@ -34,6 +67,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync
+      - name: Require explicit exact parent dataset version
+        env:
+          EXACT_PARENT_DATASET_VERSION: ${{ steps.recurring_scope.outputs.parent_dataset_version }}
+        run: |
+          if ! [[ "$EXACT_PARENT_DATASET_VERSION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::An exact positive parent dataset version is required; latest aliases, caches, and watermarks are not authority"
+            exit 1
+          fi
       - name: Require default branch for Kaggle publication
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -69,40 +110,60 @@ jobs:
           server-limit: "3"
       - name: Set rate limit for monthly runs
         run: echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV"
-      - name: Download latest from Kaggle
+      - name: Install exact verified Kaggle baseline
+        id: baseline
         env:
+          EXACT_PARENT_DATASET_VERSION: ${{ steps.recurring_scope.outputs.parent_dataset_version }}
+          GH_TOKEN: ${{ github.token }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: uv run nbadb download
+          NBADB_KAGGLE_PUBLICATION_SOURCE_SHA: ${{ github.sha }}
+          NBADB_KAGGLE_REQUIRE_DEFAULT_HEAD: "true"
+        run: >-
+          uv run nbadb download --data-dir data/nbadb
+          --verified-public-baseline
+          --dataset-version "$EXACT_PARENT_DATASET_VERSION"
+          --publication-ledger github-deployment
+          --require-durable-reconciliation
+          --receipt-path artifacts/health/monthly/nbadb-public-baseline-receipt.json
+          --remote-timeout 3600
+      - name: Upload verified public baseline receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: monthly-public-baseline-receipt
+          path: artifacts/health/monthly/nbadb-public-baseline-receipt.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Run monthly extraction
         id: monthly
         continue-on-error: true
         run: uv run nbadb monthly
-      # Keep scan diagnostics visible, but require green extraction + scan before publishing.
+      # Hard-gate the updated one-repository dataset before export and publication.
       - name: Scan data quality
         id: scan
-        if: always() && steps.monthly.outcome == 'success'
+        if: always() && !cancelled() && steps.monthly.outcome == 'success'
         continue-on-error: true
         uses: ./.github/actions/scan-report
         with:
           report-name: monthly-scan-report
           report-dir: artifacts/health/monthly
           fail-on: error
+          data-dir: data/nbadb
       - name: Export data
         id: export
-        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
+        if: always() && !cancelled() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
         timeout-minutes: 45
         run: uv run nbadb export --data-dir data/nbadb
       - name: Generate Kaggle publication metadata
         id: metadata
-        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success'
+        if: always() && !cancelled() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success'
         timeout-minutes: 10
         run: >-
           uv run nbadb metadata --data-dir data/nbadb
           --output data/nbadb/dataset-metadata.json
       - name: Upload to Kaggle
         id: upload
-        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success'
+        if: always() && !cancelled() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success'
         timeout-minutes: 75
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -120,14 +181,6 @@ jobs:
           uv run nbadb upload --data-dir data/nbadb --verify-remote \
             --publication-ledger github-deployment --require-durable-intent \
             --remote-timeout 3600 --remote-poll-interval 15
-      - name: Refresh checked-in metadata
-        id: metadata_commit
-        if: always() && steps.upload.outcome == 'success'
-        timeout-minutes: 10
-        uses: ./.github/actions/refresh-metadata
-        with:
-          data-dir: data/nbadb
-          push-ref: ${{ github.event.repository.default_branch }}
       - name: Detect Kaggle publication reconciliation state
         id: kaggle_publication_state
         if: always()
@@ -144,7 +197,7 @@ jobs:
           path: logs/kaggle/kaggle-publication-state.json
           key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Upload Kaggle publication receipt
-        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success' && steps.upload.outcome != 'skipped'
+        if: always() && !cancelled() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success' && steps.upload.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -162,7 +215,6 @@ jobs:
           EXPORT_OUTCOME: ${{ steps.export.outcome }}
           UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
           METADATA_OUTCOME: ${{ steps.metadata.outcome }}
-          METADATA_COMMIT_OUTCOME: ${{ steps.metadata_commit.outcome }}
         run: |
           if [ "$MONTHLY_OUTCOME" != "success" ]; then
             echo "::error::Monthly extraction did not pass: ${MONTHLY_OUTCOME:-unknown}"
@@ -184,10 +236,6 @@ jobs:
             echo "::error::Monthly Kaggle publication did not pass: ${UPLOAD_OUTCOME:-skipped}"
             exit 1
           fi
-          if [ "$METADATA_COMMIT_OUTCOME" != "success" ]; then
-            echo "::error::Monthly metadata commit did not pass: ${METADATA_COMMIT_OUTCOME:-skipped}"
-            exit 1
-          fi
       - name: Disconnect VPN
         if: always()
         uses: ./.github/actions/nordvpn-disconnect
@@ -204,3 +252,89 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
           compression-level: 6
+
+  recurring_status:
+    name: Finalize monthly recurring status
+    needs: monthly
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source for status finalizer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: Emit truthful monthly recurring status
+        if: always()
+        env:
+          DATASET_REF: ${{ vars.NBADB_KAGGLE_DATASET || 'wyattowalsh/basketball' }}
+          WORKFLOW_RESULT: ${{ needs.monthly.result }}
+          CHECKOUT_OUTCOME: ${{ needs.monthly.outputs.checkout_outcome }}
+          PARENT_OUTCOME: ${{ needs.monthly.outputs.parent_outcome }}
+          EXTRACTION_OUTCOME: ${{ needs.monthly.outputs.extraction_outcome }}
+          ASSURANCE_OUTCOME: ${{ needs.monthly.outputs.assurance_outcome }}
+          PUBLICATION_OUTCOME: ${{ needs.monthly.outputs.publication_outcome }}
+          READBACK_OUTCOME: ${{ needs.monthly.outputs.readback_outcome }}
+          PARENT_DATASET_VERSION: ${{ needs.monthly.outputs.parent_dataset_version }}
+          EXPECTED_PRIOR_NBA_DATE: ${{ needs.monthly.outputs.expected_prior_nba_date }}
+          PROVIDER_AVAILABILITY_CUTOFF: ${{ needs.monthly.outputs.provider_availability_cutoff }}
+          SCHEDULED_DEADLINE: ${{ needs.monthly.outputs.scheduled_deadline }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$EXPECTED_PRIOR_NBA_DATE" ]]; then
+            EXPECTED_PRIOR_NBA_DATE="$(TZ=America/New_York date --date='yesterday' +'%Y-%m-%d')"
+          fi
+          if [[ -z "$PROVIDER_AVAILABILITY_CUTOFF" ]]; then
+            PROVIDER_AVAILABILITY_CUTOFF="$(date -u --date="${EXPECTED_PRIOR_NBA_DATE} 10:00:00 + 1 day" +'%Y-%m-%dT%H:%M:%SZ')"
+          fi
+          if [[ -z "$SCHEDULED_DEADLINE" ]]; then
+            SCHEDULED_DEADLINE="$(date -u --date="${EXPECTED_PRIOR_NBA_DATE} 12:00:00 + 1 day" +'%Y-%m-%dT%H:%M:%SZ')"
+          fi
+          status_args=(
+            uv run nbadb recurring-status
+            --output-path artifacts/health/monthly/recurring-run-status.json
+            --source-sha "$GITHUB_SHA"
+            --actions-run-id "$GITHUB_RUN_ID"
+            --actions-run-attempt "$GITHUB_RUN_ATTEMPT"
+            --expected-prior-nba-date "$EXPECTED_PRIOR_NBA_DATE"
+            --timezone America/New_York
+            --provider-availability-cutoff "$PROVIDER_AVAILABILITY_CUTOFF"
+            --scheduled-deadline "$SCHEDULED_DEADLINE"
+            --actual-completion "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            --dataset-ref "$DATASET_REF"
+            --workflow-result "${WORKFLOW_RESULT:-unknown}"
+            --checkout-outcome "${CHECKOUT_OUTCOME:-unknown}"
+            --parent-outcome "${PARENT_OUTCOME:-unknown}"
+            --capacity-outcome unknown
+            --extraction-outcome "${EXTRACTION_OUTCOME:-unknown}"
+            --assurance-outcome "${ASSURANCE_OUTCOME:-unknown}"
+            --publication-outcome "${PUBLICATION_OUTCOME:-unknown}"
+            --readback-outcome "${READBACK_OUTCOME:-unknown}"
+            --pre-extraction-no-mutation-proof-path artifacts/health/monthly/pre-extraction-no-mutation-proof.json
+          )
+          if [[ "$PARENT_OUTCOME" == "success" && "$PARENT_DATASET_VERSION" =~ ^[1-9][0-9]*$ ]]; then
+            status_args+=(--parent-dataset-version "$PARENT_DATASET_VERSION")
+          fi
+          "${status_args[@]}"
+      - name: Upload recurring run status
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: monthly-recurring-run-status
+          path: artifacts/health/monthly/recurring-run-status.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload pre-extraction no-mutation proof
+        if: always() && hashFiles('artifacts/health/monthly/pre-extraction-no-mutation-proof.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: monthly-pre-extraction-no-mutation-proof
+          path: artifacts/health/monthly/pre-extraction-no-mutation-proof.json
+          if-no-files-found: error
+          retention-days: 90
