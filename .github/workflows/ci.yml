@@ -231,16 +231,78 @@ jobs:
             paths: >-
               tests/unit/contracts/test_temporal*.py
               tests/unit/contracts/test_transform_output_*.py
-          - id: contracts-typed-values
-            paths: tests/unit/contracts/test_typed_field_value_receipt.py
+          - id: contracts-typed-values-a
+            paths: >-
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_build_parse_and_strict_production_replay_are_exact
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_source_occurrence_summary_rederives_opaque_raw_identity
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_cell_cannot_strip_its_exact_source_after_recursive_reseal
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_raw_parser_values_are_compared_to_committed_arrow_values
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_rebuilt_raw_occurrence_summary_fields_must_match_parser_body
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_custom_nested_stats_values_use_the_independent_decoder
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_reordered_multi_result_uses_canonical_source_ordinal
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_caller_projected_storage_rows_are_not_an_authority
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_static_values_are_reconstructed_by_the_independent_decoder
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_conditional_shapes_have_exact_row_partitions_and_round_trip
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_hybrid_unknown_stats_partition_binds_result_and_body_sources_exactly
+          - id: contracts-typed-values-b
+            paths: >-
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_result_partition_carries_every_record_kind_and_zero_values
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_result_round_trips_every_observed_fallback_shape
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_missing_result_rejects_wrong_declared_index_and_raw_promotion
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_body_node_partition_carries_exact_parent_path_and_edge_ordinals
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_live_partition_carries_declarations_nulls_and_present_containers
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_live_value_decoder_projects_nested_result_through_array
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_live_value_decoder_preserves_optional_missing_fields
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_live_value_decoder_rejects_resealed_occurrence_mismatches
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_live_value_decoder_rejects_valid_foreign_response
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_live_nested_missing_result_set_field_uses_child_occurrence_context
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_live_mixed_absent_occurrence_is_exact_and_rejects_resealed_tampering
+          - id: contracts-typed-values-c
+            paths: >-
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_conditional_row_occurrence_discriminator_rejects_resealed_partial_states
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_conditional_cell_source_authority_is_an_exact_field_intersection
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_conditional_row_partition_rejects_dropped_duplicated_or_reordered_rows
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_binding_rebind_with_fully_recomputed_wire_receipts_is_rejected
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_body_node_selector_rebind_with_fully_recomputed_wire_receipts_is_rejected
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_live_presence_rebind_with_fully_recomputed_wire_receipts_is_rejected
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_body_source_and_committed_frame_rebindings_fail_after_exact_resealing
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_dictionary_context_is_part_of_exact_value_equality
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_decimal_committed_ipc_and_value_are_exact_fixed_points
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_source_family_and_decoder_cannot_be_relabelled_after_reseal
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_duplicate_header_name_at_wrong_ordinal_is_not_collapsed
+          - id: contracts-typed-values-d
+            paths: >-
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_foreign_route_receipt_root_and_incomplete_denominator_fail_closed
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_parser_body_cannot_hide_a_provider_result_from_the_denominator
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_response_fixed_zero_route_round_trips_without_fabricated_rows
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_self_resealed_landing_inventory_mutations_fail_before_typed_promotion
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_live_route_requires_exact_external_plan_digest_and_timestamp
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_v1_foreign_contract_and_noncanonical_inputs_require_restart
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_self_resealed_foreign_raw_bundle_root_fails_structural_summary_binding
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_foreign_canonical_value_and_declared_product_fail_before_acceptance
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_route_value_budget_is_cumulative_and_atomic
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_parser_preallocation_gate_rejects_depth_before_json_decode
+              tests/unit/contracts/test_typed_field_value_receipt.py::test_hostile_booleans_fail_at_parser_construction
           - id: contracts-value-projection
             paths: tests/unit/contracts/test_value_projection*.py
           - id: contracts-w2
             paths: tests/unit/contracts/test_w2*.py
           - id: orchestrate-a-p
             paths: tests/unit/orchestrate/test_[a-p]*.py
-          - id: orchestrate-raw
-            paths: tests/unit/orchestrate/test_raw_*.py
+          - id: orchestrate-raw-publication
+            paths: >-
+              tests/unit/orchestrate/test_raw_publication_inventory.py
+              tests/unit/orchestrate/test_raw_publication_scanner.py
+          - id: orchestrate-raw-store
+            paths: >-
+              tests/unit/orchestrate/test_raw_request_assurance.py
+              tests/unit/orchestrate/test_raw_request_context.py
+              tests/unit/orchestrate/test_raw_request_store.py
+          - id: orchestrate-raw-finalization
+            paths: >-
+              tests/unit/orchestrate/test_raw_request_manifest.py
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py
+              tests/unit/orchestrate/test_raw_request_static_authority.py
           - id: orchestrate-recurring
             paths: >-
               tests/unit/orchestrate/test_recurring*.py
