@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import shutil
@@ -1196,15 +1197,17 @@ def test_cli_exact_check_reports_structural_green_model_red_and_data_unproven(
     assert str(tmp_path.resolve()) not in result.output
 
 
-def test_cli_help_is_registered_without_network(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_help_is_registered_without_network() -> None:
     from nbadb.cli.app import app
 
-    monkeypatch.setenv("COLUMNS", "200")
     result = CliRunner().invoke(app, ["contract-assurance", "--help"])
 
     assert result.exit_code == 0
-    assert "--endpoint-analysis-docs-root" in result.output
-    assert "--check" in result.output
+    command = next(item for item in app.registered_commands if item.name == "contract-assurance")
+    assert command.callback is not None
+    parameter_names = set(inspect.signature(command.callback).parameters)
+    assert "endpoint_analysis_docs_root" in parameter_names
+    assert "check" in parameter_names
 
 
 def test_cli_help_documents_diagnostic_exit_semantics() -> None:
