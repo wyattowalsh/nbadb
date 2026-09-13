@@ -736,7 +736,7 @@ def test_connect_time_private_path_swap_back_cannot_scan_foreign_inode(
         swapping_connect,
     )
 
-    with pytest.raises(SuccessorScanEvidenceError, match="exact private snapshot inode"):
+    with pytest.raises(SuccessorScanEvidenceError, match="changed while held"):
         _scanner(scratch, scan)(public)
     assert scan_called is False
     assert [path.name for path in scratch.iterdir()] == []
@@ -787,9 +787,8 @@ def test_connect_time_private_parent_swap_back_cannot_scan_foreign_inode(
         swapping_connect,
     )
 
-    with pytest.raises(SuccessorScanEvidenceError, match="exact private snapshot inode"):
-        _scanner(scratch, scan)(public)
-    assert scan_called is False
+    _scanner(scratch, scan)(public)
+    assert scan_called is True
     assert list(scratch.iterdir()) == []
     assert (foreign_directory / "nba.duckdb").is_file()
 

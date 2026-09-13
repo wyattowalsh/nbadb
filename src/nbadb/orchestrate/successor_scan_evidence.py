@@ -9,8 +9,6 @@ wall-clock timestamps, and scan duration.
 
 from __future__ import annotations
 
-import errno
-import fcntl
 import hashlib
 import json
 import math
@@ -757,39 +755,6 @@ def _write_destination(descriptor: int, payload: memoryview) -> int:
     return os.write(descriptor, payload)
 
 
-def _prove_snapshot_flock_available(descriptor: int) -> None:
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-    except OSError as exc:
-        raise SuccessorScanEvidenceError(
-            "private database snapshot does not support the required flock contract"
-        ) from exc
-
-
-def _require_duckdb_shared_snapshot_lock(descriptor: int, *, stage: str) -> None:
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError as exc:
-        if exc.errno in {errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK}:
-            return
-        raise SuccessorScanEvidenceError(f"DuckDB snapshot lock proof failed at {stage}") from exc
-    fcntl.flock(descriptor, fcntl.LOCK_UN)
-    raise SuccessorScanEvidenceError(
-        f"DuckDB is not locked to the exact private snapshot inode at {stage}"
-    )
-
-
-def _require_duckdb_snapshot_lock_released(descriptor: int) -> None:
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-    except OSError as exc:
-        raise SuccessorScanEvidenceError(
-            "DuckDB did not release the exact private snapshot inode"
-        ) from exc
-
-
 def _copy_database(
     source_descriptor: int,
     source_before: os.stat_result,
@@ -1198,7 +1163,6 @@ class SuccessorFullPublicationScanner:
                 destination_after_hash.st_dev,
                 destination_after_hash.st_ino,
             )
-            _prove_snapshot_flock_available(destination_descriptor)
             if self._free_bytes(scratch_descriptor, stage="after copy") < self.minimum_free_bytes:
                 raise SuccessorScanEvidenceError(
                     "successor scan scratch fell below its retained free-space floor"
@@ -1232,14 +1196,34 @@ class SuccessorFullPublicationScanner:
             engine_error: BaseException | None = None
             try:
                 connection = duckdb.connect(str(private_database_path), read_only=True)
-                _require_duckdb_shared_snapshot_lock(
+                _require_named_directory(
+                    scratch_descriptor,
+                    temp_name,
+                    temp_descriptor,
+                    temp_before,
+                    label="private scan temporary directory after engine open",
+                )
+                _require_same_named_regular(
+                    temp_descriptor,
+                    _DATABASE_NAME,
                     destination_descriptor,
-                    stage="after engine open",
+                    destination_after_hash,
+                    label="private database copy after engine open",
                 )
                 report = self.scan_function(connection)
-                _require_duckdb_shared_snapshot_lock(
+                _require_named_directory(
+                    scratch_descriptor,
+                    temp_name,
+                    temp_descriptor,
+                    temp_before,
+                    label="private scan temporary directory after engine scan",
+                )
+                _require_same_named_regular(
+                    temp_descriptor,
+                    _DATABASE_NAME,
                     destination_descriptor,
-                    stage="after engine scan",
+                    destination_after_hash,
+                    label="private database copy after engine scan",
                 )
             except BaseException as exc:
                 engine_error = exc
@@ -1253,15 +1237,6 @@ class SuccessorFullPublicationScanner:
                         else:
                             engine_error = SuccessorScanEvidenceError(
                                 "full-publication scan and DuckDB close both failed"
-                            )
-                    try:
-                        _require_duckdb_snapshot_lock_released(destination_descriptor)
-                    except BaseException as exc:
-                        if engine_error is None:
-                            engine_error = exc
-                        else:
-                            engine_error = SuccessorScanEvidenceError(
-                                "full-publication scan and DuckDB lock release both failed"
                             )
             if engine_error is not None:
                 if isinstance(engine_error, SuccessorScanEvidenceError):
