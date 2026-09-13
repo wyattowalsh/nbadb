@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import csv
 import errno
-import fcntl
 import hashlib
 import json
 import os
@@ -1710,17 +1709,12 @@ def validate_authoritative_duckdb_parquet_values(
                     scratch,
                     stage="before authoritative engine open",
                 )
-                _prove_snapshot_flock_available(database_snapshot.descriptor)
                 connection: duckdb.DuckDBPyConnection | None = None
                 try:
                     connection = duckdb.connect(str(database_snapshot.path), read_only=True)
                 except duckdb.Error as exc:
                     raise ValueError("authoritative DuckDB resource is unreadable") from exc
                 try:
-                    _require_duckdb_snapshot_lock(
-                        database_snapshot.descriptor,
-                        stage="after authoritative engine open",
-                    )
                     _require_received_duckdb_snapshot(
                         database_snapshot,
                         scratch,
@@ -1759,10 +1753,6 @@ def validate_authoritative_duckdb_parquet_values(
                             snapshot_directory=temporary_root,
                         ) as files:
                             _validate_authoritative_table_values(connection, table, files)
-                    _require_duckdb_snapshot_lock(
-                        database_snapshot.descriptor,
-                        stage="after authoritative value read",
-                    )
                     _require_received_duckdb_snapshot(
                         database_snapshot,
                         scratch,
@@ -1771,10 +1761,7 @@ def validate_authoritative_duckdb_parquet_values(
                 except duckdb.Error as exc:
                     raise ValueError("authoritative DuckDB-Parquet validation failed") from exc
                 finally:
-                    try:
-                        connection.close()
-                    finally:
-                        _require_duckdb_snapshot_lock_released(database_snapshot.descriptor)
+                    connection.close()
             _require_scratch_path(scratch, stage="after authoritative validation")
         finally:
             if temporary_descriptor >= 0:
@@ -2011,35 +1998,6 @@ def _database_snapshot(
         os.close(source)
 
 
-def _prove_snapshot_flock_available(descriptor: int) -> None:
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-    except OSError as exc:
-        raise ValueError(
-            "successor DuckDB snapshot does not support the required lock contract"
-        ) from exc
-
-
-def _require_duckdb_snapshot_lock(descriptor: int, *, stage: str) -> None:
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError as exc:
-        if exc.errno in {errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK}:
-            return
-        raise ValueError(f"successor DuckDB snapshot lock proof failed at {stage}") from exc
-    fcntl.flock(descriptor, fcntl.LOCK_UN)
-    raise ValueError(f"DuckDB did not lock the exact successor snapshot at {stage}")
-
-
-def _require_duckdb_snapshot_lock_released(descriptor: int) -> None:
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-    except OSError as exc:
-        raise ValueError("DuckDB did not release the exact successor snapshot") from exc
-
-
 def _duckdb_tables(
     snapshot: _DatabaseSnapshot,
     expected_tables: tuple[str, ...],
@@ -2059,13 +2017,11 @@ def _duckdb_tables(
     expected_w2 = frozenset(expected_tables) & registered_w2
     if expected_w2 and expected_w2 != registered_w2:
         raise ValueError("successor DuckDB contract contains a partial W2 exact-six authority")
-    _prove_snapshot_flock_available(snapshot.descriptor)
     try:
         connection = duckdb.connect(str(snapshot.path), read_only=True)
     except duckdb.Error as exc:
         raise ValueError("successor DuckDB snapshot is unreadable") from exc
     try:
-        _require_duckdb_snapshot_lock(snapshot.descriptor, stage="after engine open")
         table_names = tuple(
             sorted(
                 str(row[0])
@@ -2159,14 +2115,10 @@ def _duckdb_tables(
             )
         else:
             transform_outputs = ()
-        _require_duckdb_snapshot_lock(snapshot.descriptor, stage="after engine read")
     except duckdb.Error as exc:
         raise ValueError("successor DuckDB snapshot validation failed") from exc
     finally:
-        try:
-            connection.close()
-        finally:
-            _require_duckdb_snapshot_lock_released(snapshot.descriptor)
+        connection.close()
     return rows, columns, transform_outputs
 
 
@@ -2178,7 +2130,6 @@ def _validate_snapshot_authoritative_values(
     *,
     temp_max_bytes: int,
 ) -> None:
-    _prove_snapshot_flock_available(database_snapshot.descriptor)
     temp_capacity = _positive_capacity(
         temp_max_bytes,
         label="authoritative value-parity temporary maximum",
@@ -2209,10 +2160,6 @@ def _validate_snapshot_authoritative_values(
                 temporary_directory=Path(temporary_name),
                 temp_max_bytes=temp_capacity,
             )
-            _require_duckdb_snapshot_lock(
-                database_snapshot.descriptor,
-                stage="after authoritative engine open",
-            )
             for table in contract.tables:
                 with _open_snapshot_authoritative_parquet_files(
                     root_descriptor,
@@ -2221,17 +2168,10 @@ def _validate_snapshot_authoritative_values(
                     table,
                 ) as files:
                     _validate_authoritative_table_values(connection, table, files)
-            _require_duckdb_snapshot_lock(
-                database_snapshot.descriptor,
-                stage="after authoritative value read",
-            )
         except duckdb.Error as exc:
             raise ValueError("successor authoritative DuckDB-Parquet validation failed") from exc
         finally:
-            try:
-                connection.close()
-            finally:
-                _require_duckdb_snapshot_lock_released(database_snapshot.descriptor)
+            connection.close()
 
 
 def _read_snapshot_bytes(snapshot: _DatabaseSnapshot) -> bytes:

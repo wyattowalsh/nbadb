@@ -270,7 +270,23 @@ def test_unknown_stats_response_replays_generic_nested_body() -> None:
     response = rederive_raw_authority_unknown_stats_response(
         endpoint_id=endpoint_id,
         parser_input=parser_input,
-        safe_parameters_json="{}",
+        safe_parameters_json=(
+            '{"ahead_behind_nullable":"","clutch_time_nullable":"",'
+            '"context_filter_nullable":"","context_measure_detailed":"PTS",'
+            '"date_from_nullable":"","date_to_nullable":"",'
+            '"end_period_nullable":"","end_range_nullable":"",'
+            '"game_id_nullable":"","game_segment_nullable":"",'
+            '"last_n_games":"0","league_id_nullable":"00",'
+            '"location_nullable":"","month":"0","opponent_team_id":0,'
+            '"outcome_nullable":"","period":"0","player_id":2,'
+            '"point_diff_nullable":"","position_nullable":"",'
+            '"range_type_nullable":"","rookie_year_nullable":"",'
+            '"season":"2024-25","season_segment_nullable":"",'
+            '"season_type_all_star":"Regular Season",'
+            '"start_period_nullable":"","start_range_nullable":"",'
+            '"team_id":1,"vs_conference_nullable":"",'
+            '"vs_division_nullable":""}'
+        ),
         provider_authority_sha256=provider_sha256,
         endpoint_contract_sha256_value=contract_sha256,
     )

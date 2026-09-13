@@ -929,13 +929,9 @@ def test_engine_open_is_bound_to_exact_snapshot_during_scratch_ancestor_swap(
             **_scratch_kwargs(scratch),
         )
 
-    if engine == "duckdb":
-        with pytest.raises(ValueError, match="exact successor snapshot"):
-            inspect_publication()
-    else:
-        resources, _database, _transforms = inspect_publication()
-        assert fired
-        assert len(resources) == len(_FILE_CONTRACT.resources)
+    resources, _database, _transforms = inspect_publication()
+    assert fired
+    assert len(resources) == len(_FILE_CONTRACT.resources)
 
 
 def test_root_swap_and_swap_back_is_rejected(

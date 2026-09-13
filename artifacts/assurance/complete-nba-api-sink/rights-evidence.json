@@ -1,0 +1,109 @@
+{
+  "schema": "NbadbPublicationRightsEvidenceV1",
+  "task_id": "W0.6",
+  "retrieved_at_utc": "2026-08-21T07:33:46Z",
+  "review_scope": "publication control only; not legal advice",
+  "sources": [
+    {
+      "id": "nba-api-license-v1.11.4",
+      "url": "https://raw.githubusercontent.com/swar/nba_api/v1.11.4/LICENSE",
+      "edition": "nba_api v1.11.4",
+      "sha256": "8177a1a7718444dddfee53e17336b0a44f5a6245caa62645fe17db1524a61cb8",
+      "claim": "The nba_api client source is licensed under MIT.",
+      "classification": "admitted_code",
+      "attribution": "Retain the nba_api MIT copyright and permission notice when redistributing covered client code.",
+      "limits": "The client-code license does not grant rights to NBA-returned statistics or response bodies."
+    },
+    {
+      "id": "nba-api-readme-v1.11.4",
+      "url": "https://raw.githubusercontent.com/swar/nba_api/v1.11.4/README.md",
+      "edition": "nba_api v1.11.4",
+      "sha256": "bf28fa86ce25e2395c5a81a0faca7156208c16f20600556212ab7ed834fcc832",
+      "claim": "nba_api describes itself as an NBA.com API client and separately directs users to NBA.com terms.",
+      "classification": "context_only",
+      "attribution": "Attribute the client project separately from NBA.com data.",
+      "limits": "Project documentation is not provider consent for data redistribution."
+    },
+    {
+      "id": "nba-terms-2026-07-13",
+      "url": "https://www.nba.com/termsofuse",
+      "edition": "last updated 2026-07-13",
+      "sha256": "1e83ddf8a8da06d4c8a257c661b8b2bd225314621044ed6203fc53aef970bae1",
+      "claim": "NBA Statistics uses require prominent NBA.com attribution and the current terms prohibit a comprehensive, regularly updated NBA/WNBA/G-League statistics database without express prior consent; public reuse of service materials is otherwise restricted.",
+      "classification": "blocking_provider_terms",
+      "attribution": "A prominent NBA.com attribution is necessary but not sufficient for this public comprehensive database.",
+      "limits": "No express prior consent is bound in the repository or goal evidence."
+    },
+    {
+      "id": "kaggle-terms-2025-06-22",
+      "url": "https://www.kaggle.com/terms",
+      "edition": "effective 2025-06-22",
+      "sha256": "0f0d42c057cc17d9e551cd8f1690ff09b1024a4f5b7516f9770b3f9c2b1906ab",
+      "claim": "A Kaggle contributor represents that they have the rights needed for uploaded content and must not exploit content without owner consent or in violation of rights.",
+      "classification": "blocking_platform_warranty",
+      "attribution": "Dataset metadata and license must accurately disclose permitted rights and third-party attribution.",
+      "limits": "Kaggle availability does not cure missing provider redistribution rights."
+    },
+    {
+      "id": "kaggle-aup-current",
+      "url": "https://www.kaggle.com/aup",
+      "edition": "current at retrieval",
+      "sha256": "99ffa13bb02239f7c686d2859dc521d4d5c0b9ff9cbbeab306d73d915ee6e6e2",
+      "claim": "Kaggle prohibits uploads that violate others' legal or intellectual-property rights.",
+      "classification": "blocking_platform_policy",
+      "attribution": "Comply with the governing dataset license and all third-party notices.",
+      "limits": "A public upload remains blocked while provider rights are unresolved."
+    }
+  ],
+  "materials": [
+    {
+      "id": "nba-api-client-code",
+      "classification": "admitted",
+      "authority_source_ids": ["nba-api-license-v1.11.4", "nba-api-readme-v1.11.4"],
+      "conditions": ["retain MIT notice", "do not imply the code license covers provider data"]
+    },
+    {
+      "id": "repo-synthetic-fixtures",
+      "classification": "admitted",
+      "manifest_path": "tests/fixtures/nba_api_contract/manifest.json",
+      "manifest_sha256": "8054a01e60c985d7d2b07b6efc3fcbc93b40d1775d094ba09577813d435e3f22",
+      "fixture_count": 13,
+      "rights_policy": "repo-synthetic-mit",
+      "conditions": ["manifest continues to assert copied_nba_response_data=false", "all entries remain bound to repo-synthetic-mit"]
+    },
+    {
+      "id": "provider-returned-statistics-and-parser-bodies",
+      "classification": "blocked",
+      "authority_source_ids": ["nba-terms-2026-07-13"],
+      "reason": "The accepted goal is a comprehensive regularly updated public database and adds exact raw parser-input bodies, while no express prior provider consent is in evidence.",
+      "conditions_to_reconsider": ["checksum-bound express written provider permission covering the intended public dataset and raw bodies", "or a qualified legal review documenting a lawful publication basis and exact scope"]
+    },
+    {
+      "id": "provider-derived-fixtures",
+      "classification": "blocked_unless_separately_admitted",
+      "reason": "Any fixture containing copied provider response data inherits the unresolved provider-data publication restriction.",
+      "conditions_to_reconsider": ["synthetic provenance proof", "or the same permission/review required for provider-returned data"]
+    },
+    {
+      "id": "public-kaggle-publication",
+      "classification": "blocked",
+      "authority_source_ids": ["kaggle-terms-2025-06-22", "kaggle-aup-current", "nba-terms-2026-07-13"],
+      "reason": "The uploader must possess the required rights, and the provider-data authority is not admitted.",
+      "conditions_to_reconsider": ["provider-data admission", "prominent NBA.com attribution", "accurate Kaggle license/metadata", "final staged-file rights recheck"]
+    }
+  ],
+  "reviewer": {
+    "identity": "Codex root publication-control review",
+    "disposition": "blocked",
+    "qualified_legal_counsel": false
+  },
+  "unresolved_questions": [
+    "Does the dataset owner possess express NBA consent that covers a comprehensive regularly updated public database?",
+    "If consent exists, does it cover exact parser-input bodies, live data, WNBA, G League, Summer League, and derived exports?",
+    "What license and attribution text did the provider approve for the Kaggle dataset?"
+  ],
+  "publication_admission": "blocked",
+  "mechanical_blocks": ["D5.6", "L8.9"],
+  "local_nonpublication_engineering_may_continue": true,
+  "violations": []
+}

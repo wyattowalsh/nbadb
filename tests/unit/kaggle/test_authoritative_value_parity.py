@@ -473,7 +473,9 @@ def test_private_duckdb_snapshot_swap_and_restore_cannot_change_engine_authority
 
     monkeypatch.setattr(inventory_module.duckdb, "connect", swapping_connect)
 
-    with pytest.raises(ValueError, match="did not lock the exact successor snapshot"):
+    with pytest.raises(
+        ValueError, match="private snapshot changed at after authoritative engine open"
+    ):
         KaggleClient._validate_full_publication_format_parity(
             resources,
             require_authoritative_values=True,

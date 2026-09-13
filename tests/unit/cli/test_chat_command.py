@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import duckdb
 from typer.testing import CliRunner
 
 # Import the command module so the @app.command() decorator registers it
 import nbadb.cli.commands.chat  # noqa: F401
 from nbadb.cli.app import app
+from nbadb.core.config import get_settings
 
 runner = CliRunner()
 
@@ -76,8 +78,12 @@ def test_chat_uv_not_found(tmp_path) -> None:  # noqa: ANN001
 # ---------------------------------------------------------------------------
 
 
-def test_chat_success(tmp_path) -> None:  # noqa: ANN001
+def test_chat_success(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     """Successful launch calls subprocess.run with correct arguments."""
+    warehouse = tmp_path / "nba.duckdb"
+    duckdb.connect(str(warehouse)).close()
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", str(warehouse))
+    get_settings.cache_clear()
     fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
@@ -105,10 +111,15 @@ def test_chat_success(tmp_path) -> None:  # noqa: ANN001
     assert "--host" in cmd
     assert "0.0.0.0" in cmd
     assert call_args[1]["check"] is True
+    get_settings.cache_clear()
 
 
-def test_chat_default_options(tmp_path) -> None:  # noqa: ANN001
+def test_chat_default_options(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     """Default host and port are used when no flags are provided."""
+    warehouse = tmp_path / "nba.duckdb"
+    duckdb.connect(str(warehouse)).close()
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", str(warehouse))
+    get_settings.cache_clear()
     fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
@@ -129,10 +140,15 @@ def test_chat_default_options(tmp_path) -> None:  # noqa: ANN001
     cmd = mock_run.call_args[0][0]
     assert "8421" in cmd
     assert "127.0.0.1" in cmd
+    get_settings.cache_clear()
 
 
-def test_chat_keyboard_interrupt(tmp_path) -> None:  # noqa: ANN001
+def test_chat_keyboard_interrupt(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     """KeyboardInterrupt is caught and prints stop message."""
+    warehouse = tmp_path / "nba.duckdb"
+    duckdb.connect(str(warehouse)).close()
+    monkeypatch.setenv("NBADB_DUCKDB_PATH", str(warehouse))
+    get_settings.cache_clear()
     fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
@@ -147,3 +163,4 @@ def test_chat_keyboard_interrupt(tmp_path) -> None:  # noqa: ANN001
 
     assert result.exit_code == 0
     assert "Chat server stopped" in result.output
+    get_settings.cache_clear()

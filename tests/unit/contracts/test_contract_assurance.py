@@ -1196,13 +1196,14 @@ def test_cli_exact_check_reports_structural_green_model_red_and_data_unproven(
     assert str(tmp_path.resolve()) not in result.output
 
 
-def test_cli_help_is_registered_without_network() -> None:
+def test_cli_help_is_registered_without_network(monkeypatch: pytest.MonkeyPatch) -> None:
     from nbadb.cli.app import app
 
+    monkeypatch.setenv("COLUMNS", "200")
     result = CliRunner().invoke(app, ["contract-assurance", "--help"])
 
     assert result.exit_code == 0
-    assert "--endpoint-analysis-docs-r" in result.output
+    assert "--endpoint-analysis-docs-root" in result.output
     assert "--check" in result.output
 
 

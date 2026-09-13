@@ -1279,12 +1279,11 @@ def test_build_default_manifest_prioritizes_high_cost_lanes_first() -> None:
 
 
 def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None:
-    workflow = (
-        pathlib.Path(__file__).resolve().parents[3]
-        / ".github"
-        / "workflows"
-        / "full-extraction.yml"
-    ).read_text(encoding="utf-8")
+    project_root = pathlib.Path(__file__).resolve().parents[3]
+    workflow = (project_root / ".github/workflows/full-extraction.yml").read_text(encoding="utf-8")
+    handoffs = (project_root / ".github/scripts/full_extraction_handoffs.py").read_text(
+        encoding="utf-8"
+    )
 
     chunk_profile_block = _workflow_input_block(workflow, "chunk_profile")
     vpn_parallelism_block = _workflow_input_block(workflow, "vpn_parallelism")
@@ -1350,7 +1349,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "needs.checkpoint.outputs.terminal-ready == 'true'" in workflow
     assert "needs.checkpoint.outputs.active-lane-count == '0'" in workflow
 
-    assert 'args+=(--chunk-profile "$CHUNK_PROFILE")' in workflow
+    assert 'args+=(--chunk-profile "$CHUNK_PROFILE")' in handoffs
     assert "--latest-checkpoint-run-id" not in workflow
     assert "--latest-checkpoint-artifact-name" not in workflow
     assert "full_extraction_control checkpoint" in workflow
@@ -1363,9 +1362,10 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "Prepare checkpoint-first merge" in workflow
     assert "Download chained lane artifacts" not in workflow
     assert "needs.preflight.outputs.effective-network-mode == 'direct'" in workflow
-    assert '--chunk-profile "$CHUNK_PROFILE"' in workflow
+    assert '--chunk-profile "$CHUNK_PROFILE"' in handoffs
     assert "RETRY_PIPELINE_FAILURES" in workflow
-    assert workflow.count("resume_args+=(--allow-pipeline-failures)") == 2
+    assert handoffs.count("resume_args+=(--allow-pipeline-failures)") == 1
+    assert workflow.count("resume_args+=(--allow-pipeline-failures)") == 1
     assert (
         "needs.plan.result == 'success' && needs.preflight.result == 'success' "
         "&& needs.discovery_seed.result == 'success' && "

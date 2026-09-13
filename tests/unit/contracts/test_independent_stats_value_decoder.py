@@ -147,6 +147,11 @@ def _production_fallback(endpoint_id: str, payload: object):
 
 def _production_unknown(endpoint_id: str, payload: object):
     pins = _pins(endpoint_id)
+    semantic_parameters = (
+        {"game_event_id": 7, "game_id": "0022400001"}
+        if endpoint_id in {"VideoEvents", "VideoEventsAsset"}
+        else {"player_id": 2, "season": "2024-25", "team_id": 1}
+    )
     return rederive_raw_authority_unknown_stats_response(
         endpoint_id=endpoint_id,
         parser_input=json.dumps(
@@ -155,7 +160,11 @@ def _production_unknown(endpoint_id: str, payload: object):
             ensure_ascii=False,
             allow_nan=False,
         ).encode(),
-        safe_parameters_json="{}",
+        safe_parameters_json=json.dumps(
+            semantic_parameters,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
         provider_authority_sha256=pins["provider_authority_sha256"],
         endpoint_contract_sha256_value=pins["endpoint_contract_sha256"],
     )

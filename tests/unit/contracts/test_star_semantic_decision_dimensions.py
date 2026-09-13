@@ -165,10 +165,10 @@ def test_dimension_resource_freezes_exact_current_scope_without_blanket_decision
     assert canonical_star_semantic_authoring_json_bytes(payload) + b"\n" == raw
     assert payload["structural_inventory_sha256"] == structural.contract_sha256
     assert payload["stable_inventory_sha256"] == (
-        "02840ce9ce15492d11a23ee27bc2020543bc9d07a41de9bbea44296a7b397ddc"
+        "1d6ab5555eb840f857bb460ec3dc79e0e9e79059b4686123297c3c2f905e5656"
     )
     assert payload["authority_inventory_sha256"] == (
-        "974664b40aa8cd07ca2cff94c891e79f56fdba129afdc4922a65a995f79c905f"
+        "a531bcf6f95732684ff08c9d0aa7184159bd56beec22a922545ae869f1121ca1"
     )
     assert payload["denominator_count"] == len(dimensions) == 18
     assert tuple(item["table_name"] for item in decisions) == ("dim_season_phase",)
