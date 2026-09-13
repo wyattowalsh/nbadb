@@ -376,6 +376,15 @@ jobs:
           read -r -a unit_patterns <<< "$UNIT_PATHS"
           unit_paths=()
           for pattern in "${unit_patterns[@]}"; do
+            base_path="${pattern%%::*}"
+            if [ "$base_path" != "$pattern" ]; then
+              if [ ! -e "$base_path" ]; then
+                echo "Unit shard node ID has a missing file: $pattern"
+                exit 1
+              fi
+              unit_paths+=("$pattern")
+              continue
+            fi
             mapfile -t matches < <(compgen -G "$pattern")
             if [ "${#matches[@]}" -eq 0 ]; then
               if [ ! -e "$pattern" ]; then
