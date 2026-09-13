@@ -588,7 +588,7 @@ def test_caller_transaction_is_preserved_and_no_admission_is_returned() -> None:
 
 
 def test_coordinator_call_order_is_reconstruct_then_public_then_operation() -> None:
-    source = Path("/Users/ww/dev/projects/nbadb/src/nbadb/orchestrate/w2_operation_coordinator.py")
+    source = Path(coordinator_module.__file__)
     tree = ast.parse(source.read_text(encoding="utf-8"))
     function = next(
         node
