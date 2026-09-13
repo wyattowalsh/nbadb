@@ -225,15 +225,33 @@ jobs:
             paths: tests/unit/contracts/test_[a-l]*.py
           - id: contracts-m-r
             paths: tests/unit/contracts/test_[m-r]*.py
-          - id: contracts-s-z
-            paths: tests/unit/contracts/test_[s-z]*.py
+          - id: contracts-s
+            paths: tests/unit/contracts/test_s*.py
+          - id: contracts-transform-output
+            paths: >-
+              tests/unit/contracts/test_temporal*.py
+              tests/unit/contracts/test_transform_output_*.py
+          - id: contracts-typed-values
+            paths: tests/unit/contracts/test_typed_field_value_receipt.py
+          - id: contracts-value-projection
+            paths: tests/unit/contracts/test_value_projection*.py
+          - id: contracts-w2
+            paths: tests/unit/contracts/test_w2*.py
           - id: orchestrate-a-p
             paths: tests/unit/orchestrate/test_[a-p]*.py
-          - id: orchestrate-r
-            paths: tests/unit/orchestrate/test_r*.py
+          - id: orchestrate-raw
+            paths: tests/unit/orchestrate/test_raw_*.py
+          - id: orchestrate-recurring
+            paths: >-
+              tests/unit/orchestrate/test_recurring*.py
+              tests/unit/orchestrate/test_run_with_deadline_script.py
+          - id: orchestrate-request-closure
+            paths: tests/unit/orchestrate/test_request_closure_*.py
+          - id: orchestrate-request-universe
+            paths: tests/unit/orchestrate/test_request_universe_*.py
           - id: orchestrate-successor
             paths: tests/unit/orchestrate/test_successor_*.py
-          - id: orchestrate-s-z
+          - id: orchestrate-tail
             paths: >-
               tests/unit/orchestrate/test_scanner*.py
               tests/unit/orchestrate/test_seasons*.py
@@ -245,7 +263,19 @@ jobs:
               tests/unit/orchestrate/test_verify*.py
               tests/unit/orchestrate/test_video*.py
               tests/unit/orchestrate/test_vpn*.py
-              tests/unit/orchestrate/test_w2*.py
+          - id: orchestrate-w2-source
+            paths: >-
+              tests/unit/orchestrate/test_w2_source_call_builder.py
+              tests/unit/orchestrate/test_w2_source_call_preparation.py
+          - id: orchestrate-w2-rest
+            paths: >-
+              tests/unit/orchestrate/test_w2_database_assurance.py
+              tests/unit/orchestrate/test_w2_operation_coordinator.py
+              tests/unit/orchestrate/test_w2_operation_store.py
+              tests/unit/orchestrate/test_w2_publication_inventory.py
+              tests/unit/orchestrate/test_w2_runtime_environment.py
+          - id: orchestrate-workflow
+            paths: >-
               tests/unit/orchestrate/test_work*.py
               tests/unit/orchestrate/test_write*.py
           - id: kaggle
