@@ -247,7 +247,6 @@ jobs:
           - id: contracts-typed-values-b
             paths: >-
               tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_result_partition_carries_every_record_kind_and_zero_values
-              tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_result_round_trips_every_observed_fallback_shape
               tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_missing_result_rejects_wrong_declared_index_and_raw_promotion
               tests/unit/contracts/test_typed_field_value_receipt.py::test_body_node_partition_carries_exact_parent_path_and_edge_ordinals
               tests/unit/contracts/test_typed_field_value_receipt.py::test_live_partition_carries_declarations_nulls_and_present_containers
@@ -257,6 +256,8 @@ jobs:
               tests/unit/contracts/test_typed_field_value_receipt.py::test_ordinary_live_value_decoder_rejects_valid_foreign_response
               tests/unit/contracts/test_typed_field_value_receipt.py::test_live_nested_missing_result_set_field_uses_child_occurrence_context
               tests/unit/contracts/test_typed_field_value_receipt.py::test_live_mixed_absent_occurrence_is_exact_and_rejects_resealed_tampering
+          - id: contracts-typed-values-fallback-shapes
+            paths: tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_result_round_trips_every_observed_fallback_shape
           - id: contracts-typed-values-c
             paths: >-
               tests/unit/contracts/test_typed_field_value_receipt.py::test_conditional_row_occurrence_discriminator_rejects_resealed_partial_states
@@ -298,11 +299,12 @@ jobs:
               tests/unit/orchestrate/test_raw_request_assurance.py
               tests/unit/orchestrate/test_raw_request_context.py
               tests/unit/orchestrate/test_raw_request_store.py
-          - id: orchestrate-raw-finalization
-            paths: >-
-              tests/unit/orchestrate/test_raw_request_manifest.py
-              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py
-              tests/unit/orchestrate/test_raw_request_static_authority.py
+          - id: orchestrate-raw-manifest
+            paths: tests/unit/orchestrate/test_raw_request_manifest.py
+          - id: orchestrate-raw-integration
+            paths: tests/unit/orchestrate/test_raw_request_orchestrator_integration.py
+          - id: orchestrate-raw-static
+            paths: tests/unit/orchestrate/test_raw_request_static_authority.py
           - id: orchestrate-recurring
             paths: >-
               tests/unit/orchestrate/test_recurring*.py
