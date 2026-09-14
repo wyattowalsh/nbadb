@@ -1763,6 +1763,18 @@ def test_hybrid_unknown_stats_partition_binds_result_and_body_sources_exactly(
     }
     assert all(row.row_authority.body_object_sha256 is None for row in selected_rows)
     assert all(row.row_authority.body_object_sha256 is not None for row in body_rows)
+    assert authority.staging_parameters_sha256 is not None
+    assert authority.staging_parameters_sha256 != authority.committed_logical_parameters_sha256
+    assert {
+        json.loads(
+            next(
+                cell.canonical_value.value_json
+                for cell in row.cells
+                if cell.storage_column == "parameters_sha256"
+            )
+        )["value"]
+        for row in receipt.conditional_row_receipts
+    } == {authority.staging_parameters_sha256}
     assert all(
         row.row_authority.observed_expected_result_set_count == 0
         and row.row_authority.observed_provider_result_set_count == 2
@@ -1871,7 +1883,16 @@ def test_selected_result_round_trips_every_observed_fallback_shape(
         if item.endpoint_name == "league_game_log"
     )
     headers = list(route.provider_columns)
-    row: list[object] = [None] * len(headers)
+    row_values = {
+        "SEASON_ID": "22024",
+        "TEAM_ID": 1610612747,
+        "TEAM_ABBREVIATION": "LAL",
+        "TEAM_NAME": "Lakers",
+        "GAME_ID": "0022400001",
+        "GAME_DATE": "2024-10-22",
+        "MATCHUP": "LAL vs. BOS",
+    }
+    row: list[object] = [row_values.get(header) for header in headers]
     if drift_kind == "nested_value":
         row[0] = [1, "x"]
     elif drift_kind == "additive_header":
@@ -2058,6 +2079,18 @@ def test_body_node_partition_carries_exact_parent_path_and_edge_ordinals(
     assert array_item.value_kind == "integer"
     assert all(item.source_occurrence_sha256 is None for item in rows)
     assert all(item.body_object_sha256 is not None for item in rows)
+    assert authority.staging_parameters_sha256 is not None
+    assert authority.staging_parameters_sha256 != authority.source_parameters_sha256s[0]
+    assert {
+        json.loads(
+            next(
+                cell.canonical_value.value_json
+                for cell in row.cells
+                if cell.storage_column == "parameters_sha256"
+            )
+        )["value"]
+        for row in receipt.conditional_row_receipts
+    } == {authority.staging_parameters_sha256}
 
 
 def test_live_partition_carries_declarations_nulls_and_present_containers(

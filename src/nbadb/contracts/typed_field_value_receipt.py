@@ -3946,6 +3946,14 @@ def _observed_unknown_stats_result_rows(
         if any(result.row_count for result in response.results)
         else "legacy_present_empty"
     )
+    unknown = _rederive_unknown_stats_response(
+        observation=observation,
+        parser_input=parser_input,
+    )
+    if unknown is None:  # pragma: no cover - exact response-mode guard above
+        raise TypedFieldValueReceiptError(
+            "unknown-dynamic conditional response lacks wire parameter authority"
+        )
     base: dict[str, object] = {column: None for column in _SELECTED_STATS_FALLBACK_COLUMNS}
     base.update(
         {
@@ -3955,7 +3963,7 @@ def _observed_unknown_stats_result_rows(
             "response_mode_authority_sha256": response_contract.authority_sha256,
             "parser_input_sha256": body.response_sha256,
             "canonical_payload_sha256": hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
-            "parameters_sha256": observation.attempt.safe_parameters_sha256,
+            "parameters_sha256": unknown.parameters_sha256,
             "endpoint_id": response.endpoint_id,
             "endpoint_slug": response.endpoint_slug,
             "response_state": state,
@@ -4229,17 +4237,26 @@ def _body_node_source_rows(
         or observation.capture_response_receipt_sha256 != authority.response_receipt_sha256
     ):
         raise TypedFieldValueReceiptError("body-node conditional source identity is foreign")
-    raw_payload = _decode_raw_json_object(decode_parser_input_object(body))
+    parser_input = decode_parser_input_object(body)
+    raw_payload = _decode_raw_json_object(parser_input)
     canonical_payload = canonical_json_bytes(raw_payload)
     payload = _decode_raw_json_object(canonical_payload)
     payload_sha256 = hashlib.sha256(canonical_payload).hexdigest()
+    unknown = _rederive_unknown_stats_response(
+        observation=observation,
+        parser_input=parser_input,
+    )
+    if unknown is None:  # pragma: no cover - exact source-family guard above
+        raise TypedFieldValueReceiptError(
+            "body-node conditional response lacks wire parameter authority"
+        )
     identity = {
         "response_receipt_sha256": authority.response_receipt_sha256,
         "provider_authority_sha256": authority.provider_authority_sha256,
         "endpoint_contract_sha256": authority.endpoint_contract_sha256,
         "parser_input_sha256": body.response_sha256,
         "canonical_payload_sha256": payload_sha256,
-        "parameters_sha256": observation.attempt.safe_parameters_sha256,
+        "parameters_sha256": unknown.parameters_sha256,
         "endpoint_id": observation.attempt.endpoint_id,
     }
     if any(
