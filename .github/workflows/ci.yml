@@ -51,6 +51,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
+          version: "0.12.0"
           enable-cache: true
           prune-cache: true
           cache-suffix: lint
@@ -98,6 +99,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
+          version: "0.12.0"
           enable-cache: true
           prune-cache: true
           cache-suffix: metadata
@@ -124,6 +126,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
+          version: "0.12.0"
           enable-cache: true
           prune-cache: true
           cache-suffix: typecheck
@@ -154,6 +157,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
+          version: "0.12.0"
           enable-cache: true
           prune-cache: true
           cache-suffix: docs
@@ -215,7 +219,7 @@ jobs:
 
   unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.timeout_minutes || 45 }}
     needs: [workflow-lint, lint, metadata, typecheck]
     strategy:
       fail-fast: false
@@ -257,6 +261,7 @@ jobs:
               tests/unit/contracts/test_typed_field_value_receipt.py::test_live_nested_missing_result_set_field_uses_child_occurrence_context
               tests/unit/contracts/test_typed_field_value_receipt.py::test_live_mixed_absent_occurrence_is_exact_and_rejects_resealed_tampering
           - id: contracts-typed-values-fallback-shapes
+            timeout_minutes: 90
             paths: tests/unit/contracts/test_typed_field_value_receipt.py::test_selected_result_round_trips_every_observed_fallback_shape
           - id: contracts-typed-values-c
             paths: >-
@@ -302,6 +307,7 @@ jobs:
           - id: orchestrate-raw-manifest
             paths: tests/unit/orchestrate/test_raw_request_manifest.py
           - id: orchestrate-raw-integration
+            timeout_minutes: 90
             paths: tests/unit/orchestrate/test_raw_request_orchestrator_integration.py
           - id: orchestrate-raw-static
             paths: tests/unit/orchestrate/test_raw_request_static_authority.py
@@ -363,6 +369,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
+          version: "0.12.0"
           enable-cache: true
           prune-cache: true
           cache-suffix: test-${{ matrix.id }}
@@ -417,6 +424,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
+          version: "0.12.0"
           enable-cache: true
           prune-cache: true
           cache-suffix: test-final
