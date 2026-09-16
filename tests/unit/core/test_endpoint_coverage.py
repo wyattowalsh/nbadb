@@ -3200,6 +3200,12 @@ class FactScheduleTransformer(SqlTransformer):
     assert fate_summary["unmodeled_unclassified_count"] == 0
 
 
+def test_league_player_clutch_unmodeled_fields_are_reference_only() -> None:
+    import nbadb.core.endpoint_coverage as endpoint_coverage
+
+    assert "stg_league_player_clutch" in endpoint_coverage._FIELD_REFERENCE_ONLY_STAGING_KEYS
+
+
 def test_model_ownership_decision_maps_do_not_overlap() -> None:
     from pathlib import Path
 

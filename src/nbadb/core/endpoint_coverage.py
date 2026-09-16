@@ -358,6 +358,7 @@ _FIELD_REFERENCE_ONLY_STAGING_KEYS = {
     "stg_box_score_usage",
     "stg_coaches",
     "stg_league_game_log",
+    "stg_league_player_clutch",
     "stg_matchup",
     "stg_on_off",
     "stg_play_by_play",
