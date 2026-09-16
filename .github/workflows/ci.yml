@@ -306,9 +306,24 @@ jobs:
               tests/unit/orchestrate/test_raw_request_store.py
           - id: orchestrate-raw-manifest
             paths: tests/unit/orchestrate/test_raw_request_manifest.py
+          - id: orchestrate-raw-integration-static
+            timeout_minutes: 120
+            paths: tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_cold_cache_all_four_static_routes_reach_terminal_raw_manifest
           - id: orchestrate-raw-integration
             timeout_minutes: 90
-            paths: tests/unit/orchestrate/test_raw_request_orchestrator_integration.py
+            paths: >-
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_static_authority_inventory_fails_before_provider_execution
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_success_commits_staging_then_raw_authority_and_replays_idempotently
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_success_requires_explicit_w2_runtime_before_any_staging_write
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_failure_only_snapshot_persists_without_staging_or_success_materialization
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_raw_store_failure_stops_postcommit_callback_after_staging_commit
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_foreign_execution_snapshot_fails_before_any_staging_write
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_constructor_rejects_partial_raw_capture_authority
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_constructor_rejects_manifest_from_foreign_execution
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_manifest_authority_rejects_incomplete_field_or_model_digest
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_foreign_closure_authority_fails_before_any_staging_write
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_manifest_authority_rejects_scope_outside_exact_request_denominator
+              tests/unit/orchestrate/test_raw_request_orchestrator_integration.py::test_manifest_failure_stops_callback_after_raw_commit_before_success
           - id: orchestrate-raw-static
             paths: tests/unit/orchestrate/test_raw_request_static_authority.py
           - id: orchestrate-recurring
