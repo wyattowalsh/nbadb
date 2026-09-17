@@ -446,7 +446,88 @@ PY
     echo "::error::lane_manifest_json is ${manifest_chars} chars; use lane_manifest_run_id/lane_manifest_artifact_name artifact handoff"
     exit 1
   fi
-  args+=(--lane-manifest-json "$INPUT_LANE_MANIFEST_JSON")
+  if [ -z "$ASSURANCE_ADMISSION_PATH" ] || \
+     [ ! -f "$ASSURANCE_ADMISSION_PATH" ] || \
+     [ -L "$ASSURANCE_ADMISSION_PATH" ]; then
+    echo "::error::Inline lane_manifest_json requires the generated assurance admission"
+    exit 1
+  fi
+  mkdir -p artifacts/full-extraction
+  uv run python - <<'PY'
+# INLINE_MANIFEST_ADMISSION_REBIND
+import json
+import os
+import sys
+from pathlib import Path
+
+from nbadb.core.nba_api_provenance import expected_nba_api_provider_authority
+
+raw = json.loads(os.environ["INPUT_LANE_MANIFEST_JSON"])
+if not isinstance(raw, dict):
+    print("::error::lane_manifest_json must be an object", file=sys.stderr)
+    raise SystemExit(1)
+lanes = raw.get("lanes")
+if not isinstance(lanes, list) and isinstance(raw.get("manifest"), dict):
+    lanes = raw["manifest"].get("lanes")
+    raw = {**raw, "lanes": lanes}
+if not isinstance(lanes, list) or not lanes:
+    print("::error::lane_manifest_json must include a nonempty lanes list", file=sys.stderr)
+    raise SystemExit(1)
+
+operation = str(os.environ.get("FULL_EXTRACTION_OPERATION") or "").strip()
+if operation == "targeted_smoke":
+    if len(lanes) != 1 or not isinstance(lanes[0], dict):
+        print(
+            "::error::targeted_smoke lane_manifest_json must contain exactly one lane",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    endpoints = lanes[0].get("endpoints")
+    if endpoints != ["franchise_history"]:
+        print(
+            "::error::targeted_smoke lane_manifest_json must pin endpoints=[franchise_history]",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+admission_path = Path(os.environ["ASSURANCE_ADMISSION_PATH"])
+admission = json.loads(admission_path.read_text(encoding="utf-8"))
+chain_id = os.environ["CHAIN_ID"]
+source_sha = os.environ["WORKFLOW_SOURCE_SHA"].strip().lower()
+raw_chain_id = str(raw.get("chain_id") or "").strip()
+raw_source_sha = str(raw.get("workflow_source_sha") or "").strip().lower()
+if raw_chain_id not in {"", chain_id}:
+    print(
+        "::error::lane_manifest_json chain_id does not match this run",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+if raw_source_sha not in {"", source_sha}:
+    print(
+        "::error::lane_manifest_json workflow_source_sha does not match the pinned workflow source",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+manifest_version = raw.get("manifest_version", 5)
+if manifest_version != 5:
+    print("::error::lane_manifest_json manifest_version must be exactly 5", file=sys.stderr)
+    raise SystemExit(1)
+
+payload = dict(raw)
+payload["manifest_version"] = 5
+payload["chain_id"] = chain_id
+payload["workflow_source_sha"] = source_sha
+payload["lanes"] = lanes
+payload["assurance_admission"] = admission
+payload["provider_authority"] = expected_nba_api_provider_authority()
+output = Path("artifacts/full-extraction/input-manifest.json")
+if output.exists() or output.is_symlink():
+    print("::error::input-manifest.json must not already exist", file=sys.stderr)
+    raise SystemExit(1)
+output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print(f"Rebound generated assurance admission onto inline lane manifest for chain {chain_id}")
+PY
+  args+=(--lane-manifest-path artifacts/full-extraction/input-manifest.json)
 elif [ -n "$LANE_MANIFEST_RUN_ID" ] || [ -n "$LANE_MANIFEST_ARTIFACT_NAME" ]; then
   if [ -z "$LANE_MANIFEST_RUN_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_NAME" ]; then
     echo "::error::lane_manifest_run_id and lane_manifest_artifact_name must be provided together"

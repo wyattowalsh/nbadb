@@ -39,6 +39,15 @@ def test_command_inventory_is_exact_and_preserves_authority_markers() -> None:
         }
 
 
+def test_build_lane_manifest_rebinds_generated_admission_onto_inline_json() -> None:
+    script = subject.COMMANDS["build-lane-manifest"]
+    assert "INLINE_MANIFEST_ADMISSION_REBIND" in script
+    assert "Inline lane_manifest_json requires the generated assurance admission" in script
+    assert 'args+=(--lane-manifest-json "$INPUT_LANE_MANIFEST_JSON")' not in script
+    assert "args+=(--lane-manifest-path artifacts/full-extraction/input-manifest.json)" in script
+    assert "targeted_smoke lane_manifest_json must pin endpoints=[franchise_history]" in script
+
+
 @pytest.mark.parametrize("returncode", [0, 1])
 @pytest.mark.parametrize("command", sorted(_COMMAND_MARKERS))
 def test_main_executes_exact_selected_script_and_propagates_status(

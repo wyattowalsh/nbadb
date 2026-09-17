@@ -5347,6 +5347,8 @@ def test_targeted_smoke_is_capacity_blocked_before_checkpoint_assurance() -> Non
     assert "targeted_smoke requires exactly one lane and one iteration" in guard
     assert "targeted_smoke forbids retry_pipeline_failures" in guard
     assert "targeted_smoke requires an inline or artifact-backed manual lane manifest" in guard
+    handoffs = _FULL_EXTRACTION_HANDOFFS_PATH.read_text(encoding="utf-8")
+    assert "INLINE_MANIFEST_ADMISSION_REBIND" in handoffs
 
     assert "if: ${{ inputs.operation == 'targeted_smoke' }}" in plan_gate
     assert 'if [ "$LANE_COUNT" != "1" ]' in plan_gate
