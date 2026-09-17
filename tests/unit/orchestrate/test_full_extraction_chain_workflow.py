@@ -61,6 +61,7 @@ _LEGACY_MANIFEST_HANDOFF_PATH = (
     _REPO_ROOT / ".github" / "scripts" / "resolve_legacy_manifest_handoff.py"
 )
 _REQUIRED_EXTRACTION_SCRIPTS = (
+    _REPO_ROOT / ".github" / "scripts" / "attest_free_execution_job.py",
     _FULL_EXTRACTION_HANDOFFS_PATH,
     _REPO_ROOT / ".github" / "scripts" / "probe_discovery_transport.py",
     _LEGACY_MANIFEST_HANDOFF_PATH,
@@ -525,14 +526,16 @@ def test_required_extraction_runtime_scripts_exist_and_are_not_ignored() -> None
             text=True,
         )
         assert result.returncode == 1, result.stdout or result.stderr
+        relative = str(path.relative_to(_REPO_ROOT))
         tracked = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", str(path.relative_to(_REPO_ROOT))],
+            ["git", "ls-files", "--error-unmatch", relative],
             cwd=_REPO_ROOT,
             check=False,
             capture_output=True,
             text=True,
         )
         assert tracked.returncode == 0, tracked.stdout or tracked.stderr
+        assert _CI_PATH.read_text(encoding="utf-8").count(relative) == 3, relative
 
 
 def test_user_supplied_source_sha_must_descend_from_trusted_branches() -> None:
@@ -1565,7 +1568,7 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
     )
     collectors = _step_block(
         plan,
-        "Record capacity-blocked free-execution collector state",
+        "Record authenticated free-execution collector state",
     )
     operation_authority = _step_block(plan, "Create exact operation authority")
     build = _step_block(plan, "Build lane manifest")
@@ -1601,15 +1604,9 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
     assert plan.index("Establish fail-closed free-execution collector state") < plan.index(
         "astral-sh/setup-uv@"
     )
-    for output in (
-        'echo "status=capacity_blocked"',
-        'echo "authenticated=false"',
-        'echo "runtime-context-status=unavailable"',
-        'echo "storage-mutations-allowed=false"',
-        'echo "provider-calls-allowed=false"',
-        'echo "mutations-authorized=false"',
-    ):
-        assert output in collector_state
+    assert "python3 .github/scripts/attest_free_execution_job.py collect" in collector_state
+    assert 'echo "status=capacity_blocked"' not in collector_state
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in collector_state
     assert "enable-cache: false" in plan
     assert "enable-cache: true" not in plan
     assert "prune-cache:" not in plan
@@ -1835,11 +1832,17 @@ def test_provider_work_and_mutations_are_unreachable_from_blocked_plan() -> None
     ):
         job = _job_block(workflow, job_name)
         guard = _step_block(job, guard_name)
+        provider = _step_block(job, provider_step)
         assert job.index(guard_name) < job.index(provider_step)
-        assert "authenticated actual-job, runner, matrix-lane, nonce, and operation" in guard
-        assert "Authenticated runtime collector integration is not implemented" in guard
-        assert guard.count("exit 1") == 2
+        assert "attest_free_execution_job.py authorize --output artifacts/" in guard
+        assert "attest_free_execution_job.py verify --input artifacts/" in provider
+        assert "Authenticated runtime collector integration is not implemented" not in guard
         assert "authorize_provider_request" not in guard
+        assert "OPERATION_AUTHORITY_STATUS:" in guard
+        assert "needs.plan.outputs.operation-authority-status" in guard
+        assert "OPERATION_AUTHORITY_STATUS:" in provider
+        assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in guard
+        assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in provider
 
 
 def test_terminal_live_snapshot_cannot_run_from_capacity_blocked_plan() -> None:
@@ -1861,7 +1864,8 @@ def test_terminal_live_snapshot_cannot_run_from_capacity_blocked_plan() -> None:
     )
     assert "free-execution-mutations-authorized == 'true'" in replay.split("    runs-on:", 1)[0]
     assert "free-execution-mutations-authorized == 'true'" in merge.split("    runs-on:", 1)[0]
-    assert "runtime collector integration is not implemented" in live_guard.lower()
+    assert "attest_free_execution_job.py authorize --output artifacts/live-snapshot/" in live_guard
+    assert "runtime collector integration is not implemented" not in live_guard.lower()
     assert merge.index("Block live snapshot provider work") < merge.index("Append live snapshot")
     assert 'manifest.get("operation_authority") != authority_payload' in _step_block(
         _job_block(workflow, "plan"),

@@ -421,16 +421,9 @@ jobs:
 
       - name: Establish fail-closed free-execution collector state
         id: free_execution_collector_state
-        run: |
-          {
-            echo "status=capacity_blocked"
-            echo "authenticated=false"
-            echo "runtime-context-status=unavailable"
-            echo "storage-mutations-allowed=false"
-            echo "provider-calls-allowed=false"
-            echo "mutations-authorized=false"
-          } >> "$GITHUB_OUTPUT"
-          echo "::warning::Authenticated free-execution collectors are unavailable; all provider and persistent-storage mutations remain blocked"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/attest_free_execution_job.py collect
 
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -624,9 +617,9 @@ jobs:
               output.write(f"model-status={generation.admission_status}\n")
           PY
 
-      - name: Record capacity-blocked free-execution collector state
+      - name: Record authenticated free-execution collector state
         run: |
-          echo "::warning::Free execution is capacity_blocked: authenticated execution-context, job-to-artifact, billing, storage, workflow-content, nonce, and operation-registry collectors are unavailable"
+          echo "::notice::authenticated execution-context, job, runner, nonce, and operation collectors attested this plan job"
 
       - name: Verify exact input manifest receipt
         if: ${{ inputs.lane_manifest_artifact_id != '' }}
@@ -2643,35 +2636,30 @@ jobs:
 
       - name: Block discovery provider work until runtime collectors exist
         env:
-          ADMISSION_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPERATION_AUTHORITY_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
           COLLECTOR_STATUS: ${{ needs.plan.outputs.free-execution-collector-status }}
           COLLECTOR_AUTHENTICATED: ${{ needs.plan.outputs.free-execution-collector-authenticated }}
           RUNTIME_CONTEXT_STATUS: ${{ needs.plan.outputs.free-execution-runtime-context-status }}
+          STORAGE_MUTATIONS_ALLOWED: ${{ needs.plan.outputs.free-execution-storage-mutations-allowed }}
           PROVIDER_CALLS_ALLOWED: ${{ needs.plan.outputs.free-execution-provider-calls-allowed }}
           MUTATIONS_AUTHORIZED: ${{ needs.plan.outputs.free-execution-mutations-authorized }}
-        run: |
-          set -euo pipefail
-          if [ "$ADMISSION_STATUS" != "admitted" ] || \
-             [ "$COLLECTOR_STATUS" != "admitted" ] || \
-             [ "$COLLECTOR_AUTHENTICATED" != "true" ] || \
-             [ "$RUNTIME_CONTEXT_STATUS" != "authenticated" ] || \
-             [ "$PROVIDER_CALLS_ALLOWED" != "true" ] || \
-             [ "$MUTATIONS_AUTHORIZED" != "true" ]; then
-            echo "::error::Provider work is blocked because authenticated actual-job, runner, matrix-lane, nonce, and operation collectors are unavailable"
-            exit 1
-          fi
-          echo "::error::Authenticated runtime collector integration is not implemented; refusing provider work"
-          exit 1
+        run: python3 .github/scripts/attest_free_execution_job.py authorize --output artifacts/discovery/free-execution-authorization.json
 
       - name: Seed discovery artifacts
         env:
           NBADB_DISCOVERY_SEED_DEADLINE_SECONDS: "5400"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPERATION_AUTHORITY_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
+          COLLECTOR_STATUS: ${{ needs.plan.outputs.free-execution-collector-status }}
+          COLLECTOR_AUTHENTICATED: ${{ needs.plan.outputs.free-execution-collector-authenticated }}
+          RUNTIME_CONTEXT_STATUS: ${{ needs.plan.outputs.free-execution-runtime-context-status }}
+          STORAGE_MUTATIONS_ALLOWED: ${{ needs.plan.outputs.free-execution-storage-mutations-allowed }}
+          PROVIDER_CALLS_ALLOWED: ${{ needs.plan.outputs.free-execution-provider-calls-allowed }}
+          MUTATIONS_AUTHORIZED: ${{ needs.plan.outputs.free-execution-mutations-authorized }}
         run: |
           mkdir -p artifacts/discovery data/nbadb
-          if [ ! -f artifacts/discovery/free-execution-authorization.json ] || [ -L artifacts/discovery/free-execution-authorization.json ]; then
-            echo "::error::Discovery provider work lacks its exact free-execution authorization"
-            exit 1
-          fi
+          python3 .github/scripts/attest_free_execution_job.py verify --input artifacts/discovery/free-execution-authorization.json
           manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
           if [ -z "$manifest_path" ]; then
             echo "::error::Plan artifact did not contain manifest.json"
@@ -3785,25 +3773,16 @@ jobs:
       - name: Block extraction provider work until runtime collectors exist
         if: ${{ !matrix.resume_only }}
         env:
-          ADMISSION_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPERATION_AUTHORITY_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
           COLLECTOR_STATUS: ${{ needs.plan.outputs.free-execution-collector-status }}
           COLLECTOR_AUTHENTICATED: ${{ needs.plan.outputs.free-execution-collector-authenticated }}
           RUNTIME_CONTEXT_STATUS: ${{ needs.plan.outputs.free-execution-runtime-context-status }}
+          STORAGE_MUTATIONS_ALLOWED: ${{ needs.plan.outputs.free-execution-storage-mutations-allowed }}
           PROVIDER_CALLS_ALLOWED: ${{ needs.plan.outputs.free-execution-provider-calls-allowed }}
           MUTATIONS_AUTHORIZED: ${{ needs.plan.outputs.free-execution-mutations-authorized }}
-        run: |
-          set -euo pipefail
-          if [ "$ADMISSION_STATUS" != "admitted" ] || \
-             [ "$COLLECTOR_STATUS" != "admitted" ] || \
-             [ "$COLLECTOR_AUTHENTICATED" != "true" ] || \
-             [ "$RUNTIME_CONTEXT_STATUS" != "authenticated" ] || \
-             [ "$PROVIDER_CALLS_ALLOWED" != "true" ] || \
-             [ "$MUTATIONS_AUTHORIZED" != "true" ]; then
-            echo "::error::Provider work is blocked because authenticated actual-job, runner, matrix-lane, nonce, and operation collectors are unavailable"
-            exit 1
-          fi
-          echo "::error::Authenticated runtime collector integration is not implemented; refusing provider work"
-          exit 1
+          LANE_ID: ${{ matrix.lane_id }}
+        run: python3 .github/scripts/attest_free_execution_job.py authorize --output artifacts/extraction/free-execution-authorization.json
 
       # ── Run extraction ──
       - name: Run extraction
@@ -3822,6 +3801,14 @@ jobs:
           NBADB_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
           LANE_KIND: ${{ matrix.lane_kind }}
           LANE_ID: ${{ matrix.lane_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPERATION_AUTHORITY_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
+          COLLECTOR_STATUS: ${{ needs.plan.outputs.free-execution-collector-status }}
+          COLLECTOR_AUTHENTICATED: ${{ needs.plan.outputs.free-execution-collector-authenticated }}
+          RUNTIME_CONTEXT_STATUS: ${{ needs.plan.outputs.free-execution-runtime-context-status }}
+          STORAGE_MUTATIONS_ALLOWED: ${{ needs.plan.outputs.free-execution-storage-mutations-allowed }}
+          PROVIDER_CALLS_ALLOWED: ${{ needs.plan.outputs.free-execution-provider-calls-allowed }}
+          MUTATIONS_AUTHORIZED: ${{ needs.plan.outputs.free-execution-mutations-authorized }}
           DEPENDENT_PLAN_SHA256: ${{ matrix.dependent_plan_sha256 }}
           DEPENDENT_BUNDLE_SHA256: ${{ matrix.dependent_bundle_sha256 }}
           DEPENDENT_FOUNDATION_TRANSACTION_SHA256: ${{ matrix.dependent_foundation_transaction_sha256 }}
@@ -3829,10 +3816,7 @@ jobs:
           DEPENDENT_LANE_SHA256: ${{ matrix.dependent_lane_sha256 }}
         run: |
           mkdir -p artifacts/extraction
-          if [ ! -f artifacts/extraction/free-execution-authorization.json ] || [ -L artifacts/extraction/free-execution-authorization.json ]; then
-            echo "::error::Extraction provider work lacks its exact free-execution authorization"
-            exit 1
-          fi
+          python3 .github/scripts/attest_free_execution_job.py verify --input artifacts/extraction/free-execution-authorization.json
           if [ "$LANE_KIND" = "post_foundation_dependent_matchup" ]; then
             mapfile -t execution_plans < <(find dependent-workload-artifact -name dependent-execution-plan.json -type f -print)
             if [ "${#execution_plans[@]}" -ne 1 ]; then
@@ -5318,32 +5302,28 @@ jobs:
 
       - name: Block live snapshot provider work until runtime collectors exist
         env:
-          ADMISSION_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPERATION_AUTHORITY_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
           COLLECTOR_STATUS: ${{ needs.plan.outputs.free-execution-collector-status }}
           COLLECTOR_AUTHENTICATED: ${{ needs.plan.outputs.free-execution-collector-authenticated }}
           RUNTIME_CONTEXT_STATUS: ${{ needs.plan.outputs.free-execution-runtime-context-status }}
+          STORAGE_MUTATIONS_ALLOWED: ${{ needs.plan.outputs.free-execution-storage-mutations-allowed }}
+          PROVIDER_CALLS_ALLOWED: ${{ needs.plan.outputs.free-execution-provider-calls-allowed }}
+          MUTATIONS_AUTHORIZED: ${{ needs.plan.outputs.free-execution-mutations-authorized }}
+        run: python3 .github/scripts/attest_free_execution_job.py authorize --output artifacts/live-snapshot/free-execution-authorization.json
+
+      - name: Append live snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPERATION_AUTHORITY_STATUS: ${{ needs.plan.outputs.operation-authority-status }}
+          COLLECTOR_STATUS: ${{ needs.plan.outputs.free-execution-collector-status }}
+          COLLECTOR_AUTHENTICATED: ${{ needs.plan.outputs.free-execution-collector-authenticated }}
+          RUNTIME_CONTEXT_STATUS: ${{ needs.plan.outputs.free-execution-runtime-context-status }}
+          STORAGE_MUTATIONS_ALLOWED: ${{ needs.plan.outputs.free-execution-storage-mutations-allowed }}
           PROVIDER_CALLS_ALLOWED: ${{ needs.plan.outputs.free-execution-provider-calls-allowed }}
           MUTATIONS_AUTHORIZED: ${{ needs.plan.outputs.free-execution-mutations-authorized }}
         run: |
-          set -euo pipefail
-          if [ "$ADMISSION_STATUS" != "admitted" ] || \
-             [ "$COLLECTOR_STATUS" != "admitted" ] || \
-             [ "$COLLECTOR_AUTHENTICATED" != "true" ] || \
-             [ "$RUNTIME_CONTEXT_STATUS" != "authenticated" ] || \
-             [ "$PROVIDER_CALLS_ALLOWED" != "true" ] || \
-             [ "$MUTATIONS_AUTHORIZED" != "true" ]; then
-            echo "::error::Provider work is blocked because authenticated actual-job, runner, matrix-lane, nonce, and operation collectors are unavailable"
-            exit 1
-          fi
-          echo "::error::Authenticated runtime collector integration is not implemented; refusing provider work"
-          exit 1
-
-      - name: Append live snapshot
-        run: |
-          if [ ! -f artifacts/live-snapshot/free-execution-authorization.json ] || [ -L artifacts/live-snapshot/free-execution-authorization.json ]; then
-            echo "::error::Live-snapshot provider work lacks its exact free-execution authorization"
-            exit 1
-          fi
+          python3 .github/scripts/attest_free_execution_job.py verify --input artifacts/live-snapshot/free-execution-authorization.json
           uv run nbadb live-snapshot --verbose
 
       - name: Merge summary
