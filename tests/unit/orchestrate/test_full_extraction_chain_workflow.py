@@ -1576,15 +1576,15 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
     blocked = _job_block(workflow, "free_execution_blocked")
     workflow_concurrency = workflow.split("\nconcurrency:\n", 1)[1].split("\njobs:\n", 1)[0]
 
-    # The retired strictly-free-direct inputs are now the exact operation-authority
-    # network contract: VPN-only or bounded VPN-to-direct fallback, 1-6 VPN lanes,
-    # and 0-6 direct lanes with VPN-only pinned to zero direct capacity.
+    # The operation-authority network contract: VPN-only, bounded VPN-to-direct
+    # fallback, or free/direct, 0-6 VPN lanes, and 0-6 direct lanes with VPN-only
+    # pinned to zero direct capacity and direct-only pinned to zero VPN capacity.
     assert (
         'network_mode:\n        description: "Provider network route: '
-        'VPN-only or bounded VPN-to-direct fallback"' in workflow
+        'VPN-only, bounded VPN-to-direct fallback, or free/direct"' in workflow
     )
     assert "default: auto" in workflow
-    assert "options:\n          - vpn\n          - auto" in workflow
+    assert "options:\n          - vpn\n          - auto\n          - direct" in workflow
     assert (
         'direct_parallelism:\n        description: "Bounded direct fallback lanes; '
         'zero for VPN-only operations"' in workflow
@@ -1596,8 +1596,9 @@ def test_full_extraction_builds_only_an_exact_capacity_blocked_plan() -> None:
     assert "queue:" not in workflow_concurrency
     assert "cancel-in-progress: false" in workflow_concurrency
     assert "operation must be exactly targeted_smoke, extract, or continue" in guard
-    assert "VPN/direct parallelism must be within the bounded 1-6/0-6 ranges" in guard
+    assert "VPN/direct parallelism must be within the bounded 0-6/0-6 ranges" in guard
     assert "network_mode=vpn requires direct_parallelism=0" in guard
+    assert "network_mode=direct requires vpn_parallelism=0" in guard
     assert "operation=continue requires all five exact resume source inputs" in guard
     assert "resume source inputs require operation=continue" in guard
 
@@ -5341,8 +5342,8 @@ def test_targeted_smoke_is_capacity_blocked_before_checkpoint_assurance() -> Non
     dispatch = _job_block(workflow, "dispatch_next")
 
     # targeted_smoke is an exact operation choice, not a boolean input, and stays
-    # VPN-only with exactly one lane and one iteration.
-    assert "targeted_smoke requires VPN-only 1/0 lane capacity" in guard
+    # free/direct with exactly one lane and one iteration.
+    assert "targeted_smoke requires free/direct-only 0/1 lane capacity" in guard
     assert "targeted_smoke requires exactly one lane and one iteration" in guard
     assert "targeted_smoke forbids retry_pipeline_failures" in guard
     assert "targeted_smoke requires an inline or artifact-backed manual lane manifest" in guard
@@ -5352,9 +5353,9 @@ def test_targeted_smoke_is_capacity_blocked_before_checkpoint_assurance() -> Non
     assert '[ "$ACTIVE_LANE_COUNT" != "1" ]' in plan_gate
     assert '[ "$MATRIX_LANE_COUNT" != "1" ]' in plan_gate
     assert '[ "$DEFERRED_LANE_COUNT" != "0" ]' in plan_gate
-    assert '[ "$VPN_SLOT_COUNT" != "1" ]' in plan_gate
+    assert '[ "$VPN_SLOT_COUNT" != "0" ]' in plan_gate
     assert '[ "$OPERATION_AUTHORITY_STATUS" != "validated" ]' in plan_gate
-    assert "Targeted smoke must execute one exact VPN-authorized lane" in plan_gate
+    assert "Targeted smoke must execute one exact free/direct lane" in plan_gate
     assert plan.index("Validate targeted smoke plan") < plan.index("Upload lane manifest")
 
     assert "if: ${{ always() && !cancelled() && inputs.operation == 'targeted_smoke' &&" in smoke

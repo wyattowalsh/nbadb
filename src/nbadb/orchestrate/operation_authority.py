@@ -56,6 +56,7 @@ class NetworkMode(StrEnum):
 
     VPN = "vpn"
     AUTO = "auto"
+    DIRECT = "direct"
 
 
 def _require_exact_text(value: object, *, field_name: str) -> str:
@@ -434,6 +435,16 @@ class OperationAuthorityV1:
     def _validate_provider_network(self, *, context: str) -> None:
         if self.requested_network_mode is None:
             raise OperationAuthorityError(f"{context} requires an explicit network mode")
+        if self.requested_network_mode is NetworkMode.DIRECT:
+            if self.requested_vpn_parallelism != 0:
+                raise OperationAuthorityError(
+                    f"{context} with direct mode must not request VPN capacity"
+                )
+            if not 1 <= self.requested_direct_parallelism <= DIRECT_PARALLELISM_LIMIT:
+                raise OperationAuthorityError(
+                    f"{context} direct parallelism must be between 1 and {DIRECT_PARALLELISM_LIMIT}"
+                )
+            return
         if not 1 <= self.requested_vpn_parallelism <= VPN_PARALLELISM_LIMIT:
             raise OperationAuthorityError(
                 f"{context} VPN parallelism must be between 1 and {VPN_PARALLELISM_LIMIT}"
@@ -443,10 +454,15 @@ class OperationAuthorityV1:
                 raise OperationAuthorityError(
                     f"{context} with VPN-only mode must not request direct capacity"
                 )
-        elif self.requested_direct_parallelism > DIRECT_PARALLELISM_LIMIT:
-            raise OperationAuthorityError(
-                f"{context} direct fallback parallelism must not exceed {DIRECT_PARALLELISM_LIMIT}"
-            )
+            return
+        if self.requested_network_mode is NetworkMode.AUTO:
+            if self.requested_direct_parallelism > DIRECT_PARALLELISM_LIMIT:
+                raise OperationAuthorityError(
+                    f"{context} direct fallback parallelism must not exceed "
+                    f"{DIRECT_PARALLELISM_LIMIT}"
+                )
+            return
+        raise OperationAuthorityError(f"{context} requested an unsupported network mode")
 
     def _validate_no_provider_network(self, *, context: str) -> None:
         if self.requested_network_mode is not None:
@@ -463,14 +479,14 @@ class OperationAuthorityV1:
     def _validate_operation_invariants(self) -> None:
         operation = self.operation
         if operation is OperationKind.TARGETED_SMOKE:
-            if self.requested_network_mode is not NetworkMode.VPN:
+            if self.requested_network_mode is not NetworkMode.DIRECT:
                 raise OperationAuthorityError(
-                    "targeted_smoke is VPN-only and may not request direct capacity"
+                    "targeted_smoke is free/direct-only and may not request VPN capacity"
                 )
-            if self.requested_vpn_parallelism != 1:
-                raise OperationAuthorityError("targeted_smoke authorizes exactly one VPN lane")
-            if self.requested_direct_parallelism != 0:
-                raise OperationAuthorityError("targeted_smoke authorizes zero direct lanes")
+            if self.requested_vpn_parallelism != 0:
+                raise OperationAuthorityError("targeted_smoke authorizes zero VPN lanes")
+            if self.requested_direct_parallelism != 1:
+                raise OperationAuthorityError("targeted_smoke authorizes exactly one direct lane")
             if self.max_iterations != 1:
                 raise OperationAuthorityError("targeted_smoke authorizes exactly one iteration")
             if self.retry_pipeline_failures:

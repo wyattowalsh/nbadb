@@ -73,7 +73,9 @@ def _authority(
         "manifest_lane_count": 1,
     }
     if operation is OperationKind.TARGETED_SMOKE:
-        values["requested_vpn_parallelism"] = 1
+        values["requested_network_mode"] = NetworkMode.DIRECT
+        values["requested_vpn_parallelism"] = 0
+        values["requested_direct_parallelism"] = 1
     if operation is OperationKind.CONTINUE:
         values["continuation_source"] = _member()
     if operation in (OperationKind.PUBLISH, OperationKind.RECONCILE):
@@ -198,21 +200,43 @@ def test_non_dispatch_event_rejected() -> None:
 
 
 class TestTargetedSmokeInvariants:
-    def test_direct_mode_rejected(self) -> None:
-        with pytest.raises(OperationAuthorityError, match="VPN-only"):
+    def test_vpn_mode_rejected(self) -> None:
+        with pytest.raises(OperationAuthorityError, match="free/direct-only"):
+            _authority(
+                OperationKind.TARGETED_SMOKE,
+                requested_network_mode=NetworkMode.VPN,
+                requested_vpn_parallelism=1,
+                requested_direct_parallelism=0,
+            )
+
+    def test_auto_mode_rejected(self) -> None:
+        with pytest.raises(OperationAuthorityError, match="free/direct-only"):
             _authority(
                 OperationKind.TARGETED_SMOKE,
                 requested_network_mode=NetworkMode.AUTO,
+                requested_vpn_parallelism=1,
                 requested_direct_parallelism=1,
             )
 
-    def test_multiple_vpn_lanes_rejected(self) -> None:
-        with pytest.raises(OperationAuthorityError, match="one VPN lane"):
-            _authority(OperationKind.TARGETED_SMOKE, requested_vpn_parallelism=2)
+    def test_vpn_lanes_rejected(self) -> None:
+        with pytest.raises(OperationAuthorityError, match="zero VPN lanes"):
+            _authority(
+                OperationKind.TARGETED_SMOKE,
+                requested_network_mode=NetworkMode.DIRECT,
+                requested_vpn_parallelism=1,
+                requested_direct_parallelism=1,
+            )
 
-    def test_direct_slots_rejected(self) -> None:
-        with pytest.raises(OperationAuthorityError, match="zero direct"):
-            _authority(OperationKind.TARGETED_SMOKE, requested_direct_parallelism=1)
+    def test_zero_direct_slots_rejected(self) -> None:
+        with pytest.raises(OperationAuthorityError, match="one direct lane"):
+            _authority(
+                OperationKind.TARGETED_SMOKE,
+                requested_direct_parallelism=0,
+            )
+
+    def test_multiple_direct_slots_rejected(self) -> None:
+        with pytest.raises(OperationAuthorityError, match="one direct lane"):
+            _authority(OperationKind.TARGETED_SMOKE, requested_direct_parallelism=2)
 
     def test_multiple_iterations_rejected(self) -> None:
         with pytest.raises(OperationAuthorityError, match="one iteration"):
@@ -277,6 +301,17 @@ class TestExtractInvariants:
             requested_direct_parallelism=2,
         )
         assert authority.requested_network_mode is NetworkMode.AUTO
+
+    def test_bounded_direct_mode_accepted(self) -> None:
+        authority = _authority(
+            OperationKind.EXTRACT,
+            requested_network_mode=NetworkMode.DIRECT,
+            requested_vpn_parallelism=0,
+            requested_direct_parallelism=2,
+        )
+        assert authority.requested_network_mode is NetworkMode.DIRECT
+        assert authority.requested_vpn_parallelism == 0
+        assert authority.requested_direct_parallelism == 2
 
     def test_handoff_rejected(self) -> None:
         with pytest.raises(OperationAuthorityError, match="terminal handoff"):

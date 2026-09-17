@@ -138,11 +138,21 @@ def _write_operation_authority(
     operation: OperationKind,
     manifest_lane_count: int,
     iteration: int = 1,
-    vpn_parallelism: int = 2,
+    vpn_parallelism: int | None = None,
+    direct_parallelism: int | None = None,
+    network_mode: NetworkMode | None = None,
     continuation_source: ExactArtifactMemberV1 | None = None,
 ) -> OperationAuthorityV1:
     repository = "w4w/nbadb"
     workflow_path = pathlib.Path(__file__).parents[3] / ".github/workflows/full-extraction.yml"
+    if operation is OperationKind.TARGETED_SMOKE:
+        requested_network_mode = network_mode or NetworkMode.DIRECT
+        requested_vpn_parallelism = 0 if vpn_parallelism is None else vpn_parallelism
+        requested_direct_parallelism = 1 if direct_parallelism is None else direct_parallelism
+    else:
+        requested_network_mode = network_mode or NetworkMode.VPN
+        requested_vpn_parallelism = 2 if vpn_parallelism is None else vpn_parallelism
+        requested_direct_parallelism = 0 if direct_parallelism is None else direct_parallelism
     authority = OperationAuthorityV1(
         repository=repository,
         workflow_path=".github/workflows/full-extraction.yml",
@@ -157,9 +167,9 @@ def _write_operation_authority(
         chain_id=TEST_CHAIN_ID,
         iteration=iteration,
         operation=operation,
-        requested_network_mode=NetworkMode.VPN,
-        requested_vpn_parallelism=vpn_parallelism,
-        requested_direct_parallelism=0,
+        requested_network_mode=requested_network_mode,
+        requested_vpn_parallelism=requested_vpn_parallelism,
+        requested_direct_parallelism=requested_direct_parallelism,
         max_iterations=1,
         retry_pipeline_failures=False,
         allow_re_extraction=False,
@@ -6301,7 +6311,7 @@ def test_plan_cli_rejects_operation_authority_runtime_or_lane_drift(
         full_extraction_main(args)
 
 
-def test_targeted_smoke_plan_emits_one_real_vpn_lane(
+def test_targeted_smoke_plan_emits_one_real_direct_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6312,7 +6322,6 @@ def test_targeted_smoke_plan_emits_one_real_vpn_lane(
         monkeypatch,
         operation=OperationKind.TARGETED_SMOKE,
         manifest_lane_count=1,
-        vpn_parallelism=1,
     )
     output_path = tmp_path / "manifest.json"
     assert (
@@ -6337,8 +6346,8 @@ def test_targeted_smoke_plan_emits_one_real_vpn_lane(
     assert payload["operation"] == "targeted_smoke"
     assert payload["operation_authority_sha256"] == authority.authority_sha256
     assert payload["matrix_lane_count"] == 1
-    assert payload["vpn_slot_count"] == 1
-    assert payload["direct_slot_count"] == 0
+    assert payload["vpn_slot_count"] == 0
+    assert payload["direct_slot_count"] == 1
 
 
 def test_capacity_blocked_projection_preserves_lanes_and_rejects_inventory_tamper(

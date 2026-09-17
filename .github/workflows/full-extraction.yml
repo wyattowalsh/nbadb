@@ -25,10 +25,11 @@ on:
           - moderate
           - aggressive
       vpn_parallelism:
-        description: "Configured-credential VPN lanes (default 2; explicit production override 1-6)"
+        description: "Configured-credential VPN lanes (default 2; explicit production override 0-6)"
         type: choice
         default: "2"
         options:
+          - "0"
           - "1"
           - "2"
           - "3"
@@ -67,12 +68,13 @@ on:
           - aggressive
           - turbo
       network_mode:
-        description: "Provider network route: VPN-only or bounded VPN-to-direct fallback"
+        description: "Provider network route: VPN-only, bounded VPN-to-direct fallback, or free/direct"
         type: choice
         default: auto
         options:
           - vpn
           - auto
+          - direct
       chunk_profile:
         description: "Temporal lane chunk sizing profile"
         type: choice
@@ -268,16 +270,24 @@ jobs:
             echo "::error::max_iterations must be an explicit positive integer"
             exit 1
           fi
-          if ! [[ "$VPN_PARALLELISM" =~ ^[1-6]$ ]] || ! [[ "$DIRECT_PARALLELISM" =~ ^[0-6]$ ]]; then
-            echo "::error::VPN/direct parallelism must be within the bounded 1-6/0-6 ranges"
+          if ! [[ "$VPN_PARALLELISM" =~ ^[0-6]$ ]] || ! [[ "$DIRECT_PARALLELISM" =~ ^[0-6]$ ]]; then
+            echo "::error::VPN/direct parallelism must be within the bounded 0-6/0-6 ranges"
             exit 1
           fi
-          if [ "$NETWORK_MODE" != "vpn" ] && [ "$NETWORK_MODE" != "auto" ]; then
-            echo "::error::network_mode must be exactly vpn or auto"
+          if [ "$NETWORK_MODE" != "vpn" ] && [ "$NETWORK_MODE" != "auto" ] && [ "$NETWORK_MODE" != "direct" ]; then
+            echo "::error::network_mode must be exactly vpn, auto, or direct"
             exit 1
           fi
           if [ "$NETWORK_MODE" = "vpn" ] && [ "$DIRECT_PARALLELISM" != "0" ]; then
             echo "::error::network_mode=vpn requires direct_parallelism=0"
+            exit 1
+          fi
+          if [ "$NETWORK_MODE" = "direct" ] && [ "$VPN_PARALLELISM" != "0" ]; then
+            echo "::error::network_mode=direct requires vpn_parallelism=0"
+            exit 1
+          fi
+          if [ "$NETWORK_MODE" = "direct" ] && [ "$DIRECT_PARALLELISM" = "0" ]; then
+            echo "::error::network_mode=direct requires direct_parallelism>=1"
             exit 1
           fi
           if [ "$FORCE_REEXTRACT" = "true" ] && [ "$OPERATION" != "extract" ]; then
@@ -309,8 +319,8 @@ jobs:
           fi
 
           if [ "$TARGETED_SMOKE" = "true" ]; then
-            if [ "$NETWORK_MODE" != "vpn" ] || [ "$VPN_PARALLELISM" != "1" ] || [ "$DIRECT_PARALLELISM" != "0" ]; then
-              echo "::error::targeted_smoke requires VPN-only 1/0 lane capacity"
+            if [ "$NETWORK_MODE" != "direct" ] || [ "$VPN_PARALLELISM" != "0" ] || [ "$DIRECT_PARALLELISM" != "1" ]; then
+              echo "::error::targeted_smoke requires free/direct-only 0/1 lane capacity"
               exit 1
             fi
             if [ "$OPERATION_MANIFEST_LANE_COUNT" != "1" ] || [ "$MAX_ITERATIONS" != "1" ]; then
@@ -1146,6 +1156,12 @@ jobs:
                   raise SystemExit(f"{name} must be a positive integer")
               return int(raw)
 
+          def nonnegative(name: str) -> int:
+              raw = os.environ[name].strip()
+              if re.fullmatch(r"0|[1-9][0-9]*", raw) is None:
+                  raise SystemExit(f"{name} must be a nonnegative integer")
+              return int(raw)
+
           operation = OperationKind(os.environ["OPERATION"])
           network_mode = NetworkMode(os.environ["NETWORK_MODE"])
           workflow_path = Path(".github/workflows/full-extraction.yml")
@@ -1232,8 +1248,8 @@ jobs:
               iteration=positive("ITERATION"),
               operation=operation,
               requested_network_mode=network_mode,
-              requested_vpn_parallelism=positive("VPN_PARALLELISM"),
-              requested_direct_parallelism=int(os.environ["DIRECT_PARALLELISM"]),
+              requested_vpn_parallelism=nonnegative("VPN_PARALLELISM"),
+              requested_direct_parallelism=nonnegative("DIRECT_PARALLELISM"),
               max_iterations=positive("MAX_ITERATIONS"),
               retry_pipeline_failures=os.environ["RETRY_PIPELINE_FAILURES"] == "true",
               allow_re_extraction=os.environ["ALLOW_REEXTRACTION"] == "true",
@@ -1654,12 +1670,12 @@ jobs:
              [ "$ACTIVE_LANE_COUNT" != "1" ] || \
              [ "$MATRIX_LANE_COUNT" != "1" ] || \
              [ "$DEFERRED_LANE_COUNT" != "0" ] || \
-             [ "$VPN_SLOT_COUNT" != "1" ] || \
+             [ "$VPN_SLOT_COUNT" != "0" ] || \
              [ "$OPERATION_AUTHORITY_STATUS" != "validated" ]; then
-            echo "::error::Targeted smoke must execute one exact VPN-authorized lane"
+            echo "::error::Targeted smoke must execute one exact free/direct lane"
             exit 1
           fi
-          echo "::notice::Targeted smoke admitted one diagnostic VPN-authorized lane"
+          echo "::notice::Targeted smoke admitted one diagnostic free/direct lane"
 
       - name: Plan summary
         run: |
