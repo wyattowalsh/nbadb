@@ -1779,6 +1779,18 @@ def test_pre_admission_jobs_have_no_unauthorized_external_mutation_surface() -> 
         assert forbidden_command not in pre_admission_scripts
 
 
+def test_full_extraction_action_pins_are_full_forty_char_shas() -> None:
+    workflow = _workflow_text()
+    pins = re.findall(r"(?m)^\s+uses: ([^@\s]+@[0-9a-fA-F]+)", workflow)
+    download_artifact = "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+    truncated = [pin for pin in pins if len(pin.rsplit("@", 1)[1]) != 40]
+    download_pins = [pin for pin in pins if pin.startswith("actions/download-artifact@")]
+    assert pins
+    assert truncated == []
+    assert download_pins
+    assert all(pin == download_artifact for pin in download_pins)
+
+
 def test_provider_work_and_mutations_are_unreachable_from_blocked_plan() -> None:
     workflow = _workflow_text()
     plan = _job_block(workflow, "plan")
