@@ -6350,6 +6350,122 @@ def test_targeted_smoke_plan_emits_one_real_direct_lane(
     assert payload["direct_slot_count"] == 1
 
 
+def test_resume_cli_accepts_targeted_smoke_authority_for_terminal_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    support_matrix_path, admission_path = _write_fresh_plan_inputs(tmp_path)
+    authority_path = tmp_path / "authority.json"
+    authority = _write_operation_authority(
+        authority_path,
+        monkeypatch,
+        operation=OperationKind.TARGETED_SMOKE,
+        manifest_lane_count=1,
+    )
+    current_manifest_path = tmp_path / "current-manifest.json"
+    assert (
+        full_extraction_main(
+            [
+                "plan",
+                "--operation-authority-path",
+                str(authority_path),
+                "--support-matrix-path",
+                str(support_matrix_path),
+                "--assurance-admission-path",
+                str(admission_path),
+                "--chain-id",
+                TEST_CHAIN_ID,
+                "--output-path",
+                str(current_manifest_path),
+            ]
+        )
+        == 0
+    )
+    current_payload = json.loads(current_manifest_path.read_text(encoding="utf-8"))
+    lane_id = current_payload["github_matrix"]["include"][0]["lane_id"]
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(metadata_dir / "lane.json", lane_id=lane_id, status="complete")
+    next_manifest_path = tmp_path / "next-manifest.json"
+    assert (
+        full_extraction_main(
+            [
+                "resume",
+                "--operation-authority-path",
+                str(authority_path),
+                "--lane-manifest-path",
+                str(current_manifest_path),
+                "--metadata-dir",
+                str(metadata_dir),
+                "--completed-artifact-run-id",
+                TEST_RUN_ID,
+                "--vpn-slot-count",
+                "0",
+                "--output-path",
+                str(next_manifest_path),
+            ]
+        )
+        == 0
+    )
+    next_payload = json.loads(next_manifest_path.read_text(encoding="utf-8"))
+    assert next_payload["operation"] == "targeted_smoke"
+    assert next_payload["operation_authority_sha256"] == authority.authority_sha256
+    assert next_payload["active_lane_count"] == 0
+    assert next_payload["resume_only_lane_count"] == 1
+    assert next_payload["matrix_lane_count"] == 0
+    assert next_payload["github_matrix"]["include"] == []
+    assert next_payload["vpn_slot_count"] == 0
+
+
+def test_resume_cli_rejects_extract_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    support_matrix_path, admission_path = _write_fresh_plan_inputs(tmp_path)
+    authority_path = tmp_path / "authority.json"
+    _write_operation_authority(
+        authority_path,
+        monkeypatch,
+        operation=OperationKind.EXTRACT,
+        manifest_lane_count=1,
+    )
+    current_manifest_path = tmp_path / "current-manifest.json"
+    assert (
+        full_extraction_main(
+            [
+                "plan",
+                "--operation-authority-path",
+                str(authority_path),
+                "--support-matrix-path",
+                str(support_matrix_path),
+                "--assurance-admission-path",
+                str(admission_path),
+                "--chain-id",
+                TEST_CHAIN_ID,
+                "--output-path",
+                str(current_manifest_path),
+            ]
+        )
+        == 0
+    )
+    with pytest.raises(
+        ValueError, match="must select one of continue, targeted_smoke; got extract"
+    ):
+        full_extraction_main(
+            [
+                "resume",
+                "--operation-authority-path",
+                str(authority_path),
+                "--lane-manifest-path",
+                str(current_manifest_path),
+                "--metadata-dir",
+                str(tmp_path / "metadata"),
+                "--output-path",
+                str(tmp_path / "next-manifest.json"),
+            ]
+        )
+
+
 def test_capacity_blocked_projection_preserves_lanes_and_rejects_inventory_tamper(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

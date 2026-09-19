@@ -2908,10 +2908,20 @@ def _bind_operation_authority(
     matrix = payload.get("github_matrix")
     include = matrix.get("include") if isinstance(matrix, dict) else None
     if authority.operation in {OperationKind.EXTRACT, OperationKind.TARGETED_SMOKE}:
-        if not isinstance(include, list) or not include:
+        if not isinstance(include, list):
             raise ValueError(f"{authority.operation.value} requires a nonempty real matrix")
-        if len(include) != authority.manifest_lane_count:
-            raise ValueError("operation authority lane count differs from the emitted matrix")
+        if include:
+            if len(include) != authority.manifest_lane_count:
+                raise ValueError("operation authority lane count differs from the emitted matrix")
+        elif authority.operation is OperationKind.TARGETED_SMOKE:
+            if payload.get("active_lane_count") != 0:
+                raise ValueError("targeted_smoke terminal resume requires zero active lanes")
+            if payload.get("resume_only_lane_count") != authority.manifest_lane_count:
+                raise ValueError(
+                    "targeted_smoke terminal resume lane count differs from operation authority"
+                )
+        else:
+            raise ValueError(f"{authority.operation.value} requires a nonempty real matrix")
     expected_vpn_slots = min(authority.requested_vpn_parallelism, len(include or ()))
     if payload.get("vpn_slot_count") != expected_vpn_slots:
         raise ValueError("operation authority VPN parallelism differs from the emitted manifest")
@@ -9571,7 +9581,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         raise ValueError(msg)
     authority = _load_current_operation_authority(
         args.operation_authority_path,
-        allowed_operations=frozenset({OperationKind.CONTINUE}),
+        allowed_operations=frozenset({OperationKind.CONTINUE, OperationKind.TARGETED_SMOKE}),
     )
     if (
         args.vpn_slot_count is not None
