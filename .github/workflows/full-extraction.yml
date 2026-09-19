@@ -6551,6 +6551,13 @@ jobs:
             exit 1
           fi
           cp "$manifest_path" artifacts/full-extraction/current-manifest.json
+          authority_path="$(find plan-artifact -name operation-authority.json -type f -print -quit)"
+          if [ -z "$authority_path" ]; then
+            echo "::error::Plan artifact did not contain operation-authority.json"
+            find plan-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          cp "$authority_path" artifacts/full-extraction/operation-authority.json
           uv run python - <<'PY'
           # PREFLIGHT_QUARANTINE_PERSISTENCE
           import json
@@ -6653,6 +6660,7 @@ jobs:
           export CHECKPOINT_ARTIFACT_NAME CHECKPOINT_GENERATION
           common_resume_args=(
             resume
+            --operation-authority-path artifacts/full-extraction/operation-authority.json
             --lane-manifest-path artifacts/full-extraction/current-manifest.json
             --metadata-dir lane-metadata
             --completed-artifact-run-id "${{ github.run_id }}"

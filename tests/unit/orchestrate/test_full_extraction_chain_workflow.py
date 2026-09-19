@@ -8723,6 +8723,25 @@ def test_extract_free_direct_slot_uses_one_non_cancelling_serial_queue() -> None
     assert "max-parallel: 1" in extract
     assert "'token' && '1' || inputs.vpn_parallelism" not in extract_strategy
     assert "--vpn-slot-count 0" in lane_control
+    assert (
+        'authority_path="$(find plan-artifact -name operation-authority.json -type f -print -quit)"'
+        in lane_control
+    )
+    assert 'cp "$authority_path" artifacts/full-extraction/operation-authority.json' in lane_control
+    assert (
+        "--operation-authority-path artifacts/full-extraction/operation-authority.json"
+        in lane_control
+    )
+
+
+def test_lane_control_resume_requires_plan_artifact_operation_authority() -> None:
+    prepare = _step_block(_job_block(_workflow_text(), "lane_control"), "Prepare next manifest")
+    assert "find plan-artifact -name operation-authority.json -type f -print -quit" in prepare
+    assert "Plan artifact did not contain operation-authority.json" in prepare
+    assert (
+        "--operation-authority-path artifacts/full-extraction/operation-authority.json" in prepare
+    )
+    assert '--operation-authority-path "$OPERATION_AUTHORITY_PATH"' not in prepare
 
 
 def test_network_mode_resolution_rejects_unattested_connected_tunnels(
